@@ -4,9 +4,9 @@ import RedirectIfAuth from "./routes/RedirectIfAuth";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
-import NavBar from "./components/NavBar";
+import NavBar from "./components/layout/NavBar";
 import { Box, Heading, Text } from "@chakra-ui/react";
-
+import DriverSchedule from "./pages/DriverSchedule";
 function Home() {
   return (
     <Box p={6}>
@@ -41,6 +41,8 @@ export default function App() {
             </RedirectIfAuth>
           }
         />
+
+        <Route path="/driver-schedule" element={<DriverSchedule/>} />
 
         <Route element={<RequireAuth />}>
           <Route path="/dashboard" element={<Dashboard />} />

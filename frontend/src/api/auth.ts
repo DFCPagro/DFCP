@@ -1,4 +1,4 @@
-import { api } from "../lib/axios";
+import { api } from "./config";
 import type { AuthResponse, MeResponse } from "../types/auth";
 
 export type LoginPayload = { email: string; password: string };

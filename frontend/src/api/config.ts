@@ -1,17 +1,19 @@
-// src/lib/axios.ts
 import axios, { AxiosError } from "axios";
+import type { AxiosRequestHeaders } from "axios";
 import { useAuthStore } from "../store/auth";
+import { VITE_API_URL } from "@/helpers/env";
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? "http://localhost:4000",
+  baseURL: VITE_API_URL,
   withCredentials: false,
 });
 
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
   if (token) {
-    config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${token}`;
+    const headers = (config.headers ?? {}) as AxiosRequestHeaders;
+    headers.Authorization = `Bearer ${token}`;
+    config.headers = headers;
   }
   return config;
 });
