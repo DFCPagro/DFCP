@@ -2,37 +2,69 @@ import * as React from "react";
 import {
   Button,
   Text,
-  Grid,
-  GridItem,
   Badge,
   Box,
   HStack,
   VStack,
   Table,
-  Checkbox,
   Dialog,
+  Tooltip, // using Chakra v3 compound: <Tooltip.Root>... if desired
 } from "@chakra-ui/react";
 import {
   SHIFTS,
-  bitForShiftIndex,
   daysShort,
   monthName,
   nextMonthOf,
-  simpleChipsLabel,
   useScheduleStore,
 } from "@/store/scheduleStore";
-import { Tooltip } from "@chakra-ui/react";
+import type { ShiftState } from "@/store/scheduleStore";
+import {
+  SHIFT_STATE,
+  getShiftState,
+  setShiftState,
+  countPicked,
+} from "@/store/scheduleStore";
+import MonthGrid from "./MonthGrid";
+import { X } from "lucide-react";
+import { StyledIconButton } from "@/components/ui/IconButton";
+
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSaved?: (payload: { year: number; month: number; days: number[] }) => void; // <- NEW
+  onSaved?: (payload: { year: number; month: number; days: number[] }) => void;
 };
 
-const countMask = (mask: number) =>
-  (mask & 8 ? 1 : 0) +
-  (mask & 4 ? 1 : 0) +
-  (mask & 2 ? 1 : 0) +
-  (mask & 1 ? 1 : 0);
+/** Tri-state chip used in Step 1 table cells (cycles Off → On → Standby). */
+function TriCell({
+  value,
+  onChange,
+}: {
+  value: ShiftState;
+  onChange: (next: ShiftState) => void;
+}) {
+  const isOn = value === SHIFT_STATE.ON;
+  const isS = value === SHIFT_STATE.STANDBY;
+  return (
+    <Badge
+      as="button"
+      variant={isOn ? "solid" : "outline"}
+      colorPalette={isOn || isS ? "blue" : "gray"}
+      borderStyle={isS ? "dashed" : undefined}
+      onClick={() =>
+        onChange(
+          value === SHIFT_STATE.OFF
+            ? SHIFT_STATE.ON
+            : value === SHIFT_STATE.ON
+              ? SHIFT_STATE.STANDBY
+              : SHIFT_STATE.OFF
+        )
+      }
+      aria-label={isOn ? "On" : isS ? "Standby" : "Off"}
+    >
+      {isOn ? "On" : isS ? "S" : "Off"}
+    </Badge>
+  );
+}
 
 export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
   const weeklyPattern = useScheduleStore((s) => s.weeklyPattern);
@@ -50,7 +82,7 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
   );
   const [monthArr, setMonthArr] = React.useState<number[]>([]);
 
-  // build preview array for step 2
+  // build preview array for step 2 from weekly pattern
   React.useEffect(() => {
     if (step !== 2) return;
     const len = new Date(y, m, 0).getDate();
@@ -69,18 +101,6 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
       label: `${monthName(m)} ${i + 1}`,
     }));
   }, [y, m]);
-
-  const toggleDay = React.useCallback(
-    (idx: number) => {
-      setMonthArr((prev) => {
-        const copy = [...prev];
-        const base = pattern[dayMeta[idx].dow] || 0;
-        copy[idx] = copy[idx] ? 0 : base;
-        return copy;
-      });
-    },
-    [pattern, dayMeta]
-  );
 
   const setAll = React.useCallback(
     (on: boolean) => {
@@ -104,10 +124,11 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
     [pattern, dayMeta]
   );
 
+  // Tri-state aware totals: "picks" = On + Standby
   const totals = React.useMemo(() => {
-    const daysActive = monthArr.filter((m) => m).length;
-    const totalShifts = monthArr.reduce((acc, m) => acc + countMask(m), 0);
-    return { daysActive, totalShifts };
+    const daysActive = monthArr.filter((m) => countPicked(m) > 0).length;
+    const totalPicks = monthArr.reduce((acc, m) => acc + countPicked(m), 0);
+    return { daysActive, totalPicks };
   }, [monthArr]);
 
   const handleSave = () => {
@@ -117,10 +138,9 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
 
     onSaved?.(payload); // notify parent
     setStep(1); // reset internal step for the next open
-    // DO NOT call onClose() here if parent handles closing in onSaved
   };
 
-  // reset state when dialog closes
+  // reset internal state when dialog closes
   React.useEffect(() => {
     if (!open) {
       setStep(1);
@@ -132,27 +152,37 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // correct v3 Dialog onOpenChange contract
-  const handleOpenChange = (details: { open: boolean }) => {
-    if (!details.open) onClose();
-  };
-
   return (
-    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(e) => !e.open && onClose()}
+      closeOnInteractOutside={false}
+      closeOnEscape={false}
+    >
       <Dialog.Backdrop />
       <Dialog.Positioner>
-        <Dialog.Content maxW="5xl">
-          <Dialog.CloseTrigger />
+        <Dialog.Content maxW="5xl" position="relative">
+          <Dialog.CloseTrigger asChild>
+            <StyledIconButton
+              aria-label="Close dialog"
+              variant="ghost"
+              size="sm"
+            >
+              <X />
+            </StyledIconButton>
+          </Dialog.CloseTrigger>
+
           <Dialog.Header>
             <Dialog.Title>Plan Next Month</Dialog.Title>
             <Text color="gray.600" mt={1}>
               {step === 1
-                ? "Step 1 of 2 — Pick weekly pattern (shifts per weekday)"
-                : "Step 2 of 2 — Uncheck days you don’t want to work"}
+                ? "Step 1 of 2 — Pick weekly pattern (max 2 picks per weekday)"
+                : "Step 2 of 2 — Review month (cycle chips Off → On → Standby; max 2 per day)"}
             </Text>
           </Dialog.Header>
 
           <Dialog.Body>
+            {/* STEP 1: weekly pattern (tri-state per shift per weekday) */}
             {step === 1 && (
               <VStack align="stretch" gap={4}>
                 <Table.Root size="sm" variant="line">
@@ -166,6 +196,7 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
                       ))}
                     </Table.Row>
                   </Table.Header>
+
                   <Table.Body>
                     {SHIFTS.map((s, si) => (
                       <Table.Row key={s.name}>
@@ -177,33 +208,33 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
                             </Text>
                           </VStack>
                         </Table.Cell>
+
                         {Array.from({ length: 7 }, (_, dow) => {
-                          const checked =
-                            (pattern[dow] & bitForShiftIndex(si)) !== 0;
+                          const curMask = pattern[dow] ?? 0;
+                          const cur = getShiftState(curMask, si);
+                          const pickedCount = countPicked(curMask); // On + Standby
                           return (
                             <Table.Cell key={`${si}-${dow}`} textAlign="center">
-                              <Checkbox.Root
-                                checked={checked}
-                                onCheckedChange={(v) => {
-                                  const isChecked =
-                                    (typeof v === "boolean"
-                                      ? v
-                                      : v?.checked) === true;
-                                  const next = [...pattern];
-                                  if (isChecked)
-                                    next[dow] =
-                                      next[dow] | bitForShiftIndex(si);
-                                  else
-                                    next[dow] =
-                                      next[dow] & ~bitForShiftIndex(si);
-                                  setPattern(next);
+                              <TriCell
+                                value={cur}
+                                onChange={(next) => {
+                                  // enforce max 2 picks for that weekday
+                                  const wasPicked = cur !== SHIFT_STATE.OFF;
+                                  const willPicked = next !== SHIFT_STATE.OFF;
+                                  const delta =
+                                    (willPicked ? 1 : 0) - (wasPicked ? 1 : 0);
+                                  if (pickedCount + delta > 2) return;
+
+                                  const nextMask = setShiftState(
+                                    curMask,
+                                    si,
+                                    next
+                                  );
+                                  const copy = [...pattern];
+                                  copy[dow] = nextMask;
+                                  setPattern(copy);
                                 }}
-                                aria-label={`${s.name} on ${daysShort[dow]}`}
-                              >
-                                <Checkbox.Control>
-                                  <Checkbox.Indicator />
-                                </Checkbox.Control>
-                              </Checkbox.Root>
+                              />
                             </Table.Cell>
                           );
                         })}
@@ -214,6 +245,7 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
               </VStack>
             )}
 
+            {/* STEP 2: month preview/edit (tri-state MonthGrid enforces max 2 per day) */}
             {step === 2 && (
               <VStack align="stretch" gap={3}>
                 <HStack gap={2} wrap="wrap">
@@ -246,92 +278,18 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
                     Clear all
                   </Button>
                   <Text fontSize="sm" color="gray.600">
-                    Click a day to toggle work on/off. Weekday shifts are
-                    restored when toggling back on.
+                    Tip: click a chip to cycle Off → On → Standby (max 2 per
+                    day).
                   </Text>
                 </HStack>
 
-                <Text fontWeight="semibold" mt={1}>
-                  {monthName(m)} {y}
-                </Text>
-
-                <Box maxH="60vh" overflow="auto" pr={1}>
-                  <Grid templateColumns="repeat(7, 1fr)" gap={2}>
-                    {daysShort.map((h) => (
-                      <GridItem
-                        key={h}
-                        bg="gray.50"
-                        border="1px"
-                        borderColor="gray.200"
-                        rounded="md"
-                        p={2}
-                        textAlign="center"
-                        fontWeight="bold"
-                      >
-                        {h}
-                      </GridItem>
-                    ))}
-
-                    {(() => {
-                      const firstDow = new Date(y, m - 1, 1).getDay();
-                      const blanks = Array.from(
-                        { length: firstDow },
-                        (_, i) => (
-                          <GridItem
-                            key={`b${i}`}
-                            rounded="md"
-                            p={2}
-                            border="1px"
-                            borderColor="gray.100"
-                          />
-                        )
-                      );
-                      const cells = monthArr.map((mask, idx) => {
-                        const pressed = !!mask;
-                        // button semantics for keyboard + a11y
-                        return (
-                          <GridItem key={idx} p={0}>
-                            <Box
-                              as="button"
-                              onClick={() => toggleDay(idx)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  toggleDay(idx);
-                                }
-                              }}
-                              aria-pressed={pressed}
-                              aria-label={`Toggle ${dayMeta[idx].label}`}
-                              w="100%"
-                              textAlign="left"
-                              border="1px"
-                              borderColor="gray.200"
-                              rounded="md"
-                              p={2}
-                              _hover={{ bg: "gray.50" }}
-                            >
-                              <Box
-                                textAlign="right"
-                                fontSize="sm"
-                                color="gray.600"
-                              >
-                                {idx + 1}
-                              </Box>
-                              <Badge
-                                mt={1}
-                                variant={pressed ? "solid" : "subtle"}
-                                colorPalette={pressed ? "green" : "gray"}
-                              >
-                                {simpleChipsLabel(mask)}
-                              </Badge>
-                            </Box>
-                          </GridItem>
-                        );
-                      });
-                      return [...blanks, ...cells];
-                    })()}
-                  </Grid>
-                </Box>
+                <MonthGrid
+                  year={y}
+                  month={m}
+                  days={monthArr}
+                  editable
+                  onDaysChange={setMonthArr}
+                />
               </VStack>
             )}
           </Dialog.Body>
@@ -340,7 +298,7 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
             {step === 2 ? (
               <Text fontSize="sm" color="gray.600">
                 <strong>{totals.daysActive}</strong> working days •{" "}
-                <strong>{totals.totalShifts}</strong> total shifts
+                <strong>{totals.totalPicks}</strong> total picks
               </Text>
             ) : (
               <Box />
@@ -360,17 +318,16 @@ export default function PlanNextMonthDialog({ open, onClose, onSaved }: Props) {
                 <Button variant="ghost" onClick={() => setStep(1)}>
                   Back
                 </Button>
+
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button colorPalette="blue" onClick={handleSave}>
                       Save
                     </Button>
                   </Tooltip.Trigger>
-                  {totals.daysActive === 0 && (
-                    <Tooltip.Content>
-                      You can still save an all-off month
-                    </Tooltip.Content>
-                  )}
+                  <Tooltip.Content>
+                    You can save now. (Limits are enforced while editing.)
+                  </Tooltip.Content>
                 </Tooltip.Root>
               </HStack>
             )}
