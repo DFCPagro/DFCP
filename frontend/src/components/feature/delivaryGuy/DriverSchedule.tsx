@@ -14,7 +14,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 
 import { monthName } from "@/store/scheduleStore";
-import PlanNextMonthDialog from "@/components/feature/delivaryGuy/PlanNextMonthDialog";
+import PlanNextMonthDialog from "@/components/feature/delivaryGuy/plan-next-month";
 
 import { useDisclosure } from "@chakra-ui/react";
 import { useToday } from "@/hooks/useToday";
@@ -23,7 +23,7 @@ import { toastSaved, toastCanceled } from "@/utils/toast";
 
 import TodayTable from "./TodayTable";
 import UpcomingTable from "./UpcomingTable";
-import MonthGrid from "./MonthGrid";
+import MonthGrid from "./month-grid/MonthGrid";
 
 export default function DriverSchedule() {
   const { open, onOpen, onClose } = useDisclosure();

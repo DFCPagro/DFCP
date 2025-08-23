@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import NavBar from "./components/layout/NavBar";
 import { Box, Heading, Text } from "@chakra-ui/react";
 import DriverSchedule from "./pages/DriverSchedule";
+
 function Home() {
   return (
     <Box p={6}>

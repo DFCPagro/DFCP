@@ -1,30 +1,47 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState } from "react";
 import {
-  Heading, HStack, Button, VStack, Card, IconButton, Separator, SimpleGrid,
-} from '@chakra-ui/react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Tooltip } from '@/components/ui/tooltip';
+  Box,
+  Heading,
+  HStack,
+  Button,
+  VStack,
+  Card,
+  IconButton,
+  Separator,
+  SimpleGrid,
+  useDisclosure,
+} from "@chakra-ui/react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Tooltip } from "@/components/ui/tooltip";
 
-import { monthName } from '@/store/scheduleStore';
-import PlanNextMonthDialog from '@/components/feature/delivaryGuy/PlanNextMonthDialog';
+import { monthName } from "@/store/scheduleStore";
+import PlanNextMonthDialog from "@/components/feature/delivaryGuy/plan-next-month";
 
-import { useDisclosure } from '@chakra-ui/react';
-import { useToday } from '@/hooks/useToday';
-import { getNextMonth, getPrevMonth, fmtTodayChip } from '@/utils/date';
-import { toastSaved, toastCanceled } from '@/utils/toast';
+import { useToday } from "@/hooks/useToday";
+import { getNextMonth, getPrevMonth, fmtTodayChip } from "@/utils/date";
+import { toastSaved, toastCanceled } from "@/utils/toast";
 
-import TodayTable from '@/components/feature/delivaryGuy/TodayTable';
-import UpcomingTable from '@/components/feature/delivaryGuy/UpcomingTable';
-import MonthGrid from '@/components/feature/delivaryGuy/MonthGrid';
+import TodayTable from "@/components/feature/delivaryGuy/TodayTable";
+import UpcomingTable from "@/components/feature/delivaryGuy/UpcomingTable";
+import MonthGrid from "@/components/feature/delivaryGuy/month-grid/MonthGrid";
 
 export default function DriverSchedule() {
   const { open, onOpen, onClose } = useDisclosure();
   const today = useToday();
 
-  const [view, setView] = useState({ y: today.getFullYear(), m: today.getMonth() + 1 });
+  const [view, setView] = useState({
+    y: today.getFullYear(),
+    m: today.getMonth() + 1,
+  });
 
-  const gotoPrev = useCallback(() => setView(v => getPrevMonth(v.y, v.m)), []);
-  const gotoNext = useCallback(() => setView(v => getNextMonth(v.y, v.m)), []);
+  const gotoPrev = useCallback(
+    () => setView((v) => getPrevMonth(v.y, v.m)),
+    []
+  );
+  const gotoNext = useCallback(
+    () => setView((v) => getNextMonth(v.y, v.m)),
+    []
+  );
   const gotoToday = useCallback(() => {
     const d = new Date();
     setView({ y: d.getFullYear(), m: d.getMonth() + 1 });
@@ -41,26 +58,38 @@ export default function DriverSchedule() {
               <Separator orientation="vertical" />
               <HStack gap={1}>
                 <Tooltip content="Previous month (←)">
-                  <IconButton aria-label="Previous month" size="sm" onClick={gotoPrev}>
+                  <IconButton
+                    aria-label="Previous month"
+                    size="sm"
+                    onClick={gotoPrev}
+                  >
                     <ChevronLeft />
                   </IconButton>
                 </Tooltip>
 
-                <Tooltip content={`Go to current month • ${fmtTodayChip(today)}`}>
+                <Tooltip
+                  content={`Go to current month • ${fmtTodayChip(today)}`}
+                >
                   <Button size="sm" variant="outline" onClick={gotoToday}>
                     {monthName(view.m)} {view.y}
                   </Button>
                 </Tooltip>
 
                 <Tooltip content="Next month (→)">
-                  <IconButton aria-label="Next month" size="sm" onClick={gotoNext}>
+                  <IconButton
+                    aria-label="Next month"
+                    size="sm"
+                    onClick={gotoNext}
+                  >
                     <ChevronRight />
                   </IconButton>
                 </Tooltip>
               </HStack>
             </HStack>
             <HStack>
-              <Button colorPalette="blue" onClick={onOpen}>Plan Next Month</Button>
+              <Button colorPalette="blue" onClick={onOpen}>
+                Plan Next Month
+              </Button>
             </HStack>
           </HStack>
         </Card.Body>
@@ -72,7 +101,7 @@ export default function DriverSchedule() {
         <UpcomingTable />
       </SimpleGrid>
 
-      <MonthGrid year={view.y} month={view.m} />
+      <MonthGrid year={view.y} month={view.m} showActions />
 
       {/* Modal */}
       <PlanNextMonthDialog
