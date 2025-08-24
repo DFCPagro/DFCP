@@ -7,7 +7,7 @@ import {
   setShiftState,
   countPicked,
 } from "@/store/scheduleStore";
-import TriCell from "../TriCell";
+import TriCell from "./TriCell";
 
 /** Step 1: weekly pattern matrix (shifts × 7 days), responsive & no horizontal scroll on mobile. */
 export default function Step1WeeklyTable({

@@ -1,7 +1,7 @@
 import { VStack } from "@chakra-ui/react";
 import MonthGrid from "@/components/feature/delivaryGuy/month-grid/";
 
-export default function Step2Review({
+export default function MonthReview({
   y,
   m,
   monthArr,

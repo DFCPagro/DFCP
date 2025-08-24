@@ -15,7 +15,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 
 import { monthName } from "@/store/scheduleStore";
-import PlanNextMonthDialog from "@/components/feature/delivaryGuy/plan-next-month";
+import PlanNextMonthDialog from "@/components/feature/delivaryGuy/plan-month";
 
 import { useToday } from "@/hooks/useToday";
 import { getNextMonth, getPrevMonth, fmtTodayChip } from "@/utils/date";
@@ -103,7 +103,6 @@ export default function DriverSchedule() {
 
       <MonthGrid year={view.y} month={view.m} showActions />
 
-      {/* Modal */}
       <PlanNextMonthDialog
         open={open}
         onClose={() => {
@@ -114,6 +113,7 @@ export default function DriverSchedule() {
           onClose();
           toastSaved(payload.year, payload.month, payload.days.length);
         }}
+        role="X" // or "Y"
       />
     </VStack>
   );
