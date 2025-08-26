@@ -14,21 +14,33 @@ import {
   Input,
 } from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster";
+import type { FormEvent } from "react";
+import { PATHS } from "@/routes/paths";
+import type { User } from "@/types/auth";
+
+type LoginForm = { email: string; password: string };
+type LoginResponse = { user: User; token: string };
+
+// If you want to avoid casting at call sites:
+type RouteState = { from?: { pathname?: string } } | null;
 
 export default function Login() {
   const navigate = useNavigate();
-  const { state } = useLocation() as { state?: { from?: { pathname?: string } } };
+  const location = useLocation();
+  const state = (location.state as RouteState) ?? null;
+
   const setAuth = useAuthStore((s) => s.setAuth);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const { mutate, isPending } = useMutation({
+  const { mutate, isPending } = useMutation<LoginResponse, unknown, LoginForm>({
     mutationFn: loginApi,
     onSuccess: ({ user, token }) => {
       setAuth({ user, token });
       toaster.create({ title: "Welcome back!", type: "success" });
-      const to = state?.from?.pathname ?? "/dashboard";
+
+      const to = state?.from?.pathname ?? PATHS.home;
       navigate(to, { replace: true });
     },
     onError: (err: any) => {
@@ -37,7 +49,7 @@ export default function Login() {
     },
   });
 
-  const submit = (e: React.FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
     mutate({ email, password });
   };
@@ -53,6 +65,8 @@ export default function Login() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
           />
         </Field.Root>
 
@@ -62,19 +76,20 @@ export default function Login() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
           />
         </Field.Root>
 
-        {/* v3: Button -> use `loading` (not `isLoading`) */}
+        {/* Chakra UI v3 Button uses `loading` */}
         <Button type="submit" loading={isPending} width="full">
           Sign in
         </Button>
 
         <Text fontSize="sm">
           No account?{" "}
-          {/* v3: compose router links via `asChild` */}
           <CLink asChild color="blue.400">
-            <RouterLink to="/register">Register</RouterLink>
+            <RouterLink to={PATHS.register}>Register</RouterLink>
           </CLink>
         </Text>
       </VStack>
