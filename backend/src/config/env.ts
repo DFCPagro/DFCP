@@ -1,6 +1,7 @@
 // src/config/env.ts
 import dotenv from "dotenv";
 import { z } from "zod";
+
 dotenv.config();
 
 const EnvSchema = z.object({
@@ -8,6 +9,7 @@ const EnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+  API_PREFIX: z.string().default("/api/v1"),
   MONGODB_URI: z.string().url().or(z.string().startsWith("mongodb")),
   JWT_ACCESS_SECRET: z.string().min(1),
   JWT_REFRESH_SECRET: z.string().min(1),
@@ -29,23 +31,27 @@ if (!parsed.success) {
   );
   process.exit(1);
 }
+
 const cfg = parsed.data;
-// Named exports (preferred in most files)
+
+// Named exports
 export const PORT = cfg.PORT;
 export const NODE_ENV = cfg.NODE_ENV;
+export const API_PREFIX = cfg.API_PREFIX;
 export const MONGODB_URI = cfg.MONGODB_URI;
 export const JWT_ACCESS_SECRET = cfg.JWT_ACCESS_SECRET;
 export const JWT_REFRESH_SECRET = cfg.JWT_REFRESH_SECRET;
 export const JWT_ACCESS_EXPIRES_IN = cfg.JWT_ACCESS_EXPIRES_IN;
 export const JWT_REFRESH_EXPIRES_IN = cfg.JWT_REFRESH_EXPIRES_IN;
 export const CORS_ORIGIN = cfg.CORS_ORIGIN;
-export const COOKIE_SECURE = String(cfg.COOKIE_SECURE).toLowerCase() === 'true'
+export const COOKIE_SECURE = cfg.COOKIE_SECURE;
 export const COOKIE_DOMAIN = cfg.COOKIE_DOMAIN;
 
-// Optional grouped export for places you like namespacing
+// Optional grouped export
 export const env = {
   PORT,
   NODE_ENV,
+  API_PREFIX,
   MONGODB_URI,
   JWT_ACCESS_SECRET,
   JWT_REFRESH_SECRET,

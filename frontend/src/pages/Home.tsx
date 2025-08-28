@@ -7,9 +7,9 @@ export default function Home() {
       <Heading size="lg">Home</Heading>
       <Text mt={2}>
         This is public. Try the{" "}
-        {/* <CLink as={Link}>
+        <CLink asChild>
           <Link to="/dashboard">Dashboard</Link>
-        </CLink> */}
+        </CLink>
         .
       </Text>
     </Box>

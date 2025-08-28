@@ -1,8 +1,8 @@
-import 'dotenv/config';
-import app from './app';
-import connectDB from './config/db';
-import logger from './config/logger';
-import { PORT } from './config/env';
+import "dotenv/config";
+import app from "./app";
+import { connectDB } from "./db/connect";
+import logger from "./config/logger";
+import { PORT } from "./config/env";
 
 (async () => {
   try {
@@ -12,7 +12,7 @@ import { PORT } from './config/env';
     });
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error('Failed to start server', err);
+    console.error("Failed to start server", err);
     process.exit(1);
   }
 })();

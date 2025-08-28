@@ -27,7 +27,6 @@ src/
   app.ts
   server.ts
   config/
-    db.ts
     logger.ts
   controllers/
     auth.controller.ts
