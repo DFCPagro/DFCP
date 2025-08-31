@@ -37,7 +37,6 @@ export const register = catchAsync(async (req: Request, res: Response) => {
 });
 
 export const login = catchAsync(async (req: Request, res: Response) => {
-  console.log("hi from login")
   const { user, accessToken, refreshToken } = await loginSvc(req.body);
   await tokenService.storeRefreshToken(refreshToken, user.id, {
     userAgent: req.get("user-agent") || undefined,

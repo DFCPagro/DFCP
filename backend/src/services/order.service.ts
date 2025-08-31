@@ -1,54 +1,10 @@
-import mongoose, { ClientSession, Types } from 'mongoose';
+import { ClientSession, Types } from 'mongoose';
 import Order, { IOrder } from '../models/order.model';
 import QrToken from '../models/QrToken.model';
-
-const APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
-
-/* -------------------------- helpers --------------------------- */
-
-const randToken = () => cryptoRandom(24); // ~192-bit base64url
-
-function cryptoRandom(bytes: number) {
-  const nodeCrypto = (global as any).crypto ?? require('crypto');
-  if (nodeCrypto?.webcrypto?.getRandomValues) {
-    const arr = new Uint8Array(bytes);
-    nodeCrypto.webcrypto.getRandomValues(arr);
-    return Buffer.from(arr).toString('base64url');
-  }
-  return require('crypto').randomBytes(bytes).toString('base64url');
-}
-
-const toObjectId = (v?: string) => (v ? new Types.ObjectId(v) : undefined);
-
-const buildQrUrls = (opsToken: string, customerToken: string) => ({
-  opsUrl: `${APP_URL}/o/${opsToken}`,
-  customerUrl: `${APP_URL}/r/${customerToken}`,
-});
-
-// Run a function inside a transaction if supported, otherwise without a session
-async function withOptionalTxn<T>(fn: (session?: ClientSession) => Promise<T>): Promise<T> {
-  let session: ClientSession | undefined;
-  try {
-    session = await mongoose.startSession();
-    session.startTransaction();
-    const result = await fn(session);
-    await session.commitTransaction();
-    return result;
-  } catch (err: any) {
-    if (session) {
-      try { await session.abortTransaction(); } catch {}
-      session.endSession();
-    }
-    const msg = String(err?.message || '');
-    // Fallback if transactions aren’t supported locally
-    if (msg.includes('Transaction numbers are only allowed on a replica set') || err?.code === 20) {
-      return fn(undefined);
-    }
-    throw err;
-  } finally {
-    if (session) session.endSession();
-  }
-}
+import { randToken } from '../utils/crypto';
+import { buildQrUrls } from '../utils/urls';
+import { withOptionalTxn } from '../utils/txn';
+import { ensureValidObjectId, toObjectId } from '../utils/ids';
 
 /* --------------------------- errors --------------------------- */
 
@@ -89,13 +45,36 @@ export type MintResult = {
   customerToken: string;
 };
 
+export type PaginatedOrders = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: Array<{
+    id: string;
+    orderId: string;
+    status: string;
+    deliverySlot?: Date | null;
+    createdAt: Date;
+    items: IOrder['items'];
+  }>;
+};
+
+export type OrderView = {
+  id: string;
+  orderId: string;
+  consumerId: string;
+  assignedDriverId: string | null;
+  status: string;
+  deliverySlot?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  items: IOrder['items'];
+};
+
 /* --------------------------- service -------------------------- */
 
 export const OrderService = {
-  /**
-   * Create an order and mint two QR tokens.
-   * Uses a transaction when available; falls back otherwise.
-   */
+  /** Create an order and mint two QR tokens. */
   async createOrderWithQrs(input: CreateOrderInput): Promise<CreateOrderResult> {
     validateOrderItems(input.items);
 
@@ -113,6 +92,8 @@ export const OrderService = {
     };
 
     return withOptionalTxn(async (session) => {
+      // ensure collection exists (no-op if already there)
+      await Order.createCollection().catch(() => {});
       const order = await Order.create([orderDoc], session ? { session } : {}).then(r => r[0]);
 
       const [opsTok, cusTok] = await Promise.all([
@@ -128,8 +109,61 @@ export const OrderService = {
     });
   },
 
+  /** List orders with pagination. */
+  async listOrders({ page, pageSize }: { page: number; pageSize: number }): Promise<PaginatedOrders> {
+    const skip = (page - 1) * pageSize;
+
+    const [items, total] = await Promise.all([
+      Order.find().sort({ createdAt: -1 }).skip(skip).limit(pageSize).lean(),
+      Order.countDocuments(),
+    ]);
+
+    return {
+      page,
+      pageSize,
+      total,
+      items: items.map((o: any) => ({
+        id: String(o._id),
+        orderId: o.orderId ?? String(o._id),
+        status: o.status,
+        deliverySlot: o.deliverySlot ?? null,
+        createdAt: o.createdAt,
+        items: o.items,
+      })),
+    };
+  },
+
+  /** Get single order by id with validation. */
+  async getOrderById(id: string): Promise<OrderView> {
+    ensureValidObjectId(id, 'order id');
+    const o = await Order.findById(id).lean();
+    if (!o) throw new NotFoundError('Order not found');
+
+    return {
+      id: String(o._id),
+      orderId: (o as any).orderId ?? String(o._id),
+      consumerId: String((o as any).consumerId),
+      assignedDriverId: (o as any).assignedDriverId ? String((o as any).assignedDriverId) : null,
+      status: (o as any).status,
+      deliverySlot: (o as any).deliverySlot ?? null,
+      createdAt: (o as any).createdAt,
+      updatedAt: (o as any).updatedAt,
+      items: (o as any).items,
+    };
+  },
+
+  /** Update status of an order (with id validation). */
+  async updateOrderStatus(id: string, status: string) {
+    ensureValidObjectId(id, 'order id');
+    const o = await Order.findByIdAndUpdate(id, { $set: { status } }, { new: true });
+    if (!o) throw new NotFoundError('Order not found');
+    return { id: o.id, status: o.status };
+  },
+
   /** (Re)mint QR tokens for an existing order. */
   async mintQrsForOrder(orderId: string, customerTtlDays = 30, session?: ClientSession): Promise<MintResult> {
+    ensureValidObjectId(orderId, 'order id');
+
     const order = await Order.findById(orderId).session(session || null);
     if (!order) throw new NotFoundError('Order not found');
 

@@ -2,11 +2,10 @@ import { Types } from 'mongoose';
 import User from '../../../src/models/user.model';
 import Order, { ORDER_STATUSES, IOrder } from '../../../src/models/order.model';
 import QrToken from '../../../src/models/QrToken.model';
-
+import {PUBLIC_APP_URL} from "../../../src/config/env"
 // config
 const DEFAULT_NUM_ORDERS = 15;
 const CUSTOMER_QR_TTL_DAYS = 30;
-const APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:5173';
 
 // sample products
 const PRODUCTS = [
@@ -87,8 +86,8 @@ export async function seedOrders(count = DEFAULT_NUM_ORDERS) {
       await QrToken.updateOne({ _id: customerToken._id }, { $set: { usedAt: new Date() } });
     }
 
-    const opsUrl = `${APP_URL}/o/${opsToken.token}`;
-    const customerUrl = `${APP_URL}/r/${customerToken.token}`;
+    const opsUrl = `${PUBLIC_APP_URL}/o/${opsToken.token}`;
+    const customerUrl = `${PUBLIC_APP_URL}/r/${customerToken.token}`;
     console.log(
       `✅ Order ${order.orderId} for ${consumer.email} ` +
       `${maybeDriver ? `(driver ${maybeDriver.email})` : '(unassigned)'} — ` +

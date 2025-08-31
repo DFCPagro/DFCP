@@ -7,7 +7,7 @@ import { PATHS } from "./paths";
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
-const OrdersList = lazy(() => import("@/pages/Orders"))
+const OrdersPage = lazy(() => import("@/pages/Orders"))
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const DriverSchedule = lazy(() => import("@/pages/DriverSchedule"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -17,7 +17,7 @@ export default function AppRoutes() {
       <Routes>
         {/* Public */}
         <Route path={PATHS.home} element={<Home />} />
-        <Route path="/orders-list" element={<OrdersList/>}/>
+        <Route path="/orders-list" element={<OrdersPage/>}/>
         <Route
           path={PATHS.login}
           element={

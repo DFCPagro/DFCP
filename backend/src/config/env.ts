@@ -1,56 +1,61 @@
 // src/config/env.ts
-import dotenv from "dotenv";
-import { z } from "zod";
+import dotenv from 'dotenv';
+import { z } from 'zod';
 
 dotenv.config();
 
-const EnvSchema = z.object({
-  PORT: z.coerce.number().default(3000),
-  NODE_ENV: z
-    .enum(["development", "production", "test"])
-    .default("development"),
-  API_PREFIX: z.string().default("/api/v1"),
-  MONGODB_URI: z.string().url().or(z.string().startsWith("mongodb")),
+const Env = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  PORT: z.coerce.number().int().positive().default(3000),
+
+  // optional override
+  PUBLIC_APP_URL: z.url().optional(),
+
+  API_PREFIX: z.string().default('/api/v1'),
+
+  // accept url() OR any mongodb-prefixed string
+  MONGODB_URI: z.url().or(z.string().startsWith('mongodb')),
+
   JWT_ACCESS_SECRET: z.string().min(1),
   JWT_REFRESH_SECRET: z.string().min(1),
-  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
-  JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
-  CORS_ORIGIN: z.string().default("*"),
+  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+
+  CORS_ORIGIN: z.string().default('*'),
   COOKIE_SECURE: z
     .string()
-    .default("false")
-    .transform((v) => v === "true"),
+    .optional()
+    .transform(v => v?.toLowerCase() === 'true'),
   COOKIE_DOMAIN: z.string().optional(),
+}).transform(v => {
+  const isProd = v.NODE_ENV === 'production';
+  const PUBLIC_APP_URL =
+    v.PUBLIC_APP_URL ?? `${isProd ? 'https' : 'http'}://localhost:${v.PORT}`;
+
+  return {
+    ...v,
+    PUBLIC_APP_URL,
+    COOKIE_SECURE: v.COOKIE_SECURE ?? isProd,
+  };
 });
 
-const parsed = EnvSchema.safeParse(process.env);
+const parsed = Env.safeParse(process.env);
 if (!parsed.success) {
-  console.error(
-    "❌ Invalid environment variables:",
-    parsed.error.flatten().fieldErrors
-  );
+  // you said you're on the newer API that supports treeifyError
+  console.error('❌ Invalid environment variables:', z.treeifyError(parsed.error));
   process.exit(1);
 }
 
-const cfg = parsed.data;
+const cfg = Object.freeze(parsed.data);
 
-// Named exports
-export const PORT = cfg.PORT;
-export const NODE_ENV = cfg.NODE_ENV;
-export const API_PREFIX = cfg.API_PREFIX;
-export const MONGODB_URI = cfg.MONGODB_URI;
-export const JWT_ACCESS_SECRET = cfg.JWT_ACCESS_SECRET;
-export const JWT_REFRESH_SECRET = cfg.JWT_REFRESH_SECRET;
-export const JWT_ACCESS_EXPIRES_IN = cfg.JWT_ACCESS_EXPIRES_IN;
-export const JWT_REFRESH_EXPIRES_IN = cfg.JWT_REFRESH_EXPIRES_IN;
-export const CORS_ORIGIN = cfg.CORS_ORIGIN;
-export const COOKIE_SECURE = cfg.COOKIE_SECURE;
-export const COOKIE_DOMAIN = cfg.COOKIE_DOMAIN;
+// default single export
+export const env = cfg;
 
-// Optional grouped export
-export const env = {
-  PORT,
+// plus direct named exports
+export const {
   NODE_ENV,
+  PORT,
+  PUBLIC_APP_URL,
   API_PREFIX,
   MONGODB_URI,
   JWT_ACCESS_SECRET,
@@ -60,4 +65,4 @@ export const env = {
   CORS_ORIGIN,
   COOKIE_SECURE,
   COOKIE_DOMAIN,
-};
+} = cfg;
