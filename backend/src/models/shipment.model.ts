@@ -1,16 +1,20 @@
-import mongoose, { Document, Model } from 'mongoose';
+import mongoose, { Document, Model, Types } from 'mongoose';
 import toJSON from '../utils/toJSON';
 
 export interface IShipment extends Document {
-  driverId?: mongoose.Types.ObjectId;
-  vehicleId?: mongoose.Types.ObjectId;
-  containers?: mongoose.Types.ObjectId[];
+  driverId?: Types.ObjectId;
+  vehicleId?: Types.ObjectId;
+  containers?: Types.ObjectId[];
   origin?: string;
   destination?: string;
   status?: string;
   departureTime?: Date;
   arrivalTime?: Date;
-  logisticsCenter?: mongoose.Types.ObjectId;
+  logisticsCenter?: Types.ObjectId;
+  /** New fields for arrival QR flow */
+  arrivalToken?: string | null;
+  arrivalExpiresAt?: Date | null;
+  arrivalUsedAt?: Date | null;
 }
 
 const ShipmentSchema = new mongoose.Schema<IShipment>({
@@ -23,6 +27,11 @@ const ShipmentSchema = new mongoose.Schema<IShipment>({
   departureTime: { type: Date },
   arrivalTime: { type: Date },
   logisticsCenter: { type: mongoose.Schema.Types.ObjectId, ref: 'LogisticsCenter' },
+
+  // New arrival fields
+  arrivalToken: { type: String, unique: true, sparse: true, index: true },
+  arrivalExpiresAt: { type: Date },
+  arrivalUsedAt: { type: Date },
 }, { timestamps: true });
 
 ShipmentSchema.plugin(toJSON as any);

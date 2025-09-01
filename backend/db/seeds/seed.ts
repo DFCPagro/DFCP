@@ -6,6 +6,10 @@ import { connectDB, disconnectDB } from '../../src/db/connect';
 // import seeding functions (refactored below)
 import { seedUsers } from './dev/users.seed';
 import { seedOrders } from './dev/orders.seed';
+// new seeders for aggregations, containers and shipments
+import { seedAggregations } from './dev/aggregations.seed';
+import { seedContainers } from './dev/containers.seed';
+import { seedShipments } from './dev/shipments.seed';
 
 type Args = {
   reset?: boolean;
@@ -13,11 +17,17 @@ type Args = {
   orders?: number;     // how many orders to create
   'no-users'?: boolean;
   'no-orders'?: boolean;
+  /** Skip aggregation seeding */
+  'no-aggregations'?: boolean;
+  /** Skip container seeding */
+  'no-containers'?: boolean;
+  /** Skip shipment seeding */
+  'no-shipments'?: boolean;
 };
 
 async function main() {
   const argv = minimist<Args>(process.argv.slice(2), {
-    boolean: ['reset', 'no-users', 'no-orders'],
+    boolean: ['reset', 'no-users', 'no-orders', 'no-aggregations', 'no-containers', 'no-shipments'],
     string: ['env'],
     default: { orders: 15 },
     alias: { r: 'reset' },
@@ -47,6 +57,27 @@ async function main() {
     await timed(`Orders (count=${argv.orders})`, () => seedOrders(argv.orders!));
   } else {
     console.log('⏭️  Skipping orders seeding');
+  }
+
+  // Aggregations
+  if (!argv['no-aggregations']) {
+    await timed('Aggregations', () => seedAggregations());
+  } else {
+    console.log('⏭️  Skipping aggregations seeding');
+  }
+
+  // Containers
+  if (!argv['no-containers']) {
+    await timed('Containers', () => seedContainers());
+  } else {
+    console.log('⏭️  Skipping containers seeding');
+  }
+
+  // Shipments
+  if (!argv['no-shipments']) {
+    await timed('Shipments', () => seedShipments());
+  } else {
+    console.log('⏭️  Skipping shipments seeding');
   }
 
   await disconnectDB();

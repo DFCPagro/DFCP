@@ -1,9 +1,15 @@
 import { Router } from 'express';
 import authRoutes from './auth.route';
-import orderRoutes from './orders.route'
+import orderRoutes from './orders.route';
+import aggregationsRoutes from './aggregations.route';
+import containersRoutes from './containers.route';
+import shipmentsRoutes from './shipments.route';
 
 const router = Router();
 router.use('/auth', authRoutes);
 router.use('/orders', orderRoutes);
+router.use('/aggregations', aggregationsRoutes);
+router.use('/containers', containersRoutes);
+router.use('/shipments', shipmentsRoutes);
 
 export default router;

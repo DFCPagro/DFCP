@@ -31,3 +31,19 @@ export async function mintQrs(id: string, ttlDays = 30) {
   );
   return data;
 }
+
+
+/** Fetch order details via an ops token (for logistics staff). */
+export async function getOrderByOpsToken(token: string) {
+  const { data } = await api.get(`/orders/by-ops-token/${token}`);
+  return data;
+}
+
+/** Confirm an order via the customer token. Accepts an optional rating and comment. */
+export async function confirmOrderByCustomerToken(
+  token: string,
+  body: { rating?: number; comment?: string },
+) {
+  const { data } = await api.post(`/orders/confirm/${token}`, body);
+  return data;
+}

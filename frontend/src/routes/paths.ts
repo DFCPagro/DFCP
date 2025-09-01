@@ -4,5 +4,16 @@ export const PATHS = {
   register: "/register",
   dashboard: "/dashboard",
   driverSchedule: "/driver-schedule",
+  // Farmer pages
+  aggregations: "/aggregations",
+  containers: "/containers",
+  // Driver pages
+  shipments: "/shipments",
+  // Public QR routes
+  ops: "/o/:token",
+  customerConfirm: "/r/:token",
+  arrivalConfirm: "/a/:token",
+  aggregationView: "/ag/:token",
+  containerView: "/c/:barcode",
   notFound: "/404",
 } as const;

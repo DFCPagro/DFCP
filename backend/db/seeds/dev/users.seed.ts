@@ -30,6 +30,15 @@ const fixedUsers = [
     status: true,
     uid: 'CNS-1',
   },
+  {
+    // Added a farmer account to support aggregation/container seeding and testing.
+    name: 'Farmer User',
+    email: 'farmer@gmail.com',
+    password: 'farmer123',
+    role: 'farmer',
+    status: true,
+    uid: 'FMR-1',
+  },
 ];
 
 export async function seedUsers() {
