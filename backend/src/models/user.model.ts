@@ -23,7 +23,7 @@ const UserSchema = new mongoose.Schema<IUser>({
   email: { type: String, required: true, unique: true, lowercase: true },
   birthday: { type: Date },
   phone: { type: String },
-  role: { type: String, enum: roles, default: 'consumer' },
+  role: { type: String, enum: roles, default: 'customer' },
   status: { type: Boolean, default: true },
   password: { type: String, required: true, minlength: 6 },
 }, userOptions);
