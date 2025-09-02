@@ -1,28 +1,24 @@
-// models/Deliverer.ts
+// models/IndustrialDeliverer.ts
 import mongoose, { Schema, Model, Document, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
 
-// ===== Helper: days in month WITHOUT year (Feb = 28) =====
+// Reuse same helpers
 function expectedDaysForMonth(month: number): number {
   if (month === 2) return 28;
-  // Apr, Jun, Sep, Nov have 30 days
   if ([4, 6, 9, 11].includes(month)) return 30;
   return 31;
 }
-
-// ===== Helper: default current month and zeroed schedule =====
 function defaultMonth(): number {
-  return new Date().getMonth() + 1; // 1..12
+  return new Date().getMonth() + 1;
 }
 function zeroScheduleFor(month: number): number[] {
   return Array.from({ length: expectedDaysForMonth(month) }, () => 0);
 }
 
-// ===== Types =====
-export interface IDeliverer extends Document {
-  user: Types.ObjectId;                       // unique per Deliverer
-  createdFromApplication?: Types.ObjectId | null; // ref -> JobApplication
-  logisticCenterIds: Types.ObjectId[];        // multi-center
+export interface IIndustrialDeliverer extends Document {
+  user: Types.ObjectId;
+  createdFromApplication?: Types.ObjectId | null;
+  logisticCenterIds: Types.ObjectId[];       // multi-center
 
   // Driver & vehicle
   licenseType: string;
@@ -39,20 +35,22 @@ export interface IDeliverer extends Document {
   speedKmH?: number | null;
 
   // Pay defaults
-  payFixedPerShift?: number | null;           // default 25
-  payPerKm?: number | null;                   // default 1
-  payPerStop?: number | null;                 // default 1
+  payFixedPerShift?: number | null;
+  payPerKm?: number | null;
+  payPerStop?: number | null;
+
+  // Industrial-only
+  refrigerated?: boolean;
 
   // Monthly schedule
-  currentMonth: number;                       // 1..12
-  activeSchedule: number[];                   // length == days in month, each 0..15
-  nextSchedule: number[];                     // [], or 28..31 with 0..15 entries
+  currentMonth: number;                      // 1..12
+  activeSchedule: number[];                  // exact length for month; entries 0..15
+  nextSchedule: number[];                    // [], or 28..31
 
   createdAt: Date;
   updatedAt: Date;
 }
 
-// ===== Validators =====
 const bitmaskArrayValidator = {
   validator: (arr?: number[]) =>
     Array.isArray(arr) && arr.every((n) => Number.isInteger(n) && n >= 0 && n <= 15),
@@ -71,8 +69,7 @@ const nextScheduleValidator = {
     "nextSchedule must be empty or an array of length 28..31 with entries in [0..15].",
 };
 
-// ===== Schema =====
-const DelivererSchema = new Schema<IDeliverer>(
+const IndustrialDelivererSchema = new Schema<IIndustrialDeliverer>(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
     createdFromApplication: {
@@ -107,6 +104,9 @@ const DelivererSchema = new Schema<IDeliverer>(
     payPerKm: { type: Schema.Types.Number, default: 1, min: 0 },
     payPerStop: { type: Schema.Types.Number, default: 1, min: 0 },
 
+    // Industrial-only
+    refrigerated: { type: Schema.Types.Boolean, default: false },
+
     currentMonth: {
       type: Schema.Types.Number,
       min: 1,
@@ -119,7 +119,7 @@ const DelivererSchema = new Schema<IDeliverer>(
       type: [Schema.Types.Number],
       required: true,
       validate: bitmaskArrayValidator,
-      default: function (this: IDeliverer) {
+      default: function (this: IIndustrialDeliverer) {
         const m = this?.currentMonth ?? defaultMonth();
         return zeroScheduleFor(m);
       },
@@ -134,18 +134,15 @@ const DelivererSchema = new Schema<IDeliverer>(
   { timestamps: true }
 );
 
-// Keep JSON pretty
-DelivererSchema.plugin(toJSON as any);
+IndustrialDelivererSchema.plugin(toJSON as any);
 
-// Enforce activeSchedule length = expected days for currentMonth (Feb = 28)
-DelivererSchema.pre("validate", function (next) {
-  const doc = this as IDeliverer;
+IndustrialDelivererSchema.pre("validate", function (next) {
+  const doc = this as IIndustrialDeliverer;
   const m = doc.currentMonth;
   const expected = expectedDaysForMonth(m);
   if (!Array.isArray(doc.activeSchedule)) {
     doc.activeSchedule = zeroScheduleFor(m);
   } else if (doc.activeSchedule.length !== expected) {
-    // Pad with zeros or truncate to match exactly
     if (doc.activeSchedule.length < expected) {
       doc.activeSchedule = [...doc.activeSchedule, ...Array(expected - doc.activeSchedule.length).fill(0)];
     } else {
@@ -155,11 +152,9 @@ DelivererSchema.pre("validate", function (next) {
   next();
 });
 
-// Index for common queries
-DelivererSchema.index({ "logisticCenterIds": 1, currentMonth: 1 });
+IndustrialDelivererSchema.index({ "logisticCenterIds": 1, currentMonth: 1 });
 
-export const Deliverer: Model<IDeliverer> = mongoose.model<IDeliverer>(
-  "Deliverer",
-  DelivererSchema
-);
-export default Deliverer;
+export const IndustrialDeliverer: Model<IIndustrialDeliverer> =
+  mongoose.model<IIndustrialDeliverer>("IndustrialDeliverer", IndustrialDelivererSchema);
+
+export default IndustrialDeliverer;
