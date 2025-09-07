@@ -7,6 +7,10 @@ import toJSON from '../utils/toJSON';
  * optionally a list of container IDs that were loaded as part of the batch.
  * A unique token is generated for each aggregation to allow scanning and
  * lookup at the logistics centre without exposing database identifiers.
+ *  Farmer_Item 
+ * 
+ *farmer Order 
+ * 
  */
 export interface IAggregationItem {
   produceType: string;

@@ -1,6 +1,8 @@
 import mongoose, { Document, Model, Types } from 'mongoose';
 import toJSON from '../utils/toJSON';
 
+
+/* Farmer delivery */ 
 export interface IShipment extends Document {
   driverId?: Types.ObjectId;
   vehicleId?: Types.ObjectId;

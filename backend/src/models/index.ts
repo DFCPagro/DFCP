@@ -1,8 +1,8 @@
 export { default as User } from './user.model';
 export { default as Farmer } from './farmer.model';
-export { default as Consumer } from './consumer.model';
+
 export { default as Driver } from './deliverer.model';
-export { default as Admin } from './admin.model';
+
 export { default as Token } from './token.model';
 export { default as Vehicle } from './vehicle.model';
 export { default as ShipmentRequest } from './shipmentRequest.model';
@@ -11,3 +11,5 @@ export { default as Container } from './container.model';
 export { default as Shipment } from './shipment.model';
 export { default as LogisticsCenter } from './logisticsCenter.model';
 export { default as Order } from './order.model';
+
+//import {Token, Driver} from './index'; 
