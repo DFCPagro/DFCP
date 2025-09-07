@@ -4,6 +4,7 @@ export const PATHS = {
   register: "/register",
   dashboard: "/dashboard",
   driverSchedule: "/driver-schedule",
+  jobs: "/jobs",
   // Farmer pages
   aggregations: "/aggregations",
   containers: "/containers",

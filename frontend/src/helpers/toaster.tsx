@@ -121,6 +121,22 @@ export const toastOutsideDayInfo = () =>
     description: "Switch months or enable adjacent day editing.",
   });
 
+export const toastLoginRequired = () =>
+  toaster.create({
+    ...base,
+    type: "warning",
+    title: "Please log in",
+    description: "You must be logged in to apply for a role.",
+  });
+
+export const toastApplied = (roleName: string) =>
+  toaster.create({
+    ...base,
+    type: "success",
+    title: `Application started`,
+    description: `Redirecting to ${roleName} application form...`,
+  });
+
 export function useScheduleToasts() {
   return {
     maxTwo: toastMaxTwo,
@@ -136,5 +152,7 @@ export function useScheduleToasts() {
     dayCleared: toastDayCleared,
     setTwo: toastSetTwo,
     outsideDay: toastOutsideDayInfo,
+    loginRequired: toastLoginRequired,
+    applied: toastApplied,
   };
 }

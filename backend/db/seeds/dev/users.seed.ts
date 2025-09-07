@@ -23,10 +23,10 @@ const fixedUsers = [
     uid: 'MGR-1',
   },
   {
-    name: 'Consumer User',
-    email: 'consumer@gmail.com',
-    password: 'consumer123',
-    role: 'consumer',
+    name: 'Customer User',
+    email: 'customer@gmail.com',
+    password: 'customer123',
+    role: 'customer',
     status: true,
     uid: 'CNS-1',
   },
@@ -61,7 +61,7 @@ export async function seedUsers() {
       password: 'Password!1', // hashed by pre-save hook
       birthday: faker.date.birthdate(),
       phone: faker.phone.number(),
-      role: 'consumer',
+      role: 'customer',
       status: true,
       uid: `USR-${i + 1}`,
     });
