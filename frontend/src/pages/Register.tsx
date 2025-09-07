@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { registerApi, type RegisterPayload } from "@/api/auth";
-import { useAuthStore } from "@/store/auth";
+import {
+  registerApi,
+  type RegisterPayload,
+  type RegisterResponse,
+} from "@/api/auth";
 import {
   Box,
   Button,
@@ -26,28 +29,26 @@ import { LocateFixed } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 
 type RegisterPayloadWithLoc = RegisterPayload & {
-  address?: string;
   latitude?: number;
   longitude?: number;
 };
 
 export default function Register() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
 
   // maps + picker
   const [mapsReady, setMapsReady] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const countries = "IL"; // or "US,CA" | undefined
+  const countries = "IL"; // restrict autocomplete to Israel
 
-  // core form
+  // form state
   const [form, setForm] = useState<RegisterPayload>({
     name: "",
     email: "",
     password: "",
     phone: "",
     birthday: "",
-    address: "", // API compatibility; UI uses autocomplete/picker
+    address: "",
   });
 
   // location state
@@ -65,7 +66,7 @@ export default function Register() {
     Partial<Record<keyof RegisterPayload | "phone" | "address", string>>
   >({});
 
-  // load Google Maps once (for autocomplete + reverse geocode)
+  // load Google Maps once
   useEffect(() => {
     loadGoogleMaps()
       .then(() => setMapsReady(true))
@@ -78,13 +79,19 @@ export default function Register() {
       );
   }, []);
 
-  const { mutate, isPending } = useMutation({
-    mutationFn: (payload: RegisterPayloadWithLoc) =>
-      registerApi(payload as RegisterPayload),
-    onSuccess: ({ user, token }) => {
-      setAuth({ user, token });
-      toaster.create({ title: "Account created!", type: "success" });
-      navigate("/dashboard", { replace: true });
+  // register mutation
+  const { mutate, isPending } = useMutation<
+    RegisterResponse,
+    any,
+    RegisterPayloadWithLoc
+  >({
+    mutationFn: (payload) => registerApi(payload),
+    onSuccess: () => {
+      toaster.create({
+        title: "Account created! Please login.",
+        type: "success",
+      });
+      navigate("/login", { replace: true });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message ?? "Registration failed";
@@ -116,7 +123,7 @@ export default function Register() {
     clearErrorIfValid("phone", !!next.e164);
   };
 
-  // simple geolocate + map fallback
+  // geolocate
   const useMyLocation = async () => {
     if (!navigator.geolocation) {
       toaster.create({
@@ -149,7 +156,7 @@ export default function Register() {
         const addr = await reverseGeocode(lat, lng);
         if (addr) setAddress(addr);
       } catch {
-        /* reverse geocode failed; coords still set */
+        /* ignore reverse geocode failure */
       }
 
       toaster.create({ type: "success", title: "Location detected" });
@@ -170,8 +177,6 @@ export default function Register() {
     if (!form.name?.trim()) newErrors.name = "Name is required";
     if (!form.email?.trim()) newErrors.email = "Email is required";
     if (!form.password) newErrors.password = "Password is required";
-    // require location? uncomment:
-    // if (!address && (latitude == null || longitude == null)) newErrors.address = "Pick an address or use your location";
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
@@ -197,20 +202,33 @@ export default function Register() {
 
         <Field.Root invalid={!!errors.name}>
           <Field.Label>Name</Field.Label>
-          <Input value={form.name} onChange={(e) => handleChange("name", e.target.value)} />
+          <Input
+            value={form.name}
+            onChange={(e) => handleChange("name", e.target.value)}
+          />
           {errors.name && <Field.ErrorText>{errors.name}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!errors.email}>
           <Field.Label>Email</Field.Label>
-          <Input type="email" value={form.email} onChange={(e) => handleChange("email", e.target.value)} />
+          <Input
+            type="email"
+            value={form.email}
+            onChange={(e) => handleChange("email", e.target.value)}
+          />
           {errors.email && <Field.ErrorText>{errors.email}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!errors.password}>
           <Field.Label>Password</Field.Label>
-          <Input type="password" value={form.password} onChange={(e) => handleChange("password", e.target.value)} />
-          {errors.password && <Field.ErrorText>{errors.password}</Field.ErrorText>}
+          <Input
+            type="password"
+            value={form.password}
+            onChange={(e) => handleChange("password", e.target.value)}
+          />
+          {errors.password && (
+            <Field.ErrorText>{errors.password}</Field.ErrorText>
+          )}
         </Field.Root>
 
         <PhoneField
@@ -223,11 +241,16 @@ export default function Register() {
 
         <Field.Root invalid={!!errors.birthday}>
           <Field.Label>Birthday</Field.Label>
-          <Input type="date" value={form.birthday ?? ""} onChange={(e) => handleChange("birthday", e.target.value)} />
-          {errors.birthday && <Field.ErrorText>{errors.birthday}</Field.ErrorText>}
+          <Input
+            type="date"
+            value={form.birthday ?? ""}
+            onChange={(e) => handleChange("birthday", e.target.value)}
+          />
+          {errors.birthday && (
+            <Field.ErrorText>{errors.birthday}</Field.ErrorText>
+          )}
         </Field.Root>
 
-        {/* Address selection (Autocomplete + Map + Autolocate) */}
         <Field.Root invalid={!!errors.address}>
           <Field.Label>Address</Field.Label>
           <AddressAutocomplete
@@ -242,7 +265,9 @@ export default function Register() {
             disabled={!mapsReady}
             placeholder="Search and pick an address"
           />
-          {errors.address && <Field.ErrorText>{errors.address}</Field.ErrorText>}
+          {errors.address && (
+            <Field.ErrorText>{errors.address}</Field.ErrorText>
+          )}
         </Field.Root>
 
         <Flex gap={3} align="center" w="full">
