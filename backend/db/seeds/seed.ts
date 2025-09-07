@@ -52,33 +52,33 @@ async function main() {
     console.log('⏭️  Skipping users seeding');
   }
 
-  // Orders next (unless disabled)
-  if (!argv['no-orders']) {
-    await timed(`Orders (count=${argv.orders})`, () => seedOrders(argv.orders!));
-  } else {
-    console.log('⏭️  Skipping orders seeding');
-  }
+  // // Orders next (unless disabled)
+  // if (!argv['no-orders']) {
+  //   await timed(`Orders (count=${argv.orders})`, () => seedOrders(argv.orders!));
+  // } else {
+  //   console.log('⏭️  Skipping orders seeding');
+  // }
 
-  // Aggregations
-  if (!argv['no-aggregations']) {
-    await timed('Aggregations', () => seedAggregations());
-  } else {
-    console.log('⏭️  Skipping aggregations seeding');
-  }
+  // // Aggregations
+  // if (!argv['no-aggregations']) {
+  //   await timed('Aggregations', () => seedAggregations());
+  // } else {
+  //   console.log('⏭️  Skipping aggregations seeding');
+  // }
 
-  // Containers
-  if (!argv['no-containers']) {
-    await timed('Containers', () => seedContainers());
-  } else {
-    console.log('⏭️  Skipping containers seeding');
-  }
+  // // Containers
+  // if (!argv['no-containers']) {
+  //   await timed('Containers', () => seedContainers());
+  // } else {
+  //   console.log('⏭️  Skipping containers seeding');
+  // }
 
-  // Shipments
-  if (!argv['no-shipments']) {
-    await timed('Shipments', () => seedShipments());
-  } else {
-    console.log('⏭️  Skipping shipments seeding');
-  }
+  // // Shipments
+  // if (!argv['no-shipments']) {
+  //   await timed('Shipments', () => seedShipments());
+  // } else {
+  //   console.log('⏭️  Skipping shipments seeding');
+  // }
 
   await disconnectDB();
   console.log('✅ All done.');
