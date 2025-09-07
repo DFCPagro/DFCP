@@ -2,7 +2,14 @@ import { api } from "./config";
 import type { AuthResponse, AuthResponseRaw, MeResponse } from "@/types/auth";
 
 export type LoginPayload = { email: string; password: string };
-export type RegisterPayload = { name: string; email: string; password: string };
+export type RegisterPayload = {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  birthday?: string; // ISO date string (yyyy-mm-dd)
+  address?: string;
+};
 
 // helper: raw → unified
 const toAuthResponse = (data: AuthResponseRaw): AuthResponse => {

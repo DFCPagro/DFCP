@@ -4,6 +4,8 @@ import AuthGuard from "@/guards/AuthGuard";
 import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from '@/guards/RoleGuard';
 import { PATHS } from "./paths";
+import Jobs from "@/pages/jobs";
+import EmploymentApplication from "@/pages/EmploymentApplication";
 
 const Home                = lazy(() => import('@/pages/Home'));
 const Login               = lazy(() => import('@/pages/Login'));
@@ -27,6 +29,8 @@ export default function AppRoutes() {
         <Route path={PATHS.home} element={<Home />} />
         <Route path={PATHS.login} element={<GuestGuard><Login /></GuestGuard>} />
         <Route path={PATHS.register} element={<GuestGuard><Register /></GuestGuard>} />
+        <Route path={PATHS.jobs} element={<Jobs />} />
+        <Route path="/employment-application" element={<EmploymentApplication />} />
 
         {/* Public QR endpoints */}
         <Route path={PATHS.ops} element={<OpsOrderPage />} />

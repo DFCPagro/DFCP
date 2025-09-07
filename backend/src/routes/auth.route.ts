@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/auth.controller';
 import validate from '../utils/validate';
 import * as v from '../validations/auth.validation';
+import { authenticate } from "../middlewares/auth";
 
 const router = Router();
 
@@ -91,5 +92,32 @@ router.post('/register', v.register, validate, ctrl.register);
 router.post('/login', v.login, validate, ctrl.login);
 router.post('/refresh', ctrl.refresh);
 router.post('/logout', ctrl.logout);
+
+/**
+ * @openapi
+ * /auth/me:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Get current authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       '200':
+ *         description: Current user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id: { type: string }
+ *                 uid: { type: string }
+ *                 email: { type: string, format: email }
+ *                 name: { type: string }
+ *                 role: { type: string }
+ *                 createdAt: { type: string, format: date-time }
+ *                 updatedAt: { type: string, format: date-time }
+ *       '401': { description: Unauthorized }
+ */
+router.get("/me", authenticate, ctrl.me);
 
 export default router;

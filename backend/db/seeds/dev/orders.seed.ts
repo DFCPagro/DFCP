@@ -35,10 +35,10 @@ type LeanUser = { _id: Types.ObjectId; name: string; email: string; };
 export async function seedOrders(count = DEFAULT_NUM_ORDERS) {
   console.log(`🌱 Seeding ${count} orders…`);
 
-  const consumers = await User.find({ role: 'consumer' }).select('_id name email').lean<LeanUser[]>();
+  const customers = await User.find({ role: 'customer' }).select('_id name email').lean<LeanUser[]>();
   const drivers   = await User.find({ role: 'driver'   }).select('_id name email').lean<LeanUser[]>();
 
-  if (consumers.length === 0) throw new Error('No consumers found. Run users seeder first.');
+  if (customers.length === 0) throw new Error('No customers found. Run users seeder first.');
   if (drivers.length === 0)   console.warn('⚠️ No drivers found. Orders will be unassigned.');
 
   // Clean collections (dev)
@@ -48,7 +48,7 @@ export async function seedOrders(count = DEFAULT_NUM_ORDERS) {
   const now = new Date();
 
   for (let i = 0; i < count; i++) {
-    const consumer = pick(consumers);
+    const customer = pick(customers);
     const maybeDriver = drivers.length && Math.random() < 0.7 ? pick(drivers) : null;
 
     const items = many(PRODUCTS, rand(1, 4)).map((p) => ({
@@ -62,7 +62,7 @@ export async function seedOrders(count = DEFAULT_NUM_ORDERS) {
 
     const order = await Order.create({
       orderId,
-      consumerId: consumer._id,                          // ✅ typed ObjectId
+      customerId: customer._id,                          // ✅ typed ObjectId
       assignedDriverId: maybeDriver ? maybeDriver._id : undefined,
       status,
       deliverySlot,
@@ -89,7 +89,7 @@ export async function seedOrders(count = DEFAULT_NUM_ORDERS) {
     const opsUrl = `${PUBLIC_APP_URL}/o/${opsToken.token}`;
     const customerUrl = `${PUBLIC_APP_URL}/r/${customerToken.token}`;
     console.log(
-      `✅ Order ${order.orderId} for ${consumer.email} ` +
+      `✅ Order ${order.orderId} for ${customer.email} ` +
       `${maybeDriver ? `(driver ${maybeDriver.email})` : '(unassigned)'} — ` +
       `status=${status} | OPS QR: ${opsUrl} | CUS QR: ${customerUrl}`
     );
