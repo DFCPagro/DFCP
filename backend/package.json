@@ -14,7 +14,9 @@
     "seed:orders:20": "npm run seed -- --env dev --reset --orders 20",
     "seed:users-only": "npm run seed -- --env dev --reset --no-orders",
     "seed:orders-only": "npm run seed -- --env dev --reset --no-users",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:json:items": "node db/seeds/seed-from-json.js --file ./db/seeds/exports/items.json --collection items --upsert"
+
   },
   "author": "",
   "license": "ISC",
