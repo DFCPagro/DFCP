@@ -2,6 +2,7 @@ import mongoose, { Document, Model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import toJSON from '../utils/toJSON';
 import { Role, roles } from '../utils/constants';
+import { Address } from "../types/address"; // { lnt: number; alt: number; address: string; }
 
 export interface IUser extends Document {
   uid?: string;
@@ -10,7 +11,8 @@ export interface IUser extends Document {
   birthday?: Date;
   phone?: string;
   role: Role;
-  status: boolean;
+  activeStatus: boolean;
+  address: Address;
   password: string;
   isPasswordMatch(plain: string): Promise<boolean>;
 }
@@ -24,7 +26,11 @@ const UserSchema = new mongoose.Schema<IUser>({
   birthday: { type: Date },
   phone: { type: String },
   role: { type: String, enum: roles, default: 'customer' },
-  status: { type: Boolean, default: true },
+  activeStatus: { type: Boolean, default: true }, //TODO : change it to false after we make the email verification
+  address: { lnt: { type: Number, required: true },
+    alt: { type: Number, required: true },
+    address: { type: String, required: true, trim: true },
+  },
   password: { type: String, required: true, minlength: 6 },
 }, userOptions);
 
