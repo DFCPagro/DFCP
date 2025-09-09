@@ -5,6 +5,9 @@ export const PATHS = {
   dashboard: "/dashboard",
   driverSchedule: "/driver-schedule",
   jobs: "/jobs",
+//costumer pages
+  market: "/market",
+
   // Farmer pages
   aggregations: "/aggregations",
   containers: "/containers",

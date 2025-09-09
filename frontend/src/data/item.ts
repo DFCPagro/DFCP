@@ -1,0 +1,823 @@
+export const items =
+    [
+  {
+    "_id": "FRT-001",
+    "__path": "items/FRT-001",
+    "category": "fruit",
+    "name": "Apple Fuji",
+    "season": "November-February",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 42,
+    "price": {
+      "a": 2.5,
+      "b": 2,
+      "c": 1.5
+    },
+    "avgWeightPerUnitGr": 10,
+    "avgQmPerUnit": 0.05,
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "tolerance": "±2%",
+    "weightPerUnitG": 10,
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+    "lastUpdated": "2025-07-15T10:03:54.618Z",
+    "count": 43
+  },
+  {
+    "_id": "FRT-002",
+    "__path": "items/FRT-002",
+    "category": "fruit",
+    "name": "Banana Cavendish",
+    "season": "July-October",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 62,
+    "price": {
+      "a": 3,
+      "b": 2,
+      "c": 1.5
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.01,
+    "lastUpdated": "2025-07-15T10:03:54.618Z",
+    "count": 44
+  },
+  {
+    "_id": "FRT-003",
+    "__path": "items/FRT-003",
+    "category": "fruit",
+    "name": "Orange Navel",
+    "season": "July-October",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 50,
+    "price": {
+      "a": 5,
+      "b": 3,
+      "c": 2.5
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.07,
+    "lastUpdated": "2025-07-15T10:03:54.619Z",
+    "count": 11
+  },
+  {
+    "_id": "FRT-004",
+    "__path": "items/FRT-004",
+    "category": "fruit",
+    "name": "Grapes Red Globe",
+    "season": "March-June",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 41,
+    "price": {
+      "a": 3,
+      "b": 2.5,
+      "c": 1.7
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.4,
+    "lastUpdated": "2025-07-15T10:03:54.619Z",
+    "count": 14
+  },
+  {
+    "_id": "FRT-005",
+    "__path": "items/FRT-005",
+    "category": "fruit",
+    "name": "Strawberry Albion",
+    "season": "March-June",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 42,
+    "price": {
+      "a": 20,
+      "b": 17,
+      "c": 16
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.01,
+    "lastUpdated": "2025-07-15T10:03:54.618Z",
+    "count": 20
+  },
+  {
+    "_id": "VEG-001",
+    "__path": "items/VEG-001",
+    "category": "vegetable",
+    "name": "Tomato Cherry",
+    "season": "November-February",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 68,
+    "price": {
+      "a": 2.5,
+      "b": 2,
+      "c": 1.5
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.05,
+    "lastUpdated": "2025-07-15T10:03:54.619Z",
+    "count": 11
+  },
+  {
+    "_id": "VEG-002",
+    "__path": "items/VEG-002",
+    "category": "vegetable",
+    "name": "Lettuce Romaine",
+    "season": "November-February",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 47,
+    "price": {
+      "a": 7,
+      "b": 6,
+      "c": 5.5
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.2,
+    "lastUpdated": "2025-07-15T10:03:54.619Z",
+    "count": 17
+  },
+  {
+    "_id": "VEG-003",
+    "__path": "items/VEG-003",
+    "category": "vegetable",
+    "name": "Cucumber Persian",
+    "season": "November-February",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 15,
+    "price": {
+      "a": 3.5,
+      "b": 3,
+      "c": 2.5
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.04,
+    "lastUpdated": "2025-07-15T10:03:54.619Z",
+    "count": 10
+  },
+  {
+    "_id": "VEG-004",
+    "__path": "items/VEG-004",
+    "category": "vegetable",
+    "name": "Carrot Nantes",
+    "season": "July-October",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 62,
+    "price": {
+      "a": 2.5,
+      "b": 2,
+      "c": 1.5
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.04,
+    "lastUpdated": "2025-07-15T10:03:54.619Z",
+    "count": 14
+  },
+  {
+    "_id": "VEG-005",
+    "__path": "items/VEG-005",
+    "category": "vegetable",
+    "name": "Spinach Baby",
+    "season": "July-October",
+    "farmerTips": "Harvest early in the morning for best shelf life.",
+    "customerInfo": [
+      "Rich in vitamins and minerals",
+      "Supports a healthy immune system"
+    ],
+    "caloriesPer100g": 62,
+    "price": {
+      "a": 2.5,
+      "b": 2,
+      "c": 1.5
+    },
+    "qualityStandards": {
+      "tolerance": {
+        "A": "",
+        "B": "",
+        "C": ""
+      },
+      "brix": {
+        "A": "13%+",
+        "B": "11-12.9%",
+        "C": "9-10.9%"
+      },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
+      "colorPercentage": {
+        "A": "85-100%",
+        "B": "60-84%",
+        "C": "under 60%"
+      },
+      "weightPerUnitG": {
+        "A": "180g+",
+        "B": "150-179g",
+        "C": "under 150g"
+      },
+      "diameterMM": {
+        "A": "75mm+",
+        "B": "65-74mm",
+        "C": "under 65mm"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
+      "maxDefectRatioLengthDiameter": {
+        "A": "≤3%",
+        "B": "≤5%",
+        "C": "≤7%"
+      },
+      "rejectionRate": {
+        "A": "≤2%",
+        "B": "≤4%",
+        "C": "≤6%"
+      }
+    },
+    "avgWeightPerUnitGr": 10,
+    "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+    "tolerance": "±2%",
+    "weightPerUnitG": null,
+    "avgQmPerUnit": 0.2,
+    "lastUpdated": "2025-07-15T10:03:54.619Z",
+    "count": 1
+  }
+]
