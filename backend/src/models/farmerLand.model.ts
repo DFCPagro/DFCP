@@ -8,8 +8,8 @@ export interface IFarmerLand extends Document {
   farmer: Types.ObjectId;          // ref -> Farmer (required)
   name: string;                    // land nickname (unique per farmer)
   ownership: LandOwnership;        // "owned" | "rented"
-  acres: number;                   // integer-ish (store as number)
-
+  widthM: number;                   // integer-ish (store as number)
+  lengthM: number;                  // integer-ish (store as number)
   // Use your Address shape directly
   landLocation?: Address | null;
   pickUpLocation?: Address | null;
@@ -34,7 +34,8 @@ const FarmerLandSchema = new Schema<IFarmerLand>(
     farmer: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
     name: { type: Schema.Types.String, required: true, trim: true },
     ownership: { type: Schema.Types.String, enum: ["owned", "rented"], required: true },
-    acres: { type: Schema.Types.Number, required: true, min: 0 },
+    widthM: { type: Schema.Types.Number, required: true, min: 0 },
+    lengthM: { type: Schema.Types.Number, required: true, min: 0 },
 
     // optional; can be added later or updated
     landLocation: { type: AddressSubSchema, default: null },

@@ -14,7 +14,8 @@ export interface ISectionCrop {
 
 export interface IFarmerSection extends Document {
   land: Types.ObjectId;               // ref -> FarmerLand (required)
-  acres?: number | null;              // optional area for this section
+  widthM?: number | null;              // optional area for this section
+  lengthM?: number | null;              // optional area for this section
   matrix?: any;                       // placeholder; keep flexible
   crops: ISectionCrop[];              // embedded crops
   createdAt: Date;
@@ -26,7 +27,7 @@ const SectionCropSchema = new Schema<ISectionCrop>(
     item: { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
     plantedAmount: { type: Schema.Types.Number, required: true, min: 0 },
     plantedOnDate: { type: Schema.Types.String, default: null, trim: true },
-    status: { type: Schema.Types.String, enum: ["notReady", "ready", "cleaning"], required: true },
+    status: { type: Schema.Types.String, enum: ["planting", "growing", "readyForHarvest", "cleaning"], required: true },
     avgRatePerUnit: { type: Schema.Types.Number, default: null, min: 0 },
     expectedFruitingPerPlant: { type: Schema.Types.Number, default: null, min: 0 },
   },
@@ -36,7 +37,8 @@ const SectionCropSchema = new Schema<ISectionCrop>(
 const FarmerSectionSchema = new Schema<IFarmerSection>(
   {
     land: { type: Schema.Types.ObjectId, ref: "FarmerLand", required: true, index: true },
-    acres: { type: Schema.Types.Number, default: null, min: 0 },
+    lengthM: { type: Schema.Types.Number, default: null, min: 0 },
+    widthM: { type: Schema.Types.Number, default: null, min: 0 },
     matrix: { type: Schema.Types.Mixed, default: undefined }, // reserved for future structure
     crops: { type: [SectionCropSchema], default: [] },
   },
