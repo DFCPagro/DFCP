@@ -213,8 +213,9 @@ export const create = [
     .exists().withMessage("appliedRole is required")
     .isIn(jobApplicationRoles).withMessage("Invalid appliedRole"),
   body("logisticCenterId")
-    .optional({ values: "null" })
-    .isMongoId().withMessage("logisticCenterId must be a valid id"),
+  .optional({ values: "null" })
+  .matches(/^[A-Za-z0-9-]+$/)
+  .withMessage("logisticCenterId must be alphanumeric and may include dashes"),
   perRoleApplicationDataValidator(),
 ];
 
@@ -249,8 +250,9 @@ export const listQuery = [
     .optional()
     .isIn(jobApplicationStatuses).withMessage("Invalid status filter"),
   query("logisticCenterId")
-    .optional()
-    .isMongoId().withMessage("logisticCenterId must be a valid id"),
+   .optional()
+   .matches(/^[A-Za-z0-9-]+$/)
+   .withMessage("logisticCenterId must be alphanumeric and may include dashes"),
   query("user")
     .optional()
     .isMongoId().withMessage("user must be a valid id"),
@@ -320,7 +322,8 @@ export const patchMeta = [
   ...idParam,
   body("logisticCenterId")
     .optional({ values: "null" })
-    .isMongoId().withMessage("logisticCenterId must be a valid id"),
+    .matches(/^[A-Za-z0-9-]+$/)
+    .withMessage("logisticCenterId must be alphanumeric and may include dashes"),
 ];
 
 export default {
