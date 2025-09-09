@@ -13,8 +13,8 @@ import {
   createListCollection,
 } from "@chakra-ui/react";
 import type { RoleDef, RoleField } from "@/data/roles";
-import { ScheduleGrid } from "@/components/feature/employmentApplication/ScheduleGrid";
-import { LandList } from "@/components/feature/employmentApplication/LandList";
+import { ScheduleGrid } from "./ScheduleGrid";
+import { LandList } from "./LandList";
 
 type GridCols = { base?: number; md?: number; lg?: number };
 

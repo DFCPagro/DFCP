@@ -89,7 +89,7 @@ export const RolesTable: readonly RoleDef[] = [
   },
 
   {
-    name: "industrialDriver",
+    name: "industrialDriindustrialDelivererver",
     description: "Delivers goods from farms to the logistics center.",
     includeSchedule: true,
     includeLand: false,

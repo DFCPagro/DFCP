@@ -21,7 +21,6 @@ export async function createUser(data: {
   role?: Role;                      // optional; validated but NOT used to switch models
 }) {
   const role: Role = (data.role ?? "customer") as Role;
-
   // Defensive validation so admin/seed flows can't inject unknown roles
   if (!roles.includes(role)) {
     throw new ApiError(400, `Invalid role: ${role}`);

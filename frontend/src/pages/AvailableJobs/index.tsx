@@ -37,7 +37,7 @@ export default function Jobs() {
   const handleApply = (roleName: string) => {
     if (isLoggedIn) {
       applied(cap(roleName));
-      navigate(`/employment-application?role=${encodeURIComponent(roleName)}`);
+      navigate(`/job-application?role=${encodeURIComponent(roleName)}`);
     } else {
       loginRequired();
       navigate("/login");

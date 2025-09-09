@@ -11,8 +11,8 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { RolesTable, type RoleDef } from "@/data/roles";
-import { RoleHeader } from "@/components/feature/employmentApplication/RoleHeader";
-import { RoleForm } from "@/components/feature/employmentApplication/DynamicFields";
+import { RoleHeader } from "./components/RoleHeader";
+import { RoleForm } from "./components/RoleForm";
 import {
   submitEmploymentApplication,
   type EmploymentApplicationPayload,
@@ -23,7 +23,7 @@ import { toaster } from "@/components/ui/toaster";
 import {
   buildSchema,
   extractErrors,
-} from "@/components/feature/employmentApplication/validation";
+} from "./components/validation";
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -116,6 +116,7 @@ export default function EmploymentApplication() {
   });
 
   if (!role) {
+    {console.log("role: ", role)}
     return (
       <Box p={6}>
         <Heading size="md">Invalid role</Heading>
