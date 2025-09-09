@@ -1,4 +1,3 @@
-// controllers/auth.controller.ts
 import * as tokenService from "../services/token.service";
 import { register as registerSvc, login as loginSvc } from "../services/auth.service";
 import { getPublicUserById } from "../services/user.service";
