@@ -1,4 +1,3 @@
-// src/components/feature/employmentApplication/validation.ts
 import { z } from "zod";
 import type { RoleDef, RoleField } from "@/data/roles";
 
