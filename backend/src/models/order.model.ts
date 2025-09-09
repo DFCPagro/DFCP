@@ -3,11 +3,13 @@ import mongoose, { Schema, Model, Document, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { Address } from "../types/address"; // { lnt: number; alt: number; address: string; }
 
+
+///statuses for customer
 export const ORDER_STATUSES = [
   "pending",
   "confirmed",
-  "picking",
-  "packed",
+  "in-transit",
+  "packing",
   "ready_for_pickup",
   "out_for_delivery",
   "delivered",

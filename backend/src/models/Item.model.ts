@@ -11,6 +11,8 @@ export interface IABCScale {
   C?: string | null;
 }
 
+
+
 export interface IQualityStandards {
   tolerance?: string | null;
   brix?: IABCScale;
@@ -22,9 +24,16 @@ export interface IQualityStandards {
   diameterMM?: IABCScale;
   qualityGrade?: IABCScale;
   maxDefectRatioLengthDiameter?: IABCScale;
-  rejectionRate?: IABCScale;
 }
-
+ //rejectionRate?: IABCScale;
+const ABCSchema = new Schema<IABCScale>(
+  {
+    A: { type: Schema.Types.String, default: null, trim: true },
+    B: { type: Schema.Types.String, default: null, trim: true },
+    C: { type: Schema.Types.String, default: null, trim: true },
+  },
+  { _id: false }
+);
 export interface IItem extends Document {
   itemId: string;                 // unique code (e.g., FRT-001)
   category: ItemCategory;         // "fruit" | "vegetable"
@@ -40,24 +49,18 @@ export interface IItem extends Document {
   caloriesPer100g?: number | null;
 
   qualityStandards?: IQualityStandards | null;
-
+  price: number | null; 
   // metadata
   lastUpdated: Date;              // mirrors updatedAt for your API
   createdAt: Date;
   updatedAt: Date;
 
   // virtual (read-only): legacy display name "type + variety"
-  name?: string;                  // provided by virtual getter
+  name?: string;  
+        
 }
 
-const ABCSchema = new Schema<IABCScale>(
-  {
-    A: { type: Schema.Types.String, default: null, trim: true },
-    B: { type: Schema.Types.String, default: null, trim: true },
-    C: { type: Schema.Types.String, default: null, trim: true },
-  },
-  { _id: false }
-);
+
 
 const QualityStandardsSchema = new Schema<IQualityStandards>(
   {
@@ -71,7 +74,7 @@ const QualityStandardsSchema = new Schema<IQualityStandards>(
     diameterMM: { type: ABCSchema, default: undefined },
     qualityGrade: { type: ABCSchema, default: undefined },
     maxDefectRatioLengthDiameter: { type: ABCSchema, default: undefined },
-    rejectionRate: { type: ABCSchema, default: undefined },
+
   },
   { _id: false }
 );
@@ -109,7 +112,7 @@ const ItemSchema = new Schema<IItem>(
     caloriesPer100g: { type: Schema.Types.Number, default: null, min: 0 },
 
     qualityStandards: { type: QualityStandardsSchema, default: undefined },
-
+    price: { type: ABCSchema, default: undefined },
     lastUpdated: { type: Schema.Types.Date, default: () => new Date() },
   },
   {
