@@ -1,13 +1,14 @@
+// src/pages/Register.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
+import { registerApi } from "@/api/auth";
 import {
-  registerApi,
   type RegisterPayload,
   type RegisterResponse,
-} from "@/api/auth";
+} from "@/types/auth";
 import {
   Box,
   Button,
@@ -28,10 +29,7 @@ import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
 import { LocateFixed } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 
-type RegisterPayloadWithLoc = RegisterPayload & {
-  latitude?: number;
-  longitude?: number;
-};
+type FormWithoutAddress = Omit<RegisterPayload, "address">;
 
 export default function Register() {
   const navigate = useNavigate();
@@ -41,18 +39,17 @@ export default function Register() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const countries = "IL"; // restrict autocomplete to Israel
 
-  // form state
-  const [form, setForm] = useState<RegisterPayload>({
+  // form (without address object)
+  const [form, setForm] = useState<FormWithoutAddress>({
     name: "",
     email: "",
     password: "",
     phone: "",
     birthday: "",
-    address: "",
   });
 
-  // location state
-  const [address, setAddress] = useState("");
+  // address UI state → we’ll build the backend object from these three
+  const [addressText, setAddressText] = useState("");
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
 
@@ -79,18 +76,10 @@ export default function Register() {
       );
   }, []);
 
-  // register mutation
-  const { mutate, isPending } = useMutation<
-    RegisterResponse,
-    any,
-    RegisterPayloadWithLoc
-  >({
+  const { mutate, isPending } = useMutation<RegisterResponse, any, RegisterPayload>({
     mutationFn: (payload) => registerApi(payload),
     onSuccess: () => {
-      toaster.create({
-        title: "Account created! Please login.",
-        type: "success",
-      });
+      toaster.create({ title: "Account created! Please login.", type: "success" });
       navigate("/login", { replace: true });
     },
     onError: (err: any) => {
@@ -110,7 +99,7 @@ export default function Register() {
     });
   };
 
-  const handleChange = (key: keyof RegisterPayload, value: string) => {
+  const handleChange = (key: keyof FormWithoutAddress, value: string) => {
     setForm((p) => ({ ...p, [key]: value }));
     if (key === "name") clearErrorIfValid("name", !!value.trim());
     if (key === "email") clearErrorIfValid("email", !!value.trim());
@@ -154,7 +143,7 @@ export default function Register() {
           setMapsReady(true);
         }
         const addr = await reverseGeocode(lat, lng);
-        if (addr) setAddress(addr);
+        if (addr) setAddressText(addr);
       } catch {
         /* ignore reverse geocode failure */
       }
@@ -173,10 +162,13 @@ export default function Register() {
   // submit
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+
     const newErrors: typeof errors = {};
     if (!form.name?.trim()) newErrors.name = "Name is required";
     if (!form.email?.trim()) newErrors.email = "Email is required";
     if (!form.password) newErrors.password = "Password is required";
+    if (!addressText?.trim()) newErrors.address = "Address is required";
+    if (latitude == null || longitude == null) newErrors.address = "Please select a point on the map";
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
@@ -184,12 +176,15 @@ export default function Register() {
     }
 
     setErrors({});
-    const payload: RegisterPayloadWithLoc = {
+
+    const payload: RegisterPayload = {
       ...form,
       phone: phoneState.e164 || undefined,
-      address: address || undefined,
-      latitude,
-      longitude,
+      address: {
+        lnt: longitude as number,
+        alt: latitude as number,
+        address: addressText.trim(),
+      },
     };
 
     mutate(payload);
@@ -202,33 +197,20 @@ export default function Register() {
 
         <Field.Root invalid={!!errors.name}>
           <Field.Label>Name</Field.Label>
-          <Input
-            value={form.name}
-            onChange={(e) => handleChange("name", e.target.value)}
-          />
+          <Input value={form.name} onChange={(e) => handleChange("name", e.target.value)} />
           {errors.name && <Field.ErrorText>{errors.name}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!errors.email}>
           <Field.Label>Email</Field.Label>
-          <Input
-            type="email"
-            value={form.email}
-            onChange={(e) => handleChange("email", e.target.value)}
-          />
+          <Input type="email" value={form.email} onChange={(e) => handleChange("email", e.target.value)} />
           {errors.email && <Field.ErrorText>{errors.email}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!errors.password}>
           <Field.Label>Password</Field.Label>
-          <Input
-            type="password"
-            value={form.password}
-            onChange={(e) => handleChange("password", e.target.value)}
-          />
-          {errors.password && (
-            <Field.ErrorText>{errors.password}</Field.ErrorText>
-          )}
+          <Input type="password" value={form.password} onChange={(e) => handleChange("password", e.target.value)} />
+          {errors.password && <Field.ErrorText>{errors.password}</Field.ErrorText>}
         </Field.Root>
 
         <PhoneField
@@ -241,33 +223,26 @@ export default function Register() {
 
         <Field.Root invalid={!!errors.birthday}>
           <Field.Label>Birthday</Field.Label>
-          <Input
-            type="date"
-            value={form.birthday ?? ""}
-            onChange={(e) => handleChange("birthday", e.target.value)}
-          />
-          {errors.birthday && (
-            <Field.ErrorText>{errors.birthday}</Field.ErrorText>
-          )}
+          <Input type="date" value={form.birthday ?? ""} onChange={(e) => handleChange("birthday", e.target.value)} />
+          {errors.birthday && <Field.ErrorText>{errors.birthday}</Field.ErrorText>}
         </Field.Root>
 
         <Field.Root invalid={!!errors.address}>
           <Field.Label>Address</Field.Label>
           <AddressAutocomplete
-            value={address}
-            onChange={setAddress}
+            value={addressText}
+            onChange={setAddressText}
             onPlaceSelected={({ address, lat, lng }) => {
-              setAddress(address);
+              setAddressText(address);
               if (lat != null) setLatitude(lat);
               if (lng != null) setLongitude(lng);
+              clearErrorIfValid("address", !!address && lat != null && lng != null);
             }}
             countries={countries}
             disabled={!mapsReady}
             placeholder="Search and pick an address"
           />
-          {errors.address && (
-            <Field.ErrorText>{errors.address}</Field.ErrorText>
-          )}
+          {errors.address && <Field.ErrorText>{errors.address}</Field.ErrorText>}
         </Field.Root>
 
         <Flex gap={3} align="center" w="full">
@@ -275,16 +250,10 @@ export default function Register() {
             Pick on map
           </Button>
           <Tooltip content="Use my current location" openDelay={0}>
-            <IconButton
-              size="xs"
-              variant="ghost"
-              onClick={useMyLocation}
-              aria-label="Use my location"
-            >
+            <IconButton size="xs" variant="ghost" onClick={useMyLocation} aria-label="Use my location">
               <LocateFixed size={14} />
             </IconButton>
           </Tooltip>
-
           {latitude != null && longitude != null && (
             <Text fontSize="xs" color="gray.500" ml="auto">
               ({latitude.toFixed(4)}, {longitude.toFixed(4)})
@@ -309,14 +278,15 @@ export default function Register() {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onConfirm={(v) => {
-          setAddress(v.address);
+          setAddressText(v.address);
           setLatitude(v.lat);
           setLongitude(v.lng);
           setPickerOpen(false);
+          clearErrorIfValid("address", !!v.address && v.lat != null && v.lng != null);
         }}
         initial={
           latitude != null && longitude != null
-            ? { lat: latitude, lng: longitude, address }
+            ? { lat: latitude, lng: longitude, address: addressText }
             : undefined
         }
         countries={countries}
