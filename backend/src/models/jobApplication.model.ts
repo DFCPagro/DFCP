@@ -305,3 +305,5 @@ JobApplicationBaseSchema.virtual("userInfo", {
   foreignField: "_id",
   justOne: true,
 });
+
+export default JobApplication;

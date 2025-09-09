@@ -1,10 +1,14 @@
+// src/pages/Register.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { registerApi, type RegisterPayload } from "@/api/auth";
-import { useAuthStore } from "@/store/auth";
+import { registerApi } from "@/api/auth";
+import {
+  type RegisterPayload,
+  type RegisterResponse,
+} from "@/types/auth";
 import {
   Box,
   Button,
@@ -25,33 +29,27 @@ import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
 import { LocateFixed } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 
-type RegisterPayloadWithLoc = RegisterPayload & {
-  address?: string;
-  latitude?: number;
-  longitude?: number;
-};
+type FormWithoutAddress = Omit<RegisterPayload, "address">;
 
 export default function Register() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
 
   // maps + picker
   const [mapsReady, setMapsReady] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const countries = "IL"; // or "US,CA" | undefined
+  const countries = "IL"; // restrict autocomplete to Israel
 
-  // core form
-  const [form, setForm] = useState<RegisterPayload>({
+  // form (without address object)
+  const [form, setForm] = useState<FormWithoutAddress>({
     name: "",
     email: "",
     password: "",
     phone: "",
     birthday: "",
-    address: "", // API compatibility; UI uses autocomplete/picker
   });
 
-  // location state
-  const [address, setAddress] = useState("");
+  // address UI state → we’ll build the backend object from these three
+  const [addressText, setAddressText] = useState("");
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
 
@@ -65,7 +63,7 @@ export default function Register() {
     Partial<Record<keyof RegisterPayload | "phone" | "address", string>>
   >({});
 
-  // load Google Maps once (for autocomplete + reverse geocode)
+  // load Google Maps once
   useEffect(() => {
     loadGoogleMaps()
       .then(() => setMapsReady(true))
@@ -78,13 +76,11 @@ export default function Register() {
       );
   }, []);
 
-  const { mutate, isPending } = useMutation({
-    mutationFn: (payload: RegisterPayloadWithLoc) =>
-      registerApi(payload as RegisterPayload),
-    onSuccess: ({ user, token }) => {
-      setAuth({ user, token });
-      toaster.create({ title: "Account created!", type: "success" });
-      navigate("/dashboard", { replace: true });
+  const { mutate, isPending } = useMutation<RegisterResponse, any, RegisterPayload>({
+    mutationFn: (payload) => registerApi(payload),
+    onSuccess: () => {
+      toaster.create({ title: "Account created! Please login.", type: "success" });
+      navigate("/login", { replace: true });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message ?? "Registration failed";
@@ -103,7 +99,7 @@ export default function Register() {
     });
   };
 
-  const handleChange = (key: keyof RegisterPayload, value: string) => {
+  const handleChange = (key: keyof FormWithoutAddress, value: string) => {
     setForm((p) => ({ ...p, [key]: value }));
     if (key === "name") clearErrorIfValid("name", !!value.trim());
     if (key === "email") clearErrorIfValid("email", !!value.trim());
@@ -116,7 +112,7 @@ export default function Register() {
     clearErrorIfValid("phone", !!next.e164);
   };
 
-  // simple geolocate + map fallback
+  // geolocate
   const useMyLocation = async () => {
     if (!navigator.geolocation) {
       toaster.create({
@@ -147,9 +143,9 @@ export default function Register() {
           setMapsReady(true);
         }
         const addr = await reverseGeocode(lat, lng);
-        if (addr) setAddress(addr);
+        if (addr) setAddressText(addr);
       } catch {
-        /* reverse geocode failed; coords still set */
+        /* ignore reverse geocode failure */
       }
 
       toaster.create({ type: "success", title: "Location detected" });
@@ -166,12 +162,13 @@ export default function Register() {
   // submit
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+
     const newErrors: typeof errors = {};
     if (!form.name?.trim()) newErrors.name = "Name is required";
     if (!form.email?.trim()) newErrors.email = "Email is required";
     if (!form.password) newErrors.password = "Password is required";
-    // require location? uncomment:
-    // if (!address && (latitude == null || longitude == null)) newErrors.address = "Pick an address or use your location";
+    if (!addressText?.trim()) newErrors.address = "Address is required";
+    if (latitude == null || longitude == null) newErrors.address = "Please select a point on the map";
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
@@ -179,12 +176,15 @@ export default function Register() {
     }
 
     setErrors({});
-    const payload: RegisterPayloadWithLoc = {
+
+    const payload: RegisterPayload = {
       ...form,
       phone: phoneState.e164 || undefined,
-      address: address || undefined,
-      latitude,
-      longitude,
+      address: {
+        lnt: longitude as number,
+        alt: latitude as number,
+        address: addressText.trim(),
+      },
     };
 
     mutate(payload);
@@ -227,16 +227,16 @@ export default function Register() {
           {errors.birthday && <Field.ErrorText>{errors.birthday}</Field.ErrorText>}
         </Field.Root>
 
-        {/* Address selection (Autocomplete + Map + Autolocate) */}
         <Field.Root invalid={!!errors.address}>
           <Field.Label>Address</Field.Label>
           <AddressAutocomplete
-            value={address}
-            onChange={setAddress}
+            value={addressText}
+            onChange={setAddressText}
             onPlaceSelected={({ address, lat, lng }) => {
-              setAddress(address);
+              setAddressText(address);
               if (lat != null) setLatitude(lat);
               if (lng != null) setLongitude(lng);
+              clearErrorIfValid("address", !!address && lat != null && lng != null);
             }}
             countries={countries}
             disabled={!mapsReady}
@@ -250,16 +250,10 @@ export default function Register() {
             Pick on map
           </Button>
           <Tooltip content="Use my current location" openDelay={0}>
-            <IconButton
-              size="xs"
-              variant="ghost"
-              onClick={useMyLocation}
-              aria-label="Use my location"
-            >
+            <IconButton size="xs" variant="ghost" onClick={useMyLocation} aria-label="Use my location">
               <LocateFixed size={14} />
             </IconButton>
           </Tooltip>
-
           {latitude != null && longitude != null && (
             <Text fontSize="xs" color="gray.500" ml="auto">
               ({latitude.toFixed(4)}, {longitude.toFixed(4)})
@@ -284,14 +278,15 @@ export default function Register() {
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onConfirm={(v) => {
-          setAddress(v.address);
+          setAddressText(v.address);
           setLatitude(v.lat);
           setLongitude(v.lng);
           setPickerOpen(false);
+          clearErrorIfValid("address", !!v.address && v.lat != null && v.lng != null);
         }}
         initial={
           latitude != null && longitude != null
-            ? { lat: latitude, lng: longitude, address }
+            ? { lat: latitude, lng: longitude, address: addressText }
             : undefined
         }
         countries={countries}

@@ -4,14 +4,15 @@ import AuthGuard from "@/guards/AuthGuard";
 import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from '@/guards/RoleGuard';
 import { PATHS } from "./paths";
-import Jobs from "@/pages/jobs";
-import EmploymentApplication from "@/pages/EmploymentApplication";
+// import JobApplication from "@/pages/JobApplication/index";
 
 const Home                = lazy(() => import('@/pages/Home'));
 const Login               = lazy(() => import('@/pages/Login'));
 const Register            = lazy(() => import('@/pages/Register'));
 const Dashboard           = lazy(() => import('@/pages/Dashboard'));
 const DriverSchedule      = lazy(() => import('@/pages/DriverSchedule'));
+const JobApplication      = lazy(() => import ('@/pages/JobApplication'))
+const AvailabileJobs      = lazy(() => import ('@/pages/AvailableJobs'))
 const AggregationsPage    = lazy(() => import('@/pages/Aggregations'));
 const ContainersPage      = lazy(() => import('@/pages/Containers'));
 const ShipmentsPage       = lazy(() => import('@/pages/Shipments'));
@@ -20,6 +21,7 @@ const CustomerConfirmPage = lazy(() => import('@/pages/CustomerConfirm'));
 const ArrivalConfirmPage  = lazy(() => import('@/pages/ArrivalConfirm'));
 const AggregationViewPage = lazy(() => import('@/pages/AggregationView'));
 const ContainerViewPage   = lazy(() => import('@/pages/ContainerView'));
+const Market              = lazy(() => import('@/pages/Market'));
 const NotFound            = lazy(() => import('@/pages/NotFound'));
 
 export default function AppRoutes() {
@@ -29,8 +31,8 @@ export default function AppRoutes() {
         <Route path={PATHS.home} element={<Home />} />
         <Route path={PATHS.login} element={<GuestGuard><Login /></GuestGuard>} />
         <Route path={PATHS.register} element={<GuestGuard><Register /></GuestGuard>} />
-        <Route path={PATHS.jobs} element={<Jobs />} />
-        <Route path="/employment-application" element={<EmploymentApplication />} />
+        <Route path={PATHS.jobs} element={<AvailabileJobs />} />
+        <Route path="/job-application" element={<JobApplication />} />
 
         {/* Public QR endpoints */}
         <Route path={PATHS.ops} element={<OpsOrderPage />} />
@@ -42,6 +44,9 @@ export default function AppRoutes() {
         {/* Authenticated routes */}
         <Route element={<AuthGuard />}>
           <Route path={PATHS.dashboard} element={<Dashboard />} />
+          {/* customer-only pages */}
+          <Route path={PATHS.market} element={<RoleGuard allow={['customer']}><Market /></RoleGuard>} />
+          
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
           {/* farmer-only pages */}
           <Route path={PATHS.aggregations} element={<RoleGuard allow={['farmer']}><AggregationsPage /></RoleGuard>} />
