@@ -12,5 +12,5 @@ router.use('/orders', orderRoutes);
 router.use('/aggregations', aggregationsRoutes);
 router.use('/containers', containersRoutes);
 router.use('/shipments', shipmentsRoutes);
-router.use("/api/job-applications", jobApplicationRouter);
+router.use("/jobApp", jobApplicationRouter);
 export default router;

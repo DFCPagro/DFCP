@@ -1,10 +1,9 @@
 // routes/jobApplication.route.ts
 import { Router } from "express";
-import { authenticate  ,authorize } from "../middlewares/auth";
+import { authenticate, authorize } from "../middlewares/auth";
 import validate from "../utils/validate";
 import * as v from "../validations/jobApplication.validation";
 import * as ctrl from "../controllers/jobApplication.controller";
-import { jobApplicationRoles, jobApplicationStatuses } from "../utils/constants";
 
 const router = Router();
 
@@ -32,18 +31,18 @@ const router = Router();
  *           description: Optional logistic center assignment (MongoId)
  *         applicationData:
  *           type: object
- *           description: Role-specific payload (see below examples)
+ *           description: Role-specific payload (see examples)
  *       examples:
  *         deliverer:
  *           value:
  *             appliedRole: deliverer
- *             logisticCenterId: "66f4c2d4a7d5d2b6b6b6b6b6"
+ *             logisticCenterId: null
  *             applicationData:
  *               licenseType: "B"
  *               driverLicenseNumber: "DL-1234567"
  *               vehicleType: "van"
  *               vehicleYear: 2020
- *               weeklySchedule: [3, 0, 12, 0, 15, 0, 0]
+ *               weeklySchedule: [3,0,12,0,15,0,0]
  *         industrialDeliverer:
  *           value:
  *             appliedRole: industrialDeliverer
@@ -51,7 +50,7 @@ const router = Router();
  *               licenseType: "C1"
  *               driverLicenseNumber: "C1-998877"
  *               refrigerated: true
- *               weeklySchedule: [15, 15, 15, 15, 15, 0, 0]
+ *               weeklySchedule: [15,15,15,15,15,0,0]
  *         farmer:
  *           value:
  *             appliedRole: farmer
@@ -120,37 +119,32 @@ const router = Router();
 
 /**
  * @swagger
- * /job-applications:
+ * /job-applications/create:
  *   post:
  *     summary: Create a new job application (applicant)
- *     description: The authenticated user submits an application for a role. Only one open application per role is allowed (re-apply only after denied).
+ *     description: One open application per role. Re-apply only after denied.
  *     tags: [JobApplications]
- *     security:
- *       - bearerAuth: []
+ *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/JobApplicationCreate'
+ *           schema: { $ref: '#/components/schemas/JobApplicationCreate' }
  *     responses:
  *       201:
  *         description: Created
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/JobApplicationDTO'
- *       400:
- *         description: Validation error
- *       401:
- *         description: Unauthorized
- *       409:
- *         description: Duplicate open application or user already holds this role
+ *             schema: { $ref: '#/components/schemas/JobApplicationDTO' }
+ *       400: { description: Validation error }
+ *       401: { description: Unauthorized }
+ *       409: { description: Duplicate open application or user already holds this role }
  */
 router.post(
-  "/",
+  "/create",
   authenticate,
-  validate(v.create),
+  ...v.create,
+  validate,
   ctrl.create
 );
 
@@ -158,10 +152,9 @@ router.post(
  * @swagger
  * /job-applications/mine:
  *   get:
- *     summary: List my job applications
+ *     summary: List my job applications (applicant)
  *     tags: [JobApplications]
- *     security:
- *       - bearerAuth: []
+ *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: query
  *         name: role
@@ -183,26 +176,24 @@ router.post(
  *         description: OK
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PaginatedJobApplications'
- *       401:
- *         description: Unauthorized
+ *             schema: { $ref: '#/components/schemas/PaginatedJobApplications' }
+ *       401: { description: Unauthorized }
  */
 router.get(
   "/mine",
   authenticate,
-  validate(v.mineQuery),
+  ...v.mineQuery,
+  validate,
   ctrl.mine
 );
 
 /**
  * @swagger
- * /job-applications:
+ * /job-applications/search:
  *   get:
- *     summary: List job applications (staff/admin)
+ *     summary: List job applications (admin)
  *     tags: [JobApplications]
- *     security:
- *       - bearerAuth: []
+ *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: query
  *         name: role
@@ -230,9 +221,7 @@ router.get(
  *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
  *       - in: query
  *         name: sort
- *         schema:
- *           type: string
- *           enum: ["-createdAt", "createdAt", "-updatedAt", "updatedAt", "-status", "status"]
+ *         schema: { type: string, enum: ["-createdAt","createdAt","-updatedAt","updatedAt","-status","status"] }
  *       - in: query
  *         name: includeUser
  *         schema: { type: boolean, default: false }
@@ -241,29 +230,26 @@ router.get(
  *         description: OK
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PaginatedJobApplications'
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
+ *             schema: { $ref: '#/components/schemas/PaginatedJobApplications' }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
  */
 router.get(
-  "/",
+  "/search",
   authenticate,
-  authorize(["admin", "staff"]),
-  validate(v.listQuery),
+  authorize("admin"),
+  ...v.listQuery,
+  validate,
   ctrl.listAll
 );
 
 /**
  * @swagger
- * /job-applications/{id}:
+ * /job-applications/{id}/details:
  *   get:
- *     summary: Get a job application by id (owner or staff/admin)
+ *     summary: Get a job application by id (owner or admin)
  *     tags: [JobApplications]
- *     security:
- *       - bearerAuth: []
+ *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
@@ -277,30 +263,26 @@ router.get(
  *         description: OK
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/JobApplicationDTO'
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Not found
+ *             schema: { $ref: '#/components/schemas/JobApplicationDTO' }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: Not found }
  */
 router.get(
-  "/:id",
+  "/:id/details",
   authenticate,
-  validate(v.idParam),
+  ...v.idParam,
+  validate,
   ctrl.read
 );
 
 /**
  * @swagger
- * /job-applications/{id}:
+ * /job-applications/{id}/update:
  *   patch:
  *     summary: Update applicationData (owner; allowed while pending/contacted)
  *     tags: [JobApplications]
- *     security:
- *       - bearerAuth: []
+ *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
@@ -321,21 +303,17 @@ router.get(
  *         description: Updated
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/JobApplicationDTO'
- *       400:
- *         description: Validation error or invalid status for edit
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Not found
+ *             schema: { $ref: '#/components/schemas/JobApplicationDTO' }
+ *       400: { description: Validation error or invalid status for edit }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: Not found }
  */
 router.patch(
-  "/:id",
+  "/:id/update",
   authenticate,
-  validate(v.patchApplication),
+  ...v.patchApplication,
+  validate,
   ctrl.patchApplication
 );
 
@@ -343,10 +321,9 @@ router.patch(
  * @swagger
  * /job-applications/{id}/status:
  *   patch:
- *     summary: Change application status (staff/admin)
+ *     summary: Change application status (admin)
  *     tags: [JobApplications]
- *     security:
- *       - bearerAuth: []
+ *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
@@ -371,22 +348,18 @@ router.patch(
  *         description: Updated
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/JobApplicationDTO'
- *       400:
- *         description: Invalid transition
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Not found
+ *             schema: { $ref: '#/components/schemas/JobApplicationDTO' }
+ *       400: { description: Invalid transition }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: Not found }
  */
 router.patch(
   "/:id/status",
   authenticate,
-  authorize(["admin", "staff"]),
-  validate(v.patchStatus),
+  authorize("admin"),
+  ...v.patchStatus,
+  validate,
   ctrl.patchStatusCtrl
 );
 
@@ -394,10 +367,9 @@ router.patch(
  * @swagger
  * /job-applications/{id}/meta:
  *   patch:
- *     summary: Update admin metadata (e.g., logisticCenterId) (staff/admin)
+ *     summary: Update admin metadata (e.g., logisticCenterId) (admin)
  *     tags: [JobApplications]
- *     security:
- *       - bearerAuth: []
+ *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
@@ -418,20 +390,17 @@ router.patch(
  *         description: Updated
  *         content:
  *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/JobApplicationDTO'
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Not found
+ *             schema: { $ref: '#/components/schemas/JobApplicationDTO' }
+ *       401: { description: Unauthorized }
+ *       403: { description: Forbidden }
+ *       404: { description: Not found }
  */
 router.patch(
   "/:id/meta",
   authenticate,
-  authorize(["admin", "staff"]),
-  validate(v.patchMeta),
+  authorize("admin"),
+  ...v.patchMeta,
+  validate,
   ctrl.patchMetaCtrl
 );
 
