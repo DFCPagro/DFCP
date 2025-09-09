@@ -7,15 +7,12 @@ import {
   Card,
   Checkbox,
   Heading,
-  Separator,
   Stack,
   Text,
 } from "@chakra-ui/react";
 import { RolesTable, type RoleDef } from "@/data/roles";
 import { RoleHeader } from "@/components/feature/employmentApplication/RoleHeader";
-import { DynamicFields } from "@/components/feature/employmentApplication/DynamicFields";
-import { ScheduleGrid } from "@/components/feature/employmentApplication/ScheduleGrid";
-import { LandList } from "@/components/feature/employmentApplication/LandList";
+import { RoleForm } from "@/components/feature/employmentApplication/DynamicFields";
 import {
   submitEmploymentApplication,
   type EmploymentApplicationPayload,
@@ -23,6 +20,10 @@ import {
 } from "@/api/applications";
 import { meApi } from "@/api/auth";
 import { toaster } from "@/components/ui/toaster";
+import {
+  buildSchema,
+  extractErrors,
+} from "@/components/feature/employmentApplication/validation";
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -59,6 +60,40 @@ export default function EmploymentApplication() {
     undefined
   );
   const [lands, setLands] = useState<LandInput[]>([]);
+  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
+
+  const schema = useMemo(() => (role ? buildSchema(role) : null), [role]);
+
+  const validateAll = (data: Record<string, any>) => {
+    if (!schema) return {};
+    const parsed = schema.safeParse(data);
+    return extractErrors(parsed);
+  };
+
+  const updateField = (n: string, v: any) => {
+    setFields((prev) => {
+      const next = { ...prev, [n]: v };
+      const errs = validateAll({
+        ...next,
+        scheduleBitmask: scheduleMask,
+        lands,
+      });
+      setErrors(errs);
+      return next;
+    });
+  };
+
+  const updateSchedule = (m?: number[]) => {
+    setScheduleMask(m);
+    setErrors(validateAll({ ...fields, scheduleBitmask: m, lands }));
+  };
+
+  const updateLands = (ls: LandInput[]) => {
+    setLands(ls);
+    setErrors(
+      validateAll({ ...fields, scheduleBitmask: scheduleMask, lands: ls })
+    );
+  };
 
   const { mutateAsync, isPending } = useMutation({
     mutationFn: submitEmploymentApplication,
@@ -92,17 +127,31 @@ export default function EmploymentApplication() {
     );
   }
 
+  const isFormValid = useMemo(
+    () => Object.keys(errors).length === 0 && agree,
+    [errors, agree]
+  );
+
   const handleSubmit = async () => {
-    if (!agree) {
-      toaster.create({
-        type: "warning",
-        title: "Please certify accuracy",
-      });
+    const full = { ...fields, scheduleBitmask: scheduleMask, lands };
+    const errs = validateAll(full);
+    if (Object.keys(errs).length > 0 || !agree) {
+      setErrors(errs);
+      if (!agree) {
+        toaster.create({
+          type: "warning",
+          title: "Please certify the information",
+        });
+      } else {
+        toaster.create({
+          type: "warning",
+          title: "Please fix the highlighted fields",
+        });
+      }
       return;
     }
 
     const extra: Record<string, unknown> = { ...fields };
-
     if (role.includeSchedule && scheduleMask)
       extra.scheduleBitmask = scheduleMask;
     if (role.includeLand) {
@@ -134,72 +183,52 @@ export default function EmploymentApplication() {
     <Box p={{ base: 4, md: 8 }}>
       <RoleHeader roleName={cap(role.name)} description={role.description} />
 
-      <Card.Root>
-        <Card.Body>
-          <Stack gap={6}>
-            <DynamicFields
-              fields={role.fields}
-              values={fields}
-              onChange={(n, v) => setFields((s) => ({ ...s, [n]: v }))}
-            />
+      {/* single-page form */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+      >
+        <Card.Root border={"none"}>
+          <Card.Body>
+            <Stack gap={6}>
+              <RoleForm
+                role={role}
+                values={fields}
+                onChange={updateField}
+                columns={{ base: 1, md: 2 }}
+                scheduleMask={scheduleMask}
+                onScheduleChange={updateSchedule}
+                lands={lands}
+                onLandsChange={updateLands}
+                errors={errors}
+              />
 
-            {role.includeSchedule && (
-              <>
-                <Separator />
-                <Box>
-                  <Heading size="sm" mb={3}>
-                    Availability Schedule
-                  </Heading>
-                  <ScheduleGrid
-                    value={scheduleMask}
-                    onChange={setScheduleMask}
-                  />
-                </Box>
-              </>
-            )}
+              {/* Agreement */}
+              <Checkbox.Root>
+                <Checkbox.HiddenInput
+                  checked={agree}
+                  onChange={(e) => setAgree(e.currentTarget.checked)}
+                />
+                <Checkbox.Control />
+                <Checkbox.Label>
+                  I certify that all information is accurate.
+                </Checkbox.Label>
+              </Checkbox.Root>
 
-            {role.includeLand && (
-              <>
-                <Separator />
-                <Box>
-                  <Heading size="sm" mb={3}>
-                    Lands
-                  </Heading>
-                  <LandList value={lands} onChange={setLands} />
-                </Box>
-              </>
-            )}
-
-            <Checkbox.Root
-              checked={agree}
-              onCheckedChange={(state) => {
-                if (typeof state === "boolean") {
-                  setAgree(state);
-                } else {
-                  // Optional: handle "indeterminate" if needed
-                  setAgree(false); // or ignore
-                }
-              }}
-            >
-              <Checkbox.HiddenInput />
-              <Checkbox.Control>
-                <Checkbox.Indicator />
-              </Checkbox.Control>
-              <Checkbox.Label>
-                I certify that all information is accurate.
-              </Checkbox.Label>
-            </Checkbox.Root>
-
-            <Button
-              onClick={handleSubmit}
-              loading={isPending}
-              colorPalette="green"
-            >
-              Submit Application
-            </Button>
-          </Stack>
-        </Card.Body>
-      </Card.Root>
+              <Button
+                type="submit"
+                loading={isPending}
+                colorPalette="green"
+                disabled={!isFormValid}
+              >
+                Submit Application
+              </Button>
+            </Stack>
+          </Card.Body>
+        </Card.Root>
+      </form>
     </Box>
   );
 }
