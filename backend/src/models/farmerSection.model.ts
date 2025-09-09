@@ -1,7 +1,7 @@
 import mongoose, { Schema, Types, Document, Model } from "mongoose";
 import toJSON from "../utils/toJSON";
 
-export type CropStatus = "notReady" | "ready" | "cleaning";
+export type CropStatus ="growing"|"planting" |"notReady" | "ready" | "cleaning";
 
 export interface ISectionCrop {
   item: Types.ObjectId;               // ref -> Item (or Product) collection
