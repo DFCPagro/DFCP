@@ -1,47 +1,30 @@
-import mongoose, { Schema, Types, Document, Model } from "mongoose";
+// models/farmerLand.model.ts
+import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
-import { Address } from "../types/address"; // { lnt: number; alt: number; address: string; }
 
-export type LandOwnership = "owned" | "rented";
-
-export interface IFarmerLand extends Document {
-  farmer: Types.ObjectId;          // ref -> Farmer (required)
-  name: string;                    // land nickname (unique per farmer)
-  ownership: LandOwnership;        // "owned" | "rented"
-  widthM: number;                   // integer-ish (store as number)
-  lengthM: number;                  // integer-ish (store as number)
-  // Use your Address shape directly
-  landLocation?: Address | null;
-  pickUpLocation?: Address | null;
-  // References to FarmerSection docs for this land
-  sections: Types.ObjectId[];      // ref -> FarmerSection[]
-
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-const AddressSubSchema = new Schema<Address>(
+// ---------- Address sub-schema ----------
+const AddressSubSchema = new Schema(
   {
-    lnt: { type: Schema.Types.Number, required: true },     // your naming
-    alt: { type: Schema.Types.Number, required: true },     // your naming
-    address: { type: Schema.Types.String, required: true, trim: true },
+    lnt: { type: Number, required: true },     // longitude-ish (kept as 'lnt')
+    alt: { type: Number, required: true },     // latitude-ish (kept as 'alt')
+    address: { type: String, required: true, trim: true },
+    logisticCenterId: { type: String, default: null }, // optional, matches your Address type
   },
   { _id: false }
 );
 
-const FarmerLandSchema = new Schema<IFarmerLand>(
+// ---------- Land schema (no generics; we infer later) ----------
+const FarmerLandSchema = new Schema(
   {
     farmer: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
-    name: { type: Schema.Types.String, required: true, trim: true },
-    ownership: { type: Schema.Types.String, enum: ["owned", "rented"], required: true },
-    widthM: { type: Schema.Types.Number, required: true, min: 0 },
-    lengthM: { type: Schema.Types.Number, required: true, min: 0 },
+    name: { type: String, required: true, trim: true },
+    ownership: { type: String, enum: ["owned", "rented"], required: true },
+    widthM: { type: Number, required: true, min: 0 },
+    lengthM: { type: Number, required: true, min: 0 },
 
-    // optional; can be added later or updated
     landLocation: { type: AddressSubSchema, default: null },
     pickUpLocation: { type: AddressSubSchema, default: null },
 
-    // sections references (empty by default)
     sections: {
       type: [Schema.Types.ObjectId],
       ref: "FarmerSection",
@@ -51,12 +34,17 @@ const FarmerLandSchema = new Schema<IFarmerLand>(
   { timestamps: true }
 );
 
+// Plugins & indexes
 FarmerLandSchema.plugin(toJSON as any);
 
 // Uniqueness: land name per farmer
 FarmerLandSchema.index({ farmer: 1, name: 1 }, { unique: true });
 
-export const FarmerLand: Model<IFarmerLand> =
-  mongoose.model<IFarmerLand>("FarmerLand", FarmerLandSchema);
+// ---------- Inferred types ----------
+export type FarmerLand = InferSchemaType<typeof FarmerLandSchema>;
+export type FarmerLandDoc = HydratedDocument<FarmerLand>;
+export type FarmerLandModel = Model<FarmerLand>;
 
+// ---------- Model ----------
+export const FarmerLand = model<FarmerLand, FarmerLandModel>("FarmerLand", FarmerLandSchema);
 export default FarmerLand;
