@@ -1,159 +1,48 @@
-import mongoose, { Document, Model, Schema, Types } from "mongoose";
+// models/jobApplication.model.ts
+
+/* =========================================
+ * Notes & usage tips:
+ * ======================================= 
+Typing: we infer JobApplicationBase from the base schema; for each discriminator we infer only the extra fields (applicationData shapes) and then intersect with the base to type the doc accurately.
+
+Indexes: you keep the partial unique index to prevent duplicate “open” applications per (user, role).
+
+Controller flow (approve → create entity):
+
+  -When a manager approves a “deliverer” app, read applicationData, create a Deliverer doc (from your deliverer model), and store the createdFromApplication reference on it if you like that linkage.
+
+  -Same idea for “farmer”.
+
+Validation: the weekly schedule validator is there; bump it to <= 15 if you always use a 4-shift mask.
+
+If you want, I can also drop a short service function that:
+  1. creates an application for a given role with runtime Zod validation, and
+  2. on approval, promotes it into a Deliverer or Farmer document (and closes the application).
+*/
+import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
 import {
   jobApplicationRoles,
   JobApplicationRole,
   jobApplicationStatuses,
-  JobApplicationStatus,
 } from "../utils/constants";
 
-/** =========================
- * Shared Interfaces
- * ======================= */
-export interface IJobApplicationBase extends Document {
-  user: Types.ObjectId;                      // ref User
-  appliedRole: JobApplicationRole;           // discriminator key
-  logisticCenterId?: Types.ObjectId | null;  // optional ref LogisticCenter
-  status: JobApplicationStatus;              // pending | contacted | accepted | denied
-  createdAt: Date;
-  updatedAt: Date;
-  applicationData?: Record<string, any>;     // overridden by discriminators
-}
+/* =========================================
+ * Sub-schemas (shared + per role)
+ * ======================================= */
 
-/** =========================
- * Deliverer
- * ======================= */
-// Weekly bitmask: 7 numbers, Sun..Sat. If you use 4 shifts/day, each n is 0..15.
-export type WeeklyShiftBitmask = [number, number, number, number, number, number, number];
-
-export interface IDelivererData {
-  licenseType: string;                 // e.g., "B" | "C1" | "C"
-  driverLicenseNumber: string;
-
-  vehicleMake?: string;
-  vehicleModel?: string;
-  vehicleType?: string;                // "van" | "truck" | "motorcycle" ...
-  vehicleYear?: number;
-  vehicleRegistrationNumber?: string;
-  vehicleInsurance?: boolean;
-
-  vehicleCapacityKg?: number;          // payload capacity
-  vehicleCapacityLiters?: number;      // cargo volume (liters)
-  speedKmH?: number;                   // for ETA planning
-
-  // Pay structure defaults (can be tuned later)
-  payFixedPerShift?: number;           // default 25
-  payPerKm?: number;                   // default 1
-  payPerStop?: number;                 // default 1
-
-  // Simplified: weekly schedule (7-length bitmask array)
-  weeklySchedule?: WeeklyShiftBitmask; // optional for now
-}
-
-export interface IIndustrialDelivererData extends IDelivererData {
-  refrigerated?: boolean;
-}
-
-/** =========================
- * Farmer
- * ======================= */
-export interface IFarmerLand {
-  name: string;
-  ownership: "owned" | "rented";
-  acres: number;
-  pickupAddress: {
-    address: string;
-    latitude?: number;
-    longitude?: number;
-  };
-}
-
-export interface IFarmerData {
-  agriculturalInsurance?: boolean;
-  farmName: string;
-  agreementPercentage?: number;        // default 60
-  lands: IFarmerLand[];                // store lands here (in application)
-}
-
-/** =========================
- * Picker / Sorter
- * ======================= */
-export interface IMinimalWorkerData {
-  // empty for now; extensible later
-}
-
-/** =========================
- * Base Schema
- * ======================= */
-const JOB_APP_DISCRIMINATOR_KEY = "appliedRole";
-
-const JobApplicationBaseSchema = new Schema<IJobApplicationBase>(
-  {
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    appliedRole: {
-      type: String,
-      enum: jobApplicationRoles,
-      required: true,
-      index: true,
-    },
-    logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", default: null },
-    status: {
-      type: String,
-      enum: jobApplicationStatuses,
-      default: "pending",
-      index: true,
-    },
-    // applicationData is defined by each discriminator below
-  },
-  {
-    timestamps: true,
-    discriminatorKey: JOB_APP_DISCRIMINATOR_KEY,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  }
-);
-
-JobApplicationBaseSchema.plugin(toJSON as any);
-
-/**
- * Block duplicate *open* applications per (user, role).
- * "Open" means status != 'denied' (so pending/contacted/accepted are considered open).
- * You can tweak if you prefer to allow multiple accepted, etc.
- */
-JobApplicationBaseSchema.index(
-  { user: 1, appliedRole: 1, status: 1 },
-  {
-    name: "uniq_open_application_per_role",
-    unique: true,
-    partialFilterExpression: { status: { $ne: "denied" } },
-  }
-);
-
-// Useful for admin dashboards
-JobApplicationBaseSchema.index({ logisticCenterId: 1, status: 1, createdAt: -1 });
-
-/** Model */
-export interface IJobApplicationModel extends Model<IJobApplicationBase> {}
-export const JobApplication = mongoose.model<IJobApplicationBase>(
-  "JobApplication",
-  JobApplicationBaseSchema
-) as IJobApplicationModel;
-
-/** =========================
- * Validators / Subschemas
- * ======================= */
+// Weekly bitmask: 7 numbers, Sun..Sat. If using 4 shifts/day → each n ∈ [0..15]
 const weeklyScheduleValidator = {
   validator: function (arr?: number[]) {
-    if (arr == null) return true;                 // optional
+    if (arr == null) return true;
     if (!Array.isArray(arr) || arr.length !== 7) return false;
     return arr.every((n) => Number.isInteger(n) && n >= 0);
-    // If you want to enforce 4 shifts/day → n <= 15, uncomment:
-    // return arr.every((n) => Number.isInteger(n) && n >= 0 && n <= 15);
+    // If you want strictly 4 shifts/day, use: n >= 0 && n <= 15
   },
   message: "weeklySchedule must be an array of exactly 7 non-negative integers.",
 };
 
-const DelivererDataSchema = new Schema<IDelivererData>(
+const DelivererDataSchema = new Schema(
   {
     licenseType: { type: String, required: true, trim: true },
     driverLicenseNumber: { type: String, required: true, trim: true },
@@ -178,7 +67,7 @@ const DelivererDataSchema = new Schema<IDelivererData>(
   { _id: false }
 );
 
-const IndustrialDelivererDataSchema = new Schema<IIndustrialDelivererData>(
+const IndustrialDelivererDataSchema = new Schema(
   {
     licenseType: { type: String, required: true, trim: true },
     driverLicenseNumber: { type: String, required: true, trim: true },
@@ -204,7 +93,7 @@ const IndustrialDelivererDataSchema = new Schema<IIndustrialDelivererData>(
   { _id: false }
 );
 
-const FarmerLandSchema = new Schema<IFarmerLand>(
+const FarmerLandSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     ownership: { type: String, enum: ["owned", "rented"], required: true },
@@ -224,7 +113,7 @@ const FarmerLandSchema = new Schema<IFarmerLand>(
   { _id: false }
 );
 
-const FarmerDataSchema = new Schema<IFarmerData>(
+const FarmerDataSchema = new Schema(
   {
     agriculturalInsurance: { type: Boolean, default: false },
     farmName: { type: String, required: true, trim: true },
@@ -232,73 +121,173 @@ const FarmerDataSchema = new Schema<IFarmerData>(
     lands: {
       type: [FarmerLandSchema],
       default: [],
-      validate: [(arr: IFarmerLand[]) => Array.isArray(arr), "lands must be an array"],
+      validate: [(arr: unknown) => Array.isArray(arr), "lands must be an array"],
     },
   },
   { _id: false }
 );
 
-/** =========================
- * Discriminators
- * ======================= */
-interface IJobApplicationDeliverer extends IJobApplicationBase {
-  applicationData: IDelivererData;
-}
-const DelivererSchema = new Schema<IJobApplicationDeliverer>({
-  applicationData: { type: DelivererDataSchema, required: true },
-});
-export const DelivererApplication = JobApplication.discriminator<IJobApplicationDeliverer>(
+const MinimalWorkerDataSchema = new Schema({}, { _id: false });
+
+/* =========================================
+ * Base schema (no generics; we infer later)
+ * ======================================= */
+
+const JOB_APP_DISCRIMINATOR_KEY = "appliedRole" as const;
+
+const JobApplicationBaseSchema = new Schema(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    appliedRole: {
+      type: String,
+      enum: jobApplicationRoles, // e.g., "deliverer" | "industrialDeliverer" | "farmer" | "picker" | "sorter"
+      required: true,
+      index: true,
+    },
+    logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", default: null },
+    status: {
+      type: String,
+      enum: [
+        // prefer reading from constants, but keep list here for runtime validation stability
+        ...new Set(["pending", "contacted", "accepted", "denied", ...jobApplicationStatuses]),
+      ],
+      default: "pending",
+      index: true,
+    },
+    // applicationData will be defined by each discriminator
+  },
+  {
+    timestamps: true,
+    discriminatorKey: JOB_APP_DISCRIMINATOR_KEY,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
+
+JobApplicationBaseSchema.plugin(toJSON as any);
+
+/** Block duplicate *open* applications per (user, role).
+ * "Open" = status != 'denied'
+ * You can tweak this if you later allow multiple accepted, etc.
+ */
+JobApplicationBaseSchema.index(
+  { user: 1, appliedRole: 1, status: 1 },
+  {
+    name: "uniq_open_application_per_role",
+    unique: true,
+    partialFilterExpression: { status: { $ne: "denied" } },
+  }
+);
+
+// Useful for admin dashboards
+JobApplicationBaseSchema.index({ logisticCenterId: 1, status: 1, createdAt: -1 });
+
+/* =========================================
+ * Base model + inferred types
+ * ======================================= */
+
+export type JobApplicationBase = InferSchemaType<typeof JobApplicationBaseSchema>;
+export type JobApplicationBaseDoc = HydratedDocument<JobApplicationBase>;
+export type JobApplicationBaseModel = Model<JobApplicationBase>;
+
+export const JobApplication = model<JobApplicationBase, JobApplicationBaseModel>(
+  "JobApplication",
+  JobApplicationBaseSchema
+);
+
+/* =========================================
+ * Discriminators (schemas + inferred types)
+ * NOTE: InferSchemaType on a discriminator schema only gives you
+ *       the *additional* fields; combine with base type for full doc.
+ * ======================================= */
+
+// ----- Deliverer Application -----
+const DelivererApplicationSchema = new Schema(
+  {
+    applicationData: { type: DelivererDataSchema, required: true },
+  },
+  { _id: false }
+);
+
+export type DelivererApplicationExtra = InferSchemaType<typeof DelivererApplicationSchema>; // { applicationData: ... }
+export type DelivererApplicationDoc = HydratedDocument<JobApplicationBase & DelivererApplicationExtra>;
+
+export const DelivererApplication = JobApplication.discriminator<
+  JobApplicationBase & DelivererApplicationExtra
+>(
   "deliverer",
-  DelivererSchema
+  DelivererApplicationSchema
 );
 
-interface IJobApplicationIndustrialDeliverer extends IJobApplicationBase {
-  applicationData: IIndustrialDelivererData;
-}
-const IndustrialDelivererSchema = new Schema<IJobApplicationIndustrialDeliverer>({
-  applicationData: { type: IndustrialDelivererDataSchema, required: true },
-});
-export const IndustrialDelivererApplication =
-  JobApplication.discriminator<IJobApplicationIndustrialDeliverer>(
-    "industrialDeliverer",
-    IndustrialDelivererSchema
-  );
-
-interface IJobApplicationFarmer extends IJobApplicationBase {
-  applicationData: IFarmerData;
-}
-const FarmerSchema = new Schema<IJobApplicationFarmer>({
-  applicationData: { type: FarmerDataSchema, required: true },
-});
-export const FarmerApplication = JobApplication.discriminator<IJobApplicationFarmer>(
-  "farmer",
-  FarmerSchema
+// ----- Industrial Deliverer Application -----
+const IndustrialDelivererApplicationSchema = new Schema(
+  {
+    applicationData: { type: IndustrialDelivererDataSchema, required: true },
+  },
+  { _id: false }
 );
 
-interface IJobApplicationMinimalWorker extends IJobApplicationBase {
-  applicationData: IMinimalWorkerData;
-}
-const MinimalWorkerDataSchema = new Schema<IMinimalWorkerData>({}, { _id: false });
+export type IndustrialDelivererApplicationExtra = InferSchemaType<typeof IndustrialDelivererApplicationSchema>;
+export type IndustrialDelivererApplicationDoc = HydratedDocument<
+  JobApplicationBase & IndustrialDelivererApplicationExtra
+>;
 
-const PickerSchema = new Schema<IJobApplicationMinimalWorker>({
-  applicationData: { type: MinimalWorkerDataSchema, required: false, default: {} },
-});
-export const PickerApplication = JobApplication.discriminator<IJobApplicationMinimalWorker>(
-  "picker",
-  PickerSchema
+export const IndustrialDelivererApplication = JobApplication.discriminator<
+  JobApplicationBase & IndustrialDelivererApplicationExtra
+>(
+  "industrialDeliverer",
+  IndustrialDelivererApplicationSchema
 );
 
-const SorterSchema = new Schema<IJobApplicationMinimalWorker>({
-  applicationData: { type: MinimalWorkerDataSchema, required: false, default: {} },
-});
-export const SorterApplication = JobApplication.discriminator<IJobApplicationMinimalWorker>(
-  "sorter",
-  SorterSchema
+// ----- Farmer Application -----
+const FarmerApplicationSchema = new Schema(
+  {
+    applicationData: { type: FarmerDataSchema, required: true },
+  },
+  { _id: false }
 );
 
-/** =========================
- * Virtuals
- * ======================= */
+export type FarmerApplicationExtra = InferSchemaType<typeof FarmerApplicationSchema>;
+export type FarmerApplicationDoc = HydratedDocument<JobApplicationBase & FarmerApplicationExtra>;
+
+export const FarmerApplication = JobApplication.discriminator<
+  JobApplicationBase & FarmerApplicationExtra
+>("farmer", FarmerApplicationSchema);
+
+// ----- Picker Application -----
+const PickerApplicationSchema = new Schema(
+  {
+    applicationData: { type: MinimalWorkerDataSchema, required: false, default: {} },
+  },
+  { _id: false }
+);
+
+export type PickerApplicationExtra = InferSchemaType<typeof PickerApplicationSchema>;
+export type PickerApplicationDoc = HydratedDocument<JobApplicationBase & PickerApplicationExtra>;
+
+export const PickerApplication = JobApplication.discriminator<
+  JobApplicationBase & PickerApplicationExtra
+>("picker", PickerApplicationSchema);
+
+// ----- Sorter Application -----
+const SorterApplicationSchema = new Schema(
+  {
+    applicationData: { type: MinimalWorkerDataSchema, required: false, default: {} },
+  },
+  { _id: false }
+);
+
+export type SorterApplicationExtra = InferSchemaType<typeof SorterApplicationSchema>;
+export type SorterApplicationDoc = HydratedDocument<JobApplicationBase & SorterApplicationExtra>;
+
+export const SorterApplication = JobApplication.discriminator<
+  JobApplicationBase & SorterApplicationExtra
+>("sorter", SorterApplicationSchema);
+
+/* =========================================
+ * Virtuals (shared)
+ * ======================================= */
+
 JobApplicationBaseSchema.virtual("userInfo", {
   ref: "User",
   localField: "user",
@@ -306,4 +295,22 @@ JobApplicationBaseSchema.virtual("userInfo", {
   justOne: true,
 });
 
+/* =========================================
+ * Helpful unions (optional but nice to have)
+ * ======================================= */
+
+export type AnyApplicationDoc =
+  | DelivererApplicationDoc
+  | IndustrialDelivererApplicationDoc
+  | FarmerApplicationDoc
+  | PickerApplicationDoc
+  | SorterApplicationDoc;
+
+export type AnyApplicationRole = Extract<
+  JobApplicationRole,
+  "deliverer" | "industrialDeliverer" | "farmer" | "picker" | "sorter"
+>;
+
 export default JobApplication;
+
+
