@@ -2,7 +2,7 @@
 import ApiError from "../utils/ApiError";
 import { createUser, findUserByEmail } from "./user.service";
 import * as tokenService from "./token.service";
-import { Address } from "../types/address";
+import { Address } from "../models/user.model";
 
 /**
  * Register (create-only)
@@ -14,10 +14,9 @@ export async function register(input: {
   name: string;
   email: string;
   password: string;
-  address: Address;             // { lnt: number; alt: number; address: string }
+  address: Address;      // client-provided address (optional lcId)
   phone?: string;
   birthday?: Date | string;
-  // any other fields from client are ignored/validated upstream
 }) {
   const { name, email, password, address, phone, birthday } = input;
 
@@ -27,18 +26,33 @@ export async function register(input: {
     throw new ApiError(409, "Email already registered");
   }
 
-  // 2) Create user (force role = 'customer' for self-registration)
+  // 2) Normalize address to what createUser currently expects (lcId: string)
+  const addressForCreate: {
+    lnt: number;
+    alt: number;
+    address: string;
+    logisticCenterId: string;
+  } = {
+    lnt: address.lnt,
+    alt: address.alt,
+    address: address.address,
+    // If your createUser typing requires a string, satisfy it here.
+    // (If you later widen createUser to accept null/undefined, change this to `?? null`.)
+    logisticCenterId: address.logisticCenterId ?? "",
+  };
+
+  // 3) Create user (force role = 'customer' for self-registration)
   await createUser({
     name,
     email,
     password,
-    phone: phone ?? undefined,
-    address,
-    role: "customer" as any,
+    phone,
+    role: "customer" as const,
+    address: addressForCreate,
     ...(birthday ? { birthday } : {}),
   });
 
-  // 3) Success (no user info in response)
+  // 4) Success (no user info in response)
   return { success: true as const };
 }
 
@@ -55,19 +69,15 @@ export async function login({
   password: string;
 }) {
   const user = await findUserByEmail(email);
-  if (!user) {
-    throw new ApiError(401, "Invalid credentials");
-  }
+  if (!user) throw new ApiError(401, "Invalid credentials");
 
-  // Optional gate: block inactive accounts (recommended)
+  // Optional gate: block inactive accounts
   if (user.activeStatus === false) {
     throw new ApiError(403, "Account is not active");
   }
 
   const ok = await (user as any).isPasswordMatch(password);
-  if (!ok) {
-    throw new ApiError(401, "Invalid credentials");
-  }
+  if (!ok) throw new ApiError(401, "Invalid credentials");
 
   const userId = String((user as any).id ?? (user as any)._id);
   const accessToken = tokenService.signAccessToken(userId);

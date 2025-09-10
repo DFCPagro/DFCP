@@ -1,8 +1,8 @@
+import type { Request, Response } from "express";
+import ApiError from "../utils/ApiError";
 import * as tokenService from "../services/token.service";
 import { register as registerSvc, login as loginSvc } from "../services/auth.service";
 import { getPublicUserById } from "../services/user.service";
-import ApiError from "../utils/ApiError";
-import type { Request, Response } from "express";
 
 /**
  * POST /auth/register
@@ -11,17 +11,15 @@ import type { Request, Response } from "express";
  */
 export async function register(req: Request, res: Response) {
   const result = await registerSvc(req.body);
-  // result is { success: true }
   res.status(201).json(result);
 }
 
 /**
  * POST /auth/login
- * Returns { name, role, accessToken, refreshToken } — no id, no email, no cookies.
+ * Returns { name, role, accessToken, refreshToken }.
  */
 export async function login(req: Request, res: Response) {
   const { name, role, accessToken, refreshToken } = await loginSvc(req.body);
-  // No server cookie; client stores tokens.
   res.json({ name, role, accessToken, refreshToken });
 }
 
@@ -40,7 +38,6 @@ export async function refresh(req: Request, res: Response) {
   if (!payload?.sub) throw new ApiError(401, "Invalid refresh token");
 
   const newAccess = tokenService.signAccessToken(payload.sub);
-  // Re-issue a new refresh token; no server cookie involved.
   const newRefresh = tokenService.signRefreshToken(payload.sub);
 
   res.json({ tokens: { access: newAccess, refresh: newRefresh } });
@@ -58,7 +55,6 @@ export async function logout(req: Request, res: Response) {
   if (token) {
     const payload = await tokenService.verifyRefreshToken(token).catch(() => null);
     if (payload?.sub) {
-      // If your implementation maintains a store/whitelist/blacklist, this will revoke it.
       await tokenService.revokeRefreshToken(token, payload.sub).catch(() => void 0);
     }
   }
@@ -69,10 +65,16 @@ export async function logout(req: Request, res: Response) {
 /**
  * GET /auth/me
  * Assumes authenticate middleware decorates req.user from access token.
+ * Supports either attached user object or a token payload containing an id/sub.
  */
 export async function me(req: Request, res: Response) {
-  // @ts-ignore
-  const user = req.user;
-  if (!user) throw new ApiError(401, "Unauthorized");
-  res.json(await getPublicUserById(String(user._id ?? user.id)));
+  // Common middlewares attach either a full user or { _id } or { id }.
+  // @ts-ignore - depends on your auth middleware
+  const current = req.user;
+  if (!current) throw new ApiError(401, "Unauthorized");
+
+  const id = String(current._id ?? current.id ?? current.sub ?? "");
+  if (!id) throw new ApiError(401, "Unauthorized");
+
+  res.json(await getPublicUserById(id));
 }

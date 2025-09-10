@@ -1,13 +1,14 @@
+// seeders/users/seedUsers.ts
 import * as fs from 'fs';
 import * as path from 'path';
 import { faker } from '@faker-js/faker';
 import User from '../../../src/models/user.model';
-import { Role } from '../../../src/utils/constants';
+import type { Role } from '../../../src/utils/constants';
 
 const STATIC_USERS_PATH = '../data/users.data.json';
 
-// ---- Types ----
-type Address = {
+// ---- Types (input DTOs for seeding only) ----
+type AddressInput = {
   lnt: number;          // longitude
   alt: number;          // latitude
   address: string;
@@ -15,17 +16,35 @@ type Address = {
   isPrimary?: boolean;
 };
 
+type AddressModelShape = {
+  lnt: number;
+  alt: number;
+  address: string;
+  logisticCenterId?: string | null; // model default is null
+};
+
 type UserSeed = {
+  name: string;
+  email: string;
+  password: string; // plain text in seed data; model will hash
+  role: Role;
+  activeStatus: boolean;
+  uid: string;
+  addresses?: AddressInput[]; // optional (legacy may use single address)
+  address?: AddressInput;     // legacy single address
+  birthday?: Date | string;   // optional in input
+  phone?: string;             // optional in input
+};
+
+// What we actually send to Mongo (no legacy field, addresses normalized)
+type SeedUserNormalized = {
   name: string;
   email: string;
   password: string;
   role: Role;
   activeStatus: boolean;
   uid: string;
-  // NEW: supports multi-address
-  addresses?: Address[];
-  // Legacy single address (we’ll normalize it)
-  address?: Address;
+  addresses: AddressModelShape[];
   birthday?: Date | string;
   phone?: string;
 };
@@ -34,7 +53,7 @@ type UserSeed = {
 const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 
 /** Israel-ish random address (alt=lat, lnt=lng) */
-const randomIsraelAddress = (label = 'Home'): Address => {
+const randomIsraelAddress = (label = 'Home'): AddressInput => {
   const alt = rand(29.5, 33.5);   // latitude
   const lnt = rand(34.25, 35.9);  // longitude
   const street = faker.location.streetAddress();
@@ -50,26 +69,22 @@ const randomIsraelAddress = (label = 'Home'): Address => {
 const USER_DATA_FILE = path.join(__dirname, STATIC_USERS_PATH);
 
 // --- Normalizers / Guards ---
-function toArrayAddresses(u: UserSeed): Address[] {
-  // If already array, clone it
+function toArrayAddresses(u: UserSeed): AddressInput[] {
   if (Array.isArray(u.addresses) && u.addresses.length > 0) {
     return u.addresses.map(a => ({ ...a }));
   }
-  // If legacy single address, convert to [address] and mark as primary
   if (u.address && typeof u.address === 'object') {
     return [{ ...u.address, label: u.address.label ?? 'Home', isPrimary: true }];
   }
-  // Fallback: create a dummy primary (shouldn’t happen if your data is correct)
   return [{ ...randomIsraelAddress('Home'), isPrimary: true }];
 }
 
-function ensureOnePrimary(addresses: Address[]): Address[] {
+function ensureOnePrimary(addresses: AddressInput[]): AddressInput[] {
   const copy = addresses.map(a => ({ ...a }));
   const primaryCount = copy.filter(a => a.isPrimary).length;
   if (primaryCount === 0) {
     copy[0].isPrimary = true;
   } else if (primaryCount > 1) {
-    // keep the first as primary, unset the rest
     let seen = false;
     for (const a of copy) {
       if (a.isPrimary && !seen) {
@@ -82,29 +97,35 @@ function ensureOnePrimary(addresses: Address[]): Address[] {
   return copy;
 }
 
-function normalizeUser(u: UserSeed): Required<UserSeed> {
-  const addresses = ensureOnePrimary(toArrayAddresses(u));
-  const {
-    name, email, password, role, activeStatus, uid,
-    birthday, phone
-  } = u;
-
+function toModelAddress(a: AddressInput): AddressModelShape {
   return {
-    name,
-    email: email.toLowerCase(),
-    password,
-    role,
-    activeStatus,
-    uid,
-    addresses,          // normalized array
-    // keep legacy key off the inserted doc
-    address: undefined as unknown as Address, // will be removed by spread below
-    birthday,
-    phone,
-  } as unknown as Required<UserSeed>;
+    lnt: a.lnt,
+    alt: a.alt,
+    address: a.address,
+    logisticCenterId: null, // explicit to match schema default
+  };
 }
 
-function loadFixedUsers(): Required<UserSeed>[] {
+function normalizeUser(u: UserSeed): SeedUserNormalized {
+  const normalizedAddresses = ensureOnePrimary(toArrayAddresses(u)).map(toModelAddress);
+
+  const base: SeedUserNormalized = {
+    name: u.name,
+    email: String(u.email).toLowerCase().trim(),
+    password: u.password, // plain here; model will hash on save/create
+    role: u.role,
+    activeStatus: u.activeStatus,
+    uid: u.uid,
+    addresses: normalizedAddresses,
+  };
+
+  if (u.birthday !== undefined) base.birthday = u.birthday;
+  if (u.phone !== undefined) base.phone = u.phone;
+
+  return base;
+}
+
+function loadFixedUsers(): SeedUserNormalized[] {
   if (!fs.existsSync(USER_DATA_FILE)) {
     throw new Error(
       `Missing users.data.json at: ${USER_DATA_FILE}\n` +
@@ -118,29 +139,26 @@ function loadFixedUsers(): Required<UserSeed>[] {
   return (parsed as UserSeed[]).map(normalizeUser);
 }
 
-function buildRandomCustomer(index: number): Required<UserSeed> {
+function buildRandomCustomer(index: number): SeedUserNormalized {
   const home = randomIsraelAddress('Home');
   const maybeWork = randomIsraelAddress('Work');
 
   const addresses = ensureOnePrimary([
     { ...home, isPrimary: true },
-    // 50% chance of a second “Work” address
     ...(Math.random() < 0.5 ? [maybeWork] : []),
-  ]);
+  ]).map(toModelAddress);
 
   return {
     name: faker.person.fullName(),
     email: faker.internet.email().toLowerCase(),
-    password: 'Password!1', // model pre-save hook should hash
+    password: 'Password!1', // model pre-save hook will hash
     role: 'customer',
     activeStatus: true,
     uid: `USR-${index}`,
     birthday: faker.date.birthdate({ min: 18, max: 70, mode: 'age' }),
     phone: faker.phone.number(),
     addresses,
-    // legacy key kept as undefined (not saved)
-    address: undefined as unknown as Address,
-  } as unknown as Required<UserSeed>;
+  };
 }
 
 // ---- Main seeder ----
@@ -148,7 +166,6 @@ export async function seedUsers(options?: { random?: number; clear?: boolean }) 
   const randomCount = Number.isFinite(options?.random) ? Number(options!.random) : 0;
   const shouldClear = options?.clear !== false; // default true
 
-  // Load & normalize fixed users from your JSON
   const fixedUsers = loadFixedUsers();
 
   console.log(
@@ -160,21 +177,19 @@ export async function seedUsers(options?: { random?: number; clear?: boolean }) 
     console.log('🧹 Cleared existing users');
   }
 
-  // Insert fixed users (passwords hashed by pre-save hook)
-  // Strip legacy `address` key before insert (if any)
-  await User.insertMany(
-    fixedUsers.map(({ address: _legacy, ...u }) => u as any)
-  );
+  // Use Model.create (NOT insertMany) so pre('save') hashing runs
+  if (fixedUsers.length) {
+    await User.create(fixedUsers);
+  }
 
-  // Optionally add random customers
   if (randomCount > 0) {
-    const randoms: Required<UserSeed>[] = [];
+    const randoms: SeedUserNormalized[] = [];
     for (let i = 1; i <= randomCount; i++) {
       randoms.push(buildRandomCustomer(i));
     }
-    await User.insertMany(
-      randoms.map(({ address: _legacy, ...u }) => u as any)
-    );
+    if (randoms.length) {
+      await User.create(randoms);
+    }
   }
 
   console.log('✅ Users seeded');

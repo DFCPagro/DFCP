@@ -1,56 +1,71 @@
-// src/services/user.service.ts
-
-import {User} from "../models"; // If you use a barrel, change to: import { User } from "../models";
+import { User } from "../models"; // or: import { User } from "../models/user.model";
 import generateId from "../utils/generateId";
 import ApiError from "../utils/ApiError";
 import { Role, roles } from "../utils/constants";
-import { Address } from "../types/address";
+// Use the Address type from the model to stay in sync with the schema
+import type { Address } from "../models/user.model";
 
 /**
  * Create a user document in the base User collection.
- * - No discriminators are used here; every doc is a plain User with a role field.
- * - For self-registration, the caller (auth.service.register) should force role="customer".
+ * - Model expects `addresses: Address[]`.
+ * - Allows callers to pass either a single `address` or an `addresses` array for convenience.
  */
 export async function createUser(data: {
   name: string;
   email: string;
   password: string;
   phone?: string;
-  address: Address;                 // { lnt: number; alt: number; address: string }
+  // Accept a single address for convenience…
+  address?: Address;
+  // …or an array that maps 1:1 to the schema.
+  addresses?: Address[];
   birthday?: Date | string;
-  role?: Role;                      // optional; validated but NOT used to switch models
+  role?: Role; // optional; validated but NOT used to switch models
 }) {
   const role: Role = (data.role ?? "customer") as Role;
-  // Defensive validation so admin/seed flows can't inject unknown roles
+
   if (!roles.includes(role)) {
     throw new ApiError(400, `Invalid role: ${role}`);
   }
 
   const uid = generateId("u_");
 
+  const addresses: Address[] =
+    (Array.isArray(data.addresses) && data.addresses.length > 0)
+      ? data.addresses
+      : (data.address ? [data.address] : []);
+
   const payload: any = {
     uid,
     name: data.name,
-    email: data.email,
-    password: data.password, // hashed by pre('save') hook on the model
+    email: String(data.email).trim().toLowerCase(),
+    password: data.password, // hashed by pre('save') hook
     role,
-    address: data.address,
+    addresses,               // <-- align with schema
   };
 
   if (data.phone) payload.phone = data.phone;
   if (data.birthday) payload.birthday = data.birthday;
 
-  const doc = await User.create(payload);
-  return doc;
+  try {
+    const doc = await User.create(payload);
+    return doc;
+  } catch (err: any) {
+    // Surface duplicate email more nicely
+    if (err?.code === 11000 && err?.keyPattern?.email) {
+      throw new ApiError(409, "Email is already registered");
+    }
+    throw err;
+  }
 }
 
 /**
- * Look up a user by email. Used by login.
- * Note: password is included by default in your schema. If you ever mark it select:false,
- *       change this to: return User.findOne({ email }).select("+password");
+ * Look up a user by email for login.
+ * `password` is select:false in the schema, so we must opt it in here.
+ * Return a hydrated document (no `.lean()`), so instance methods work.
  */
 export async function findUserByEmail(email: string) {
-  return User.findOne({ email });
+  return User.findOne({ email: String(email).trim().toLowerCase() }).select("+password");
 }
 
 /** Strict lookup by id with a 404 if missing. */
@@ -71,7 +86,8 @@ export type PublicUser = {
   activeStatus: boolean;
   phone?: string;
   birthday?: Date;
-  address: Address;
+  // Align with model: plural addresses
+  addresses: Address[];
   createdAt?: Date;
   updatedAt?: Date;
 };
@@ -86,7 +102,7 @@ export function toPublicUser(u: any): PublicUser {
     activeStatus: Boolean(u.activeStatus),
     phone: u.phone,
     birthday: u.birthday,
-    address: u.address,
+    addresses: Array.isArray(u.addresses) ? u.addresses : [],
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
   };
