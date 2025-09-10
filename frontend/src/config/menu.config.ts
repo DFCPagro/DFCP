@@ -1,30 +1,105 @@
+/**
+ * Central menu registry (single source of truth).
+ * Edit this file to change grouping/labels/paths; components render from here.
+ *
+ * Conventions:
+ * - Keys are unique across ALL items/groups.
+ * - Group labels become section titles in the side drawer.
+ * - Paths are plain strings to avoid tight coupling; you can swap to route constants later.
+ */
 
-//todo: based on each role show different menu items
-// src/config/menu.js
-// Each entry can be either:
-//  - a direct link: { text: "Market", to: "/market" }
-//  - a dropdown:    { text: "TM Pages", sub: [ { text: "Packages", to: "/tm-packages" }, ... ] }
-// case role: then show different menu items
-// Farmer: Dashboard, Manage Crops
-// TM: Packages, Manage Drivers, Shift Orders
-// Admin: User Management, System Settings
-//if role is an employee add market at the end with sub items: market,  Orders..
+import type { MenuRegistry, MenuItem, Mode } from "@/types/menu";
 
+/* ------------------------ Customer menu ------------------------ */
 
-export const MENU = [
-  { text: "Market", to: "/market" },
+const customerMenu: MenuRegistry["customer"] = [
+  { type: "link", key: "market", label: "Market", path: "/market", exact: true },
+  { type: "link", key: "cart", label: "MyCart", path: "/cart" },
+  { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+] as const;
+
+/* ------------------------ Work menus by role ------------------------ */
+
+const workFarmer: ReadonlyArray<MenuItem> = [
+  { type: "link", key: "farmer-crops", label: "Crops", path: "/farmer/crops" },
   {
-    text: "TM Pages",
-    sub: [
-      { text: "Packages", to: "/tm-packages" },
-      { text: "Manage Drivers", to: "/tm-manage-drivers" },
-      { text: "Shift Orders", to: "/tm-shift-orders" },
+    type: "link",
+    key: "farmer-upcoming",
+    label: "Upcoming Deliveries",
+    path: "/farmer/deliveries/upcoming",
+  },
+  {
+    type: "link",
+    key: "farmer-reports",
+    label: "Delivery Reports",
+    path: "/farmer/deliveries/reports",
+  },
+] as const;
+
+const workManager: ReadonlyArray<MenuItem> = [
+  {
+    type: "group",
+    key: "mgr-orders",
+    label: "Orders",
+    children: [
+      { type: "link", key: "mgr-orders-report", label: "Orders Report", path: "/manager/orders/report" },
+      { type: "link", key: "mgr-orders-active", label: "Active Orders", path: "/manager/orders/active" },
+      { type: "link", key: "mgr-orders-history", label: "Order History", path: "/manager/orders/history" },
     ],
   },
-  { text: "Farmer", 
-    sub:[
-        { text: "Dashboard", to: "/farmer/dashboard" },
-        { text: "Manage Crops", to: "/farmer/manage-crops" },
-    ], 
+  {
+    type: "group",
+    key: "mgr-logistics",
+    label: "Logistics",
+    children: [
+      { type: "link", key: "mgr-containers", label: "Containers", path: "/manager/containers" },
+      { type: "link", key: "mgr-shipments", label: "Shipments", path: "/manager/shipments" },
+      { type: "link", key: "mgr-aggregations", label: "Aggregations", path: "/manager/aggregations" },
+    ],
   },
-]
+  {
+    type: "group",
+    key: "mgr-confirm",
+    label: "Confirmations",
+    children: [
+      { type: "link", key: "mgr-arrival-confirm", label: "Arrival Confirm", path: "/manager/confirm/arrival" },
+      { type: "link", key: "mgr-customer-confirm", label: "Customer Confirm", path: "/manager/confirm/customer" },
+    ],
+  },
+] as const;
+
+const workDeliverer: ReadonlyArray<MenuItem> = [
+  { type: "link", key: "drv-schedule", label: "Schedule", path: "/deliverer/schedule", exact: true },
+  { type: "link", key: "drv-today", label: "Today", path: "/deliverer/schedule/today" },
+  { type: "link", key: "drv-upcoming", label: "Upcoming", path: "/deliverer/schedule/upcoming" },
+  { type: "link", key: "drv-month", label: "Month View", path: "/deliverer/schedule/month" },
+] as const;
+
+/* ------------------------ Registry export ------------------------ */
+
+export const MENUS: MenuRegistry = {
+  customer: customerMenu,
+  work: {
+    farmer: workFarmer,
+    manager: workManager,
+    deliverer: workDeliverer,
+    // You can add more roles at runtime:
+    // supervisor: [...],
+  },
+} as const;
+
+
+
+/* ------------------------ Tiny helper for consumers ------------------------ */
+
+/**
+ * Returns the correct menu list for the given mode/role.
+ * If a work role has no menu defined, returns an empty array.
+ */
+export function getMenuFor(mode: Mode, role?: string | null) {
+  if (mode === "customer") return MENUS.customer;
+  return (role && MENUS.work[role]) || [];
+}
+
+
+export { DEFAULT_LANDINGS } from "./nav.defaults";
