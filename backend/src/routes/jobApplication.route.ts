@@ -119,7 +119,7 @@ const router = Router();
 
 /**
  * @swagger
- * /job-applications/create:
+ * /jobApp/create:
  *   post:
  *     summary: Create a new job application (applicant)
  *     description: One open application per role. Re-apply only after denied.
@@ -150,7 +150,7 @@ router.post(
 
 /**
  * @swagger
- * /job-applications/mine:
+ * /jobApp/mine:
  *   get:
  *     summary: List my job applications (applicant)
  *     tags: [JobApplications]
@@ -189,7 +189,7 @@ router.get(
 
 /**
  * @swagger
- * /job-applications/search:
+ * /jobApp/search:
  *   get:
  *     summary: List job applications (admin)
  *     tags: [JobApplications]
@@ -245,7 +245,7 @@ router.get(
 
 /**
  * @swagger
- * /job-applications/{id}/details:
+ * /jobApp/{id}/details:
  *   get:
  *     summary: Get a job application by id (owner or admin)
  *     tags: [JobApplications]
@@ -278,7 +278,7 @@ router.get(
 
 /**
  * @swagger
- * /job-applications/{id}/update:
+ * /jobApp/{id}/update:
  *   patch:
  *     summary: Update applicationData (owner; allowed while pending/contacted)
  *     tags: [JobApplications]
@@ -319,7 +319,7 @@ router.patch(
 
 /**
  * @swagger
- * /job-applications/{id}/status:
+ * /jobApp/{id}/status:
  *   patch:
  *     summary: Change application status (admin)
  *     tags: [JobApplications]
@@ -365,7 +365,7 @@ router.patch(
 
 /**
  * @swagger
- * /job-applications/{id}/meta:
+ * /jobApp/{id}/meta:
  *   patch:
  *     summary: Update admin metadata (e.g., logisticCenterId) (admin)
  *     tags: [JobApplications]
