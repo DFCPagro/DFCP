@@ -2,6 +2,7 @@ import mongoose, { Document, Model } from 'mongoose';
 import toJSON from '../utils/toJSON';
 
 export interface ILogisticsCenter extends Document {
+  logisticName: string;
   location: string;
   activeOrders?: mongoose.Types.ObjectId[];
   employeeIds?: mongoose.Types.ObjectId[];
@@ -9,6 +10,7 @@ export interface ILogisticsCenter extends Document {
 }
 
 const LogisticsCenterSchema = new mongoose.Schema<ILogisticsCenter>({
+  logisticName: { type: String, required: true },
   location: { type: String, required: true },
   activeOrders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Order' }],
   employeeIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

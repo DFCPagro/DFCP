@@ -4,12 +4,10 @@ import minimist from 'minimist';
 import { connectDB, disconnectDB } from '../../src/db/connect';
 
 // import seeding functions (refactored below)
-import { seedUsers } from './dev/users.seed';
-import { seedOrders } from './dev/orders.seed';
-// new seeders for aggregations, containers and shipments
-import { seedAggregations } from './dev/aggregations.seed';
-import { seedContainers } from './dev/containers.seed';
-import { seedShipments } from './dev/shipments.seed';
+import { seedUsers } from './dev/users.seeder';
+import { seedItems } from './dev/items.seeder'
+import { seedLogisticsCenters } from './dev/logisticsCenters.seeder'
+
 
 type Args = {
   reset?: boolean;
@@ -50,6 +48,18 @@ async function main() {
     await timed('Users', seedUsers);
   } else {
     console.log('⏭️  Skipping users seeding');
+  }
+
+  if (!argv['no-items']){
+    await timed('Items', seedItems)
+  } else{
+    console.log('⏭️  Skipping items seeding');
+  }
+
+  if (!argv['no-logistic-centers']){
+    await timed('logsitic-center', seedLogisticsCenters)
+  } else{
+    console.log('⏭️  Skipping logistic-centers seeding');
   }
 
   // // Orders next (unless disabled)

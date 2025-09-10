@@ -80,8 +80,8 @@ export async function putItemHandler(req: Request, res: Response, next: NextFunc
 
 export async function deleteItemHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const { itemId } = req.params;
-    const { deletedCount } = await deleteItemByItemId(itemId);
+    const { _id } = req.params;
+    const { deletedCount } = await deleteItemByItemId(_id);
     if (!deletedCount) return res.status(404).json({ message: "Item not found" });
     res.status(204).send();
   } catch (err) { next(err); }

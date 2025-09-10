@@ -1,4 +1,3 @@
-// services/item.service.ts
 import { FilterQuery, ProjectionType, QueryOptions, UpdateQuery } from "mongoose";
 import Item, { IItem, ItemCategory } from "../models/Item.model";
 
@@ -27,8 +26,8 @@ export async function createItem(payload: Partial<IItem>): Promise<IItem> {
   return doc;
 }
 
-export async function getItemByItemId(itemId: string, projection?: ProjectionType<IItem>) {
-  return Item.findOne({ itemId }, projection).exec();
+export async function getItemByItemId(_id: string, projection?: ProjectionType<IItem>) {
+  return Item.findOne({ _id }, projection).exec();
 }
 
 export async function getItemByMongoId(id: string, projection?: ProjectionType<IItem>) {
@@ -84,14 +83,14 @@ export async function listItems(
 }
 
 export async function updateItemByItemId(
-  itemId: string,
+  _id: string,
   update: UpdateQuery<IItem>,
   opts: { upsert?: boolean; returnNew?: boolean } = {}
 ) {
   const { upsert = false, returnNew = true } = opts;
   // pre('findOneAndUpdate') hook in your schema will sync lastUpdated
   const doc = await Item.findOneAndUpdate(
-    { itemId },
+    { _id },
     update,
     { upsert, new: returnNew, runValidators: true }
   ).exec();
@@ -99,19 +98,19 @@ export async function updateItemByItemId(
 }
 
 export async function replaceItemByItemId(
-  itemId: string,
+  _id: string,
   replacement: Partial<IItem>
 ) {
   const doc = await Item.findOneAndReplace(
-    { itemId },
+    { _id },
     replacement as any,
     { new: true, upsert: false, runValidators: true }
   ).exec();
   return doc;
 }
 
-export async function deleteItemByItemId(itemId: string) {
-  const res = await Item.deleteOne({ itemId }).exec();
+export async function deleteItemByItemId(_id: string) {
+  const res = await Item.deleteOne({ _id }).exec();
   return { deletedCount: res.deletedCount ?? 0 };
 }
 

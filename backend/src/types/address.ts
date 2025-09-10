@@ -1,8 +1,7 @@
-import { get } from "http";
-
 export interface Address {
-  lnt: number;
-  alt: number;
-  address: string;
+  label: string;        // "Home", "Work", "Farm"
+  address: string;      // free-form
+  lnt: number;          // longitude
+  alt: number;          // latitude
+  isPrimary?: boolean;  // only one per user
 }
-
