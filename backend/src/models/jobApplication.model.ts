@@ -97,7 +97,7 @@ const FarmerLandSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     ownership: { type: String, enum: ["owned", "rented"], required: true },
-    acres: { type: Number, required: true, min: 0 },
+    areaM2: { type: Number, required: true, min: 0 },
     pickupAddress: {
       type: new Schema(
         {
