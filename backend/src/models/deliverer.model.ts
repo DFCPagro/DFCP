@@ -1,58 +1,21 @@
-// models/Deliverer.ts
-import mongoose, { Schema, Model, Document, Types } from "mongoose";
+// models/deliverer.model.ts
+import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
 
-// ===== Helper: days in month WITHOUT year (Feb = 28) =====
+// ===== helpers =====
 function expectedDaysForMonth(month: number): number {
-  if (month === 2) return 28;
-  // Apr, Jun, Sep, Nov have 30 days
+  if (month === 2) return 28;                 // keep simple: Feb = 28 (no leap-year)
   if ([4, 6, 9, 11].includes(month)) return 30;
   return 31;
 }
-
-// ===== Helper: default current month and zeroed schedule =====
 function defaultMonth(): number {
-  return new Date().getMonth() + 1; // 1..12
+  return new Date().getMonth() + 1;           // 1..12
 }
 function zeroScheduleFor(month: number): number[] {
   return Array.from({ length: expectedDaysForMonth(month) }, () => 0);
 }
 
-// ===== Types =====
-export interface IDeliverer extends Document {
-  user: Types.ObjectId;                       // unique per Deliverer
-  createdFromApplication?: Types.ObjectId | null; // ref -> JobApplication
-  logisticCenterIds: Types.ObjectId[];        // multi-center
-
-  // Driver & vehicle
-  licenseType: string;
-  driverLicenseNumber: string;
-  vehicleMake?: string | null;
-  vehicleModel?: string | null;
-  vehicleType?: string | null;
-  vehicleYear?: number | null;
-  vehicleRegistrationNumber?: string | null;
-  vehicleInsurance?: boolean;
-
-  vehicleCapacityKg?: number | null;
-  vehicleCapacityLiters?: number | null;
-  speedKmH?: number | null;
-
-  // Pay defaults
-  payFixedPerShift?: number | null;           // default 25
-  payPerKm?: number | null;                   // default 1
-  payPerStop?: number | null;                 // default 1
-
-  // Monthly schedule
-  currentMonth: number;                       // 1..12
-  activeSchedule: number[];                   // length == days in month, each 0..15
-  nextSchedule: number[];                     // [], or 28..31 with 0..15 entries
-
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// ===== Validators =====
+// ===== validators =====
 const bitmaskArrayValidator = {
   validator: (arr?: number[]) =>
     Array.isArray(arr) && arr.every((n) => Number.isInteger(n) && n >= 0 && n <= 15),
@@ -61,105 +24,138 @@ const bitmaskArrayValidator = {
 
 const nextScheduleValidator = {
   validator: (arr?: number[]) => {
-    if (!arr) return true;
-    if (arr.length === 0) return true;
+    if (!arr || arr.length === 0) return true;
     const len = arr.length;
     if (len < 28 || len > 31) return false;
     return arr.every((n) => Number.isInteger(n) && n >= 0 && n <= 15);
   },
-  message:
-    "nextSchedule must be empty or an array of length 28..31 with entries in [0..15].",
+  message: "nextSchedule must be empty or length 28..31 with entries in [0..15].",
 };
 
-// ===== Schema =====
-const DelivererSchema = new Schema<IDeliverer>(
+// ===== schema (no generics; infer later) =====
+const DelivererSchema = new Schema(
   {
+    // identity / relations
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
-    createdFromApplication: {
-      type: Schema.Types.ObjectId,
-      ref: "JobApplication",
-      default: null,
-      index: true,
-    },
+    createdFromApplication: { type: Schema.Types.ObjectId, ref: "JobApplication", default: null, index: true },
 
-    logisticCenterIds: {
-      type: [Schema.Types.ObjectId],
-      ref: "LogisticCenter",
-      default: [],
-      index: true,
-    },
+    // multi-center assignment
+    logisticCenterIds: { type: [Schema.Types.ObjectId], ref: "LogisticCenter", default: [], index: true },
 
-    licenseType: { type: Schema.Types.String, required: true, trim: true },
-    driverLicenseNumber: { type: Schema.Types.String, required: true, trim: true },
+    // driver & vehicle
+    licenseType: { type: String, required: true, trim: true },
+    driverLicenseNumber: { type: String, required: true, trim: true },
+    vehicleMake: { type: String, default: null, trim: true },
+    vehicleModel: { type: String, default: null, trim: true },
+    vehicleType: { type: String, default: null, trim: true },
+    vehicleYear: { type: Number, default: null, min: 1900, max: 3000 },
+    vehicleRegistrationNumber: { type: String, default: null, trim: true },
+    vehicleInsurance: { type: Boolean, default: false },
 
-    vehicleMake: { type: Schema.Types.String, default: null, trim: true },
-    vehicleModel: { type: Schema.Types.String, default: null, trim: true },
-    vehicleType: { type: Schema.Types.String, default: null, trim: true },
-    vehicleYear: { type: Schema.Types.Number, default: null, min: 1900, max: 3000 },
-    vehicleRegistrationNumber: { type: Schema.Types.String, default: null, trim: true },
-    vehicleInsurance: { type: Schema.Types.Boolean, default: false },
+    vehicleCapacityKg: { type: Number, default: null, min: 0 },
+    vehicleCapacityLiters: { type: Number, default: null, min: 0 },
+    speedKmH: { type: Number, default: null, min: 0 },
 
-    vehicleCapacityKg: { type: Schema.Types.Number, default: null, min: 0 },
-    vehicleCapacityLiters: { type: Schema.Types.Number, default: null, min: 0 },
-    speedKmH: { type: Schema.Types.Number, default: null, min: 0 },
+    // pay defaults
+    payFixedPerShift: { type: Number, default: 25, min: 0 },
+    payPerKm: { type: Number, default: 1, min: 0 },
+    payPerStop: { type: Number, default: 1, min: 0 },
 
-    payFixedPerShift: { type: Schema.Types.Number, default: 25, min: 0 },
-    payPerKm: { type: Schema.Types.Number, default: 1, min: 0 },
-    payPerStop: { type: Schema.Types.Number, default: 1, min: 0 },
-
-    currentMonth: {
-      type: Schema.Types.Number,
-      min: 1,
-      max: 12,
-      default: defaultMonth,
-      required: true,
-    },
+    // monthly schedule
+    currentMonth: { type: Number, min: 1, max: 12, default: defaultMonth, required: true },
 
     activeSchedule: {
-      type: [Schema.Types.Number],
+      type: [Number],
       required: true,
       validate: bitmaskArrayValidator,
-      default: function (this: IDeliverer) {
-        const m = this?.currentMonth ?? defaultMonth();
+      default: function () {
+        // this is a mongoose doc here, but we don't reference TS types to avoid cycles
+        // @ts-ignore - at runtime has currentMonth
+        const m: number = this?.currentMonth ?? defaultMonth();
         return zeroScheduleFor(m);
       },
     },
 
-    nextSchedule: {
-      type: [Schema.Types.Number],
-      default: [],
-      validate: nextScheduleValidator,
-    },
+    nextSchedule: { type: [Number], default: [], validate: nextScheduleValidator },
   },
   { timestamps: true }
 );
 
-// Keep JSON pretty
+// plugins & indexes
 DelivererSchema.plugin(toJSON as any);
+DelivererSchema.index({ logisticCenterIds: 1, currentMonth: 1 });
 
-// Enforce activeSchedule length = expected days for currentMonth (Feb = 28)
+// ===== infer types from schema =====
+export type Deliverer = InferSchemaType<typeof DelivererSchema>;
+export type DelivererDoc = HydratedDocument<Deliverer>;
+
+// instance methods (add more as you need)
+export interface DelivererMethods {
+  /**
+   * Check if deliverer is available on a given day of currentMonth for any of the given shift bits.
+   * shiftMask: bitmask where 1=morning, 2=afternoon, 4=evening, 8=night (sum for multi).
+   * dayIndex: 0-based index within currentMonth (0..days-1).
+   */
+  isAvailable(dayIndex: number, shiftMask: number): boolean;
+}
+
+export type DelivererModel = Model<Deliverer, {}, DelivererMethods>;
+
+// ===== hooks =====
+
+// ensure activeSchedule matches currentMonth length
 DelivererSchema.pre("validate", function (next) {
-  const doc = this as IDeliverer;
+  const doc = this as unknown as DelivererDoc;
   const m = doc.currentMonth;
   const expected = expectedDaysForMonth(m);
+
   if (!Array.isArray(doc.activeSchedule)) {
     doc.activeSchedule = zeroScheduleFor(m);
   } else if (doc.activeSchedule.length !== expected) {
-    // Pad with zeros or truncate to match exactly
-    if (doc.activeSchedule.length < expected) {
-      doc.activeSchedule = [...doc.activeSchedule, ...Array(expected - doc.activeSchedule.length).fill(0)];
-    } else {
-      doc.activeSchedule = doc.activeSchedule.slice(0, expected);
-    }
+    doc.activeSchedule =
+      doc.activeSchedule.length < expected
+        ? [...doc.activeSchedule, ...Array(expected - doc.activeSchedule.length).fill(0)]
+        : doc.activeSchedule.slice(0, expected);
   }
   next();
 });
 
-// Index for common queries
-DelivererSchema.index({ "logisticCenterIds": 1, currentMonth: 1 });
+// if you ever write to currentMonth via findOneAndUpdate, keep schedule in sync
+DelivererSchema.pre("findOneAndUpdate", function (next) {
+  const update = this.getUpdate() as Record<string, any> | undefined;
+  if (!update) return next();
 
-export const Deliverer: Model<IDeliverer> = mongoose.model<IDeliverer>(
-  "Deliverer",
-  DelivererSchema
-);
+  const newMonth =
+    update.currentMonth ??
+    (update.$set && update.$set.currentMonth);
+
+  const newActiveSchedule =
+    update.activeSchedule ??
+    (update.$set && update.$set.activeSchedule);
+
+  if (typeof newMonth === "number" && !newActiveSchedule) {
+    // pad/truncate to the new month length
+    const targetLen = expectedDaysForMonth(newMonth);
+    // Use $set + $slice/$concatArrays would be complex; simplest is to compute and set here
+    this.setUpdate({
+      ...update,
+      $set: {
+        ...(update.$set || {}),
+        activeSchedule: zeroScheduleFor(newMonth), // reset; or fetch current doc and reshape if you prefer
+      },
+    });
+  }
+
+  next();
+});
+
+// ===== methods =====
+DelivererSchema.methods.isAvailable = function (this: DelivererDoc, dayIndex: number, shiftMask: number) {
+  if (dayIndex < 0 || dayIndex >= this.activeSchedule.length) return false;
+  const dayMask = this.activeSchedule[dayIndex] ?? 0;
+  return (dayMask & shiftMask) !== 0;
+};
+
+// ===== model =====
+export const Deliverer = model<Deliverer, DelivererModel>("Deliverer", DelivererSchema);
 export default Deliverer;
