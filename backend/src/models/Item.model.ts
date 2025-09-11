@@ -1,70 +1,14 @@
-import mongoose, { Schema, Model, Document } from "mongoose";
+// src/models/item.model.ts
+import { Schema, model, InferSchemaType, HydratedDocument, Model } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { isHttpUrl } from "../utils/urls";
 
+// --- categories ---
 export const itemCategories = ["fruit", "vegetable"] as const;
 export type ItemCategory = (typeof itemCategories)[number];
 
-export interface IABCScale {
-  A?: string | null;
-  B?: string | null;
-  C?: string | null;
-}
-
-export interface IQualityStandards {
-  tolerance?: IABCScale;
-  brix?: IABCScale;
-  acidityPercentage?: IABCScale;
-  pressure?: IABCScale;
-  colorDescription?: IABCScale;
-  colorPercentage?: IABCScale;
-  weightPerUnit?: IABCScale;   // legacy
-  weightPerUnitG?: IABCScale;  // JSON key
-  diameterMM?: IABCScale;
-  qualityGrade?: IABCScale;
-  maxDefectRatioLengthDiameter?: IABCScale;
-  rejectionRate?: IABCScale;   // present in your JSON
-}
-
-export interface IPriceTier {
-  a?: number | null;
-  b?: number | null;
-  c?: number | null;
-}
-
-export interface IItem extends Document {
-  _id: string;            // e.g., "FRT-001" (stored as Mongo _id)
-  itemId?: string;        // virtual alias to _id
-
-  category: ItemCategory;
-  type: string;
-  variety?: string | null;
-
-  imageUrl?: string | null;
-  season?: string | null;
-  farmerTips?: string | null;
-  customerInfo?: string[];
-  caloriesPer100g?: number | null;
-
-  price?: IPriceTier | null;
-
-  avgWeightPerUnitGr?: number | null;
-  avgQmPerUnit?: number | null;
-  weightPerUnitG?: number | null;
-
-  qualityStandards?: IQualityStandards | null;
-  tolerance?: string | null;   // top-level tolerance in your data (keep)
-
-  count?: number | null;
-
-  lastUpdated: Date;
-  createdAt: Date;
-  updatedAt: Date;
-
-  name?: string; // "type variety"
-}
-
-const ABCSchema = new Schema<IABCScale>(
+// --- subtypes (kept as schemas so we can infer) ---
+const ABCSchema = new Schema(
   {
     A: { type: String, default: null, trim: true },
     B: { type: String, default: null, trim: true },
@@ -73,7 +17,7 @@ const ABCSchema = new Schema<IABCScale>(
   { _id: false }
 );
 
-const QualityStandardsSchema = new Schema<IQualityStandards>(
+const QualityStandardsSchema = new Schema(
   {
     tolerance: { type: ABCSchema, default: undefined },
     brix: { type: ABCSchema, default: undefined },
@@ -81,11 +25,13 @@ const QualityStandardsSchema = new Schema<IQualityStandards>(
     pressure: { type: ABCSchema, default: undefined },
     colorDescription: { type: ABCSchema, default: undefined },
     colorPercentage: { type: ABCSchema, default: undefined },
-    weightPerUnit: { type: ABCSchema, default: undefined },   // legacy
-    weightPerUnitG: { type: ABCSchema, default: undefined },  // JSON key
+    // keep both keys for flexibility
+    weightPerUnit: { type: ABCSchema, default: undefined },
+    weightPerUnitG: { type: ABCSchema, default: undefined },
     diameterMM: { type: ABCSchema, default: undefined },
     qualityGrade: { type: ABCSchema, default: undefined },
     maxDefectRatioLengthDiameter: { type: ABCSchema, default: undefined },
+    // present in your JSON
     rejectionRate: { type: ABCSchema, default: undefined },
   },
   { _id: false }
@@ -100,9 +46,12 @@ const PriceSchema = new Schema(
   { _id: false }
 );
 
-const ItemSchema = new Schema<IItem>(
+// --- main schema (no generics; we infer after) ---
+const ItemSchema = new Schema(
   {
-    _id: { type: String, required: true }, // string _id
+    // You store codes like "FRT-001" as the Mongo _id (string)
+    _id: { type: String, required: true },
+
     category: { type: String, enum: itemCategories, required: true, index: true },
     type: { type: String, required: true, trim: true, index: true },
     variety: { type: String, default: null, trim: true, index: true },
@@ -119,6 +68,7 @@ const ItemSchema = new Schema<IItem>(
     customerInfo: { type: [String], default: [] },
     caloriesPer100g: { type: Number, default: null, min: 0 },
 
+    // numeric price tiers (all optional)
     price: { type: PriceSchema, default: undefined },
 
     avgWeightPerUnitGr: { type: Number, default: null, min: 0 },
@@ -126,14 +76,15 @@ const ItemSchema = new Schema<IItem>(
     weightPerUnitG: { type: Number, default: null, min: 0 },
 
     qualityStandards: { type: QualityStandardsSchema, default: undefined },
-    tolerance: { type: String, default: null, trim: true }, // top-level
+    // top-level tolerance (keep for back-compat)
+    tolerance: { type: String, default: null, trim: true },
 
     count: { type: Number, default: null, min: 0 },
 
     lastUpdated: { type: Date, default: () => new Date() },
   },
   {
-    // NOTE: do NOT set _id:false on a top-level model when you have a custom _id
+    // DO NOT set _id:false here — you are using a custom _id string above.
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
@@ -144,27 +95,28 @@ const ItemSchema = new Schema<IItem>(
 // plugin
 ItemSchema.plugin(toJSON as any);
 
-// Virtuals
-ItemSchema.virtual("itemId").get(function (this: IItem) {
+// --- virtuals ---
+ItemSchema.virtual("itemId").get(function (this: any) {
   return this._id;
 });
 
-ItemSchema.virtual("name").get(function (this: IItem) {
+ItemSchema.virtual("name").get(function (this: any) {
   const v = (this.variety ?? "").trim();
   return v ? `${this.type} ${v}` : this.type;
 });
 
-// Keep lastUpdated current
+// --- hooks ---
 ItemSchema.pre("save", function (next) {
-  (this as IItem).lastUpdated = new Date();
+  (this as any).lastUpdated = new Date();
   next();
 });
+
 ItemSchema.pre("findOneAndUpdate", function (next) {
   this.set({ lastUpdated: new Date() });
   next();
 });
 
-// Normalize: if only weightPerUnitG present, mirror to weightPerUnit for back-compat (optional)
+// Normalize/mirror weightPerUnit fields for back-compat
 ItemSchema.pre("validate", function (next) {
   const doc = this as any;
   const qs = doc.qualityStandards;
@@ -174,9 +126,14 @@ ItemSchema.pre("validate", function (next) {
   next();
 });
 
-// Indexes (do NOT index _id — MongoDB provides it automatically)
-// ItemSchema.index({ _id: 1 }, { unique: true }); // ← removed to silence the warning
+// Indexes
+ItemSchema.index({ _id: 1 }, { unique: true });
 ItemSchema.index({ category: 1, type: 1, variety: 1 });
 
-export const Item: Model<IItem> = mongoose.model<IItem>("Item", ItemSchema);
+// --- inferred types & model ---
+export type Item = InferSchemaType<typeof ItemSchema>;
+export type ItemDoc = HydratedDocument<Item>;
+export type ItemModel = Model<Item>;
+
+export const Item = model<Item, ItemModel>("Item", ItemSchema);
 export default Item;
