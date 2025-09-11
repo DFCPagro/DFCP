@@ -1,128 +1,83 @@
-import {
-  Flex,
-  HStack,
-  Link as CLink,
-  Spacer,
-  Menu,
-  Avatar,
-  Text,
-  Box,
-} from "@chakra-ui/react";
-import { Link as RouterLink, useLocation } from "react-router-dom";
-import { useAuthStore } from "@/store/auth";
-import { PATHS } from "@/routes/paths";
-import { ColorModeButton } from "@/components/ui/color-mode";
+// src/components/layout/NavBar.tsx
+import { Box, Flex, Link as CLink } from "@chakra-ui/react";
+import {StyledIconButton} from "@/components/ui/IconButton";
+import { FiMenu } from "react-icons/fi";
+import { Link as RouterLink } from "react-router-dom";
 
-type NavItem = { title: string; path: string };
+import { useNavOverflow } from "@/hooks/useNavOverflow";
+import { useSessionStore } from "@/store/session";
+import { useUIStore } from "@/store/ui";
+import { getMenuFor } from "@/config/menu.config";
 
-const colorPalette = ["red", "blue", "green", "yellow", "purple", "orange"] as const;
-const pickPalette = (name?: string | null) => {
-  const n = name?.trim();
-  if (!n) return "gray";
-  const index = n.charCodeAt(0) % colorPalette.length;
-  return colorPalette[index];
-};
+import HeaderMenu from "./HeaderMenu";
+import SideDrawer from "./SideDrawer";
+import AccountMenu from "./AccountMenu";
+import ModeBadge from "./ModeBadge";
+
+// ✅ use your custom color-mode utilities (next-themes + Chakra)
+import { useColorModeValue, ColorModeButton } from "@/components/ui/color-mode";
 
 export default function NavBar() {
-  const token = useAuthStore((s) => s.token);
-  const role = useAuthStore((s) => s.role);
-  const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-  // avoid flicker before zustand/persist hydrates (optional)
-  const hasHydrated = (useAuthStore as any).persist?.hasHydrated?.() ?? true;
-  if (!hasHydrated) return null;
+  // use your hook instead of Chakra's
+  const bg = useColorModeValue("gray.50", "gray.900");
+  const border = useColorModeValue("gray.200", "gray.700");
 
-  const location = useLocation();
+  const mode = useSessionStore((s) => s.mode);
+  const role = useSessionStore((s) => s.activeWorkerRole);
+  const items = getMenuFor(mode, role);
 
-  const links: NavItem[] = [{ title: "Home", path: PATHS.home }];
-  if (token) {
-    links.push({ title: "Dashboard", path: PATHS.dashboard });
-    if (role === "deliverer") {
-      links.push({ title: "Driver Schedule", path: PATHS.driverSchedule });
-    }
-  }
-
-  const isActive = (path: string) => {
-    // exact for home, prefix for others — tweak as you like
-    if (path === PATHS.home) return location.pathname === PATHS.home;
-    return location.pathname.startsWith(path);
-  };
+  const { ref, isOverflowing } = useNavOverflow();
+  const openDrawer = useUIStore((s) => s.openDrawer);
 
   return (
-    <Flex as="nav" p={4} borderBottomWidth="1px" align="center" gap={4}>
-      {/* left: navigation links */}
-      <HStack gap={4}>
-        {links.map((item) => {
-          const active = isActive(item.path);
-          return (
-            <CLink
-              key={item.path}
-              asChild
-              fontWeight={active ? "semibold" : "normal"}
-              color={active ? "teal.500" : undefined}
-              _hover={{ opacity: 0.85, textDecoration: "none" }}
-            >
-              {/* Only ONE anchor: RouterLink renders <a />, CLink passes styles to it */}
-              <RouterLink to={item.path}>{item.title}</RouterLink>
-            </CLink>
-          );
-        })}
-      </HStack>
+    <Box
+      as="header"
+      bg={bg}
+      borderBottom="1px solid"
+      borderColor={border}
+      position="sticky"
+      top={0}
+      zIndex={1000}
+    >
+      <Flex h="14" align="center" px="3" gap="3">
+        {/* Brand */}
+        <CLink asChild fontWeight="bold" _hover={{ textDecoration: "none" }}>
+          <RouterLink to="/">Simple Market</RouterLink>
+        </CLink>
 
-      <Spacer />
+        {/* Context badge */}
+        <ModeBadge />
 
-      {/* right: auth actions / user menu */}
-      <HStack gap={3}>
-        {!token ? (
-          <>
-            <CLink asChild>
-              <RouterLink to={PATHS.login}>Login</RouterLink>
-            </CLink>
-            <CLink asChild>
-              <RouterLink to={PATHS.register}>Register</RouterLink>
-            </CLink>
-          </>
-        ) : (
-          <Menu.Root>
-            <Menu.Trigger asChild>
-              <Box cursor="pointer">
-                <HStack gap={2}>
-                  <Avatar.Root colorPalette={pickPalette(user?.name)}>
-                    {/* If you support photos later: <Avatar.Image src={user?.avatarUrl} alt={user?.name ?? "User"} /> */}
-                    <Avatar.Fallback name={user?.name ?? "User"} />
-                  </Avatar.Root>
-                  <Text fontSize="sm">{user?.name ?? "Account"}</Text>
-                </HStack>
-              </Box>
-            </Menu.Trigger>
+        {/* Right cluster */}
+        <Flex align="center" gap="2" ml="auto" minW={0}>
+          {/* Inline menu when there is room */}
+          {!isOverflowing && items?.length ? (
+            <HeaderMenu items={items} containerRef={ref} />
+          ) : (
+            // Keep a measurable element for overflow detection even when hidden
+            <Box
+              ref={ref as any}
+              style={{ position: "absolute", left: -9999, visibility: "hidden" }}
+            />
+          )}
 
-            <Menu.Positioner>
-              <Menu.Content>
-                {/* Give Menu.Item a value when using it (required by v3 types) */}
-                <Menu.Item value="dashboard" asChild>
-                  <RouterLink to={PATHS.dashboard}>My Dashboard</RouterLink>
-                </Menu.Item>
+          {/* Account menu */}
+          <AccountMenu />
 
-                {role === "deliverer" && (
-                  <Menu.Item value="driver-schedule" asChild>
-                    <RouterLink to={PATHS.driverSchedule}>Driver Schedule</RouterLink>
-                  </Menu.Item>
-                )}
+          {/* Theme toggle (your component) */}
+          <ColorModeButton />
 
-                <Menu.Separator />
+          {/* Burger appears when items overflow (or if there are none) */}
+          {(isOverflowing || !items?.length) && (
+            <StyledIconButton aria-label="Open menu" variant="ghost" onClick={openDrawer}>
+              <FiMenu />
+            </StyledIconButton>
+          )}
+        </Flex>
+      </Flex>
 
-                <Menu.Item value="logout" onClick={logout}>
-                  Logout
-                </Menu.Item>
-
-                <Menu.Arrow />
-              </Menu.Content>
-            </Menu.Positioner>
-          </Menu.Root>
-        )}
-
-        <ColorModeButton />
-      </HStack>
-    </Flex>
+      {/* Mobile / overflow drawer uses the same items registry */}
+      <SideDrawer items={items} />
+    </Box>
   );
 }

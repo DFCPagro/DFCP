@@ -1,4 +1,3 @@
-// src/models/Item.model.ts
 import mongoose, { Schema, Model, Document } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { isHttpUrl } from "../utils/urls"

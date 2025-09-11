@@ -26,6 +26,8 @@ import {
   JobApplicationRole,
   jobApplicationStatuses,
 } from "../utils/constants";
+import { AddressSchema } from "./shared/address.schema";
+import { MeasurementsSchema } from "./shared/measurements.schema";
 
 /* =========================================
  * Sub-schemas (shared + per role)
@@ -93,22 +95,18 @@ const IndustrialDelivererDataSchema = new Schema(
   { _id: false }
 );
 
-const FarmerLandSchema = new Schema(
+const AppFarmerLandSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     ownership: { type: String, enum: ["owned", "rented"], required: true },
-    acres: { type: Number, required: true, min: 0 },
-    pickupAddress: {
-      type: new Schema(
-        {
-          address: { type: String, required: true, trim: true },
-          latitude: { type: Number, min: -90, max: 90 },
-          longitude: { type: Number, min: -180, max: 180 },
-        },
-        { _id: false }
-      ),
-      required: true,
-    },
+
+    // ⬇️ shared shapes
+    address: { type: AddressSchema, required: true },
+    pickupAddress: { type: AddressSchema, default: null },
+    measurements: { type: MeasurementsSchema, required: true },
+
+    // optional in the application; we can compute in promotion if missing
+    areaM2: { type: Number, min: 0, default: null },
   },
   { _id: false }
 );
@@ -119,13 +117,15 @@ const FarmerDataSchema = new Schema(
     farmName: { type: String, required: true, trim: true },
     agreementPercentage: { type: Number, min: 0, max: 100, default: 60 },
     lands: {
-      type: [FarmerLandSchema],
+      type: [AppFarmerLandSchema],
       default: [],
       validate: [(arr: unknown) => Array.isArray(arr), "lands must be an array"],
     },
   },
   { _id: false }
 );
+
+
 
 const MinimalWorkerDataSchema = new Schema({}, { _id: false });
 
