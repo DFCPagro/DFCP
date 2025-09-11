@@ -28,7 +28,7 @@ export default function Market() {
   const [loading, setLoading] = useState(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const countries = "il"; // optional
+  const countries = "il"; // optional ISO country filter for the map picker
 
   useEffect(() => {
     if (!locationId || !shift) {
@@ -45,51 +45,71 @@ export default function Market() {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [locationId, shift]);
 
   const emptyState = useMemo(() => {
     if (!locationId) return "Pick your delivery location to continue.";
     if (!shift) return "Choose a shift to load available items.";
-    if (!loading && items.length === 0) return "No items available for this shift.";
+    if (!loading && items.length === 0)
+      return "No items available for this shift.";
     return null;
   }, [locationId, shift, loading, items.length]);
 
   function handleAddToCart(itemId: string, qty: number) {
     console.log("ADD", { itemId, qty, locationId, shift });
+    // TODO: call your add-to-cart endpoint here (guarded by locationId & shift)
   }
 
-  async function handleMapConfirm(v: { address: string; lat: number; lng: number }) {
-    const parts = v.address.split(",").map((s) => s.trim());
-    const city = parts.length >= 2 ? parts.at(-2) ?? "" : "";
-    const street = v.address;
+  // Accept both shapes from MapPicker: {lat,lng} or {latitude,longitude}
+  type MapConfirm =
+    | { address: string; lat: number; lng: number }
+    | { address: string; latitude: number; longitude: number };
+
+  async function handleMapConfirm(res: MapConfirm) {
+    // normalize to lat/lng
+    const lat = "lat" in res ? res.lat : (res as any).latitude;
+    const lng = "lng" in res ? res.lng : (res as any).longitude;
+
+    const parts = res.address.split(",").map((s) => s.trim());
+    const city = parts.length >= 2 ? (parts.at(-2) as string) ?? "" : "";
+    const street = res.address;
 
     const saved: UserLocation = await addLocation({
-      label: v.address,
+      label: res.address,
       street,
       city,
-      lat: v.lat,
-      lng: v.lng,
+      lat,
+      lng,
     });
+
     setLocationId(saved._id);
-    setSelectedAddress(saved.label || v.address);
+    setSelectedAddress(saved.label || res.address);
     setPickerOpen(false);
   }
 
   return (
     <AuthGuard>
       <Container maxW="6xl" py={6}>
-        <Heading size="lg" mb={4}>Market</Heading>
+        <Heading size="lg" mb={4}>
+          Market
+        </Heading>
 
         <Grid templateColumns={["1fr", null, "1fr 1fr"]} gap={4} mb={6}>
           <GridItem>
             <HStack gap={3}>
               <Button onClick={() => setPickerOpen(true)} variant="outline">
-                {selectedAddress ? "Change delivery location" : "Pick delivery location"}
+                {selectedAddress
+                  ? "Change delivery location"
+                  : "Pick delivery location"}
               </Button>
               {selectedAddress && (
                 <Badge colorPalette="green" variant="surface" title={selectedAddress}>
-                  <Text lineClamp={1} maxW="36ch">{selectedAddress}</Text>
+                  <Text lineClamp={1} maxW="36ch">
+                    {selectedAddress}
+                  </Text>
                 </Badge>
               )}
             </HStack>
@@ -106,9 +126,14 @@ export default function Market() {
             <Alert.Description>{emptyState}</Alert.Description>
           </Alert.Root>
         ) : loading ? (
-          <HStack justify="center" py={10}><Spinner /></HStack>
+          <HStack justify="center" py={10}>
+            <Spinner />
+          </HStack>
         ) : (
-          <Grid templateColumns={["1fr", "repeat(2, 1fr)", "repeat(3, 1fr)"]} gap={4}>
+          <Grid
+            templateColumns={["1fr", "repeat(2, 1fr)", "repeat(3, 1fr)"]}
+            gap={4}
+          >
             {items.map((it) => (
               <ItemCard key={it._id} item={it} onAdd={handleAddToCart} />
             ))}
@@ -116,14 +141,17 @@ export default function Market() {
         )}
 
         <MapPickerDialog
-                key={pickerOpen ? "open" : "closed"}
-
           open={pickerOpen}
-        
           onClose={() => setPickerOpen(false)}
-          onConfirm={handleMapConfirm}
+          onConfirm={(r: any) => handleMapConfirm(r)}
           countries={countries}
-          initial={{ lat: 31.771959, lng: 35.217018, address: selectedAddress || undefined }}
+          // Provide both shapes to satisfy whichever the dialog expects
+          initial={{
+            address: selectedAddress || undefined,
+            lat: 31.771959,
+            lng: 35.217018,
+           
+          }}
         />
       </Container>
     </AuthGuard>
