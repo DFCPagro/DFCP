@@ -1,308 +1,280 @@
+import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
+import toJSON from "../utils/toJSON";
+
+import { StageSchema } from "./shared/stage.schema";
+import {
+  FARMER_ORDER_STAGES,
+  FARMER_ORDER_STAGE_KEYS,
+  FarmerOrderStageKey,
+} from "./shared/stage.types";
+import { buildFarmerOrderDefaultStages } from "./shared/stage.utils";
+import { AuditEntrySchema } from "./shared/audit.schema";
+import {ContainerSchema} from "./shared/container.schema";
 
 
-const allStagesOrder = [
-  { key: "at-farm", label: "At Farm" },
-  { key: "ready-for-pickup", label: "Ready for Pickup" },
-  { key: "in-transit", label: "In Transit" },
-  { key: "arrived", label: "Arrived" },
-  { key: "sorting", label: "Sorting" },
-  { key: "warehouse", label: "Warehouse" },
-];
+// ---------- enums ----------
+export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
+export type Shift = (typeof SHIFTS)[number];
 
-const farmerStatus: { [key: string]: string } = {
-  pending: "Pending",
-  approved: "Approved",
-  rejected: "Rejected",
-  problem: "Problem",
-};
+export const FARMER_APPROVAL_STATUSES = ["pending", "ok", "problem"] as const;
+export type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
 
-// models/farmerOrder.model.ts
-import { Schema, model, Types, Document } from "mongoose";
-import {qualityStandardsSchema} from "./shared/qualityStandards.schema";
-// --- Enums / constants ---
-export const SHIFT = ["morning","afternoon","evening","night"] as const;
-export type Shift = typeof SHIFT[number];
-
-export const SIMPLE_STATUS = ["pending","approved","problem"] as const;
-export type SimpleStatus = typeof SIMPLE_STATUS[number];
-
-export const QC_STATUS = ["ok","problem","pending"] as const;
-export type QCStatus = typeof QC_STATUS[number];
-
-export const STAGE_STATUS = ["ok","problem","current","pending","done"] as const;
-export type StageStatus = typeof STAGE_STATUS[number];
-
-export const LOCATION_ENUM = ["warehouse","pickerShelf","inTruck","inTransit","unknown"] as const;
-export type LocationEnum = typeof LOCATION_ENUM[number];
-
-// --- Sub-schemas ---
-const StageSchema = new Schema(
+// ---------- schema (no generics; infer later) ----------
+const FarmerOrderSchema = new Schema(
   {
-    key:   { type: String, required: true, trim: true }, // e.g. "planned","farmer_ack","harvest","qc","loaded","received_warehouse","allocated","closed"
-    label: { type: String, required: true, trim: true },
-    status:{ type: String, enum: STAGE_STATUS, default: "pending", index: true },
-    timestamp: { type: Date, default: Date.now },
-    note: { type: String, default: "" },
-  },
-  { _id: false }
-);
+    // identity / relations
+    itemId: { type: String, ref: "Item", required: true, index: true }, // Item._id is string in your Item model
+    type: { type: String, default: "", trim: true },
+    variety: { type: String, default: "", trim: true },
+    pictureUrl: { type: String, default: "", trim: true },
 
-const QSReportSchema = new Schema(
-  {
-    values:   { type: Schema.Types.Mixed, default: {} }, // your metrics (brix, temp, defects…)
-    note:     { type: String, default: "" },
-    byUserId: { type: Schema.Types.ObjectId, ref: "User" },
-    timestamp:{ type: Date, default: Date.now },
-  },
-  { _id: false }
-);
-
-const VisualInspectionSchema = new Schema(
-  {
-    status:   { type: String, enum: QC_STATUS, default: "pending" },
-    note:     { type: String, default: "" },
-    timestamp:{ type: Date, default: Date.now },
-  },
-  { _id: false }
-);
-
-const ContainerSchema = new Schema(
-  {
-    containerId: { type: String, required: true }, // e.g., "FO_<farmerOrderId>_<seq>"
-    farmerOrder: { type: Schema.Types.ObjectId, ref: "FarmerOrder", required: true, index: true },
-    itemId:      { type: Schema.Types.ObjectId, ref: "Item", required: true },
-    qrUrl:       { type: String, required: true },
-    weightKg:    { type: Number, min: 0, default: 0 },
-    stages:      { type: [StageSchema], default: [] },
-    warehouseSlot: {
-      shelfLocation: { type: String, default: "" },
-      zone:          { type: String, default: "" },
-      location:      { type: String, enum: LOCATION_ENUM, default: "unknown" },
-      timestamp:     { type: Date, default: Date.now },
-    },
-  },
-  { _id: false }
-);
-
-const AuditEntrySchema = new Schema(
-  {
-    timestamp: { type: Date, default: Date.now, index: true },
-    userId:    { type: Schema.Types.ObjectId, ref: "User", required: true },
-    action:    { type: String, required: true }, // "CREATE","UPDATE_STAGE","SCAN_QR","ASSIGN_DRIVER"
-    note:      { type: String, default: "" },
-    meta:      { type: Schema.Types.Mixed, default: {} },
-  },
-  { _id: false }
-);
-
-// --- Interface ---
-export interface FarmerOrderDoc extends Document {
-  // identity
-  itemId: Types.ObjectId;
-  farmerId: Types.ObjectId;
-  farmerName: string;
-  farmName: string;
-  landId?: Types.ObjectId | null;
-  sectionId?: Types.ObjectId | null;
-
-  type?: string;
-  variety?: string;
-  pictureUrl?: string;
-
-  shift: Shift;
-  pickUpDate: string; // "YYYY-MM-DD"
-  logisticCenterId: string;
-
-  // demand aggregation
-  sumOrderedQuantityKg: number;
-
-  // creation / ownership
-  createdBy: Types.ObjectId;
-  createdAt: Date;
-
-  // lifecycle
-  stages: Array<{
-    key: string; label: string; status: StageStatus; timestamp: Date; note?: string;
-  }>;
-
-  farmerStatus: SimpleStatus;
-  farmersQSreport?: any;
-
-  containersNum: number;
-  containers: Array<{
-    containerId: string;
-    farmerOrder: Types.ObjectId;
-    itemId: Types.ObjectId;
-    qrUrl: string;
-    weightKg: number;
-    stages: any[];
-    warehouseSlot: { shelfLocation?: string; zone?: string; location: LocationEnum; timestamp: Date };
-  }>;
-
-  visualInspection?: { status: QCStatus; note?: string; timestamp: Date };
-  inspectionQSreport?: any;
-  inspectionStatusHistory: Array<{ status: QCStatus; note?: string; timestamp: Date; byUserId?: Types.ObjectId }>;
-
-  warehouseContainersList: Array<{
-    qrUrl: string; containerId: string; farmerOrderId: Types.ObjectId;
-    shelfLocation?: string; weightKg?: number; location: LocationEnum; timestamp: Date;
-  }>;
-
-  linkedOrders: Array<{ orderId: Types.ObjectId; allocatedKg: number }>;
-
-  historyAuditTrail: Array<{ timestamp: Date; userId: Types.ObjectId; action: string; note?: string; meta?: any }>;
-
-  // business key (for idempotent upserts)
-  bk: { farmerId: Types.ObjectId; itemId: Types.ObjectId; pickUpDate: string; shift: Shift; logisticCenterId: string };
-
-  // virtuals
-  totalScannedWeightKg?: number;
-
-  // methods
-  addAudit(userId: Types.ObjectId, action: string, note?: string, meta?: any): void;
-  setStageCurrent(key: string, label?: string, note?: string): void;
-  markStageDone(key: string, note?: string): void;
-}
-
-// --- Schema ---
-const FarmerOrderSchema = new Schema<FarmerOrderDoc>(
-  {
-    itemId:   { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
     farmerId: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
-    farmerName: { type: String, required: true },
-    farmName:   { type: String, required: true },
-    landId:     { type: Schema.Types.ObjectId, ref: "FarmerLand", default: null },
-    sectionId:  { type: String, default: "" },
+    farmerName: { type: String, required: true, trim: true },
+    farmName: { type: String, required: true, trim: true },
 
-    type:       { type: String, default: "" },
-    variety:    { type: String, default: "" },
-    pictureUrl: { type: String, default: "" },
+    landId: { type: Schema.Types.ObjectId, ref: "FarmerLand", default: null },
+    sectionId: { type: String, default: "", trim: true },
 
-    shift: { type: String, enum: SHIFT, required: true, index: true },
+    // planning / logistics
+    shift: { type: String, enum: SHIFTS, required: true, index: true },
     pickUpDate: { type: String, required: true, index: true }, // "YYYY-MM-DD"
     logisticCenterId: { type: String, default: "LC-1", index: true },
 
+    // customer demand aggregation (explicit + derived)
     sumOrderedQuantityKg: { type: Number, required: true, min: 0 },
 
-    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    createdAt: { type: Date, default: Date.now },
+    // NEW: forecast & final
+    // Keep your original spelling exactly; also expose a friendly alias "forecastedQuantityKg"
+    forcastedQuantityKg: { type: Number, required: true, min: 0, alias: "forecastedQuantityKg" },
+    finalQuantityKg: { type: Number, default: null, min: 0 }, // auto = sum(orders[].allocatedQuantityKg) * 1.02
 
-    stages: { type: [StageSchema], default: [] },
-
-    farmerStatus: { type: String, enum: SIMPLE_STATUS, default: "pending", index: true },
-    farmersQSreport: { type: QSReportSchema, default: undefined },
-
-    containersNum: { type: Number, min: 0, default: 0 },
-    containers: { type: [ContainerSchema], default: [] },
-
-    visualInspection: { type: VisualInspectionSchema, default: undefined },
-    inspectionQSreport: { type: QSReportSchema, default: undefined },
-    inspectionStatusHistory: {
+    // linked customer orders contributing to this FarmerOrder
+    orders: {
       type: [
         new Schema(
           {
-            status:   { type: String, enum: QC_STATUS, default: "pending" },
-            note:     { type: String, default: "" },
-            timestamp:{ type: Date, default: Date.now },
-            byUserId: { type: Schema.Types.ObjectId, ref: "User" },
+            orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
+            allocatedQuantityKg: { type: Number, min: 0, default: null },
           },
           { _id: false }
         ),
       ],
       default: [],
     },
+   
 
-    warehouseContainersList: {
-      type: [
-        new Schema(
-          {
-            qrUrl:        { type: String, required: true },
-            containerId:  { type: String, required: true },
-            farmerOrderId:{ type: Schema.Types.ObjectId, ref: "FarmerOrder", required: true },
-            shelfLocation:{ type: String, default: "" },
-            weightKg:     { type: Number, min: 0, default: 0 },
-            location:     { type: String, enum: LOCATION_ENUM, default: "warehouse" },
-            timestamp:    { type: Date, default: Date.now },
-          },
-          { _id: false }
-        ),
-      ],
+    // NEW: Containers linked to this farmer order
+    containers: {
+      type: [ContainerSchema],
       default: [],
     },
 
-    linkedOrders: {
-      type: [
-        new Schema(
-          {
-            orderId:    { type: Schema.Types.ObjectId, ref: "Order", required: true },
-            allocatedKg:{ type: Number, min: 0, default: 0 },
-          },
-          { _id: false }
-        ),
+    // stages (with expected/started/completed in StageSchema)
+    stages: {
+      type: [StageSchema],
+      default: () => buildFarmerOrderDefaultStages(),
+      validate: [
+        {
+          validator: (arr: any[]) => (arr || []).every(s => FARMER_ORDER_STAGE_KEYS.includes(s?.key)),
+          message: "Invalid stage key in FarmerOrder.stages",
+        },
+        {
+          validator: (arr: any[]) => (arr || []).filter(s => s?.status === "current").length <= 1,
+          message: "Only one stage may have status 'current'",
+        },
       ],
-      default: [],
     },
 
+    // farmer-level approval/ack
+    farmerStatus: { type: String, enum: FARMER_APPROVAL_STATUSES, default: "pending", index: true },
+
+    // audit trail
     historyAuditTrail: { type: [AuditEntrySchema], default: [] },
-
-    // Business key for idempotent upsert & easy dedupe
-    bk: {
-      farmerId:         { type: Schema.Types.ObjectId, ref: "Farmer", required: true },
-      itemId:           { type: Schema.Types.ObjectId, ref: "Item", required: true },
-      pickUpDate:       { type: String, required: true },
-      shift:            { type: String, enum: SHIFT, required: true },
-      logisticCenterId: { type: String, default: "LC-1" },
-    },
   },
   { timestamps: true }
 );
 
-// --- Indexes ---
-FarmerOrderSchema.index({ "bk.farmerId": 1, "bk.itemId": 1, "bk.pickUpDate": 1, "bk.shift": 1, "bk.logisticCenterId": 1 }, { unique: true });
+// ---------- plugins & indexes ----------
+FarmerOrderSchema.plugin(toJSON as any);
+
 FarmerOrderSchema.index({ farmerId: 1, itemId: 1, pickUpDate: 1, shift: 1 });
 FarmerOrderSchema.index({ logisticCenterId: 1, pickUpDate: 1, shift: 1 });
-FarmerOrderSchema.index({ farmerStatus: 1, updatedAt: -1 });
+FarmerOrderSchema.index({ "stages.status": 1, updatedAt: -1 });
+FarmerOrderSchema.index({ "orders.orderId": 1 });
 
-// --- Virtuals ---
-FarmerOrderSchema.virtual("totalScannedWeightKg").get(function (this: FarmerOrderDoc) {
-  return (this.containers || []).reduce((sum, c) => sum + (c.weightKg || 0), 0);
-});
+// ---------- inferred types ----------
+export type FarmerOrder = InferSchemaType<typeof FarmerOrderSchema>;
+export type FarmerOrderDoc = HydratedDocument<FarmerOrder>;
 
-// --- Methods ---
-FarmerOrderSchema.methods.addAudit = function (userId: Types.ObjectId, action: string, note = "", meta = {}) {
+// ---------- instance methods typings ----------
+export interface FarmerOrderMethods {
+  addAudit(userId: Types.ObjectId, action: string, note?: string, meta?: any): void;
+
+  setStageCurrent(
+    key: FarmerOrderStageKey,
+    userId: Types.ObjectId,
+    opts?: { note?: string; expectedAt?: Date }
+  ): void;
+
+  markStageDone(
+    key: FarmerOrderStageKey,
+    userId: Types.ObjectId,
+    opts?: { note?: string }
+  ): void;
+
+  markStageOk(
+    key: FarmerOrderStageKey,
+    userId: Types.ObjectId,
+    opts?: { note?: string }
+  ): void;
+
+  /** Link or update a customer order and optionally its allocated quantity */
+  linkOrder(orderId: Types.ObjectId, allocatedQuantityKg?: number | null): void;
+
+  /** Recalculate sumOrderedQuantityKg and finalQuantityKg (= sum * 1.02, rounded to 2 decimals) */
+  recalcQuantities(): void;
+}
+
+export type FarmerOrderModel = Model<FarmerOrder, {}, FarmerOrderMethods>;
+
+// ---------- methods impl ----------
+FarmerOrderSchema.methods.addAudit = function (
+  this: HydratedDocument<FarmerOrder> & FarmerOrderMethods,
+  userId: Types.ObjectId,
+  action: string,
+  note = "",
+  meta: any = {}
+) {
   this.historyAuditTrail.push({ userId, action, note, meta, timestamp: new Date() });
 };
 
-FarmerOrderSchema.methods.setStageCurrent = function (key: string, label = "", note = "") {
-  for (const s of this.stages) if (s.status === "current") s.status = "done";
+FarmerOrderSchema.methods.setStageCurrent = function (
+  this: HydratedDocument<FarmerOrder> & FarmerOrderMethods,
+  key: FarmerOrderStageKey,
+  userId: Types.ObjectId,
+  opts: { note?: string; expectedAt?: Date } = {}
+) {
+  if (!FARMER_ORDER_STAGE_KEYS.includes(key)) throw new Error(`Invalid stage key: ${key}`);
+
   const now = new Date();
-  const existing = this.stages.find(s => s.key === key);
-  if (existing) {
-    existing.status = "current";
-    existing.timestamp = now;
-    if (label) existing.label = label;
-    if (note) existing.note = note;
+
+  for (const s of this.stages as any[]) {
+    if (s.status === "current") {
+      s.status = "done";
+      s.completedAt = now;
+      s.timestamp = now;
+    }
+  }
+
+  let target: any = (this.stages as any[]).find(s => s.key === key);
+  if (!target) {
+    const template = FARMER_ORDER_STAGES.find(s => s.key === key);
+    target = {
+      key,
+      label: template?.label || key,
+      status: "current",
+      expectedAt: opts.expectedAt ?? null,
+      startedAt: now,
+      completedAt: null,
+      timestamp: now,
+      note: opts.note || "",
+    };
+    (this.stages as any[]).push(target);
   } else {
-    this.stages.push({ key, label: label || key, status: "current", timestamp: now, note });
+    target.status = "current";
+    target.startedAt = target.startedAt ?? now;
+    target.timestamp = now;
+    if (opts.note) target.note = opts.note;
+    if (opts.expectedAt !== undefined) target.expectedAt = opts.expectedAt;
   }
+
+  this.addAudit(userId, "STAGE_SET_CURRENT", opts.note, { key, expectedAt: opts.expectedAt });
 };
 
-FarmerOrderSchema.methods.markStageDone = function (key: string, note = "") {
-  const s = this.stages.find(s => s.key === key);
-  if (s) {
-    s.status = "done";
-    if (note) s.note = note;
-    s.timestamp = new Date();
+FarmerOrderSchema.methods.markStageDone = function (
+  this: HydratedDocument<FarmerOrder> & FarmerOrderMethods,
+  key: FarmerOrderStageKey,
+  userId: Types.ObjectId,
+  opts: { note?: string } = {}
+) {
+  const now = new Date();
+  const s: any = (this.stages as any[]).find(x => x.key === key);
+  if (!s) throw new Error(`Stage not found: ${key}`);
+
+  s.status = "done";
+  s.completedAt = now;
+  s.timestamp = now;
+  if (opts.note) s.note = opts.note;
+
+  this.addAudit(userId, "STAGE_MARK_DONE", opts.note, { key });
+};
+
+FarmerOrderSchema.methods.markStageOk = function (
+  this: HydratedDocument<FarmerOrder> & FarmerOrderMethods,
+  key: FarmerOrderStageKey,
+  userId: Types.ObjectId,
+  opts: { note?: string } = {}
+) {
+  const now = new Date();
+  const s: any = (this.stages as any[]).find(x => x.key === key);
+  if (!s) throw new Error(`Stage not found: ${key}`);
+
+  s.status = "ok";
+  s.timestamp = now;
+  s.startedAt = s.startedAt ?? now;
+  if (opts.note) s.note = opts.note;
+
+  this.addAudit(userId, "STAGE_SET_OK", opts.note, { key });
+};
+
+FarmerOrderSchema.methods.linkOrder = function (
+  this: HydratedDocument<FarmerOrder> & FarmerOrderMethods,
+  orderId: Types.ObjectId,
+  allocatedQuantityKg: number | null = null
+) {
+  const existing = (this.orders as any[]).find(e => e.orderId?.toString() === orderId.toString());
+  if (existing) {
+    if (allocatedQuantityKg !== null && allocatedQuantityKg !== undefined) {
+      existing.allocatedQuantityKg = allocatedQuantityKg;
+    }
+  } else {
+    (this.orders as any[]).push({ orderId, allocatedQuantityKg });
   }
+
+  // keep aggregates in sync
+  this.recalcQuantities();
 };
 
-// --- Statics ---
-FarmerOrderSchema.statics.findOrCreateByBK = async function (bk: FarmerOrderDoc["bk"], payload: Partial<FarmerOrderDoc>) {
-  return this.findOneAndUpdate(
-    { bk },
-    { $setOnInsert: { ...payload, bk } },
-    { new: true, upsert: true }
-  );
+FarmerOrderSchema.methods.recalcQuantities = function (
+  this: HydratedDocument<FarmerOrder> & FarmerOrderMethods
+) {
+  const sum = (this.orders as any[])
+    .map((o: any) => Number(o.allocatedQuantityKg) || 0)
+    .reduce((a: number, b: number) => a + b, 0);
+
+  // reflect totals:
+  this.sumOrderedQuantityKg = sum;
+
+  // final = sum * 1.02 (2% buffer), round to 2 decimals
+  const finalRaw = sum * 1.02;
+  this.finalQuantityKg = Math.round(finalRaw * 100) / 100;
 };
 
-export const FarmerOrder = model<FarmerOrderDoc>("FarmerOrder", FarmerOrderSchema);
+
+
+
+// ---------- hooks ----------
+// Whenever the doc validates, ensure aggregate quantities reflect 'orders'
+FarmerOrderSchema.pre("validate", function (next) {
+  const doc = this as HydratedDocument<FarmerOrder> & FarmerOrderMethods;
+
+  // keep aggregates consistent even if orders changed via direct array ops
+  doc.recalcQuantities();
+
+  // Note: 'forcastedQuantityKg' is required. If you need a default, set it earlier in your service.
+  next();
+});
+
+// ---------- model ----------
+export const FarmerOrder = model<FarmerOrder, FarmerOrderModel>("FarmerOrder", FarmerOrderSchema);
+export default FarmerOrder;

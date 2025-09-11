@@ -1,20 +1,20 @@
-// models/shared/stage.schema.ts
 import { Schema } from "mongoose";
-
-export type StageStatus = "ok" | "problem" | "current" | "pending" | "done";
+import { STAGE_STATUSES } from "./stage.types";
 
 export const StageSchema = new Schema(
   {
-    key: { type: String, required: true, trim: true },   // e.g. "planned","harvest","qc","loaded","received"
-    label: { type: String, required: true, trim: true }, // human label
-    status: {
-      type: String,
-      enum: ["ok", "problem", "current", "pending", "done"],
-      default: "pending",
-      index: true,
-    },
-    timestamp: { type: Date, default: Date.now },
-    note: { type: String, default: "" },
+    key:   { type: String, required: true, trim: true },   // stage key
+    label: { type: String, required: true, trim: true },   // display label
+    status:{ type: String, enum: STAGE_STATUSES, default: "pending", index: true },
+
+    // timestamps (all optional)
+    expectedAt:  { type: Date, default: null },  // planned ETA for stage
+    startedAt:   { type: Date, default: null },  // when it actually started
+    completedAt: { type: Date, default: null },  // when it actually finished
+
+    // last modification metadata
+    timestamp: { type: Date, default: Date.now }, // last update to this stage entry
+    note:      { type: String, default: "" },
   },
   { _id: false }
 );
