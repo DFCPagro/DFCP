@@ -1,6 +1,6 @@
 import mongoose, { Schema, Model, Document } from "mongoose";
 import toJSON from "../utils/toJSON";
-import { isHttpUrl } from "../utils/urls"
+import { isHttpUrl } from "../utils/urls";
 
 export const itemCategories = ["fruit", "vegetable"] as const;
 export type ItemCategory = (typeof itemCategories)[number];
@@ -12,21 +12,18 @@ export interface IABCScale {
 }
 
 export interface IQualityStandards {
-  // CHANGED: tolerance is an ABC scale (matches your JSON)
   tolerance?: IABCScale;
   brix?: IABCScale;
   acidityPercentage?: IABCScale;
   pressure?: IABCScale;
   colorDescription?: IABCScale;
   colorPercentage?: IABCScale;
-  // keep both keys to be flexible with incoming data
-  weightPerUnit?: IABCScale;
-  weightPerUnitG?: IABCScale; // your JSON key
+  weightPerUnit?: IABCScale;   // legacy
+  weightPerUnitG?: IABCScale;  // JSON key
   diameterMM?: IABCScale;
   qualityGrade?: IABCScale;
   maxDefectRatioLengthDiameter?: IABCScale;
-  // ADDED: present in your JSON
-  rejectionRate?: IABCScale;
+  rejectionRate?: IABCScale;   // present in your JSON
 }
 
 export interface IPriceTier {
@@ -36,8 +33,8 @@ export interface IPriceTier {
 }
 
 export interface IItem extends Document {
-  _id: string; // "FRT-001" (stored as Mongo _id)
-  itemId?: string; // virtual alias to _id
+  _id: string;            // e.g., "FRT-001" (stored as Mongo _id)
+  itemId?: string;        // virtual alias to _id
 
   category: ItemCategory;
   type: string;
@@ -56,7 +53,7 @@ export interface IItem extends Document {
   weightPerUnitG?: number | null;
 
   qualityStandards?: IQualityStandards | null;
-  tolerance?: string | null; // top-level tolerance in your data (keep)
+  tolerance?: string | null;   // top-level tolerance in your data (keep)
 
   count?: number | null;
 
@@ -78,23 +75,22 @@ const ABCSchema = new Schema<IABCScale>(
 
 const QualityStandardsSchema = new Schema<IQualityStandards>(
   {
-    tolerance: { type: ABCSchema, default: undefined }, // CHANGED
+    tolerance: { type: ABCSchema, default: undefined },
     brix: { type: ABCSchema, default: undefined },
     acidityPercentage: { type: ABCSchema, default: undefined },
     pressure: { type: ABCSchema, default: undefined },
     colorDescription: { type: ABCSchema, default: undefined },
     colorPercentage: { type: ABCSchema, default: undefined },
-    weightPerUnit: { type: ABCSchema, default: undefined },  // legacy
-    weightPerUnitG: { type: ABCSchema, default: undefined }, // JSON key
+    weightPerUnit: { type: ABCSchema, default: undefined },   // legacy
+    weightPerUnitG: { type: ABCSchema, default: undefined },  // JSON key
     diameterMM: { type: ABCSchema, default: undefined },
     qualityGrade: { type: ABCSchema, default: undefined },
     maxDefectRatioLengthDiameter: { type: ABCSchema, default: undefined },
-    rejectionRate: { type: ABCSchema, default: undefined },  // ADDED
+    rejectionRate: { type: ABCSchema, default: undefined },
   },
   { _id: false }
 );
 
-// numeric price tiers
 const PriceSchema = new Schema(
   {
     a: { type: Number, default: null, min: 0 },
@@ -106,7 +102,7 @@ const PriceSchema = new Schema(
 
 const ItemSchema = new Schema<IItem>(
   {
-    _id: { type: String, required: true },
+    _id: { type: String, required: true }, // string _id
     category: { type: String, enum: itemCategories, required: true, index: true },
     type: { type: String, required: true, trim: true, index: true },
     variety: { type: String, default: null, trim: true, index: true },
@@ -115,10 +111,7 @@ const ItemSchema = new Schema<IItem>(
       type: String,
       default: null,
       trim: true,
-      validate: {
-        validator: isHttpUrl,
-        message: "imageUrl must be a valid http(s) URL",
-      },
+      validate: { validator: isHttpUrl, message: "imageUrl must be a valid http(s) URL" },
     },
 
     season: { type: String, default: null, trim: true },
@@ -140,7 +133,7 @@ const ItemSchema = new Schema<IItem>(
     lastUpdated: { type: Date, default: () => new Date() },
   },
   {
-    _id: false,
+    // NOTE: do NOT set _id:false on a top-level model when you have a custom _id
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
@@ -181,8 +174,8 @@ ItemSchema.pre("validate", function (next) {
   next();
 });
 
-// Indexes
-ItemSchema.index({ _id: 1 }, { unique: true });
+// Indexes (do NOT index _id — MongoDB provides it automatically)
+// ItemSchema.index({ _id: 1 }, { unique: true }); // ← removed to silence the warning
 ItemSchema.index({ category: 1, type: 1, variety: 1 });
 
 export const Item: Model<IItem> = mongoose.model<IItem>("Item", ItemSchema);
