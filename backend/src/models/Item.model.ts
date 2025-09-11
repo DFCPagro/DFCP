@@ -2,40 +2,13 @@
 import { Schema, model, InferSchemaType, HydratedDocument, Model } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { isHttpUrl } from "../utils/urls";
+import { QualityStandardsSchema } from "./shared/qualityStandards.schema";
+
 
 // --- categories ---
 export const itemCategories = ["fruit", "vegetable"] as const;
 export type ItemCategory = (typeof itemCategories)[number];
 
-// --- subtypes (kept as schemas so we can infer) ---
-const ABCSchema = new Schema(
-  {
-    A: { type: String, default: null, trim: true },
-    B: { type: String, default: null, trim: true },
-    C: { type: String, default: null, trim: true },
-  },
-  { _id: false }
-);
-
-const QualityStandardsSchema = new Schema(
-  {
-    tolerance: { type: ABCSchema, default: undefined },
-    brix: { type: ABCSchema, default: undefined },
-    acidityPercentage: { type: ABCSchema, default: undefined },
-    pressure: { type: ABCSchema, default: undefined },
-    colorDescription: { type: ABCSchema, default: undefined },
-    colorPercentage: { type: ABCSchema, default: undefined },
-    // keep both keys for flexibility
-    weightPerUnit: { type: ABCSchema, default: undefined },
-    weightPerUnitG: { type: ABCSchema, default: undefined },
-    diameterMM: { type: ABCSchema, default: undefined },
-    qualityGrade: { type: ABCSchema, default: undefined },
-    maxDefectRatioLengthDiameter: { type: ABCSchema, default: undefined },
-    // present in your JSON
-    rejectionRate: { type: ABCSchema, default: undefined },
-  },
-  { _id: false }
-);
 
 const PriceSchema = new Schema(
   {
@@ -49,7 +22,6 @@ const PriceSchema = new Schema(
 // --- main schema (no generics; we infer after) ---
 const ItemSchema = new Schema(
   {
-    // You store codes like "FRT-001" as the Mongo _id (string)
     _id: { type: String, required: true },
 
     category: { type: String, enum: itemCategories, required: true, index: true },
@@ -68,7 +40,6 @@ const ItemSchema = new Schema(
     customerInfo: { type: [String], default: [] },
     caloriesPer100g: { type: Number, default: null, min: 0 },
 
-    // numeric price tiers (all optional)
     price: { type: PriceSchema, default: undefined },
 
     avgWeightPerUnitGr: { type: Number, default: null, min: 0 },
@@ -76,7 +47,6 @@ const ItemSchema = new Schema(
     weightPerUnitG: { type: Number, default: null, min: 0 },
 
     qualityStandards: { type: QualityStandardsSchema, default: undefined },
-    // top-level tolerance (keep for back-compat)
     tolerance: { type: String, default: null, trim: true },
 
     count: { type: Number, default: null, min: 0 },
@@ -84,7 +54,6 @@ const ItemSchema = new Schema(
     lastUpdated: { type: Date, default: () => new Date() },
   },
   {
-    // DO NOT set _id:false here — you are using a custom _id string above.
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
