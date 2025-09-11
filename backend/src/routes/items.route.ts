@@ -7,6 +7,7 @@ import {
   putItemHandler,
   deleteItemHandler,
 } from "../controllers/items.controller";
+import { authenticate, authorize  } from "../middlewares/auth"; // adjust path if different
 
 const router = Router();
 
@@ -26,9 +27,9 @@ router.get("/", listItemsHandler);
 
 /**
  * @route   POST /items
- * @body    Partial<IItem> (schema validation applied by Mongoose)
+ * @body    Partial<Item> (schema validation applied by Mongoose)
  */
-router.post("/", createItemHandler);
+router.post("/", authenticate, authorize('admin', 'fManager'), createItemHandler);
 
 /**
  * @route   GET /items/:itemId
@@ -39,17 +40,17 @@ router.get("/:itemId", getItemHandler);
  * @route   PATCH /items/:itemId
  * @body    Partial fields to update (uses $set)
  */
-router.patch("/:itemId", patchItemHandler);
+router.patch("/:itemId", authenticate, authorize('admin', 'fManager'), patchItemHandler);
 
 /**
  * @route   PUT /items/:itemId
  * @body    Full replacement document (except itemId in path)
  */
-router.put("/:itemId", putItemHandler);
+router.put("/:itemId", authenticate, authorize('admin', 'fManager'), putItemHandler);
 
 /**
  * @route   DELETE /items/:itemId
  */
-router.delete("/:itemId", deleteItemHandler);
+router.delete("/:itemId", authenticate, authorize('admin'), deleteItemHandler);
 
 export default router;

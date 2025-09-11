@@ -1,6 +1,5 @@
 [
   {
-    "_id": "FRT-001",
     "category": "fruit",
     "season": "November-February",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -79,10 +78,11 @@
     "lastUpdated": "2025-07-15T10:03:54.618Z",
     "count": 43,
     "type": "Apple",
-    "variety": "Fuji"
+    "variety": "Fuji",
+    "_id": "db63c0177cfae45a8385313a",
+    "legacyCode": "FRT-001"
   },
   {
-    "_id": "FRT-002",
     "category": "fruit",
     "season": "July-October",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -161,10 +161,11 @@
     "lastUpdated": "2025-07-15T10:03:54.618Z",
     "count": 44,
     "type": "Banana",
-    "variety": "Cavendish"
+    "variety": "Cavendish",
+    "_id": "6873f67b8027abff0fdb32f3",
+    "legacyCode": "FRT-002"
   },
   {
-    "_id": "FRT-003",
     "category": "fruit",
     "season": "July-October",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -243,10 +244,11 @@
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "count": 11,
     "type": "Orange",
-    "variety": "Navel"
+    "variety": "Navel",
+    "_id": "bb87115ed0ab8a728b7d9622",
+    "legacyCode": "FRT-003"
   },
   {
-    "_id": "FRT-004",
     "category": "fruit",
     "season": "March-June",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -325,10 +327,11 @@
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "count": 14,
     "type": "Grapes",
-    "variety": "Red Globe"
+    "variety": "Red Globe",
+    "_id": "497bb3e65bf348533160cec0",
+    "legacyCode": "FRT-004"
   },
   {
-    "_id": "FRT-005",
     "category": "fruit",
     "season": "March-June",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -407,10 +410,11 @@
     "lastUpdated": "2025-07-15T10:03:54.618Z",
     "count": 20,
     "type": "Strawberry",
-    "variety": "Albion"
+    "variety": "Albion",
+    "_id": "30eb71d9a20cb517be34112f",
+    "legacyCode": "FRT-005"
   },
   {
-    "_id": "VEG-001",
     "category": "vegetable",
     "season": "November-February",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -489,10 +493,11 @@
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "count": 11,
     "type": "Tomato",
-    "variety": "Cherry"
+    "variety": "Cherry",
+    "_id": "ad126949daa1c7dd61ffcc4c",
+    "legacyCode": "VEG-001"
   },
   {
-    "_id": "VEG-002",
     "category": "vegetable",
     "season": "November-February",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -571,10 +576,11 @@
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "count": 17,
     "type": "Lettuce",
-    "variety": "Romaine"
+    "variety": "Romaine",
+    "_id": "39bd70c4db17647c60d33c8f",
+    "legacyCode": "VEG-002"
   },
   {
-    "_id": "VEG-003",
     "category": "vegetable",
     "season": "November-February",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -653,10 +659,11 @@
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "count": 10,
     "type": "Cucumber",
-    "variety": "Persian"
+    "variety": "Persian",
+    "_id": "fa56428339a4f47db7d15600",
+    "legacyCode": "VEG-003"
   },
   {
-    "_id": "VEG-004",
     "category": "vegetable",
     "season": "July-October",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -735,10 +742,11 @@
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "count": 14,
     "type": "Carrot",
-    "variety": "Nantes"
+    "variety": "Nantes",
+    "_id": "885df3d97431436c3a205ff3",
+    "legacyCode": "VEG-004"
   },
   {
-    "_id": "VEG-005",
     "category": "vegetable",
     "season": "July-October",
     "farmerTips": "Harvest early in the morning for best shelf life.",
@@ -817,6 +825,8 @@
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "count": 1,
     "type": "Spinach",
-    "variety": "Baby"
+    "variety": "Baby",
+    "_id": "f68140ef8273c40bbae48b98",
+    "legacyCode": "VEG-005"
   }
 ]
