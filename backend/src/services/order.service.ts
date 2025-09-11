@@ -6,14 +6,10 @@ import { buildQrUrls } from '../utils/urls';
 import { withOptionalTxn } from '../utils/txn';
 import { ensureValidObjectId, toObjectId } from '../utils/ids';
 
-/* --------------------------- errors --------------------------- */
-
 export class NotFoundError extends Error { status = 404; }
 export class ConflictError extends Error { status = 409; }
 export class GoneError extends Error { status = 410; }
 export class BadRequestError extends Error { status = 400; }
-
-/* ---------------------------- DTOs ---------------------------- */
 
 export type ApiOrderItem = {
   productId: string;
@@ -23,7 +19,7 @@ export type ApiOrderItem = {
 
 export type CreateOrderInput = {
   orderId?: string;
-  consumerId: string;
+  customerId: string;                 // ⬅️ renamed
   assignedDriverId?: string;
   status?: string;
   deliverySlot?: Date;
@@ -53,7 +49,7 @@ export type PaginatedOrders = {
     id: string;
     orderId: string;
     status: string;
-    deliverySlot?: Date | null;
+    deliverySlot?: Date | null; // optional if you compute it
     createdAt: Date;
     items: IOrder['items'];
   }>;
@@ -62,8 +58,8 @@ export type PaginatedOrders = {
 export type OrderView = {
   id: string;
   orderId: string;
-  consumerId: string;
-  assignedDriverId: string | null;
+  customerId: string;                 // ⬅️ renamed
+  assignedDriverId: string | null;    // still your API’s name
   status: string;
   deliverySlot?: Date | null;
   createdAt: Date;
@@ -71,28 +67,33 @@ export type OrderView = {
   items: IOrder['items'];
 };
 
-/* --------------------------- service -------------------------- */
-
 export const OrderService = {
-  /** Create an order and mint two QR tokens. */
   async createOrderWithQrs(input: CreateOrderInput): Promise<CreateOrderResult> {
     validateOrderItems(input.items);
 
     const orderDoc = {
       orderId: input.orderId,
-      consumerId: toObjectId(input.consumerId) as Types.ObjectId,
-      assignedDriverId: toObjectId(input.assignedDriverId),
-      status: input.status, // model default 'created' if undefined
-      deliverySlot: input.deliverySlot,
+      customerId: toObjectId(input.customerId) as Types.ObjectId, // ⬅️ mapped
+      // If you later map driver → deliverer polymorphic fields, do it here
+      // assignedDeliverer: toObjectId(input.assignedDriverId),
+      status: input.status, // model default handles if undefined
+
+      // If you have slot→date/shift mapping, do it here; otherwise omit
+      // deliveryDate: mapped.deliveryDate,
+      // deliveryShift: mapped.deliveryShift,
+
       items: input.items.map((it) => ({
-        productId: it.productId,
-        quantity: it.quantity,
-        sourceFarmerId: toObjectId(it.sourceFarmerId),
+        // Minimal mapping; adapt to your IOrderItem
+        itemId: it.productId,
+        itemDisplayName: it.productId,
+        quantityUnits: it.quantity,
+        pricePerUnit: 0,
+        sourceFarmerId: it.sourceFarmerId ?? null,
+        isPicked: false,
       })),
     };
 
     return withOptionalTxn(async (session) => {
-      // ensure collection exists (no-op if already there)
       await Order.createCollection().catch(() => {});
       const order = await Order.create([orderDoc], session ? { session } : {}).then(r => r[0]);
 
@@ -109,7 +110,6 @@ export const OrderService = {
     });
   },
 
-  /** List orders with pagination. */
   async listOrders({ page, pageSize }: { page: number; pageSize: number }): Promise<PaginatedOrders> {
     const skip = (page - 1) * pageSize;
 
@@ -126,14 +126,13 @@ export const OrderService = {
         id: String(o._id),
         orderId: o.orderId ?? String(o._id),
         status: o.status,
-        deliverySlot: o.deliverySlot ?? null,
+        deliverySlot: o.deliverySlot ?? null, // only if you compute/store it
         createdAt: o.createdAt,
         items: o.items,
       })),
     };
   },
 
-  /** Get single order by id with validation. */
   async getOrderById(id: string): Promise<OrderView> {
     ensureValidObjectId(id, 'order id');
     const o = await Order.findById(id).lean();
@@ -141,18 +140,17 @@ export const OrderService = {
 
     return {
       id: String(o._id),
-      orderId: (o as any).orderId ?? String(o._id),
-      consumerId: String((o as any).consumerId),
-      assignedDriverId: (o as any).assignedDriverId ? String((o as any).assignedDriverId) : null,
-      status: (o as any).status,
+      orderId: o.orderId ?? String(o._id),
+      customerId: String((o as any).customerId), // ⬅️ renamed
+      assignedDriverId: (o as any).assignedDeliverer ? String((o as any).assignedDeliverer) : null,
+      status: o.status,
       deliverySlot: (o as any).deliverySlot ?? null,
-      createdAt: (o as any).createdAt,
-      updatedAt: (o as any).updatedAt,
-      items: (o as any).items,
+      createdAt: o.createdAt,
+      updatedAt: o.updatedAt,
+      items: o.items,
     };
   },
 
-  /** Update status of an order (with id validation). */
   async updateOrderStatus(id: string, status: string) {
     ensureValidObjectId(id, 'order id');
     const o = await Order.findByIdAndUpdate(id, { $set: { status } }, { new: true });
@@ -160,7 +158,6 @@ export const OrderService = {
     return { id: o.id, status: o.status };
   },
 
-  /** (Re)mint QR tokens for an existing order. */
   async mintQrsForOrder(orderId: string, customerTtlDays = 30, session?: ClientSession): Promise<MintResult> {
     ensureValidObjectId(orderId, 'order id');
 
@@ -179,7 +176,6 @@ export const OrderService = {
     return { opsUrl, customerUrl, opsToken: opsTok.token, customerToken: cusTok.token };
   },
 
-  /** Optional helper to revoke a customer token. */
   async revokeCustomerToken(token: string) {
     const t = await QrToken.findOne({ token, purpose: 'customer' });
     if (!t) throw new NotFoundError('Token not found');
@@ -187,7 +183,6 @@ export const OrderService = {
     return { ok: true };
   },
 
-  /** Read-only order details via ops token. */
   async getOrderByOpsToken(token: string) {
     const t = await QrToken.findOne({ token, purpose: 'ops' }).lean();
     if (!t) throw new NotFoundError('Invalid token');
@@ -196,15 +191,14 @@ export const OrderService = {
     if (!order) throw new NotFoundError('Order not found');
 
     return {
-      orderNo: (order as any).orderId ?? String(order._id),
-      status: (order as any).status,
-      items: (order as any).items,
-      deliverySlot: (order as any).deliverySlot,
-      createdAt: (order as any).createdAt,
+      orderNo: order.orderId ?? String(order._id),
+      status: order.status,
+      items: order.items,
+      deliverySlot: (order as any).deliverySlot ?? null,
+      createdAt: order.createdAt,
     };
   },
 
-  /** Confirm delivery via customer token (one-time). */
   async confirmByCustomerToken(token: string, review?: { rating?: number; comment?: string }) {
     return withOptionalTxn(async (session) => {
       const t = await QrToken.findOne({ token, purpose: 'customer' }).session(session || null);
@@ -221,14 +215,12 @@ export const OrderService = {
       t.usedAt = new Date();
       await t.save(session ? { session } : {});
 
-      // if (review?.rating) await Review.create([{ order: order._id, ...review }], session ? { session } : {});
-
       return { ok: true, orderNo: order.orderId ?? order.id };
     });
   },
 };
 
-/* ------------------------- validation -------------------------- */
+/* validation */
 function validateOrderItems(items: ApiOrderItem[] | undefined): asserts items is ApiOrderItem[] {
   if (!Array.isArray(items) || items.length === 0) {
     throw new BadRequestError('Order must contain at least one item');

@@ -35,7 +35,7 @@ const nextScheduleValidator = {
 // ===== schema (no generics; infer later) =====
 const IndustrialDelivererSchema = new Schema(
   {
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
     createdFromApplication: { type: Schema.Types.ObjectId, ref: "JobApplication", default: null, index: true },
 
     logisticCenterIds: { type: [Schema.Types.ObjectId], ref: "LogisticCenter", default: [], index: true },

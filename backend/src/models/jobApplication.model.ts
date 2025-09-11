@@ -137,7 +137,7 @@ const JOB_APP_DISCRIMINATOR_KEY = "appliedRole" as const;
 
 const JobApplicationBaseSchema = new Schema(
   {
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     appliedRole: {
       type: String,
       enum: jobApplicationRoles, // e.g., "deliverer" | "industrialDeliverer" | "farmer" | "picker" | "sorter"

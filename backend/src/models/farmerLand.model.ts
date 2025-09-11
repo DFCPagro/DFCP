@@ -17,7 +17,7 @@ const AddressSubSchema = new Schema(
 // ---------- Land schema (no generics; we infer later) ----------
 const FarmerLandSchema = new Schema(
   {
-    farmer: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
+    farmer: { type: Schema.Types.ObjectId, ref: "Farmer", required: true },
     name: { type: String, required: true, trim: true },
     ownership: { type: String, enum: ["owned", "rented"], required: true },
     areaM2: { type: Number, required: true, min: 0 },
@@ -68,7 +68,7 @@ FarmerLandSchema.virtual("polygon2D").get(function (this: any) {
 });
 
 // Simple area if rectangle-like (else estimate with abM×bcM)
-FarmerLandSchema.virtual("areaM2").get(function (this: any) {
+FarmerLandSchema.virtual("computedAreaM2").get(function (this: any) {
   const m = this.measurements || {};
   const { abM = 0, bcM = 0, cdM = 0, daM = 0 } = m;
   const eps = 1e-6;

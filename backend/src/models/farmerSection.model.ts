@@ -83,7 +83,7 @@ FarmerSectionSchema.virtual("polygon2D").get(function (this: any) {
   return pts.map(([x, y]) => [x * cos - y * sin, x * sin + y * cos]);
 });
 
-FarmerSectionSchema.virtual("areaM2").get(function (this: any) {
+FarmerSectionSchema.virtual("computedAreaM2").get(function (this: any) {
   const m = this.measurements || {};
   const { abM = 0, bcM = 0, cdM = 0, daM = 0 } = m;
   const eps = 1e-6;
