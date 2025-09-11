@@ -2,24 +2,28 @@
   {
     "_id": "66e007000000000000000001",
     "logisticName": "Tel Aviv Logistics Center",
-    "location": "Tel Aviv",
-    "activeOrders": [],
+    "locationObj": {
+      "name": "Tel Aviv",
+      "geo": { "type": "Point", "coordinates": [34.781768, 32.085300] }
+    },
     "employeeIds": [],
-    "deliveryHistory": []
+    "deliveryHistory": ["Opened hub"]
   },
   {
     "_id": "66e007000000000000000002",
     "logisticName": "Jerusalem Logistics Center",
-    "location": "Jerusalem",
-    "activeOrders": [],
+    "locationObj": {
+      "name": "Jerusalem"
+    },
     "employeeIds": [],
     "deliveryHistory": []
   },
   {
     "_id": "66e007000000000000000003",
     "logisticName": "Haifa Logistics Center",
-    "location": "Haifa",
-    "activeOrders": [],
+    "locationObj": {
+      "name": "Haifa"
+    },
     "employeeIds": [],
     "deliveryHistory": []
   }

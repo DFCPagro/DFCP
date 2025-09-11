@@ -1,4 +1,3 @@
-// models/user.model.ts
 import {
   Schema,
   model,
