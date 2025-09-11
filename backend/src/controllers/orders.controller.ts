@@ -2,10 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { OrderService } from '../services/order.service';
 
-/* ----------------------- validation (transport-level) ----------------------- */
-// Keep only transport-shape validation here (strings, numbers, dates as strings).
-// Domain rules live in the service.
-
+// transport-level validation
 const itemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.number().positive(),
@@ -14,10 +11,10 @@ const itemSchema = z.object({
 
 const createOrderSchema = z.object({
   orderId: z.string().optional(),
-  consumerId: z.string().min(1),
+  customerId: z.string().min(1),            // ⬅️ renamed
   assignedDriverId: z.string().optional(),
   status: z.string().optional(),
-  deliverySlot: z.string().datetime().optional(), // ISO string from client
+  deliverySlot: z.string().datetime().optional(),
   items: z.array(itemSchema).min(1),
 });
 
@@ -35,7 +32,7 @@ const confirmSchema = z.object({
   comment: z.string().max(2000).optional(),
 });
 
-/* -------------------------------- actions --------------------------------- */
+/* actions */
 
 export const createOrder = async (req: Request, res: Response) => {
   const body = createOrderSchema.parse(req.body);
@@ -48,13 +45,12 @@ export const createOrder = async (req: Request, res: Response) => {
   return res.status(201).json({
     id: result.order.id,
     orderId: result.order.orderId ?? result.order.id,
+    customerId: String((result.order as any).customerId), // ⬅️ expose customerId
     status: result.order.status,
-    deliverySlot: result.order.deliverySlot,
+    deliverySlot: (result.order as any).deliverySlot,     // your service can also return computed slot if you want
     items: result.order.items,
     opsUrl: result.opsUrl,
     customerUrl: result.customerUrl,
-    // opsToken: result.opsToken,
-    // customerToken: result.customerToken,
   });
 };
 
@@ -78,7 +74,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 export const mintQrs = async (req: Request, res: Response) => {
   const ttlDays = req.query.ttlDays ? Number(req.query.ttlDays) : 30;
   const data = await OrderService.mintQrsForOrder(req.params.id, ttlDays);
-  return res.json(data); // { opsUrl, customerUrl, opsToken, customerToken }
+  return res.json(data);
 };
 
 export const getByOpsToken = async (req: Request, res: Response) => {
