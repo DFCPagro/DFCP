@@ -1,18 +1,21 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
-    "strict": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",                           // ⬅ allow src + db
     "types": ["node", "express"],
     "typeRoots": ["./src/types", "./node_modules/@types"]
   },
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "db/**/*.ts"                              // ⬅ include your seed scripts
+  ],
   "exclude": ["node_modules", "dist"]
 }

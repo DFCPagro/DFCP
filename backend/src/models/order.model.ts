@@ -1,4 +1,3 @@
-// models/Order.ts
 import mongoose, { Schema, Model, Document, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { Address } from "../types/address"; // { lnt: number; alt: number; address: string; }

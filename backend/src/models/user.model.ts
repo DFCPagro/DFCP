@@ -1,16 +1,21 @@
-// models/user.model.ts
-import { Schema, model, InferSchemaType, HydratedDocument, Model } from "mongoose";
+import {
+  Schema,
+  model,
+  InferSchemaType,
+  HydratedDocument,
+  Model,
+} from "mongoose";
 import bcrypt from "bcryptjs";
 import toJSON from "../utils/toJSON";
-import { Role, roles } from "../utils/constants";
+import { roles } from "../utils/constants";
 
 // ========== Address subdocument ==========
 const AddressSchema = new Schema(
   {
-    lnt: { type: Number, required: true },               // longitude (kept as 'lnt' per your shape)
-    alt: { type: Number, required: true },               // latitude  (kept as 'alt')
+    lnt: { type: Number, required: true }, // longitude (kept as 'lnt' per your shape)
+    alt: { type: Number, required: true }, // latitude  (kept as 'alt')
     address: { type: String, required: true, trim: true },
-    logisticCenterId: { type: String, default: null },   // set later in controller
+    logisticCenterId: { type: String, default: null }, // set later in controller
   },
   { _id: false }
 );
@@ -60,7 +65,7 @@ UserSchema.plugin(toJSON as any);
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ uid: 1 });
 
-// ========== Infer types from schemas ==========
+// ========== Types inferred from schemas ==========
 export type Address = InferSchemaType<typeof AddressSchema>;
 export type User = InferSchemaType<typeof UserSchema>;
 
@@ -76,6 +81,49 @@ export interface UserMethods {
 export type UserDoc = HydratedDocument<UserSafe> & UserMethods;
 export type UserModel = Model<User, {}, UserMethods>;
 
+// ========== Helpers (hashing + normalization) ==========
+
+function needsHash(pwd: unknown): pwd is string {
+  // bcrypt hashes start with $2a/$2b/$2y — avoid double-hashing
+  return typeof pwd === "string" && !pwd.startsWith("$2");
+}
+
+async function hashPassword(pwd: string) {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(pwd, salt);
+}
+
+/** Mutates the update object to hash password if present in either direct or $set form. */
+async function maybeHashInUpdate(update: Record<string, any> | undefined) {
+  if (!update) return;
+
+  if (needsHash(update.password)) {
+    update.password = await hashPassword(update.password);
+  }
+
+  if (update.$set && needsHash(update.$set.password)) {
+    update.$set.password = await hashPassword(update.$set.password);
+  }
+}
+
+/** Normalizes email to lowercased/trimmed inside typical update shapes. */
+function normalizeEmailInUpdate(update: Record<string, any> | undefined) {
+  if (!update) return;
+
+  const raw =
+    (update.email as string | undefined) ??
+    (update.$set && (update.$set.email as string | undefined));
+
+  if (typeof raw === "string") {
+    const normalized = raw.trim().toLowerCase();
+    if (update.$set && "email" in (update.$set as object)) {
+      update.$set.email = normalized;
+    } else {
+      update.email = normalized;
+    }
+  }
+}
+
 // ========== Hooks ==========
 
 // normalize email casing/spacing even if someone bypassed validators
@@ -88,58 +136,49 @@ UserSchema.pre("validate", function (this: UserDoc, next) {
 
 // hash on save if modified
 UserSchema.pre("save", async function (this: UserDoc, next) {
-  // mongoose provides isModified on docs
   if (!this.isModified("password")) return next();
-  if (this.password) {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+  if (this.password && needsHash(this.password)) {
+    this.password = await hashPassword(this.password);
   }
   next();
 });
 
-// hash on findOneAndUpdate if password is being changed
+// hash + normalize on findOneAndUpdate (covers findByIdAndUpdate internally)
 UserSchema.pre("findOneAndUpdate", async function (next) {
   const update = this.getUpdate() as Record<string, any> | undefined;
-  if (!update) return next();
+  await maybeHashInUpdate(update);
+  normalizeEmailInUpdate(update);
+  next();
+});
 
-  // support both direct and $set updates
-  const pwd =
-    (update.password as string | undefined) ??
-    (update.$set && (update.$set.password as string | undefined));
+// also cover updateOne and updateMany
+UserSchema.pre("updateOne", async function (next) {
+  // @ts-ignore Mongoose query `this` typing is permissive
+  const update = this.getUpdate() as Record<string, any> | undefined;
+  await maybeHashInUpdate(update);
+  normalizeEmailInUpdate(update);
+  next();
+});
 
-  if (pwd) {
-    const salt = await bcrypt.genSalt(10);
-    const hashed = await bcrypt.hash(pwd, salt);
-
-    if (update.$set && "password" in (update.$set as object)) {
-      update.$set.password = hashed;
-    } else {
-      update.password = hashed;
-    }
-  }
-
-  // always keep email normalized if it’s included in the update
-  const email =
-    (update.email as string | undefined) ??
-    (update.$set && (update.$set.email as string | undefined));
-  if (email) {
-    const normalized = email.trim().toLowerCase();
-    if (update.$set && "email" in (update.$set as object)) {
-      update.$set.email = normalized;
-    } else {
-      update.email = normalized;
-    }
-  }
-
+UserSchema.pre("updateMany", async function (next) {
+  // @ts-ignore
+  const update = this.getUpdate() as Record<string, any> | undefined;
+  await maybeHashInUpdate(update);
+  normalizeEmailInUpdate(update);
   next();
 });
 
 // ========== Methods ==========
 
-UserSchema.methods.isPasswordMatch = async function (this: UserDoc, plain: string) {
+UserSchema.methods.isPasswordMatch = async function (
+  this: UserDoc,
+  plain: string
+) {
   if (!this.password) {
     // You likely queried without +password; surface a clear error
-    throw new Error("Password not selected on document. Use .select('+password') in your query before calling isPasswordMatch.");
+    throw new Error(
+      "Password not selected on document. Use .select('+password') in your query before calling isPasswordMatch."
+    );
   }
   return bcrypt.compare(plain, this.password);
 };
