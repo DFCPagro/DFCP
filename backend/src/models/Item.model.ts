@@ -1,4 +1,3 @@
-// src/models/item.model.ts
 import { Schema, model, InferSchemaType, HydratedDocument, Model } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { isHttpUrl } from "../utils/urls";
@@ -19,7 +18,7 @@ const PriceSchema = new Schema(
   { _id: false }
 );
 
-// --- main schema (no generics; we infer after) ---
+// --- main schema (ObjectId _id is implicit & auto-generated) ---
 const ItemSchema = new Schema(
   {
     _id: { type: String, required: true },
@@ -66,7 +65,8 @@ ItemSchema.plugin(toJSON as any);
 
 // --- virtuals ---
 ItemSchema.virtual("itemId").get(function (this: any) {
-  return this._id;
+  // expose as string for clients
+  return this._id?.toString();
 });
 
 ItemSchema.virtual("name").get(function (this: any) {
@@ -85,7 +85,6 @@ ItemSchema.pre("findOneAndUpdate", function (next) {
   next();
 });
 
-// Normalize/mirror weightPerUnit fields for back-compat
 ItemSchema.pre("validate", function (next) {
   const doc = this as any;
   const qs = doc.qualityStandards;
@@ -96,7 +95,7 @@ ItemSchema.pre("validate", function (next) {
 });
 
 // Indexes
-ItemSchema.index({ _id: 1 }, { unique: true });
+// (no need to re-index _id; Mongo already does that)
 ItemSchema.index({ category: 1, type: 1, variety: 1 });
 
 // --- inferred types & model ---

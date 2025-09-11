@@ -1,37 +1,44 @@
-import { FilterQuery, ProjectionType, QueryOptions, UpdateQuery } from "mongoose";
-import Item, { IItem, ItemCategory } from "../models/Item.model";
+import { FilterQuery, ProjectionType, QueryOptions, UpdateQuery, Types } from "mongoose";
+import ItemModel, {
+  itemCategories,
+  type Item as ItemType,
+  type ItemCategory,
+} from "../models/Item.model";
 
 export type ListItemsFilters = {
   category?: ItemCategory;
   type?: string;
   variety?: string;
-  q?: string;                 // full-text over type/variety
+  q?: string;
   minCalories?: number;
   maxCalories?: number;
 };
 
 export type ListItemsOptions = {
-  page?: number;              // 1-based
-  limit?: number;             // per page
-  sort?: string;              // e.g. "-updatedAt" or "type"
-  projection?: ProjectionType<IItem>;
+  page?: number;
+  limit?: number;
+  sort?: string;
+  projection?: ProjectionType<ItemType>;
   lean?: boolean;
 };
 
 const DEFAULT_LIMIT = 20;
 
-export async function createItem(payload: Partial<IItem>): Promise<IItem> {
-  // Mongoose will enforce required fields from schema
-  const doc = await Item.create(payload as any);
-  return doc;
+export async function createItem(payload: Partial<ItemType>): Promise<ItemType> {
+  // _id will be auto-generated (ObjectId)
+  const doc = await ItemModel.create(payload as any);
+  return doc.toObject ? (doc.toObject() as ItemType) : (doc as unknown as ItemType);
 }
 
-export async function getItemByItemId(_id: string, projection?: ProjectionType<IItem>) {
-  return Item.findOne({ _id }, projection).exec();
+export async function getItemByItemId(_id: string, projection?: ProjectionType<ItemType>) {
+  // Let Mongoose cast valid hex strings to ObjectId; return null for invalid to avoid CastError
+  if (!Types.ObjectId.isValid(_id)) return null;
+  return ItemModel.findById(_id, projection).exec();
 }
 
-export async function getItemByMongoId(id: string, projection?: ProjectionType<IItem>) {
-  return Item.findById(id, projection).exec();
+export async function getItemByMongoId(id: string, projection?: ProjectionType<ItemType>) {
+  if (!Types.ObjectId.isValid(id)) return null;
+  return ItemModel.findById(id, projection).exec();
 }
 
 export async function listItems(
@@ -42,14 +49,13 @@ export async function listItems(
     category, type, variety, q, minCalories, maxCalories,
   } = filters;
 
-  const query: FilterQuery<IItem> = {};
+  const query: FilterQuery<ItemType> = {};
 
   if (category) query.category = category;
   if (type) query.type = new RegExp(`^${escapeRegex(type)}$`, "i");
   if (variety) query.variety = new RegExp(`^${escapeRegex(variety)}$`, "i");
 
   if (q) {
-    // simple case-insensitive search over type/variety
     const re = new RegExp(escapeRegex(q), "i");
     query.$or = [{ type: re }, { variety: re }];
   }
@@ -69,8 +75,8 @@ export async function listItems(
   const lean = opts.lean ?? true;
 
   const [items, total] = await Promise.all([
-    Item.find(query, projection, { sort, skip, limit, lean } as QueryOptions).exec(),
-    Item.countDocuments(query).exec(),
+    ItemModel.find(query, projection, { sort, skip, limit, lean } as QueryOptions).exec(),
+    ItemModel.countDocuments(query).exec(),
   ]);
 
   return {
@@ -84,12 +90,12 @@ export async function listItems(
 
 export async function updateItemByItemId(
   _id: string,
-  update: UpdateQuery<IItem>,
+  update: UpdateQuery<ItemType>,
   opts: { upsert?: boolean; returnNew?: boolean } = {}
 ) {
+  if (!Types.ObjectId.isValid(_id)) return null;
   const { upsert = false, returnNew = true } = opts;
-  // pre('findOneAndUpdate') hook in your schema will sync lastUpdated
-  const doc = await Item.findOneAndUpdate(
+  const doc = await ItemModel.findOneAndUpdate(
     { _id },
     update,
     { upsert, new: returnNew, runValidators: true }
@@ -99,18 +105,21 @@ export async function updateItemByItemId(
 
 export async function replaceItemByItemId(
   _id: string,
-  replacement: Partial<IItem>
+  replacement: Partial<ItemType>
 ) {
-  const doc = await Item.findOneAndReplace(
+  if (!Types.ObjectId.isValid(_id)) return null;
+  const doc = await ItemModel.findOneAndReplace(
     { _id },
-    replacement as any,
+    // ensure client-sent _id (if any) doesn't conflict
+    { ...replacement, _id } as any,
     { new: true, upsert: false, runValidators: true }
   ).exec();
   return doc;
 }
 
 export async function deleteItemByItemId(_id: string) {
-  const res = await Item.deleteOne({ _id }).exec();
+  if (!Types.ObjectId.isValid(_id)) return { deletedCount: 0 };
+  const res = await ItemModel.deleteOne({ _id }).exec();
   return { deletedCount: res.deletedCount ?? 0 };
 }
 
@@ -119,7 +128,6 @@ function escapeRegex(input: string) {
 }
 
 function normalizeSort(input: string) {
-  // e.g., "-updatedAt,type" -> { updatedAt: -1, type: 1 }
   return input.split(",").reduce<Record<string, 1 | -1>>((acc, tokenRaw) => {
     const token = tokenRaw.trim();
     if (!token) return acc;
