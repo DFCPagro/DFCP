@@ -1,10 +1,11 @@
 // src/components/layout/AccountMenu.tsx
-import { Menu, Portal, IconButton } from "@chakra-ui/react";
+import { Menu, Portal, IconButton ,Box, HStack, Avatar ,Text} from "@chakra-ui/react";
 import { FiUser } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useSessionStore } from "@/store/session";
 import { getDefaultLanding } from "@/config/nav.defaults";
 import { toaster } from "@/components/ui/toaster";
+import { useAuthStore } from "@/store/auth";
 
 /**
  * Account menu (Chakra v3.25 slot API + custom toaster)
@@ -12,9 +13,20 @@ import { toaster } from "@/components/ui/toaster";
  * - Switch to Work Mode / Switch to Customer Mode
  * - Logout
  */
+const colorPalette = ["red", "blue", "green", "yellow", "purple", "orange"] as const;
+
+const pickPalette = (name?: string | null) => {
+  const n = name?.trim();
+  if (!n) return "gray";
+  const index = n.charCodeAt(0) % colorPalette.length;
+  return colorPalette[index];
+};
+
 export default function AccountMenu() {
   const navigate = useNavigate();
 
+  const user = useAuthStore((s) => s.user);
+  
   const mode = useSessionStore((s) => s.mode);
   const role = useSessionStore((s) => s.activeWorkerRole);
   const setMode = useSessionStore((s) => s.setMode);
@@ -31,35 +43,41 @@ export default function AccountMenu() {
   };
 
   const switchToWork = () => {
-  if (!canWork) {
-    toaster.create({ title: "No work role", description: "Your account has no work role.", type: "warning" });
-    return;
-  }
-  setMode("work");
-  navigate(getDefaultLanding("work", role));
-  toaster.create({ title: "Work Mode On", type: "success" });
-};
+    if (!canWork) {
+      toaster.create({ title: "No work role", description: "Your account has no work role.", type: "warning" });
+      return;
+    }
+    setMode("work");
+    navigate(getDefaultLanding("work", role));
+    toaster.create({ title: "Work Mode On", type: "success" });
+  };
 
-const switchToCustomer = () => {
-  setMode("customer");
-  navigate(getDefaultLanding("customer", role));
-  toaster.create({ title: "Work Mode Off", type: "success" });
-};
+  const switchToCustomer = () => {
+    setMode("customer");
+    navigate(getDefaultLanding("customer", role));
+    toaster.create({ title: "Work Mode Off", type: "success" });
+  };
 
-const handleLogout = () => {
-  resetForLogout(true);
-  navigate(getDefaultLanding("customer", role));
-  toaster.create({ title: "Logged out", type: "success" });
-};
+  const handleLogout = () => {
+    resetForLogout(true);
+    navigate(getDefaultLanding("noUser", role));
+    toaster.create({ title: "Logged out", type: "success" });
+  };
 
 
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
       <Menu.Trigger asChild>
-        <IconButton aria-label="Account" variant="ghost">
-          <FiUser />
-        </IconButton>
-      </Menu.Trigger>
+              <Box cursor="pointer">
+                <HStack gap={2}>
+                  <Avatar.Root colorPalette={pickPalette(user?.name)}>
+                    {/* If you support photos later: <Avatar.Image src={user?.avatarUrl} alt={user?.name ?? "User"} /> */}
+                    <Avatar.Fallback name={user?.name ?? "User"} />
+                  </Avatar.Root>
+                  <Text fontSize="sm">{user?.name ?? "Account"}</Text>
+                </HStack>
+              </Box>
+            </Menu.Trigger>
 
       <Portal>
         <Menu.Positioner>

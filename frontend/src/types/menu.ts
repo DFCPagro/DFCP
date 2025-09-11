@@ -11,13 +11,13 @@
  * - Keep labels short; groups become section titles in the side drawer.
  */
 
-export type Mode = "customer" | "work";
+export type Mode = "noUser" |"customer" | "work";
 
 /**
  * Known roles you support today. You can extend beyond these at runtime,
  * so the config uses a flexible map for `work`.
  */
-export const KNOWN_WORK_ROLES = ["farmer", "manager", "deliverer"] as const;
+export const KNOWN_WORK_ROLES = ["farmer", "admin", "deliverer", "industrialDeliverer"] as const;
 export type KnownWorkRole = (typeof KNOWN_WORK_ROLES)[number];
 
 /**
@@ -70,6 +70,7 @@ export interface MenuGroup extends BaseMenuEntry {
 /** Union type for any menu item. */
 export type MenuItem = MenuLink | MenuGroup;
 
+export type NoUserMenu = ReadonlyArray<MenuItem>;
 /** Top-level customer menu. */
 export type CustomerMenu = ReadonlyArray<MenuItem>;
 
@@ -81,6 +82,7 @@ export type WorkMenuMap = Readonly<Record<string, ReadonlyArray<MenuItem>>>;
 
 /** Entire registry. */
 export interface MenuRegistry {
+  noUser: NoUserMenu;
   customer: CustomerMenu;
   work: WorkMenuMap;
 }
