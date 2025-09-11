@@ -7,13 +7,16 @@ import {
   jobApplicationRoles,
 } from "../utils/constants";
 import JobApplication, {
-  IJobApplicationBase,
+  JobApplicationBase,
+  JobApplicationBaseDoc,
   DelivererApplication,
   IndustrialDelivererApplication,
   FarmerApplication,
   PickerApplication,
   SorterApplication,
 } from "../models/jobApplication.model";
+import { promoteFarmerApplication, promoteDelivererApplication } from "./promotion.service";
+
 
 /** =========================
  * Types
@@ -96,23 +99,22 @@ const isTerminal = (s: JobApplicationStatus) => s === "approved" || s === "denie
  * No transitions out of approved/denied.
  */
 function canTransition(from: JobApplicationStatus, to: JobApplicationStatus): boolean {
-  if (from === to) return true; // no-op allowed (controller may avoid calling)
+  if (from === to) return true; // no-op allowed
   switch (from) {
     case "pending":
       return to === "contacted" || to === "approved" || to === "denied";
     case "contacted":
       return to === "approved" || to === "denied";
     default:
-      // approved/denied -> nowhere
       return false;
   }
 }
 
 /**
- * Consistent public mapper (mirrors toPublicUser pattern)
+ * Consistent public mapper
  */
 export function toPublicJobApplication(
-  doc: IJobApplicationBase & { userInfo?: any },
+  doc: JobApplicationBaseDoc & { userInfo?: any },
   opts?: { includeUser?: boolean }
 ): PublicJobApplicationDTO {
   const base: PublicJobApplicationDTO = {
@@ -140,7 +142,7 @@ export function toPublicJobApplication(
 }
 
 /**
- * Choose correct discriminator for create()
+ * Choose correct discriminator
  */
 function getDiscriminatorModel(role: JobApplicationRole) {
   switch (role) {
@@ -155,21 +157,14 @@ function getDiscriminatorModel(role: JobApplicationRole) {
     case "sorter":
       return SorterApplication;
     default:
-      // Fallback to base - should not happen due to validation.
       return JobApplication;
   }
 }
 
 /**
- * Employment gate: block application if the user already holds that job/role.
- * NOTE: Implement your real checks here (e.g., DelivererProfile.findOne({ user: userId, active: true }))
- * For now, returns false (no block). Keep the function for easy future wiring.
+ * Employment gate stub
  */
 async function employmentGateHasRole(userId: string, role: JobApplicationRole): Promise<boolean> {
-  // TODO: wire to your actual role/employee/profile collections.
-  // Example:
-  // if (role === "deliverer") return !!(await DelivererProfile.findOne({ user: userId, active: true }).lean());
-  // if (role === "farmer") return !!(await FarmerProfile.findOne({ user: userId, active: true }).lean());
   return false;
 }
 
@@ -177,11 +172,9 @@ async function employmentGateHasRole(userId: string, role: JobApplicationRole): 
  * Service functions
  * ======================= */
 
-// services/jobApplication.service.ts (replace createApplication with this hardened version)
 export async function createApplication(input: CreateApplicationInput): Promise<PublicJobApplicationDTO> {
   let { userId, appliedRole, logisticCenterId, applicationData } = input;
 
-  // Normalize logisticCenterId: treat "", null, undefined, and "null" as null
   if (
     logisticCenterId === undefined ||
     logisticCenterId === null ||
@@ -191,7 +184,6 @@ export async function createApplication(input: CreateApplicationInput): Promise<
     logisticCenterId = null;
   }
 
-  // Validate IDs *before* constructing ObjectId
   if (!mongoose.isValidObjectId(userId)) {
     throw new ApiError(400, "Invalid user id");
   }
@@ -199,31 +191,26 @@ export async function createApplication(input: CreateApplicationInput): Promise<
     throw new ApiError(400, "Invalid logisticCenterId");
   }
 
-  // Employment gate
   if (await employmentGateHasRole(userId, appliedRole)) {
     throw new ApiError(409, "You already hold this role and cannot apply again.");
   }
 
-  // Pick discriminator model safely
   const Model = getDiscriminatorModel(appliedRole);
-  if (!Model) {
-    throw new ApiError(400, "Invalid appliedRole");
-  }
+  if (!Model) throw new ApiError(400, "Invalid appliedRole");
 
   try {
     const doc = await JobApplication.create({
-        user: new mongoose.Types.ObjectId(userId),
-        appliedRole, // discriminatorKey
-        logisticCenterId: logisticCenterId ? new mongoose.Types.ObjectId(logisticCenterId) : null,
-        status: "pending",
-        applicationData,
+      user: new mongoose.Types.ObjectId(userId),
+      appliedRole,
+      logisticCenterId: logisticCenterId ? new mongoose.Types.ObjectId(logisticCenterId) : null,
+      status: "pending",
+      applicationData,
     });
-    return toPublicJobApplication(doc);
-} catch (err: any) {
+    return toPublicJobApplication(doc as JobApplicationBaseDoc);
+  } catch (err: any) {
     if (err?.code === 11000) {
       throw new ApiError(409, "You already have an open application for this role.");
     }
-    // Helpful message if the failure was an ObjectId cast that slipped through
     if (err?.name === "CastError" && err?.path === "_id") {
       throw new ApiError(400, "Invalid identifier provided");
     }
@@ -231,33 +218,25 @@ export async function createApplication(input: CreateApplicationInput): Promise<
   }
 }
 
-
 export async function getById(id: string, opts?: { includeUser?: boolean }): Promise<PublicJobApplicationDTO> {
   const q = JobApplication.findById(id);
   if (opts?.includeUser) q.populate("userInfo", "name email role");
   const doc = await q.exec();
   if (!doc) throw new ApiError(404, "Application not found");
-  return toPublicJobApplication(doc as any, { includeUser: !!opts?.includeUser });
+  return toPublicJobApplication(doc as JobApplicationBaseDoc, { includeUser: !!opts?.includeUser });
 }
 
 export async function listApplications(
   filters: ListFilters,
   options: ListOptions = {}
 ): Promise<{ items: PublicJobApplicationDTO[]; page: number; limit: number; total: number }> {
-  const {
-    role,
-    status,
-    user,
-    logisticCenterId,
-    from,
-    to,
-  } = filters;
+  const { role, status, user, logisticCenterId, from, to } = filters;
 
   const page = Math.max(1, Math.trunc(options.page ?? 1));
   const limit = Math.min(100, Math.max(1, Math.trunc(options.limit ?? 20)));
   const sortParam = options.sort && SORT_WHITELIST.has(options.sort) ? options.sort : "-createdAt";
 
-  const query: FilterQuery<IJobApplicationBase> = {};
+  const query: FilterQuery<JobApplicationBase> = {};
   if (role) query.appliedRole = role;
   if (status) query.status = status;
   if (user) query.user = new mongoose.Types.ObjectId(user);
@@ -273,15 +252,12 @@ export async function listApplications(
   if (options.includeUser) q.populate("userInfo", "name email role");
 
   const [items, total] = await Promise.all([
-    q.sort(sortParam as any)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .exec(),
+    q.sort(sortParam as any).skip((page - 1) * limit).limit(limit).exec(),
     JobApplication.countDocuments(query).exec(),
   ]);
 
   return {
-    items: items.map((d: any) => toPublicJobApplication(d, { includeUser: !!options.includeUser })),
+    items: items.map((d: any) => toPublicJobApplication(d as JobApplicationBaseDoc, { includeUser: !!options.includeUser })),
     page,
     limit,
     total,
@@ -293,10 +269,7 @@ export async function listMine(
   filters: Omit<ListFilters, "user">,
   options: ListOptions = {}
 ): Promise<{ items: PublicJobApplicationDTO[]; page: number; limit: number; total: number }> {
-  return listApplications(
-    { ...filters, user: userId },
-    { ...options, includeUser: false }
-  );
+  return listApplications({ ...filters, user: userId }, { ...options, includeUser: false });
 }
 
 export async function updateApplicationData(input: UpdateApplicationDataInput): Promise<PublicJobApplicationDTO> {
@@ -305,22 +278,20 @@ export async function updateApplicationData(input: UpdateApplicationDataInput): 
   const doc = await JobApplication.findById(id).exec();
   if (!doc) throw new ApiError(404, "Application not found");
 
-  // Ownership check
   if (String(doc.user) !== String(userId)) {
     throw new ApiError(403, "You do not have permission to update this application.");
   }
 
-  // Status check: only pending/contacted
   if (!(doc.status === "pending" || doc.status === "contacted")) {
     throw new ApiError(400, `Cannot edit application in status '${doc.status}'.`);
   }
 
-  // Only applicationData is editable (validators enforced at route level)
   (doc as any).applicationData = applicationData;
 
   await doc.save();
-  return toPublicJobApplication(doc);
+  return toPublicJobApplication(doc as JobApplicationBaseDoc);
 }
+
 
 export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobApplicationDTO> {
   const { id, actorId, toStatus, note } = input;
@@ -329,24 +300,25 @@ export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobA
   if (!doc) throw new ApiError(404, "Application not found");
 
   const fromStatus = doc.status as JobApplicationStatus;
-
   if (!canTransition(fromStatus, toStatus)) {
-    throw new ApiError(
-      400,
-      `Invalid status transition: ${fromStatus} → ${toStatus}`
-    );
+    throw new ApiError(400, `Invalid status transition: ${fromStatus} → ${toStatus}`);
   }
-
-  // Apply
-  doc.status = toStatus;
-
-  // (Optional) If you later add statusHistory, push here:
-  // (doc as any).statusHistory = (doc as any).statusHistory || [];
-  // (doc as any).statusHistory.push({ from: fromStatus, to: toStatus, by: actorId, at: new Date(), note });
 
   await doc.save();
 
-  // Logging for audits
+  // 🔑 Promotion flow
+  if (toStatus === "approved") {
+    switch (doc.appliedRole) {
+      case "farmer":
+        await promoteFarmerApplication(doc as any);
+        break;
+      case "deliverer":
+        await promoteDelivererApplication(doc as any);
+        break;
+      // TODO: add industrialDeliverer, picker, sorter if needed
+    }
+  }
+
   try {
     logger.info("job-applications:status-change", {
       appId: String(doc._id),
@@ -359,11 +331,9 @@ export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobA
     // no-op
   }
 
-  // Side-effects stub: on approved, you might emit an event to onboarding pipeline.
-  // if (toStatus === "approved") { ... }
-
-  return toPublicJobApplication(doc);
+  return toPublicJobApplication(doc as any);
 }
+
 
 export async function updateMeta(input: UpdateMetaInput): Promise<PublicJobApplicationDTO> {
   const { id, logisticCenterId } = input;
@@ -374,5 +344,5 @@ export async function updateMeta(input: UpdateMetaInput): Promise<PublicJobAppli
   doc.logisticCenterId = logisticCenterId ? new mongoose.Types.ObjectId(logisticCenterId) : null;
 
   await doc.save();
-  return toPublicJobApplication(doc);
+  return toPublicJobApplication(doc as JobApplicationBaseDoc);
 }
