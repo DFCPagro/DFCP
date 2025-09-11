@@ -45,7 +45,7 @@ export default function AppRoutes() {
         <Route element={<AuthGuard />}>
           <Route path={PATHS.dashboard} element={<Dashboard />} />
           {/* customer-only pages */}
-          <Route path={PATHS.market} element={<RoleGuard allow={['customer']}><Market /></RoleGuard>} />
+          <Route path={PATHS.market} element={<Market />} />
           
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
           {/* farmer-only pages */}
