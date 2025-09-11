@@ -5,12 +5,12 @@ import type { Mode } from "@/types/menu";
 
 const PERSIST_KEY = "session";
 
-export type Region = string | null; // keep flexible (e.g., "east" | "west" | "north", etc.)
+export type Region = string | null; // e.g. "east" | "west" | "north" | null
 
 export interface SessionState {
-  /** "customer" or "work" */
+  /** "noUser" | "customer" | "work" */
   mode: Mode;
-  /** Exactly one work role (or null if the user has none). e.g., "manager" | "farmer" | "deliverer" */
+  /** Exactly one work role (or null). e.g., "manager" | "farmer" | "deliverer" */
   activeWorkerRole: string | null;
   /** Selected service region */
   region: Region;
@@ -25,41 +25,88 @@ export interface SessionState {
   resetForLogout: (preserveRegion?: boolean) => void;
 }
 
-/** What we persist (exclude functions). */
+/** Persisted shape only (exclude functions). */
 type PersistedSession = Pick<SessionState, "mode" | "activeWorkerRole" | "region">;
 
+/** Default when nothing is stored or state is invalid. */
 const DEFAULT_SESSION: PersistedSession = {
-  mode: "customer",
+  mode: "noUser",
   activeWorkerRole: null,
   region: null,
 };
 
+function sanitize(snapshot: Partial<PersistedSession> | null | undefined): PersistedSession {
+  const s = { ...DEFAULT_SESSION, ...(snapshot ?? {}) };
+
+  // Ensure mode is one of the supported values
+  const validModes: Mode[] = ["noUser", "customer", "work"];
+  if (!validModes.includes(s.mode as Mode)) s.mode = "noUser";
+
+  // If not in work mode, force worker role to null
+  if (s.mode !== "work") s.activeWorkerRole = null;
+
+  // Region is free-form or null; no extra checks here
+  return s;
+}
+
 function loadInitial(): PersistedSession {
-  return load<PersistedSession>(PERSIST_KEY, DEFAULT_SESSION);
+  const loaded = load<PersistedSession>(PERSIST_KEY, DEFAULT_SESSION);
+  return sanitize(loaded);
 }
 
 export const useSessionStore = create<SessionState>((set, get) => {
   // hydrate from storage once at module init
   const initial = loadInitial();
 
-  // create the store
+  // helper to persist only the data part (after sanitizing)
+  function persistPartial() {
+    const { mode, activeWorkerRole, region } = sanitize({
+      mode: get().mode,
+      activeWorkerRole: get().activeWorkerRole,
+      region: get().region,
+    });
+    save<PersistedSession>(PERSIST_KEY, { mode, activeWorkerRole, region });
+  }
+
   const store: SessionState = {
     ...DEFAULT_SESSION,
     ...initial,
 
     setMode: (mode) => {
-      set({ mode });
+      // When moving away from "work", drop any worker role
+      if (mode !== "work" && get().activeWorkerRole) {
+        set({ mode, activeWorkerRole: null });
+      } else {
+        set({ mode });
+      }
       persistPartial();
     },
 
     toggleMode: () => {
-      const next: Mode = get().mode === "customer" ? "work" : "customer";
-      set({ mode: next });
+      const curr = get().mode;
+
+      // No mode switching from "noUser" (guests shouldn't see Switch Mode)
+      if (curr === "noUser") return;
+
+      // Flip between customer and work
+      const next: Mode = curr === "customer" ? "work" : "customer";
+
+      // Leaving work? clear the role
+      if (next !== "work" && get().activeWorkerRole) {
+        set({ mode: next, activeWorkerRole: null });
+      } else {
+        set({ mode: next });
+      }
       persistPartial();
     },
 
     setActiveWorkerRole: (role) => {
-      set({ activeWorkerRole: role });
+      // Only allow setting a worker role in "work" mode; otherwise null it
+      if (get().mode !== "work") {
+        set({ activeWorkerRole: null });
+      } else {
+        set({ activeWorkerRole: role });
+      }
       persistPartial();
     },
 
@@ -70,23 +117,19 @@ export const useSessionStore = create<SessionState>((set, get) => {
 
     resetForLogout: (preserveRegion = true) => {
       const region = preserveRegion ? get().region : null;
+
+      // Full logout: return to "noUser", clear role
       const next: PersistedSession = {
-        mode: "customer",
+        mode: "noUser",
         activeWorkerRole: null,
         region,
       };
       set(next);
-      // overwrite persisted state with the new snapshot
+
+      // Overwrite persisted state with the new snapshot
       save<PersistedSession>(PERSIST_KEY, next);
     },
   };
-
-  // helper to persist only the data part
-  function persistPartial() {
-    const { mode, activeWorkerRole, region } = get();
-    const snap: PersistedSession = { mode, activeWorkerRole, region };
-    save<PersistedSession>(PERSIST_KEY, snap);
-  }
 
   return store;
 });

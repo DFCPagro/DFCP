@@ -11,6 +11,11 @@
 import type { MenuRegistry, MenuItem, Mode } from "@/types/menu";
 
 /* ------------------------ Customer menu ------------------------ */
+const noUserMenu: MenuRegistry["noUser"] = [
+  { type: "link", key: "home", label: "Home", path: "/", exact: true },
+  { type: "link", key: "login", label: "Login", path: "/login" },
+  { type: "link", key: "register", label: "Register", path: "/register" },
+] as const;
 
 const customerMenu: MenuRegistry["customer"] = [
   { type: "link", key: "market", label: "Market", path: "/market", exact: true },
@@ -36,7 +41,7 @@ const workFarmer: ReadonlyArray<MenuItem> = [
   },
 ] as const;
 
-const workManager: ReadonlyArray<MenuItem> = [
+const workAdmin: ReadonlyArray<MenuItem> = [
   {
     type: "group",
     key: "mgr-orders",
@@ -78,11 +83,13 @@ const workDeliverer: ReadonlyArray<MenuItem> = [
 /* ------------------------ Registry export ------------------------ */
 
 export const MENUS: MenuRegistry = {
+  noUser: noUserMenu,
   customer: customerMenu,
   work: {
     farmer: workFarmer,
-    manager: workManager,
+    manager: workAdmin,
     deliverer: workDeliverer,
+    industrialDeliverer: workDeliverer,
     // You can add more roles at runtime:
     // supervisor: [...],
   },
@@ -97,6 +104,7 @@ export const MENUS: MenuRegistry = {
  * If a work role has no menu defined, returns an empty array.
  */
 export function getMenuFor(mode: Mode, role?: string | null) {
+  if (mode === "noUser") return MENUS.noUser;
   if (mode === "customer") return MENUS.customer;
   return (role && MENUS.work[role]) || [];
 }

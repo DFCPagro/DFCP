@@ -12,7 +12,6 @@ import { getMenuFor } from "@/config/menu.config";
 import HeaderMenu from "./HeaderMenu";
 import SideDrawer from "./SideDrawer";
 import AccountMenu from "./AccountMenu";
-import ModeBadge from "./ModeBadge";
 
 // ✅ use your custom color-mode utilities (next-themes + Chakra)
 import { useColorModeValue, ColorModeButton } from "@/components/ui/color-mode";
@@ -40,13 +39,18 @@ export default function NavBar() {
       zIndex={1000}
     >
       <Flex h="14" align="center" px="3" gap="3">
+        {/* Burger appears when items overflow (or if there are none) */}
+          {(isOverflowing || !items?.length) && (
+            <StyledIconButton aria-label="Open menu" variant="ghost" onClick={openDrawer}>
+              <FiMenu />
+            </StyledIconButton>
+          )}
+          
         {/* Brand */}
         <CLink asChild fontWeight="bold" _hover={{ textDecoration: "none" }}>
           <RouterLink to="/">Simple Market</RouterLink>
         </CLink>
 
-        {/* Context badge */}
-        <ModeBadge />
 
         {/* Right cluster */}
         <Flex align="center" gap="2" ml="auto" minW={0}>
@@ -67,12 +71,7 @@ export default function NavBar() {
           {/* Theme toggle (your component) */}
           <ColorModeButton />
 
-          {/* Burger appears when items overflow (or if there are none) */}
-          {(isOverflowing || !items?.length) && (
-            <StyledIconButton aria-label="Open menu" variant="ghost" onClick={openDrawer}>
-              <FiMenu />
-            </StyledIconButton>
-          )}
+          
         </Flex>
       </Flex>
 

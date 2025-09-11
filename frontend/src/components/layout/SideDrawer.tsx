@@ -12,7 +12,6 @@ import {
 } from "@chakra-ui/react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { isMenuGroup, isVisible, type MenuItem } from "@/types/menu";
-import ModeBadge from "./ModeBadge";
 import { useUIStore } from "@/store/ui";
 
 interface Props {
@@ -50,7 +49,6 @@ export default function SideDrawer({ items }: Props) {
             <Drawer.Header pe="10">
               <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Drawer.Title>Menu</Drawer.Title>
-                <ModeBadge />
               </Box>
             </Drawer.Header>
 
