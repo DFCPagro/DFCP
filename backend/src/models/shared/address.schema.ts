@@ -1,4 +1,5 @@
 import { Schema } from "mongoose";
+import { optional } from "zod";
 
 export const AddressSchema = new Schema(
   {
@@ -6,7 +7,7 @@ export const AddressSchema = new Schema(
     alt: { type: Number, required: true },     // latitude-ish (kept as 'alt')
     address: { type: String, required: true, trim: true },
     logisticCenterId: { type: String, default: null }, // optional, matches your Address type
-    note: { type: String, default: "" },        // e.g., "Farm - Levy Cohen #2", "Warehouse LC-1"
+    note: { type: String, default: "", required: false },        // e.g., "Farm - Levy Cohen #2", "Warehouse LC-1"
   },
   { _id: false }
 );

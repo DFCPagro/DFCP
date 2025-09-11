@@ -18,7 +18,7 @@ const farmerStatus: { [key: string]: string } = {
 
 // models/farmerOrder.model.ts
 import { Schema, model, Types, Document } from "mongoose";
-
+import {qualityStandardsSchema} from "./shared/qualityStandards.schema";
 // --- Enums / constants ---
 export const SHIFT = ["morning","afternoon","evening","night"] as const;
 export type Shift = typeof SHIFT[number];
@@ -103,7 +103,7 @@ export interface FarmerOrderDoc extends Document {
   farmerName: string;
   farmName: string;
   landId?: Types.ObjectId | null;
-  sectionId?: string;
+  sectionId?: Types.ObjectId | null;
 
   type?: string;
   variety?: string;
