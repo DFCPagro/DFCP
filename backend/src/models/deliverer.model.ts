@@ -36,7 +36,7 @@ const nextScheduleValidator = {
 const DelivererSchema = new Schema(
   {
     // identity / relations
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
     createdFromApplication: { type: Schema.Types.ObjectId, ref: "JobApplication", default: null, index: true },
 
     // multi-center assignment
