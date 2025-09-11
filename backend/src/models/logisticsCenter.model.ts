@@ -15,6 +15,8 @@ export interface ILogisticsCenter extends Document {
   location: ILocation;
   employeeIds: Types.ObjectId[];
   deliveryHistory: { message: string; at: Date; by?: Types.ObjectId | null }[];
+createdAt?: Date;
+    updatedAt?: Date;
 }
 
 const GeoPointSchema = new Schema<IGeoPoint>(
