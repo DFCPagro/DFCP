@@ -85,6 +85,10 @@ const FarmerOrderSchema = new Schema(
       ],
     },
 
+    //ADD INSPECTION STATUS
+
+
+
     // farmer-level approval/ack
     farmerStatus: { type: String, enum: FARMER_APPROVAL_STATUSES, default: "pending", index: true },
 
