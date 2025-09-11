@@ -37,6 +37,7 @@ export default function NavBar() {
   const links: NavItem[] = [{ title: "Home", path: PATHS.home }];
   if (token) {
     links.push({ title: "Dashboard", path: PATHS.dashboard });
+    links.push({ title: "Market", path: PATHS.market });
     if (role === "deliverer") {
       links.push({ title: "Driver Schedule", path: PATHS.driverSchedule });
     }
@@ -81,6 +82,7 @@ export default function NavBar() {
             <CLink asChild>
               <RouterLink to={PATHS.register}>Register</RouterLink>
             </CLink>
+    
           </>
         ) : (
           <Menu.Root>
@@ -106,6 +108,11 @@ export default function NavBar() {
                 {role === "deliverer" && (
                   <Menu.Item value="driver-schedule" asChild>
                     <RouterLink to={PATHS.driverSchedule}>Driver Schedule</RouterLink>
+                  </Menu.Item>
+                )}
+                {(role === "customer" || role === "deliverer") && (
+                  <Menu.Item value="market" asChild>
+                    <RouterLink to={PATHS.market}>Market</RouterLink>
                   </Menu.Item>
                 )}
 

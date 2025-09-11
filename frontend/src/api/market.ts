@@ -14,7 +14,9 @@ export async function fetchMyLocations(): Promise<UserLocation[]> {
  * Add a new delivery location
  */
 export async function addLocation(payload: Partial<UserLocation>): Promise<UserLocation> {
-  const { data } = await api.post("/market/locations", payload);
+  // if the api location does not eixist pick location from mock data
+
+    const { data } = await api.post("/market/locations", payload);
   return data;
 }
 
