@@ -11,7 +11,7 @@
 import type { MenuRegistry, MenuItem, Mode } from "@/types/menu";
 
 /* ------------------------ Customer menu ------------------------ */
-const noUserMenu: MenuRegistry["noUser"] = [
+export const noUserMenu: MenuRegistry["noUser"] = [
   { type: "link", key: "home", label: "Home", path: "/", exact: true },
   { type: "link", key: "login", label: "Login", path: "/login" },
   { type: "link", key: "register", label: "Register", path: "/register" },
@@ -19,7 +19,7 @@ const noUserMenu: MenuRegistry["noUser"] = [
 
 const customerMenu: MenuRegistry["customer"] = [
   { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-  { type: "link", key: "cart", label: "MyCart", path: "/cart" },
+  { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
   { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
 ] as const;
 
@@ -110,4 +110,8 @@ export function getMenuFor(mode: Mode, role?: string | null) {
 }
 
 
-export { DEFAULT_LANDINGS } from "./nav.defaults";
+export const DEFAULT_LANDINGS: Record<Mode, string> = {
+  noUser: "/",        // <— public landing
+  customer: "/market", 
+  work: "/work",      // (or a role-specific landing if you want later)
+};

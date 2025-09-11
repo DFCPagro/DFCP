@@ -26,13 +26,14 @@ export default function AccountMenu() {
   const navigate = useNavigate();
 
   const user = useAuthStore((s) => s.user);
-  
   const mode = useSessionStore((s) => s.mode);
   const role = useSessionStore((s) => s.activeWorkerRole);
   const setMode = useSessionStore((s) => s.setMode);
   const resetForLogout = useSessionStore((s) => s.resetForLogout);
+  const logout = useAuthStore((s) => s.logout);
 
   const canWork = Boolean(role);
+  const isGuest = !user || mode === "noUser";
 
   const handleRegion = () => {
     toaster.create({
@@ -60,6 +61,7 @@ export default function AccountMenu() {
 
   const handleLogout = () => {
     resetForLogout(true);
+    logout();
     navigate(getDefaultLanding("noUser", role));
     toaster.create({ title: "Logged out", type: "success" });
   };
@@ -68,41 +70,53 @@ export default function AccountMenu() {
   return (
     <Menu.Root positioning={{ placement: "bottom-end" }}>
       <Menu.Trigger asChild>
-              <Box cursor="pointer">
-                <HStack gap={2}>
-                  <Avatar.Root colorPalette={pickPalette(user?.name)}>
-                    {/* If you support photos later: <Avatar.Image src={user?.avatarUrl} alt={user?.name ?? "User"} /> */}
-                    <Avatar.Fallback name={user?.name ?? "User"} />
-                  </Avatar.Root>
-                  <Text fontSize="sm">{user?.name ?? "Account"}</Text>
-                </HStack>
-              </Box>
-            </Menu.Trigger>
+        <Box cursor="pointer">
+          <HStack gap={2}>
+            <Avatar.Root colorPalette={pickPalette(user?.name)}>
+              <Avatar.Fallback name={user?.name ?? "Guest"} />
+            </Avatar.Root>
+            <Text fontSize="sm">{user?.name ?? "Account"}</Text>
+          </HStack>
+        </Box>
+      </Menu.Trigger>
 
       <Portal>
         <Menu.Positioner>
           <Menu.Content>
-            <Menu.Item value="region" onClick={handleRegion}>
-              Change Region
-            </Menu.Item>
+            {isGuest ? (
+              <>
+                <Menu.Item value="login" onClick={() => navigate("/login")}>
+                  Login
+                </Menu.Item>
+                <Menu.Item value="register" onClick={() => navigate("/register")}>
+                  Register
+                </Menu.Item>
+              </>
+            ) : (
+              <>
+                <Menu.Item value="region" onClick={handleRegion}>
+                  Change Region
+                </Menu.Item>
 
-            {mode === "customer" && canWork && (
-              <Menu.Item value="switch-work" onClick={switchToWork}>
-                Switch to Work Mode
-              </Menu.Item>
+                {mode === "customer" && canWork && (
+                  <Menu.Item value="switch-work" onClick={switchToWork}>
+                    Switch to Work Mode
+                  </Menu.Item>
+                )}
+
+                {mode === "work" && (
+                  <Menu.Item value="switch-customer" onClick={switchToCustomer}>
+                    Switch to Customer Mode
+                  </Menu.Item>
+                )}
+
+                <Menu.Separator />
+
+                <Menu.Item value="logout" onClick={handleLogout}>
+                  Logout
+                </Menu.Item>
+              </>
             )}
-
-            {mode === "work" && (
-              <Menu.Item value="switch-customer" onClick={switchToCustomer}>
-                Switch to Customer Mode
-              </Menu.Item>
-            )}
-
-            <Menu.Separator />
-
-            <Menu.Item value="logout" onClick={handleLogout}>
-              Logout
-            </Menu.Item>
 
             <Menu.Arrow />
           </Menu.Content>
