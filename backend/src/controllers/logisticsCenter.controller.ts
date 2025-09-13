@@ -149,3 +149,34 @@ export async function addDeliveryHistory(req: Request, res: Response) {
   if (!doc) { res.status(404).json({ message: 'Not found' }); return; }
   res.json(doc);
 }
+
+
+export async function listDeliverers(req: Request, res: Response) {
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: "Invalid id" });
+
+  const page = Math.max(parseInt((req.query.page as string) || "1", 10), 1);
+  const limit = Math.min(Math.max(parseInt((req.query.limit as string) || "20", 10), 1), 200);
+  const sort = (req.query.sort as string) || "-createdAt";
+
+  const data = await svc.listDeliverersForCenter(id, { page, limit, sort });
+  res.json(data);
+}
+
+export async function assignDeliverer(req: Request, res: Response) {
+  const { id, delivererId } = req.params;
+  if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(delivererId)) {
+    return res.status(400).json({ message: "Invalid id(s)" });
+  }
+  const result = await svc.assignCenterDeliverer(id, delivererId);
+  res.json(result);
+}
+
+export async function unassignDeliverer(req: Request, res: Response) {
+  const { id, delivererId } = req.params;
+  if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(delivererId)) {
+    return res.status(400).json({ message: "Invalid id(s)" });
+  }
+  const result = await svc.unassignCenterDeliverer(id, delivererId);
+  res.json(result);
+}

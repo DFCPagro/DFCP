@@ -7,7 +7,7 @@ import { connectDB, disconnectDB } from '../../src/db/connect';
 import { seedUsers } from './dev/users.seeder';
 import { seedItems } from './dev/items.seeder'
 import { seedLogisticsCenters } from './dev/logisticsCenters.seeder'
-
+import { seedDeliverers } from './dev/deliverers.seed'
 
 type Args = {
   reset?: boolean;
@@ -60,6 +60,12 @@ async function main() {
     await timed('logsitic-center', seedLogisticsCenters)
   } else{
     console.log('⏭️  Skipping logistic-centers seeding');
+  }
+
+  if (!argv['no-deliverers']){
+    await timed('deliverers', seedDeliverers)
+  } else{
+    console.log('⏭️  Skipping deliverers seeding');
   }
 
   // // Orders next (unless disabled)

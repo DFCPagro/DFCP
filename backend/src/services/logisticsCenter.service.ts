@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import LogisticsCenter, { ILogisticsCenter } from '../models/logisticsCenter.model';
 import Order, { ORDER_STATUSES } from '../models/order.model';
+import { Deliverer } from "../models/deliverer.model";
+import ApiError from "../utils/ApiError";
 
 export type CreateLogisticsCenterDTO = {
   logisticName: string;
@@ -229,3 +231,76 @@ export async function updateLogisticsCenterById(
 export async function deleteLogisticsCenterById(id: string): Promise<void> {
   await LogisticsCenter.findByIdAndDelete(id).exec();
 }
+
+
+export const listDeliverersForCenter = async (centerId: string, opts?: { page?: number; limit?: number; sort?: string }) => {
+  const page = Math.max(+(opts?.page ?? 1), 1);
+  const limit = Math.min(Math.max(+(opts?.limit ?? 20), 1), 200);
+  const sort = opts?.sort ?? "-createdAt";
+
+  const filter = { logisticCenterIds: { $in: [new mongoose.Types.ObjectId(centerId)] } };
+  const [items, total] = await Promise.all([
+    Deliverer.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).lean(),
+    Deliverer.countDocuments(filter),
+  ]);
+
+  return { items, page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) };
+};
+
+export const assignCenterDeliverer = async (centerId: string, delivererId: string) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const d = await Deliverer.findByIdAndUpdate(
+      delivererId,
+      { $addToSet: { logisticCenterIds: new mongoose.Types.ObjectId(centerId) } },
+      { new: true, session }
+    );
+    if (!d) throw new ApiError(404, "Deliverer not found");
+
+    const lc = await LogisticsCenter.findByIdAndUpdate(
+      centerId,
+      { $addToSet: { employeeIds: d.user } },
+      { new: true, session }
+    );
+    if (!lc) throw new ApiError(404, "Logistics center not found");
+
+    await session.commitTransaction();
+    return { deliverer: d, center: lc };
+  } catch (e) {
+    await session.abortTransaction();
+    throw e;
+  } finally {
+    session.endSession();
+  }
+};
+
+export const unassignCenterDeliverer = async (centerId: string, delivererId: string) => {
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    const d = await Deliverer.findByIdAndUpdate(
+      delivererId,
+      { $pull: { logisticCenterIds: new mongoose.Types.ObjectId(centerId) } },
+      { new: true, session }
+    );
+    if (!d) throw new ApiError(404, "Deliverer not found");
+
+    const lc = await LogisticsCenter.findByIdAndUpdate(
+      centerId,
+      { $pull: { employeeIds: d.user } },
+      { new: true, session }
+    );
+    if (!lc) throw new ApiError(404, "Logistics center not found");
+
+    await session.commitTransaction();
+    return { deliverer: d, center: lc };
+  } catch (e) {
+    await session.abortTransaction();
+    throw e;
+  } finally {
+    session.endSession();
+  }
+};

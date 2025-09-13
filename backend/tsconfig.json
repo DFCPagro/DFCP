@@ -9,13 +9,15 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "outDir": "dist",
-    "rootDir": ".",                           // ⬅ allow src + db
-    "types": ["node", "express"],
+    "rootDir": ".",                           
+    "types": ["node", "express", "jest"],    // ⬅ add jest types
     "typeRoots": ["./src/types", "./node_modules/@types"]
   },
   "include": [
     "src/**/*.ts",
-    "db/**/*.ts"                              // ⬅ include your seed scripts
+    "db/**/*.ts",                         
+    "scripts/**/*.ts",
+    "tests/**/*.ts"       
   ],
   "exclude": ["node_modules", "dist"]
 }
