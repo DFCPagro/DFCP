@@ -176,7 +176,12 @@ export async function createApplication(input: CreateApplicationInput): Promise<
   // Validate role against discriminator set
   const Model = getDiscriminatorModel(appliedRole);
   if (!Model) throw new ApiError(400, "Invalid appliedRole");
-
+  const alreadyHasApp = await JobApplication.exists({
+      user: new mongoose.Types.ObjectId(userId),
+    });
+    if (alreadyHasApp) {
+      throw new ApiError(409, "You already submitted a job application.");
+    }
   try {
     const doc = await JobApplication.create({
       user: new mongoose.Types.ObjectId(userId),

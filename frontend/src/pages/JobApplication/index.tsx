@@ -13,11 +13,14 @@ import {
 import { RolesTable, type RoleDef } from "@/data/roles";
 import { RoleHeader } from "./components/RoleHeader";
 import { RoleForm } from "./components/RoleForm";
-import {
-  submitEmploymentApplication,
-  type EmploymentApplicationPayload,
-  type LandInput,
-} from "@/api/applications";
+import { createJobApplication } from "@/api/jobApplications";
+import type {
+  JobApplicationCreateInput,
+  JobApplicationDTO,
+} from "@/types/jobApplications";
+
+// (keep LandInput if you use it for the lands UI)
+import type { LandInput } from "@/api/applications";
 import { meApi } from "@/api/auth";
 import { toaster } from "@/components/ui/toaster";
 import {
@@ -26,6 +29,27 @@ import {
 } from "./components/validation";
 
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+function asWeeklySchedule(mask?: number[]): number[] | undefined {
+  if (!mask) return undefined;
+  // Ensure: length 7, integers, non-negative
+  const seven = mask.slice(0, 7).map((v) => Math.max(0, Number.isFinite(v) ? Math.trunc(v) : 0));
+  // If shorter than 7, pad with zeros
+  while (seven.length < 7) seven.push(0);
+  return seven;
+}
+
+function normalizeWeekly(mask?: number[]): number[] {
+  const base = Array(7).fill(0);
+  if (!Array.isArray(mask)) return base;
+  return base.map((_, i) => {
+    const v = mask[i] ?? 0;
+    const n = (v as number) | 0;           // coerce to int
+    return Math.max(0, Math.min(15, n));   // clamp to 4-bit (Morning=1, Afternoon=2, Evening=4, Night=8)
+  });
+}
+
+
 
 export default function EmploymentApplication() {
   const [params] = useSearchParams();
@@ -75,7 +99,7 @@ export default function EmploymentApplication() {
       const next = { ...prev, [n]: v };
       const errs = validateAll({
         ...next,
-        scheduleBitmask: scheduleMask,
+        weeklySchedule: scheduleMask,
         lands,
       });
       setErrors(errs);
@@ -85,35 +109,40 @@ export default function EmploymentApplication() {
 
   const updateSchedule = (m?: number[]) => {
     setScheduleMask(m);
-    setErrors(validateAll({ ...fields, scheduleBitmask: m, lands }));
+    setErrors(validateAll({ ...fields, weeklySchedule: m, lands }));
   };
 
   const updateLands = (ls: LandInput[]) => {
     setLands(ls);
     setErrors(
-      validateAll({ ...fields, scheduleBitmask: scheduleMask, lands: ls })
+      validateAll({ ...fields, weeklySchedule: scheduleMask, lands: ls })
     );
   };
 
   const { mutateAsync, isPending } = useMutation({
-    mutationFn: submitEmploymentApplication,
-    onSuccess: (res) => {
-      toaster.create({
-        type: "success",
-        title: "Application submitted",
-        description: res?.message ?? "We'll be in touch soon.",
-      });
-      navigate("/dashboard");
-    },
-    onError: (err: any) => {
-      toaster.create({
-        type: "error",
-        title: "Submission failed",
-        description:
-          err?.response?.data?.message ?? err?.message ?? "Unknown error",
-      });
-    },
-  });
+  mutationFn: (payload: JobApplicationCreateInput) => createJobApplication(payload),
+  onSuccess: (app: JobApplicationDTO) => {
+    toaster.create({
+      type: "success",
+      title: "Application submitted",
+      description: "We’ll be in touch soon.",
+    });
+    // If you already have an application details route, this is ideal:
+    navigate(`/applications/${app.id}`);
+
+    // If not yet available, swap to your previous destination:
+    // navigate("/dashboard");
+  },
+  onError: (err: any) => {
+    toaster.create({
+      type: "error",
+      title: "Submission failed",
+      description:
+        err?.response?.data?.message ?? err?.message ?? "Unknown error",
+    });
+  },
+});
+
 
   if (!role) {
     {console.log("role: ", role)}
@@ -133,52 +162,56 @@ export default function EmploymentApplication() {
     [errors, agree]
   );
 
-  const handleSubmit = async () => {
-    const full = { ...fields, scheduleBitmask: scheduleMask, lands };
-    const errs = validateAll(full);
-    if (Object.keys(errs).length > 0 || !agree) {
-      setErrors(errs);
-      if (!agree) {
-        toaster.create({
-          type: "warning",
-          title: "Please certify the information",
-        });
-      } else {
-        toaster.create({
-          type: "warning",
-          title: "Please fix the highlighted fields",
-        });
-      }
-      return;
+ const handleSubmit = async () => {
+  const full = { ...fields, weeklySchedule: scheduleMask, lands };
+  const errs = validateAll(full);
+  if (Object.keys(errs).length > 0 || !agree) {
+    setErrors(errs);
+    if (!agree) {
+      toaster.create({ type: "warning", title: "Please certify the information" });
+    } else {
+      toaster.create({ type: "warning", title: "Please fix the highlighted fields" });
     }
+    return;
+  }
 
-    const extra: Record<string, unknown> = { ...fields };
-    if (role.includeSchedule && scheduleMask)
-      extra.scheduleBitmask = scheduleMask;
-    if (role.includeLand) {
-      extra.lands = lands;
-      extra.agreementPercentage = 60;
-    }
+  const applicationData: Record<string, unknown> = { ...fields };
 
-    [
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-    ].forEach((d) => delete (extra as any)[d]);
+if (role.includeSchedule) {
+  const weekly = normalizeWeekly(scheduleMask);
+  if (!weekly) {
+    toaster.create({ type: "warning", title: "Please select your weekly schedule" });
+    return;
+  }
+  // Backend requires this exact field name:
+  applicationData.weeklySchedule = weekly;
+  // If you previously had scheduleBitmask in the form state, make sure it doesn’t ride along:
+  delete (applicationData as any).scheduleBitmask;
+}
 
-    const payload: EmploymentApplicationPayload = {
-      role: role.name,
-      certifyAccuracy: agree,
-      submittedAt: new Date().toISOString(),
-      extraFields: extra,
-    };
+if (role.includeLand) {
+  applicationData.lands = lands;
+  applicationData.agreementPercentage = 60;
+}
 
-    await mutateAsync(payload);
+// Strip any UI-only weekday keys
+["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+  .forEach((d) => delete (applicationData as any)[d]);
+
+
+  // Map to the new backend contract
+  const payload: JobApplicationCreateInput = {
+    appliedRole: role.name.toLowerCase() as JobApplicationCreateInput["appliedRole"],
+    logisticCenterId: null,                                    // set if you collect it
+    contactEmail: (me as any)?.email ?? null,                  // or from your form if present
+    contactPhone: (fields as any)?.contactPhone ?? null,       // include if you have it
+    notes: (fields as any)?.notes || undefined,                // include if you have it
+    applicationData,                                           // everything role-specific
   };
+
+  await mutateAsync(payload);
+};
+
 
   return (
     <Box p={{ base: 4, md: 8 }}>

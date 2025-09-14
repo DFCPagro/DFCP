@@ -1,37 +1,59 @@
-import {
-  Box,
-  Button,
-  Table,
-} from "@chakra-ui/react";
-import { useState } from "react";
+// src/pages/.../components/ScheduleGrid.tsx
+import { Box, Button, Table } from "@chakra-ui/react";
+import { useState, useEffect } from "react";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const SHIFTS = ["Morning", "Afternoon", "Evening"] as const;
-type Row = boolean[];
+
+// Display order you requested: Morning, Evening, Afternoon, Night
+const SHIFTS = ["Morning", "Evening", "Afternoon", "Night"] as const;
+
+// Backend bit mapping (keep this stable!)
+// Morning=1, Afternoon=2, Evening=4, Night=8
+const SHIFT_BITS: Record<(typeof SHIFTS)[number], number> = {
+  Morning: 1,
+  Evening: 4,
+  Afternoon: 2,
+  Night: 8,
+};
+
+type Row = boolean[]; // per shift row: boolean[7] for 7 days
 
 export function ScheduleGrid({
   value,
   onChange,
 }: {
+  /** weekly per-day mask (length 7), e.g., [1,1,1,1,1,0,0] */
   value?: number[];
-  onChange: (mask: number[]) => void;
+  /** emits weekly per-day mask (length 7) */
+  onChange: (weeklyMask: number[]) => void;
 }) {
-  const [rows, setRows] = useState<Row[]>(() => decode(value ?? [0, 0, 0]));
+  // Decode incoming weekly mask into a grid of booleans: rows = shifts, cols = days
+  const [rows, setRows] = useState<Row[]>(() =>
+    decodeWeekly(value ?? Array(DAYS.length).fill(0))
+  );
+
+  // If parent changes `value`, keep grid in sync
+  useEffect(() => {
+    if (!value) return;
+    setRows(decodeWeekly(value));
+  }, [value]);
 
   const toggle = (r: number, c: number) => {
     setRows((prev) => {
       const copy = prev.map((row) => row.slice());
       copy[r][c] = !copy[r][c];
-      const mask = encode(copy);
-      onChange(mask);
+      const weekly = encodeWeekly(copy);
+      onChange(weekly);
       return copy;
     });
   };
 
   const clearAll = () => {
-    const empty: Row[] = SHIFTS.map(() => DAYS.map(() => false));
+    const empty: Row[] = Array.from({ length: SHIFTS.length }, () =>
+      Array(DAYS.length).fill(false)
+    );
     setRows(empty);
-    onChange([0, 0, 0]);
+    onChange(Array(DAYS.length).fill(0)); // [0,0,0,0,0,0,0]
   };
 
   return (
@@ -71,11 +93,40 @@ export function ScheduleGrid({
   );
 }
 
-function encode(rows: Row[]): number[] {
-  return rows.map((row) =>
-    row.reduce((acc, on, i) => (on ? acc | (1 << i) : acc), 0)
-  );
+/** Encode: rows (shifts x days) -> weekly per-day mask (length 7) */
+function encodeWeekly(rows: Row[]): number[] {
+  const days = DAYS.length; // 7
+  const weekly = Array(days).fill(0);
+  for (let day = 0; day < days; day++) {
+    let dayMask = 0;
+    for (let s = 0; s < SHIFTS.length; s++) {
+      if (rows[s]?.[day]) {
+        const bit = SHIFT_BITS[SHIFTS[s]];
+        dayMask |= bit;
+      }
+    }
+    weekly[day] = dayMask; // 0..15 for 4 shifts
+  }
+  return weekly;
 }
-function decode(mask: number[]): Row[] {
-  return mask.map((m) => DAYS.map((_, i) => !!(m & (1 << i))));
+
+/** Decode: weekly per-day mask (length 7) -> rows (shifts x days) */
+function decodeWeekly(weeklyMask: number[]): Row[] {
+  const days = DAYS.length;
+  // pad/truncate to 7 to be safe
+  const padded = weeklyMask
+    .slice(0, days)
+    .concat(Array(Math.max(0, days - weeklyMask.length)).fill(0));
+
+  const rows: Row[] = Array.from({ length: SHIFTS.length }, () =>
+    Array(days).fill(false)
+  );
+
+  for (let s = 0; s < SHIFTS.length; s++) {
+    const bit = SHIFT_BITS[SHIFTS[s]];
+    for (let day = 0; day < days; day++) {
+      rows[s][day] = (padded[day] & bit) !== 0;
+    }
+  }
+  return rows;
 }
