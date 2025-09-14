@@ -1,5 +1,5 @@
 import { api } from "./config";
-import type { MarketItem, MarketQuery, ShiftOption, UserLocation } from "@/types/market";
+import type { MarketItem, MarketQuery, ShiftCode, UserLocation } from "@/types/market";
 
 export async function fetchMyLocations(): Promise<UserLocation[]> {
   const { data } = await api.get("/market/locations/me");
@@ -9,8 +9,8 @@ export async function addLocation(payload: Partial<UserLocation>): Promise<UserL
   const { data } = await api.post("/market/locations", payload);
   return data;
 }
-export async function fetchShiftsForLocation(locationId: string): Promise<ShiftOption[]> {
-  const { data } = await api.get("/market/shifts", { params: { locationId } });
+export async function fetchShifts(locationId: string): Promise<Array<{code: ShiftCode; label: string}>> {
+  const { data } = await api.get("/api/v1/market/shifts", { params: { locationId } });
   return data;
 }
 export async function fetchMarket(q: MarketQuery): Promise<MarketItem[]> {

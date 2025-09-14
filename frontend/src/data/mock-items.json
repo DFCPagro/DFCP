@@ -1,0 +1,195 @@
+[
+  {
+    "id": "LC1-MOR-001",
+    "name": "Better Boy Tomatos",
+    "price": 9.9,
+    "count": 50,
+    "imageUrl": "https://www.ruppseeds.com/Files/Images/Products/Vegetables/Tomato/Better-Boy-Plus.jpg",
+    "farmer": { "id": "f-1", "name": "Ella" },
+    "category": "VEGETABLES"
+  },
+  {
+    "id": "LC1-EVE-002",
+    "name": "Persian Cucumber",
+    "price": 7.5,
+    "count": 30,
+    "imageUrl": "https://tse2.mm.bing.net/th/id/OIP.cUXWw5NMR4ebtRTRWMXlCwAAAA?rs=1&pid=ImgDetMain&o=7&rm=3",
+    "farmer": { "id": "f-2", "name": "Yosi" },
+    "category": "VEGETABLES"
+  },
+  {
+    "id": "LC1-MOR-003",
+    "name": "Eggs",
+    "price": 22,
+    "count": 0,
+    "imageUrl": "https://tse1.explicit.bing.net/th/id/OIP.rHR7F1T_mJby5hb8HbrqwQHaFj?rs=1&pid=ImgDetMain&o=7&rm=3",
+    "farmer": { "id": "f-3", "name": "Leah" },
+    "category": "EGGS"
+  },
+
+  {
+    "id": "LC1-AFT-004",
+    "name": "Red Bell Pepper",
+    "price": 8.5,
+    "count": 25,
+    "imageUrl": "https://picsum.photos/seed/bellpepper/800/600",
+    "farmer": { "id": "f-4", "name": "Avi" },
+    "category": "VEGETABLES"
+  },
+  {
+    "id": "LC1-MOR-005",
+    "name": "Carrots",
+    "price": 6.2,
+    "count": 40,
+    "imageUrl": "https://picsum.photos/seed/carrots/800/600",
+    "farmer": { "id": "f-5", "name": "Maya" },
+    "category": "VEGETABLES"
+  },
+  {
+    "id": "LC1-NIG-006",
+    "name": "Romaine Lettuce",
+    "price": 5.9,
+    "count": 35,
+    "imageUrl": "https://picsum.photos/seed/lettuce/800/600",
+    "farmer": { "id": "f-6", "name": "Itamar" },
+    "category": "VEGETABLES"
+  },
+  {
+    "id": "LC1-EVE-007",
+    "name": "Eggplant",
+    "price": 9.0,
+    "count": 22,
+    "imageUrl": "https://picsum.photos/seed/eggplant/800/600",
+    "farmer": { "id": "f-7", "name": "Dana" },
+    "category": "VEGETABLES"
+  },
+  {
+    "id": "LC1-AFT-008",
+    "name": "Zucchini",
+    "price": 7.1,
+    "count": 18,
+    "imageUrl": "https://picsum.photos/seed/zucchini/800/600",
+    "farmer": { "id": "f-8", "name": "Rami" },
+    "category": "VEGETABLES"
+  },
+
+  {
+    "id": "LC1-MOR-101",
+    "name": "Bananas",
+    "price": 8.0,
+    "count": 28,
+    "imageUrl": "https://picsum.photos/seed/bananas/800/600",
+    "farmer": { "id": "f-9", "name": "Shira" },
+    "category": "FRUITS"
+  },
+  {
+    "id": "LC1-EVE-102",
+    "name": "Gala Apples",
+    "price": 11.5,
+    "count": 18,
+    "imageUrl": "https://picsum.photos/seed/apples/800/600",
+    "farmer": { "id": "f-10", "name": "Noam" },
+    "category": "FRUITS"
+  },
+  {
+    "id": "LC1-AFT-103",
+    "name": "Oranges",
+    "price": 9.0,
+    "count": 32,
+    "imageUrl": "https://picsum.photos/seed/oranges/800/600",
+    "farmer": { "id": "f-11", "name": "Omer" },
+    "category": "FRUITS"
+  },
+  {
+    "id": "LC1-MOR-104",
+    "name": "Strawberries",
+    "price": 16.0,
+    "count": 12,
+    "imageUrl": "https://picsum.photos/seed/strawberries/800/600",
+    "farmer": { "id": "f-12", "name": "Lior" },
+    "category": "FRUITS"
+  },
+  {
+    "id": "LC1-NIG-105",
+    "name": "Avocado",
+    "price": 14.0,
+    "count": 0,
+    "imageUrl": "https://picsum.photos/seed/avocado/800/600",
+    "farmer": { "id": "f-13", "name": "Tal" },
+    "category": "FRUITS"
+  },
+  {
+    "id": "LC1-EVE-106",
+    "name": "Red Grapes",
+    "price": 13.5,
+    "count": 20,
+    "imageUrl": "https://picsum.photos/seed/grapes/800/600",
+    "farmer": { "id": "f-14", "name": "Eden" },
+    "category": "FRUITS"
+  },
+  {
+    "id": "LC1-AFT-107",
+    "name": "Mango",
+    "price": 15.0,
+    "count": 16,
+    "imageUrl": "https://picsum.photos/seed/mango/800/600",
+    "farmer": { "id": "f-15", "name": "Ron" },
+    "category": "FRUITS"
+  },
+
+  {
+    "id": "LC1-EVE-201",
+    "name": "Free-Range Eggs (12)",
+    "price": 26.0,
+    "count": 14,
+    "imageUrl": "https://picsum.photos/seed/eggsfree/800/600",
+    "farmer": { "id": "f-16", "name": "Neta" },
+    "category": "EGGS"
+  },
+  {
+    "id": "LC1-AFT-202",
+    "name": "XL Eggs (12)",
+    "price": 24.0,
+    "count": 8,
+    "imageUrl": "https://picsum.photos/seed/eggsxl/800/600",
+    "farmer": { "id": "f-17", "name": "Barak" },
+    "category": "EGGS"
+  },
+
+  {
+    "id": "LC1-MOR-301",
+    "name": "Fresh Milk 1L",
+    "price": 6.9,
+    "count": 60,
+    "imageUrl": "https://picsum.photos/seed/milk/800/600",
+    "farmer": { "id": "f-18", "name": "Nir" },
+    "category": "DAIRY"
+  },
+  {
+    "id": "LC1-EVE-302",
+    "name": "Gouda Cheese",
+    "price": 28.0,
+    "count": 12,
+    "imageUrl": "https://picsum.photos/seed/cheese/800/600",
+    "farmer": { "id": "f-19", "name": "Liat" },
+    "category": "DAIRY"
+  },
+  {
+    "id": "LC1-AFT-303",
+    "name": "Greek Yogurt",
+    "price": 4.8,
+    "count": 22,
+    "imageUrl": "https://picsum.photos/seed/yogurt/800/600",
+    "farmer": { "id": "f-20", "name": "Erez" },
+    "category": "DAIRY"
+  },
+  {
+    "id": "LC1-NIG-304",
+    "name": "Cottage Cheese",
+    "price": 9.5,
+    "count": 15,
+    "imageUrl": "https://picsum.photos/seed/cottage/800/600",
+    "farmer": { "id": "f-21", "name": "Michal" },
+    "category": "DAIRY"
+  }
+]

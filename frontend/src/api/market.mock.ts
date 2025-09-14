@@ -3,6 +3,10 @@ import { adaptToMarketItems } from "@/helpers/marketMockAdapter";
 // @ts-ignore – put your JSON next to this file or adjust the path
 import mockDataJson from "@/data/mock-items.json"; 
 
+
+
+
+
 let savedLocations: UserLocation[] = [
   { _id: "LOC-1", label: "Home – Tel Aviv", street: "Ben Gurion 22", city: "Tel Aviv", lat: 32.08, lng: 34.78 },
 ];
@@ -44,10 +48,15 @@ export async function fetchShiftsForLocation(_locationId: string): Promise<Shift
 }
 
 export async function fetchMarket(q: MarketQuery): Promise<MarketItem[]> {
-  // You can vary stock by shift if you want:
-  const splitAcrossShifts = true;
-  const items = adaptToMarketItems(mockDataJson as any[], { splitAcrossShifts });
-  // Optionally simulate fewer items at night:
-  const filtered = q.shift === "NIGHT" ? items.slice(0, Math.ceil(items.length * 0.6)) : items;
-  return filtered;
+  const items = adaptToMarketItems(mockDataJson as any[]);
+  let out = items;
+
+  // (optional) vary by shift
+  if (q.shift === "NIGHT") out = out.slice(0, Math.ceil(out.length * 0.6));
+
+  if (q.category && q.category !== "ALL") {
+    out = out.filter((i) => i.category === q.category);
+  }
+  return out;
 }
+

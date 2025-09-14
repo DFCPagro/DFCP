@@ -3,6 +3,7 @@ import {
   listLocations,
   createLocation,
   getMarketStock,
+  getShifts,
 } from "../controllers/market.controller"; // <-- relative
 
 const router = Router();
@@ -24,6 +25,13 @@ router.post("/locations", async (req: Request, res: Response, next: NextFunction
     next(e);
   }
 });
+router.get("/shifts", async (req, res, next) => {
+  try {
+    const out = await getShifts(req);
+    res.json(out);
+  } catch (e) { next(e); }
+});
+
 
 router.get("/stock", async (req: Request, res: Response, next: NextFunction) => {
   try {

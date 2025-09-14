@@ -1,50 +1,87 @@
-    import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Field, HStack, Spinner, Text } from "@chakra-ui/react";
+import type { ShiftCode, ShiftOption } from "@/types/market";
 import { fetchShiftsForLocation } from "@/api/market";
-import type { ShiftOption, ShiftCode } from "@/types/market";
 
 type Props = {
   locationId?: string;
   value?: ShiftCode;
-  onChange: (shift: ShiftCode) => void;
+  onChange: (v: ShiftCode | undefined) => void;
 };
 
 export default function ShiftPicker({ locationId, value, onChange }: Props) {
-  const [opts, setOpts] = useState<ShiftOption[]>([]);
+  const [options, setOptions] = useState<ShiftOption[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // reload whenever location changes
   useEffect(() => {
-    if (!locationId) { setOpts([]); return; }
-    let mounted = true;
+    if (!locationId) {
+      setOptions([]);
+      onChange(undefined);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
     (async () => {
-      setLoading(true);
       try {
         const res = await fetchShiftsForLocation(locationId);
-        if (mounted) setOpts(res);
+        if (!cancelled) setOptions(res);
+        if (!cancelled && value && !res.some((o) => o.code === value)) onChange(undefined);
       } finally {
-        if (mounted) setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId]);
 
+  const placeholder = useMemo(
+    () =>
+      !locationId
+        ? "Pick a location first"
+        : loading
+        ? "Loading shifts..."
+        : "Select a shift",
+    [locationId, loading]
+  );
+
+  const selectId = "shift-select";
+
   return (
-    <div className="grid gap-2">
-      <label className="text-sm font-medium">Delivery shift</label>
-      <select
-        className="border rounded px-3 py-2"
-        value={value || ""}
-        onChange={e => onChange(e.target.value as ShiftCode)}
-        disabled={!locationId || loading}
-      >
-        <option value="" disabled>
-          {!locationId ? "Pick a location first" : (loading ? "Loading..." : "Select shift")}
-        </option>
-        {opts.map(o => (
-          <option key={o.code} value={o.code} disabled={o.remainingSkus === 0}>
-            {o.label} {o.remainingSkus === 0 ? "— Sold out" : `— ${o.remainingSkus} items`}
-          </option>
-        ))}
-      </select>
-    </div>
+    <Field.Root>
+      <Field.Label htmlFor={selectId}>Delivery shift</Field.Label>
+      <HStack align="center" gap={2}>
+        <select
+          id={selectId}
+          value={value ?? ""}
+          onChange={(e) => onChange((e.target.value || undefined) as ShiftCode | undefined)}
+          disabled={!locationId || loading}
+          aria-label="Delivery shift"
+          style={{
+            padding: "8px 10px",
+            borderRadius: "8px",
+            border: "1px solid var(--chakra-colors-gray-300)",
+            minWidth: 240,
+            background: "var(--chakra-colors-white)",
+          }}
+        >
+          <option value="">{placeholder}</option>
+          {options.map((opt) => (
+            <option key={opt.code} value={opt.code}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+
+        {loading && <Spinner size="sm" />}
+        {!loading && locationId && options.length === 0 && (
+          <Text fontSize="sm" color="gray.600">
+            No shifts for this location
+          </Text>
+        )}
+      </HStack>
+    </Field.Root>
   );
 }

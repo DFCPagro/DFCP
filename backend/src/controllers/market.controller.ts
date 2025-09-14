@@ -6,6 +6,30 @@ type ShiftCode = "morning" | "afternoon" | "night";
 
 const ID_SEP = "#";
 
+export async function getShifts(req: Request) {
+  const { locationId } = req.query as { locationId?: string };
+  if (!locationId) return [];
+
+  // דוגמה פשוטה: שינוי לפי אינדקס הכתובת (אם אתה משתמש ב-locationId סינתטי user#idx)
+  const idx = Number(locationId.split("#")[1] ?? 0);
+  const sets = [
+    [
+      { code: "morning",   label: "Morning (08:00–12:00)" },
+      { code: "afternoon", label: "Afternoon (12:00–16:00)" },
+    ],
+    [
+      { code: "afternoon", label: "Afternoon (12:00–16:00)" },
+      { code: "night",     label: "Night (16:00–20:00)" },
+    ],
+    [
+      { code: "morning",   label: "Morning (08:00–12:00)" },
+      { code: "night",     label: "Night (16:00–20:00)" },
+    ],
+  ];
+  return sets[idx % sets.length];
+}
+
+
 function toLocationId(userId: Types.ObjectId, index: number) {
   return `${userId.toString()}${ID_SEP}${index}`;
 }

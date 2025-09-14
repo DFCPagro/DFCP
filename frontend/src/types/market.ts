@@ -1,4 +1,6 @@
 export type ShiftCode = "MORNING" | "AFTERNOON" | "EVENING" | "NIGHT";
+export type CategoryCode = "VEGETABLES" | "FRUITS" | "EGGS" | "DAIRY";
+
 
 export interface UserLocation {
   _id: string;
@@ -7,11 +9,13 @@ export interface UserLocation {
   city: string;
   lat?: number;
   lng?: number;
+    logisticCenterId?: string; // ← NEW: where this address is served from
+
 }
 
 export interface ShiftOption {
-  code: ShiftCode;
-  label: string;        // "Morning (06:00–12:00)"
+   code: ShiftCode;
+  label: string;
   remainingSkus: number;
   isOpenNow: boolean;
 }
@@ -23,15 +27,20 @@ export interface FarmerInfo {
 }
 
 export interface MarketItem {
-  _id: string;          // itemId
-  name: string;         // "Apple"
-  imageUrl?: string;
-  price: number;        // per kg
-  inStock: number;      // remaining units for the chosen (location, shift)
-  farmer: FarmerInfo;
+  _id: string;              // productId (catalog id)
+  inventoryId: string;      // ← NEW: LC-Shift-productId
+  name: string;
+  price: number;
+  stock: number;
+  inStock: number;
+  imageUrl: string;
+  farmer: { _id: string; name: string; farmName: string };
+  category: CategoryCode;
 }
 
 export interface MarketQuery {
-  locationId: string;
+locationId: string;
   shift: ShiftCode;
+  category?: CategoryCode | "ALL";
 }
+

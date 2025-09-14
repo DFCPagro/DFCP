@@ -1,48 +1,77 @@
-import { useState } from "react";
+import { useState, useMemo} from "react";
+import {
+  Card,
+  Box,
+  AspectRatio,
+  Badge,
+  Text,
+  Button,
+  HStack,
+  VStack,
+  Separator,
+    Image, // ← add this
+} from "@chakra-ui/react";
 import type { MarketItem } from "@/types/market";
+
 
 type Props = {
   item: MarketItem;
-  onAdd: (itemId: string, qty: number) => void;
+  onAdd: (id: string, qty: number) => void;
+  disabled?: boolean;
 };
 
-export default function ItemCard({ item, onAdd }: Props) {
+export default function ItemCard({ item, onAdd, disabled }: Props) {
   const [qty, setQty] = useState(1);
-  const canInc = qty < item.inStock;
-  const canDec = qty > 1;
+  const outOfStock = (item.inStock ?? 0) <= 0;
+  const canAdd = !disabled && !outOfStock;
+  const priceText = useMemo(() => `₪ ${Number(item.price ?? 0).toFixed(2)}`, [item.price]);
 
   return (
-    <div className="rounded-xl border bg-white shadow-sm overflow-hidden flex flex-col">
-      <div className="aspect-square bg-gray-100">
+    <Card.Root variant="elevated" rounded="2xl" overflow="hidden" borderWidth="1px"
+      _hover={{ shadow: "lg", translateY: "-2px", transition: "all 160ms" }}>
+      {/* Media */}
+      <AspectRatio ratio={4 / 3} bg="gray.50">
         {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-        ) : null}
-      </div>
+          <Image src={item.imageUrl} alt={item.name} objectFit="cover" w="100%" h="100%" />
+        ) : (
+          <Box bgGradient="to-br" gradientFrom="gray.50" gradientTo="gray.100" />
+        )}
+      </AspectRatio>
 
-      <div className="p-4 grid gap-2">
-        <div className="text-lg font-semibold">{item.name}</div>
-        <div className="text-sm text-gray-600">
-          {item.farmer.farmName} by {item.farmer.name}
-        </div>
-        <div className="font-medium">Price: {item.price.toFixed(2)} ₪</div>
+      <Card.Body p="4">
+        <VStack align="start" gap="2">
+          <Text fontWeight="semibold" lineClamp={1}>{item.name}</Text>
+          <Text color="fg.muted" fontSize="sm" lineClamp={1}>
+            {item.farmer.farmName} by {item.farmer.name}
+          </Text>
+          <HStack justify="space-between" w="full">
+            <Text fontWeight="medium">{priceText}</Text>
+            <Badge colorPalette={outOfStock ? "red" : "green"} variant="subtle">
+              {outOfStock ? "Out of stock" : `${item.inStock} in stock`}
+            </Badge>
+          </HStack>
+          <Separator my="1" />
+          <HStack gap="2">
+            <Text fontSize="sm" color="fg.muted">Quantity:</Text>
+            <HStack gap="1" borderWidth="1px" rounded="lg" p="1">
+              <Button size="xs" variant="ghost" onClick={() => setQty((q) => Math.max(1, q - 1))} disabled={!canAdd}>−</Button>
+              <Text minW="2ch" textAlign="center">{qty}</Text>
+              <Button size="xs" variant="ghost" onClick={() => setQty((q) => q + 1)} disabled={!canAdd}>+</Button>
+            </HStack>
+          </HStack>
+        </VStack>
+      </Card.Body>
 
-        <div className="flex items-center gap-2">
-          <span className="text-sm">Quantity:</span>
-          <button className="border rounded px-2" onClick={() => setQty(q => Math.max(1, q - 1))} disabled={!canDec}>-</button>
-          <span className="min-w-[2ch] text-center">{qty}</span>
-          <button className="border rounded px-2" onClick={() => setQty(q => Math.min(item.inStock, q + 1))} disabled={!canInc}>+</button>
-        </div>
-
-        <div className="text-sm text-gray-600">inStock: {item.inStock}</div>
-
-        <button
-          className="mt-2 bg-black text-white rounded-lg py-2 disabled:opacity-50"
-          onClick={() => onAdd(item._id, qty)}
-          disabled={item.inStock === 0}
-        >
-          Add to cart
-        </button>
-      </div>
-    </div>
+      <Card.Footer p="4" pt="0">
+       <Button
+  w="full"
+  colorPalette="teal"
+  onClick={() => onAdd(item.inventoryId, qty)}  // ← use inventoryId
+  disabled={!canAdd}
+>
+  Add to cart
+</Button>
+      </Card.Footer>
+    </Card.Root>
   );
 }
