@@ -10,7 +10,7 @@ import {
 import { buildFarmerOrderDefaultStages } from "./shared/stage.utils";
 import { AuditEntrySchema } from "./shared/audit.schema";
 import {ContainerSchema} from "./shared/container.schema";
-
+import { VisualInspectionSchema,  QSReportSchema } from "./shared/inspection.schema";
 
 // ---------- enums ----------
 export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
@@ -22,6 +22,11 @@ export type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
 // ---------- schema (no generics; infer later) ----------
 const FarmerOrderSchema = new Schema(
   {
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    updatedAt: { type: Date, default: Date.now },
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
     // identity / relations
     itemId: { type: String, ref: "Item", required: true, index: true }, // Item._id is string in your Item model
     type: { type: String, default: "", trim: true },
@@ -39,6 +44,8 @@ const FarmerOrderSchema = new Schema(
     shift: { type: String, enum: SHIFTS, required: true, index: true },
     pickUpDate: { type: String, required: true, index: true }, // "YYYY-MM-DD"
     logisticCenterId: { type: String, default: "LC-1", index: true },
+     // farmer-level approval/ack
+    farmerStatus: { type: String, enum: FARMER_APPROVAL_STATUSES, default: "pending", index: true },
 
     // customer demand aggregation (explicit + derived)
     sumOrderedQuantityKg: { type: Number, required: true, min: 0 },
@@ -85,13 +92,17 @@ const FarmerOrderSchema = new Schema(
       ],
     },
 
-    //ADD INSPECTION STATUS
+    // --- QS reports ---
+  farmersQSreport:    { type: QSReportSchema, default: undefined }, // farmer’s submitted QS values
+  inspectionQSreport: { type: QSReportSchema, default: undefined }, // LC/inspection QS values
+
+// --- quick visual inspection status (optional) ---
+  visualInspection:   { type: VisualInspectionSchema, default: undefined },
+
+  inspectionStatus: { type: String, enum: ["pending", "passed", "failed"], default: "pending", index: true },
 
 
-
-    // farmer-level approval/ack
-    farmerStatus: { type: String, enum: FARMER_APPROVAL_STATUSES, default: "pending", index: true },
-
+   
     // audit trail
     historyAuditTrail: { type: [AuditEntrySchema], default: [] },
   },
@@ -263,6 +274,62 @@ FarmerOrderSchema.methods.recalcQuantities = function (
   const finalRaw = sum * 1.02;
   this.finalQuantityKg = Math.round(finalRaw * 100) / 100;
 };
+
+// if the QS reports of farmer and inspection are in the same range and have the same overall grade (if provided),
+//maybe do it in the controller instead of the model?
+FarmerOrderSchema.methods.recomputeInspectionStatus = function (
+  this: HydratedDocument<FarmerOrder> & FarmerOrderMethods
+) {
+  const visualOk = this.visualInspection?.status === "ok";
+  const farmerVals = this.farmersQSreport?.values;
+  const inspVals   = this.inspectionQSreport?.values;
+
+  // gate 1: need visual ok
+  if (!visualOk) { this.inspectionStatus = "pending"; return; }
+
+  // gate 2: need both QS inputs
+  if (!farmerVals || !inspVals) { this.inspectionStatus = "pending"; return; }
+
+  // optional: compare overall grades if provided
+  const farmerGrade = this.farmersQSreport?.overallGrade || "";
+  const inspGrade   = this.inspectionQSreport?.overallGrade || "";
+  if (farmerGrade && inspGrade && farmerGrade !== inspGrade) {
+    this.inspectionStatus = "failed";
+    return;
+  }
+
+  // compare numeric metrics present in BOTH inputs
+  const keys: (keyof typeof farmerVals)[] = [
+    "brix",
+    "acidityPercentage",
+    "pressure",
+    "colorPercentage",
+    "weightPerUnitG",
+    "diameterMM",
+    "maxDefectRatioLengthDiameter",
+    "rejectionRate",
+  ] as any;
+
+  const within2Percent = (a: number, b: number) => {
+    const A = Number(a), B = Number(b);
+    if (!Number.isFinite(A) || !Number.isFinite(B)) return true; // ignore non-finite
+    const denom = Math.max(Math.abs(A), Math.abs(B), 1e-9); // avoid divide-by-zero
+    return Math.abs(A - B) / denom <= 0.02; // 2% relative tolerance
+  };
+
+  for (const k of keys) {
+    const fv = (farmerVals as any)?.[k];
+    const iv = (inspVals as any)?.[k];
+    if (fv == null || iv == null) continue; // only compare when both are present
+    if (!within2Percent(fv, iv)) {
+      this.inspectionStatus = "failed";
+      return;
+    }
+  }
+
+  this.inspectionStatus = "passed";
+};
+
 
 
 
