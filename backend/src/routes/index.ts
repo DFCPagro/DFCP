@@ -7,6 +7,7 @@ import logisticsCenterRouter from './logisticsCenter.route';
 import centerMapRoutes from './centerMap.routes';
 import marketRoutes from './market.route';
 import delivererRoutes from './deliverer.routes';
+import shiftRoutes from './shiftConfig.route';
 
 const router = Router();
 router.use('/auth', authRoutes);
@@ -17,4 +18,5 @@ router.use('/items', itemRoutes);
 // router.use('/market', marketRoutes);
 router.use('/deliverers', delivererRoutes);
 router.use(centerMapRoutes);
+router.use('/shifts',shiftRoutes);
 export default router;
