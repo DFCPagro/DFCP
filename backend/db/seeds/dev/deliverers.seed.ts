@@ -1,4 +1,4 @@
-/* db/seeds/dev/deliverers.seed.ts */
+/* eslint-disable no-console */
 import * as fs from "fs";
 import * as path from "path";
 import mongoose from "mongoose";
@@ -7,9 +7,11 @@ import { faker } from "@faker-js/faker";
 import { Deliverer } from "../../../src/models/deliverer.model";
 import LogisticsCenter from "../../../src/models/logisticsCenter.model";
 import User from "../../../src/models/user.model";
-import ApiError from "../../../src/utils/ApiError"; // optional; only for consistent error messages if you want
 
 type DelivererSeedInput = {
+  // Optional fixed id for the Deliverer doc itself
+  _id?: string; // 24-hex
+
   // identify the user (ONE of these is required)
   userEmail?: string;
   userUid?: string;
@@ -59,6 +61,10 @@ async function resolveUserId(row: DelivererSeedInput) {
   if (!user?._id) {
     throw new Error(`User not found for query: ${JSON.stringify(q)}`);
   }
+  // Optional: warn if role is not a deliverer
+  if (!["deliverer", "industrialDeliverer"].includes(String(user.role))) {
+    console.warn(`⚠️ User ${JSON.stringify(q)} has role "${user.role}", not a deliverer-type`);
+  }
   return user._id as mongoose.Types.ObjectId;
 }
 
@@ -100,6 +106,9 @@ function tryLoadStatic(): DelivererSeedInput[] {
   }
   // light validation
   parsed.forEach((row: any, i: number) => {
+    if (row._id && !isHex24(row._id)) {
+      throw new Error(`Row ${i}: "_id" must be a 24-hex ObjectId string when provided`);
+    }
     if (!row.licenseType || !row.driverLicenseNumber) {
       throw new Error(`Row ${i}: "licenseType" and "driverLicenseNumber" are required`);
     }
@@ -137,25 +146,31 @@ function buildRandomDelivererFor(userId: mongoose.Types.ObjectId): Partial<Deliv
 /** upsert a single deliverer; keep LC.employeeIds in sync */
 async function upsertDeliverer(
   userId: mongoose.Types.ObjectId,
-  payload: Omit<DelivererSeedInput, "userEmail" | "userUid" | "assignCenterIds" | "assignCentersByName">,
+  payload: Omit<DelivererSeedInput, "_id" | "userEmail" | "userUid" | "assignCenterIds" | "assignCentersByName">,
   centerIds: mongoose.Types.ObjectId[],
-  session?: mongoose.ClientSession
+  session?: mongoose.ClientSession,
+  insertId?: mongoose.Types.ObjectId // when provided, use as _id on insert
 ) {
-  // compose update set
+  // compose update
   const $set: any = {
     ...payload,
     user: userId,
     logisticCenterIds: centerIds,
   };
 
-  // if schedules are omitted, we avoid setting them so the model hooks apply defaults on insert
+  // if schedules are omitted, avoid setting them so the model hooks apply defaults on insert
   if (!payload.activeSchedule) delete $set.activeSchedule;
   if (!payload.nextSchedule) delete $set.nextSchedule;
   if (!payload.currentMonth) delete $set.currentMonth;
 
+  const update: any = { $set };
+  if (insertId) {
+    update.$setOnInsert = { _id: insertId };
+  }
+
   const doc = await Deliverer.findOneAndUpdate(
     { user: userId },
-    { $set },
+    update,
     { new: true, upsert: true, runValidators: true, session, setDefaultsOnInsert: true }
   );
 
@@ -169,7 +184,6 @@ async function upsertDeliverer(
   }
 
   // Also remove from centers that are no longer assigned (when merging)
-  const currentCenterIds = new Set(centerIds.map(String));
   const staleCenters = await LogisticsCenter.find({
     _id: { $nin: centerIds },
     employeeIds: userId,
@@ -203,7 +217,7 @@ export async function seedDeliverers(options?: { clear?: boolean; random?: numbe
   try {
     await session.withTransaction(async () => {
       if (shouldClear) {
-        // 1) When clearing deliverers, also clean employeeIds references to deliverer users
+        // capture existing deliverer userIds to clean LC references
         const delivererUsers = await Deliverer.find().select({ user: 1 }).lean();
         const delivererUserIds = delivererUsers.map(d => d.user).filter(Boolean);
         await Deliverer.deleteMany({});
@@ -217,7 +231,7 @@ export async function seedDeliverers(options?: { clear?: boolean; random?: numbe
         }
       }
 
-      // 2) Seed static deliverers
+      // 1) Seed static deliverers
       for (const row of staticRows) {
         const userId = await resolveUserId(row);
         const centerIds = await resolveCenterIds(row);
@@ -241,18 +255,24 @@ export async function seedDeliverers(options?: { clear?: boolean; random?: numbe
         if (Array.isArray(row.activeSchedule)) payload.activeSchedule = row.activeSchedule;
         if (Array.isArray(row.nextSchedule)) payload.nextSchedule = row.nextSchedule;
 
-        await upsertDeliverer(userId, payload, centerIds, session);
+        const insertId =
+          row._id && isHex24(row._id) ? new mongoose.Types.ObjectId(row._id) : undefined;
+
+        await upsertDeliverer(userId, payload, centerIds, session, insertId);
       }
 
-      // 3) Random deliverers: attach to any users with role deliverer/industrialDeliverer that don’t have a Deliverer doc yet
+      // 2) Random deliverers: attach to any users with deliverer roles that don’t have a Deliverer doc yet
       if (randomCount > 0) {
-        // pick candidate users
+        const existing = await Deliverer.find().select({ user: 1 }).lean();
+        const already = new Set(existing.map(e => String(e.user)));
+
         const candidates = await User.find({
           role: { $in: ["deliverer", "industrialDeliverer"] },
-          _id: { $nin: (await Deliverer.find().select({ user: 1 })).map(d => d.user) }
+          _id: { $nin: Array.from(already, (s) => new mongoose.Types.ObjectId(s)) },
         }).select({ _id: 1 }).limit(randomCount).lean();
 
         const allCenters = await LogisticsCenter.find().select({ _id: 1 }).lean();
+
         for (const u of candidates) {
           const userId = u._id as mongoose.Types.ObjectId;
           const randPayload = buildRandomDelivererFor(userId) as DelivererSeedInput;
@@ -280,9 +300,9 @@ export async function seedDeliverers(options?: { clear?: boolean; random?: numbe
 
 // ---- CLI ----
 // Usage:
-//   ts-node db/seeds/dev/deliverers.seed.ts
-//   ts-node db/seeds/dev/deliverers.seed.ts --keep       (merge/upsert, don’t clear)
-//   ts-node db/seeds/dev/deliverers.seed.ts --random 5   (adds up to 5 random deliverers)
+//   ts-node db/seeds/dev/deliverers.seed.ts                  (replace mode)
+//   ts-node db/seeds/dev/deliverers.seed.ts --keep           (merge/upsert, don’t clear)
+//   ts-node db/seeds/dev/deliverers.seed.ts --random 5       (adds up to 5 random deliverers)
 if (require.main === module) {
   const args = process.argv.slice(2);
   const keep = args.includes("--keep") || args.includes("--merge");

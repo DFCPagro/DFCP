@@ -1,0 +1,491 @@
+paths:
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Create a new order (customers only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderInput'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+              example:
+                data:
+                  _id: 66ef1f2e5d8f7a0012ab34cd
+                  customerId: 66ef1e7c5d8f7a0012ab3400
+                  deliveryAddress:
+                    line1: "123 Market St"
+                    city: "Haifa"
+                    country: "IL"
+                  items:
+                    - itemId: "apple-1"
+                      name: "Apples"
+                      pricePerUnit: 3.5
+                      quantity: 2
+                      sourceFarmerName: "Levi"
+                      sourceFarmName: "Green Valley"
+                      farmerOrderId: 66ef1fa65d8f7a0012ab35fe
+                  itemsSubtotal: 7
+                  deliveryFee: 15
+                  totalPrice: 22
+                  totalOrderWeightKg: 2
+                  status: "pending"
+                  assignedDelivererId: null
+                  historyAuditTrail: []
+                  createdAt: "2025-09-14T10:00:00.000Z"
+                  updatedAt: "2025-09-14T10:00:00.000Z"
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+
+    get:
+      tags: [Orders]
+      summary: List orders with rich filters (staff can see all; customers see their own)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+          description: "Single or comma-separated (e.g. ready,out_for_delivery)"
+        - in: query
+          name: customerId
+          schema: { type: string }
+          description: "Staff only; customers are forced to their ID"
+        - in: query
+          name: assignedDelivererId
+          schema: { type: string, nullable: true }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: shiftStart
+          schema: { type: string, format: date-time }
+        - in: query
+          name: shiftEnd
+          schema: { type: string, format: date-time }
+        - in: query
+          name: date
+          schema: { type: string }
+          description: "YYYY-MM-DD; used with 'shift'"
+        - in: query
+          name: shift
+          schema: { type: string, enum: [morning, afternoon, evening, night] }
+        - in: query
+          name: itemId
+          schema: { type: string }
+        - in: query
+          name: farmerOrderId
+          schema: { type: string }
+        - in: query
+          name: category
+          schema: { type: string }
+        - in: query
+          name: sourceFarmName
+          schema: { type: string }
+        - in: query
+          name: sourceFarmerName
+          schema: { type: string }
+        - in: query
+          name: minTotal
+          schema: { type: number }
+        - in: query
+          name: maxTotal
+          schema: { type: number }
+        - in: query
+          name: minWeight
+          schema: { type: number }
+        - in: query
+          name: maxWeight
+          schema: { type: number }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: sort
+          schema: { type: string, example: "-createdAt" }
+      responses:
+        '200':
+          description: Paginated list of orders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaginatedOrders'
+              example:
+                data:
+                  items:
+                    - _id: 66ef1f2e5d8f7a0012ab34cd
+                      customerId: 66ef1e7c5d8f7a0012ab3400
+                      deliveryAddress: { line1: "123 Market St", city: "Haifa", country: "IL" }
+                      items:
+                        - itemId: "apple-1"
+                          name: "Apples"
+                          pricePerUnit: 3.5
+                          quantity: 2
+                          sourceFarmerName: "Levi"
+                          sourceFarmName: "Green Valley"
+                          farmerOrderId: 66ef1fa65d8f7a0012ab35fe
+                      itemsSubtotal: 7
+                      deliveryFee: 15
+                      totalPrice: 22
+                      totalOrderWeightKg: 2
+                      status: "pending"
+                      assignedDelivererId: null
+                      historyAuditTrail: []
+                      createdAt: "2025-09-14T10:00:00.000Z"
+                      updatedAt: "2025-09-14T10:00:00.000Z"
+                  page: 1
+                  limit: 20
+                  total: 1
+                  pages: 1
+        '401':
+          description: Unauthorized
+
+  /orders/my:
+    get:
+      tags: [Orders]
+      summary: List orders for the authenticated customer
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: Paginated list of the user's orders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaginatedOrders'
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get a single order by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '404':
+          description: Not found
+
+    patch:
+      tags: [Orders]
+      summary: Update general fields (owner early-stage or staff)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderInput'
+      responses:
+        '200':
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+
+  /orders/{id}/status:
+    patch:
+      tags: [Orders]
+      summary: Set order status (deliverers limited; staff unrestricted)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetStatusInput'
+      responses:
+        '200':
+          description: Updated order with new status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '400':
+          description: Invalid transition or status
+
+  /orders/{id}/assign-deliverer:
+    patch:
+      tags: [Orders]
+      summary: Assign or unassign a deliverer (staff only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignDelivererInput'
+      responses:
+        '200':
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '403':
+          description: Forbidden
+
+  /orders/{id}/audit:
+    post:
+      tags: [Orders]
+      summary: Append an audit entry to the order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string }
+                note: { type: string }
+                meta:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Order with new audit entry
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+
+  /orders/{id}/cancel:
+    post:
+      tags: [Orders]
+      summary: Cancel an order (owner or staff)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Order canceled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Order'
+        '400':
+          description: Cannot cancel terminal order
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Address:
+      type: object
+      properties:
+        line1: { type: string }
+        line2: { type: string }
+        city: { type: string }
+        state: { type: string }
+        postalCode: { type: string }
+        country: { type: string }
+
+    AuditEntry:
+      type: object
+      properties:
+        userId: { type: string }
+        action: { type: string }
+        note: { type: string }
+        meta: { type: object, additionalProperties: true }
+        timestamp: { type: string, format: date-time }
+
+    OrderItem:
+      type: object
+      required: [itemId, name, pricePerUnit, quantity, sourceFarmerName, sourceFarmName, farmerOrderId]
+      properties:
+        itemId: { type: string }
+        name: { type: string }
+        imageUrl: { type: string }
+        pricePerUnit: { type: number, minimum: 0 }
+        quantity: { type: number, minimum: 0.1, description: "kg or units" }
+        category: { type: string }
+        sourceFarmerName: { type: string }
+        sourceFarmName: { type: string }
+        farmerOrderId: { type: string }
+
+    Order:
+      type: object
+      required: [customerId, deliveryAddress, items, itemsSubtotal, deliveryFee, totalPrice, totalOrderWeightKg, status]
+      properties:
+        _id: { type: string }
+        customerId: { type: string }
+        deliveryAddress:
+          $ref: '#/components/schemas/Address'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        itemsSubtotal: { type: number }
+        deliveryFee: { type: number }
+        totalPrice: { type: number }
+        totalOrderWeightKg: { type: number }
+        status:
+          type: string
+          enum: [pending, confirmed, preparing, ready, out_for_delivery, delivered, canceled, problem]
+        assignedDelivererId: { type: string, nullable: true }
+        customerDeliveryId: { type: string, nullable: true }
+        historyAuditTrail:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PaginatedOrders:
+      type: object
+      required: [items, page, limit, total, pages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        pages: { type: integer }
+
+    CreateOrderInput:
+      type: object
+      required: [deliveryAddress, items]
+      properties:
+        deliveryAddress:
+          $ref: '#/components/schemas/Address'
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItem'
+
+    UpdateOrderInput:
+      type: object
+      properties:
+        deliveryAddress:
+          $ref: '#/components/schemas/Address'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        assignedDelivererId:
+          type: string
+          nullable: true
+        customerDeliveryId:
+          type: string
+          nullable: true
+
+    SetStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, confirmed, preparing, ready, out_for_delivery, delivered, canceled, problem]
+
+    AssignDelivererInput:
+      type: object
+      properties:
+        delivererId:
+          type: string
+          nullable: true

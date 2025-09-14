@@ -1,237 +1,247 @@
-import { ClientSession, Types } from 'mongoose';
-import Order, { IOrder } from '../models/order.model';
-import QrToken from '../models/QrToken.model';
-import { randToken } from '../utils/crypto';
-import { buildQrUrls } from '../utils/urls';
-import { withOptionalTxn } from '../utils/txn';
-import { ensureValidObjectId, toObjectId } from '../utils/ids';
+import { FilterQuery, Types } from "mongoose";
+import { Order, OrderDoc, OrderStatus, ORDER_STATUSES } from "../models/order.model";
+import ApiError from "../utils/ApiError";
 
-export class NotFoundError extends Error { status = 404; }
-export class ConflictError extends Error { status = 409; }
-export class GoneError extends Error { status = 410; }
-export class BadRequestError extends Error { status = 400; }
-
-export type ApiOrderItem = {
-  productId: string;
-  quantity: number;
-  sourceFarmerId?: string;
-};
-
-export type CreateOrderInput = {
-  orderId?: string;
-  customerId: string;                 // ⬅️ renamed
-  assignedDriverId?: string;
-  status?: string;
-  deliverySlot?: Date;
-  items: ApiOrderItem[];
-};
-
-export type CreateOrderResult = {
-  order: IOrder; // hydrated
-  opsUrl: string;
-  customerUrl: string;
-  opsToken: string;
-  customerToken: string;
-};
-
-export type MintResult = {
-  opsUrl: string;
-  customerUrl: string;
-  opsToken: string;
-  customerToken: string;
-};
-
-export type PaginatedOrders = {
-  page: number;
-  pageSize: number;
-  total: number;
+export interface CreateOrderInput {
+  customerId: Types.ObjectId;
+  deliveryAddress: any; // AddressSchema-compatible payload
   items: Array<{
-    id: string;
-    orderId: string;
-    status: string;
-    deliverySlot?: Date | null; // optional if you compute it
-    createdAt: Date;
-    items: IOrder['items'];
+    itemId: string;
+    name: string;
+    imageUrl?: string;
+    pricePerUnit: number;
+    quantity: number;
+    category?: string;
+    sourceFarmerName: string;
+    sourceFarmName: string;
+    farmerOrderId: Types.ObjectId;
   }>;
-};
+}
 
-export type OrderView = {
-  id: string;
-  orderId: string;
-  customerId: string;                 // ⬅️ renamed
-  assignedDriverId: string | null;    // still your API’s name
-  status: string;
-  deliverySlot?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  items: IOrder['items'];
-};
+export interface ListOrdersFilter {
+  status?: OrderStatus | OrderStatus[];          // single or array
+  customerId?: string;
+  assignedDelivererId?: string | null;
 
-export const OrderService = {
-  async createOrderWithQrs(input: CreateOrderInput): Promise<CreateOrderResult> {
-    validateOrderItems(input.items);
+  // time windows (createdAt by default)
+  from?: string;                                  // ISO
+  to?: string;                                    // ISO
 
-    const orderDoc = {
-      orderId: input.orderId,
-      customerId: toObjectId(input.customerId) as Types.ObjectId, // ⬅️ mapped
-      // If you later map driver → deliverer polymorphic fields, do it here
-      // assignedDeliverer: toObjectId(input.assignedDriverId),
-      status: input.status, // model default handles if undefined
+  // “Shift” helpers – controller will set these if shift is requested
+  shiftStart?: string;                            // ISO
+  shiftEnd?: string;                              // ISO
 
-      // If you have slot→date/shift mapping, do it here; otherwise omit
-      // deliveryDate: mapped.deliveryDate,
-      // deliveryShift: mapped.deliveryShift,
+  // item-level filters
+  itemId?: string;                                // items.itemId
+  farmerOrderId?: string;                         // items.farmerOrderId
+  category?: string;                              // items.category
+  sourceFarmName?: string;                        // partial, case-insensitive
+  sourceFarmerName?: string;                      // partial, case-insensitive
 
-      items: input.items.map((it) => ({
-        // Minimal mapping; adapt to your IOrderItem
-        itemId: it.productId,
-        itemDisplayName: it.productId,
-        quantityUnits: it.quantity,
-        pricePerUnit: 0,
-        sourceFarmerId: it.sourceFarmerId ?? null,
-        isPicked: false,
-      })),
-    };
+  // numeric ranges
+  minTotal?: number;                              // totalPrice >=
+  maxTotal?: number;                              // totalPrice <=
+  minWeight?: number;                             // totalOrderWeightKg >=
+  maxWeight?: number;                             // totalOrderWeightKg <=
+}
 
-    return withOptionalTxn(async (session) => {
-      await Order.createCollection().catch(() => {});
-      const order = await Order.create([orderDoc], session ? { session } : {}).then(r => r[0]);
+export interface ListOrdersOptions {
+  page?: number;
+  limit?: number;
+  sort?: string; // e.g. "-createdAt"
+}
 
-      const [opsTok, cusTok] = await Promise.all([
-        QrToken.create([{ order: order._id, purpose: 'ops', token: randToken() }], session ? { session } : {}).then(r => r[0]),
-        QrToken.create([{
-          order: order._id, purpose: 'customer', token: randToken(),
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        }], session ? { session } : {}).then(r => r[0]),
-      ]);
+export const isValidStatus = (s: string): s is OrderStatus =>
+  (ORDER_STATUSES as readonly string[]).includes(s as OrderStatus);
 
-      const { opsUrl, customerUrl } = buildQrUrls(opsTok.token, cusTok.token);
-      return { order, opsUrl, customerUrl, opsToken: opsTok.token, customerToken: cusTok.token };
-    });
-  },
+/** Create */
+export async function createOrder(payload: CreateOrderInput) {
+  const created = await Order.create({
+    customerId: payload.customerId,
+    deliveryAddress: payload.deliveryAddress,
+    items: payload.items,
+  });
+  return created;
+}
 
-  async listOrders({ page, pageSize }: { page: number; pageSize: number }): Promise<PaginatedOrders> {
-    const skip = (page - 1) * pageSize;
+/** Get by id */
+export async function getOrderById(id: string) {
+  const order = await Order.findById(id);
+  if (!order) throw new ApiError(404, "Order not found");
+  return order;
+}
 
-    const [items, total] = await Promise.all([
-      Order.find().sort({ createdAt: -1 }).skip(skip).limit(pageSize).lean(),
-      Order.countDocuments(),
-    ]);
+/** Query/paginate with rich filters */
+export async function listOrders(filter: ListOrdersFilter = {}, opts: ListOrdersOptions = {}) {
+  const q: FilterQuery<OrderDoc> = {};
 
-    return {
-      page,
-      pageSize,
-      total,
-      items: items.map((o: any) => ({
-        id: String(o._id),
-        orderId: o.orderId ?? String(o._id),
-        status: o.status,
-        deliverySlot: o.deliverySlot ?? null, // only if you compute/store it
-        createdAt: o.createdAt,
-        items: o.items,
-      })),
-    };
-  },
-
-  async getOrderById(id: string): Promise<OrderView> {
-    ensureValidObjectId(id, 'order id');
-    const o = await Order.findById(id).lean();
-    if (!o) throw new NotFoundError('Order not found');
-
-    return {
-      id: String(o._id),
-      orderId: o.orderId ?? String(o._id),
-      customerId: String((o as any).customerId), // ⬅️ renamed
-      assignedDriverId: (o as any).assignedDeliverer ? String((o as any).assignedDeliverer) : null,
-      status: o.status,
-      deliverySlot: (o as any).deliverySlot ?? null,
-      createdAt: o.createdAt,
-      updatedAt: o.updatedAt,
-      items: o.items,
-    };
-  },
-
-  async updateOrderStatus(id: string, status: string) {
-    ensureValidObjectId(id, 'order id');
-    const o = await Order.findByIdAndUpdate(id, { $set: { status } }, { new: true });
-    if (!o) throw new NotFoundError('Order not found');
-    return { id: o.id, status: o.status };
-  },
-
-  async mintQrsForOrder(orderId: string, customerTtlDays = 30, session?: ClientSession): Promise<MintResult> {
-    ensureValidObjectId(orderId, 'order id');
-
-    const order = await Order.findById(orderId).session(session || null);
-    if (!order) throw new NotFoundError('Order not found');
-
-    const [opsTok, cusTok] = await Promise.all([
-      QrToken.create([{ order: order._id, purpose: 'ops', token: randToken() }], { session }).then(r => r[0]),
-      QrToken.create([{
-        order: order._id, purpose: 'customer', token: randToken(),
-        expiresAt: new Date(Date.now() + customerTtlDays * 86400_000),
-      }], { session }).then(r => r[0]),
-    ]);
-
-    const { opsUrl, customerUrl } = buildQrUrls(opsTok.token, cusTok.token);
-    return { opsUrl, customerUrl, opsToken: opsTok.token, customerToken: cusTok.token };
-  },
-
-  async revokeCustomerToken(token: string) {
-    const t = await QrToken.findOne({ token, purpose: 'customer' });
-    if (!t) throw new NotFoundError('Token not found');
-    await QrToken.deleteOne({ _id: t._id });
-    return { ok: true };
-  },
-
-  async getOrderByOpsToken(token: string) {
-    const t = await QrToken.findOne({ token, purpose: 'ops' }).lean();
-    if (!t) throw new NotFoundError('Invalid token');
-
-    const order = await Order.findById(t.order).lean();
-    if (!order) throw new NotFoundError('Order not found');
-
-    return {
-      orderNo: order.orderId ?? String(order._id),
-      status: order.status,
-      items: order.items,
-      deliverySlot: (order as any).deliverySlot ?? null,
-      createdAt: order.createdAt,
-    };
-  },
-
-  async confirmByCustomerToken(token: string, review?: { rating?: number; comment?: string }) {
-    return withOptionalTxn(async (session) => {
-      const t = await QrToken.findOne({ token, purpose: 'customer' }).session(session || null);
-      if (!t) throw new NotFoundError('Invalid token');
-      if (t.expiresAt && t.expiresAt < new Date()) throw new GoneError('Code expired');
-      if (t.usedAt) throw new ConflictError('Already confirmed');
-
-      const order = await Order.findById(t.order).session(session || null);
-      if (!order) throw new NotFoundError('Order not found');
-
-      order.status = 'confirmed';
-      await order.save(session ? { session } : {});
-
-      t.usedAt = new Date();
-      await t.save(session ? { session } : {});
-
-      return { ok: true, orderNo: order.orderId ?? order.id };
-    });
-  },
-};
-
-/* validation */
-function validateOrderItems(items: ApiOrderItem[] | undefined): asserts items is ApiOrderItem[] {
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new BadRequestError('Order must contain at least one item');
+  // status (single or array)
+  if (filter.status) {
+    const arr = Array.isArray(filter.status) ? filter.status : [filter.status];
+    const valid = arr.filter((s) => isValidStatus(String(s))) as OrderStatus[];
+    if (valid.length) q.status = { $in: valid };
   }
-  for (const it of items) {
-    if (!it.productId) throw new BadRequestError('Item.productId required');
-    if (typeof it.quantity !== 'number' || !(it.quantity > 0)) {
-      throw new BadRequestError('Item.quantity must be a positive number');
-    }
-    if (it.sourceFarmerId !== undefined && typeof it.sourceFarmerId !== 'string') {
-      throw new BadRequestError('Item.sourceFarmerId must be a string');
-    }
+
+  // ids
+  if (typeof filter.assignedDelivererId !== "undefined") {
+    q.assignedDelivererId =
+      filter.assignedDelivererId === null
+        ? null
+        : new Types.ObjectId(filter.assignedDelivererId);
   }
+  if (filter.customerId) q.customerId = new Types.ObjectId(filter.customerId);
+
+  // time windows (createdAt)
+  const timeFrom = filter.shiftStart || filter.from;
+  const timeTo = filter.shiftEnd || filter.to;
+  if (timeFrom || timeTo) {
+    q.createdAt = {};
+    if (timeFrom) q.createdAt.$gte = new Date(timeFrom);
+    if (timeTo) q.createdAt.$lte = new Date(timeTo);
+  }
+
+  // numeric ranges
+  if (typeof filter.minTotal === "number" || typeof filter.maxTotal === "number") {
+    q.totalPrice = {};
+    if (typeof filter.minTotal === "number") q.totalPrice.$gte = filter.minTotal;
+    if (typeof filter.maxTotal === "number") q.totalPrice.$lte = filter.maxTotal;
+  }
+  if (typeof filter.minWeight === "number" || typeof filter.maxWeight === "number") {
+    q.totalOrderWeightKg = {};
+    if (typeof filter.minWeight === "number") q.totalOrderWeightKg.$gte = filter.minWeight;
+    if (typeof filter.maxWeight === "number") q.totalOrderWeightKg.$lte = filter.maxWeight;
+  }
+
+  // item-level filters (dot queries)
+  const and: any[] = [];
+  if (filter.itemId) and.push({ "items.itemId": filter.itemId });
+  if (filter.farmerOrderId) and.push({ "items.farmerOrderId": new Types.ObjectId(filter.farmerOrderId) });
+  if (filter.category) and.push({ "items.category": filter.category });
+
+  // partial/case-insensitive farm/farmer names
+  if (filter.sourceFarmName)
+    and.push({ "items.sourceFarmName": { $regex: escapeRegex(filter.sourceFarmName), $options: "i" } });
+  if (filter.sourceFarmerName)
+    and.push({ "items.sourceFarmerName": { $regex: escapeRegex(filter.sourceFarmerName), $options: "i" } });
+
+  if (and.length) q.$and = and;
+
+  const page = Math.max(1, Number(opts.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(opts.limit) || 20));
+  const sort = opts.sort || "-createdAt";
+
+  const [items, total] = await Promise.all([
+    Order.find(q).sort(sort).skip((page - 1) * limit).limit(limit),
+    Order.countDocuments(q),
+  ]);
+
+  return { items, page, limit, total, pages: Math.ceil(total / limit) };
+}
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Update general fields (hooks keep derived totals in sync) */
+export async function updateOrder(
+  id: string,
+  updates: Partial<Pick<OrderDoc,
+    "deliveryAddress" | "items" | "assignedDelivererId" | "customerDeliveryId"
+  >>,
+  actorId?: Types.ObjectId
+) {
+  const order = await getOrderById(id);
+
+  if (updates.deliveryAddress) order.deliveryAddress = updates.deliveryAddress as any;
+  if (updates.items) order.items = updates.items as any;
+  if (typeof updates.assignedDelivererId !== "undefined")
+    order.assignedDelivererId = updates.assignedDelivererId as any;
+  if (typeof updates.customerDeliveryId !== "undefined")
+    order.customerDeliveryId = updates.customerDeliveryId as any;
+
+  if (actorId) order.addAudit(actorId, "order_update", "", { updates });
+
+  await order.validate(); // triggers recalcTotals via pre('validate')
+  await order.save();
+  return order;
+}
+
+/** Status transitions */
+const ALLOWED_NEXT: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  pending: ["confirmed", "canceled"],
+  confirmed: ["preparing", "canceled", "problem"],
+  preparing: ["ready", "problem", "canceled"],
+  ready: ["out_for_delivery", "problem"],
+  out_for_delivery: ["delivered", "problem"],
+  problem: ["confirmed", "canceled"],
+};
+
+export async function updateStatus(
+  id: string,
+  nextStatus: OrderStatus,
+  actorId: Types.ObjectId
+) {
+  if (!isValidStatus(nextStatus)) throw new ApiError(400, "Invalid status value");
+
+  const order = await getOrderById(id);
+  const current = order.status as OrderStatus;
+
+  if (current === "delivered" || current === "canceled") {
+    throw new ApiError(400, `Cannot transition from terminal status '${current}'`);
+  }
+  const allowed = ALLOWED_NEXT[current] || [];
+  if (!allowed.includes(nextStatus)) {
+    throw new ApiError(
+      400,
+      `Illegal transition: ${current} → ${nextStatus}. Allowed: ${allowed.join(", ") || "none"}`
+    );
+  }
+  if (nextStatus === "out_for_delivery" && !order.assignedDelivererId) {
+    throw new ApiError(400, "Cannot set 'out_for_delivery' without an assigned deliverer");
+  }
+
+  order.status = nextStatus;
+  order.addAudit(actorId, "status_change", `${current} -> ${nextStatus}`);
+  await order.save();
+  return order;
+}
+
+/** Assign deliverer */
+export async function assignDeliverer(
+  id: string,
+  delivererId: Types.ObjectId | null,
+  actorId: Types.ObjectId
+) {
+  const order = await getOrderById(id);
+  order.assignedDelivererId = delivererId as any;
+  order.addAudit(actorId, "assign_deliverer", "", { delivererId });
+  await order.save();
+  return order;
+}
+
+/** Add an audit entry */
+export async function addAuditEntry(
+  id: string,
+  actorId: Types.ObjectId,
+  action: string,
+  note?: string,
+  meta?: any
+) {
+  const order = await getOrderById(id);
+  order.addAudit(actorId, action, note, meta);
+  await order.save();
+  return order;
+}
+
+/** Cancel order (convenience) */
+export async function cancelOrder(id: string, actorId: Types.ObjectId) {
+  const order = await getOrderById(id);
+  if (order.status === "delivered" || order.status === "canceled") {
+    throw new ApiError(400, `Cannot cancel an order in status '${order.status}'`);
+  }
+  const prev = order.status;
+  order.status = "canceled";
+  order.addAudit(actorId, "status_change", `${prev} -> canceled`);
+  await order.save();
+  return order;
 }

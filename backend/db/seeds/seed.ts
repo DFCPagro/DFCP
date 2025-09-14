@@ -8,6 +8,7 @@ import { seedUsers } from './dev/users.seeder';
 import { seedItems } from './dev/items.seeder'
 import { seedLogisticsCenters } from './dev/logisticsCenters.seeder'
 import { seedDeliverers } from './dev/deliverers.seed'
+import { seedOrders } from './dev/orders.seed'
 
 type Args = {
   reset?: boolean;
@@ -68,33 +69,12 @@ async function main() {
     console.log('⏭️  Skipping deliverers seeding');
   }
 
-  // // Orders next (unless disabled)
-  // if (!argv['no-orders']) {
-  //   await timed(`Orders (count=${argv.orders})`, () => seedOrders(argv.orders!));
-  // } else {
-  //   console.log('⏭️  Skipping orders seeding');
-  // }
-
-  // // Aggregations
-  // if (!argv['no-aggregations']) {
-  //   await timed('Aggregations', () => seedAggregations());
-  // } else {
-  //   console.log('⏭️  Skipping aggregations seeding');
-  // }
-
-  // // Containers
-  // if (!argv['no-containers']) {
-  //   await timed('Containers', () => seedContainers());
-  // } else {
-  //   console.log('⏭️  Skipping containers seeding');
-  // }
-
-  // // Shipments
-  // if (!argv['no-shipments']) {
-  //   await timed('Shipments', () => seedShipments());
-  // } else {
-  //   console.log('⏭️  Skipping shipments seeding');
-  // }
+  // Orders next (unless disabled)
+  if (!argv['no-orders']) {
+    await timed(`Orders (count=${argv.orders})`, seedOrders);
+  } else {
+    console.log('⏭️  Skipping orders seeding');
+  }
 
   await disconnectDB();
   console.log('✅ All done.');

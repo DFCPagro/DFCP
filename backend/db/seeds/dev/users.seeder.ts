@@ -1,4 +1,5 @@
 // seeders/users/seedUsers.ts
+/* eslint-disable no-console */
 import * as fs from 'fs';
 import * as path from 'path';
 import { faker } from '@faker-js/faker';
@@ -23,10 +24,11 @@ type AddressModelShape = {
   logisticCenterId?: string | null; // model default is null
 };
 
-type UserSeed = {
+type SeedUserInput = {
+  _id?: string;         // <-- allow static _id from JSON (24-hex)
   name: string;
   email: string;
-  password: string; // plain text in seed data; model will hash
+  password: string;     // plain text in seed data; model will hash on save/create
   role: Role;
   activeStatus: boolean;
   uid: string;
@@ -36,8 +38,9 @@ type UserSeed = {
   phone?: string;             // optional in input
 };
 
-// What we actually send to Mongo (no legacy field, addresses normalized)
-type SeedUserNormalized = {
+// What we actually send to Mongo (keeps optional _id if provided)
+type SeedUserToInsert = {
+  _id?: string;
   name: string;
   email: string;
   password: string;
@@ -50,6 +53,9 @@ type SeedUserNormalized = {
 };
 
 // ---- Helpers ----
+const isHex24 = (s: unknown): s is string =>
+  typeof s === 'string' && /^[0-9a-fA-F]{24}$/.test(s);
+
 const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 
 /** Israel-ish random address (alt=lat, lnt=lng) */
@@ -69,7 +75,7 @@ const randomIsraelAddress = (label = 'Home'): AddressInput => {
 const USER_DATA_FILE = path.join(__dirname, STATIC_USERS_PATH);
 
 // --- Normalizers / Guards ---
-function toArrayAddresses(u: UserSeed): AddressInput[] {
+function toArrayAddresses(u: SeedUserInput): AddressInput[] {
   if (Array.isArray(u.addresses) && u.addresses.length > 0) {
     return u.addresses.map(a => ({ ...a }));
   }
@@ -106,10 +112,10 @@ function toModelAddress(a: AddressInput): AddressModelShape {
   };
 }
 
-function normalizeUser(u: UserSeed): SeedUserNormalized {
+function normalizeUser(u: SeedUserInput): SeedUserToInsert {
   const normalizedAddresses = ensureOnePrimary(toArrayAddresses(u)).map(toModelAddress);
 
-  const base: SeedUserNormalized = {
+  const base: SeedUserToInsert = {
     name: u.name,
     email: String(u.email).toLowerCase().trim(),
     password: u.password, // plain here; model will hash on save/create
@@ -119,13 +125,19 @@ function normalizeUser(u: UserSeed): SeedUserNormalized {
     addresses: normalizedAddresses,
   };
 
+  if (u._id !== undefined) {
+    if (!isHex24(u._id)) {
+      throw new Error(`users.data.json: _id "${u._id}" must be a 24-hex string`);
+    }
+    base._id = u._id; // let Mongoose cast to ObjectId
+  }
   if (u.birthday !== undefined) base.birthday = u.birthday;
   if (u.phone !== undefined) base.phone = u.phone;
 
   return base;
 }
 
-function loadFixedUsers(): SeedUserNormalized[] {
+function loadFixedUsers(): SeedUserToInsert[] {
   if (!fs.existsSync(USER_DATA_FILE)) {
     throw new Error(
       `Missing users.data.json at: ${USER_DATA_FILE}\n` +
@@ -136,10 +148,10 @@ function loadFixedUsers(): SeedUserNormalized[] {
   if (!Array.isArray(parsed)) {
     throw new Error('users.data.json must be a JSON array (no { "users": [] } wrapper).');
   }
-  return (parsed as UserSeed[]).map(normalizeUser);
+  return (parsed as SeedUserInput[]).map(normalizeUser);
 }
 
-function buildRandomCustomer(index: number): SeedUserNormalized {
+function buildRandomCustomer(index: number): SeedUserToInsert {
   const home = randomIsraelAddress('Home');
   const maybeWork = randomIsraelAddress('Work');
 
@@ -177,13 +189,14 @@ export async function seedUsers(options?: { random?: number; clear?: boolean }) 
     console.log('🧹 Cleared existing users');
   }
 
-  // Use Model.create (NOT insertMany) so pre('save') hashing runs
+  // Use Model.create (NOT insertMany) so pre('save') hashing runs.
+  // This also respects provided _id values.
   if (fixedUsers.length) {
     await User.create(fixedUsers);
   }
 
   if (randomCount > 0) {
-    const randoms: SeedUserNormalized[] = [];
+    const randoms: SeedUserToInsert[] = [];
     for (let i = 1; i <= randomCount; i++) {
       randoms.push(buildRandomCustomer(i));
     }

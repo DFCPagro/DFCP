@@ -47,19 +47,34 @@ const authLimiter = rateLimit({
 app.use(`${API_PREFIX}/auth`, authLimiter);
 
 /* --------------------------------- Swagger -------------------------------- */
+// const swaggerSpec = swaggerJSDoc({
+//   definition: {
+//     openapi: "3.0.0",
+//     info: { title: "API", version: "1.0.0" },
+//     // Put the prefix here so JSDoc paths don't include /api/v1
+//     servers: [{ url: API_PREFIX }],
+//   },
+//   apis: [
+//     // scan your source files
+//     path.join(process.cwd(), "src/**/*.ts"),
+//     path.join(process.cwd(), "src/**/*.js"),
+//   ],
+// });
+
 const swaggerSpec = swaggerJSDoc({
   definition: {
     openapi: "3.0.0",
     info: { title: "API", version: "1.0.0" },
-    // Put the prefix here so JSDoc paths don't include /api/v1
     servers: [{ url: API_PREFIX }],
   },
   apis: [
-    // scan your source files
-    path.join(process.cwd(), "src/**/*.ts"),
-    path.join(process.cwd(), "src/**/*.js"),
+    // keep other JSDoc if you need it, but to be safe for Orders, use YAML:
+    path.join(process.cwd(), "src/docs/**/*.yaml"),
+    // If you still want to scan code comments elsewhere, keep this:
+    // path.join(process.cwd(), "src/**/*.ts"),
   ],
 });
+
 
 // Serve UI + raw JSON
 app.use(`${API_PREFIX}/docs`, swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
