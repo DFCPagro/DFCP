@@ -54,6 +54,14 @@ const DelivererSchema = new Schema(
 
     vehicleCapacityKg: { type: Number, default: null, min: 0 },
     vehicleCapacityLiters: { type: Number, default: null, min: 0 },
+        vehicleCargoCM: {
+          type: new Schema({
+            height: { type: Number, min: 0, required: true },
+            length: { type: Number, min: 0, required: true },
+            width: { type: Number, min: 0, required: true },
+          }),
+          required: true,
+        },
     speedKmH: { type: Number, default: null, min: 0 },
 
     // pay defaults
@@ -76,7 +84,20 @@ const DelivererSchema = new Schema(
       },
     },
 
+    StandBySchedule: {
+      type: [Number],
+      required: true,
+      validate: bitmaskArrayValidator,
+      default: function () {
+        // this is a mongoose doc here, but we don't reference TS types to avoid cycles
+        // @ts-ignore - at runtime has currentMonth
+        const m: number = this?.currentMonth ?? defaultMonth();
+        return zeroScheduleFor(m);
+      },
+    },
+
     nextSchedule: { type: [Number], default: [], validate: nextScheduleValidator },
+    nextStandBySchedule: { type: [Number], default: [], validate: nextScheduleValidator },
   },
   { timestamps: true }
 );

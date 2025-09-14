@@ -5,8 +5,10 @@ import logger from "../config/logger";
 import {
   jobApplicationStatuses,
   jobApplicationRoles,
+  JOB_APP_ALLOWED_TRANSITIONS,
 } from "../utils/constants";
-import JobApplication, {
+import JobApplication,
+{
   JobApplicationBase,
   JobApplicationBaseDoc,
   DelivererApplication,
@@ -16,7 +18,6 @@ import JobApplication, {
   SorterApplication,
 } from "../models/jobApplication.model";
 import { promoteFarmerApplication, promoteDelivererApplication } from "./promotion.service";
-
 
 /** =========================
  * Types
@@ -28,10 +29,10 @@ export type JobApplicationRole = (typeof jobApplicationRoles)[number];
 export interface ListFilters {
   role?: JobApplicationRole;
   status?: JobApplicationStatus;
-  user?: string; // userId
-  logisticCenterId?: string;
-  from?: string; // ISO date
-  to?: string;   // ISO date
+  user?: string;              // userId (ObjectId string)
+  logisticCenterId?: string;  // ObjectId string
+  from?: string;              // ISO date
+  to?: string;                // ISO date
 }
 
 export interface ListOptions {
@@ -42,15 +43,15 @@ export interface ListOptions {
 }
 
 export interface CreateApplicationInput {
-  userId: string;
+  userId: string;                   // ObjectId string
   appliedRole: JobApplicationRole;
-  logisticCenterId?: string | null;
+  logisticCenterId?: string | null; // ObjectId string or null
   applicationData: Record<string, any>;
 }
 
 export interface UpdateApplicationDataInput {
-  id: string;
-  userId: string; // owner
+  id: string;       // application id
+  userId: string;   // owner id
   applicationData: Record<string, any>;
 }
 
@@ -63,14 +64,14 @@ export interface UpdateStatusInput {
 
 export interface UpdateMetaInput {
   id: string;
-  logisticCenterId?: string | null;
+  logisticCenterId?: string | null; // ObjectId string or null
 }
 
 export interface PublicJobApplicationDTO {
   id: string;
   user: string | { id: string; name?: string; email?: string; role?: string } | undefined;
   appliedRole: JobApplicationRole;
-  logisticCenterId: string | null;
+  logisticCenterId: string | null; // public as string|null
   status: JobApplicationStatus;
   applicationData: Record<string, any> | undefined;
   createdAt: Date;
@@ -90,29 +91,14 @@ const SORT_WHITELIST = new Set([
   "status",
 ]);
 
-const isTerminal = (s: JobApplicationStatus) => s === "approved" || s === "denied";
-
-/**
- * Allowed transitions we agreed on:
- * pending -> contacted | approved | denied
- * contacted -> approved | denied
- * No transitions out of approved/denied.
- */
+/** Centralized map from constants for transitions */
 function canTransition(from: JobApplicationStatus, to: JobApplicationStatus): boolean {
   if (from === to) return true; // no-op allowed
-  switch (from) {
-    case "pending":
-      return to === "contacted" || to === "approved" || to === "denied";
-    case "contacted":
-      return to === "approved" || to === "denied";
-    default:
-      return false;
-  }
+  const allowed = JOB_APP_ALLOWED_TRANSITIONS[from] ?? [];
+  return allowed.includes(to);
 }
 
-/**
- * Consistent public mapper
- */
+/** Consistent public mapper */
 export function toPublicJobApplication(
   doc: JobApplicationBaseDoc & { userInfo?: any },
   opts?: { includeUser?: boolean }
@@ -141,30 +127,21 @@ export function toPublicJobApplication(
   return base;
 }
 
-/**
- * Choose correct discriminator
- */
+/** Choose correct discriminator (for role validity checks) */
 function getDiscriminatorModel(role: JobApplicationRole) {
   switch (role) {
-    case "deliverer":
-      return DelivererApplication;
-    case "industrialDeliverer":
-      return IndustrialDelivererApplication;
-    case "farmer":
-      return FarmerApplication;
-    case "picker":
-      return PickerApplication;
-    case "sorter":
-      return SorterApplication;
-    default:
-      return JobApplication;
+    case "deliverer":            return DelivererApplication;
+    case "industrialDeliverer":  return IndustrialDelivererApplication;
+    case "farmer":               return FarmerApplication;
+    case "picker":               return PickerApplication;
+    case "sorter":               return SorterApplication;
+    default:                     return JobApplication;
   }
 }
 
-/**
- * Employment gate stub
- */
+/** Employment gate stub */
 async function employmentGateHasRole(userId: string, role: JobApplicationRole): Promise<boolean> {
+  // TODO: implement when you have actual user/role linkage
   return false;
 }
 
@@ -175,6 +152,7 @@ async function employmentGateHasRole(userId: string, role: JobApplicationRole): 
 export async function createApplication(input: CreateApplicationInput): Promise<PublicJobApplicationDTO> {
   let { userId, appliedRole, logisticCenterId, applicationData } = input;
 
+  // Normalize blank-ish center to null
   if (
     logisticCenterId === undefined ||
     logisticCenterId === null ||
@@ -195,6 +173,7 @@ export async function createApplication(input: CreateApplicationInput): Promise<
     throw new ApiError(409, "You already hold this role and cannot apply again.");
   }
 
+  // Validate role against discriminator set
   const Model = getDiscriminatorModel(appliedRole);
   if (!Model) throw new ApiError(400, "Invalid appliedRole");
 
@@ -206,9 +185,11 @@ export async function createApplication(input: CreateApplicationInput): Promise<
       status: "pending",
       applicationData,
     });
+
     return toPublicJobApplication(doc as JobApplicationBaseDoc);
   } catch (err: any) {
     if (err?.code === 11000) {
+      // e.g., unique index for (user, appliedRole, open-status) if you added it
       throw new ApiError(409, "You already have an open application for this role.");
     }
     if (err?.name === "CastError" && err?.path === "_id") {
@@ -237,15 +218,21 @@ export async function listApplications(
   const sortParam = options.sort && SORT_WHITELIST.has(options.sort) ? options.sort : "-createdAt";
 
   const query: FilterQuery<JobApplicationBase> = {};
-  if (role) query.appliedRole = role;
+  if (role)  query.appliedRole = role;
   if (status) query.status = status;
-  if (user) query.user = new mongoose.Types.ObjectId(user);
-  if (logisticCenterId) query.logisticCenterId = new mongoose.Types.ObjectId(logisticCenterId);
+  if (user) {
+    if (!mongoose.isValidObjectId(user)) throw new ApiError(400, "Invalid user filter");
+    query.user = new mongoose.Types.ObjectId(user);
+  }
+  if (logisticCenterId) {
+    if (!mongoose.isValidObjectId(logisticCenterId)) throw new ApiError(400, "Invalid logisticCenterId filter");
+    query.logisticCenterId = new mongoose.Types.ObjectId(logisticCenterId);
+  }
 
   if (from || to) {
     query.createdAt = {};
     if (from) (query.createdAt as any).$gte = new Date(from);
-    if (to) (query.createdAt as any).$lte = new Date(to);
+    if (to)   (query.createdAt as any).$lte = new Date(to);
   }
 
   const q = JobApplication.find(query);
@@ -264,6 +251,7 @@ export async function listApplications(
   };
 }
 
+/** (Unused for now, kept for future if you re-enable "mine") */
 export async function listMine(
   userId: string,
   filters: Omit<ListFilters, "user">,
@@ -292,7 +280,6 @@ export async function updateApplicationData(input: UpdateApplicationDataInput): 
   return toPublicJobApplication(doc as JobApplicationBaseDoc);
 }
 
-
 export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobApplicationDTO> {
   const { id, actorId, toStatus, note } = input;
 
@@ -304,9 +291,11 @@ export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobA
     throw new ApiError(400, `Invalid status transition: ${fromStatus} → ${toStatus}`);
   }
 
+  // Apply transition
+  doc.status = toStatus;
   await doc.save();
 
-  // 🔑 Promotion flow
+  // 🔑 Promotion flow after APPROVED
   if (toStatus === "approved") {
     switch (doc.appliedRole) {
       case "farmer":
@@ -315,10 +304,11 @@ export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobA
       case "deliverer":
         await promoteDelivererApplication(doc as any);
         break;
-      // TODO: add industrialDeliverer, picker, sorter if needed
+      // TODO: add industrialDeliverer, picker, sorter handlers if/when you have them
     }
   }
 
+  // Best-effort audit log
   try {
     logger.info("job-applications:status-change", {
       appId: String(doc._id),
@@ -334,14 +324,21 @@ export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobA
   return toPublicJobApplication(doc as any);
 }
 
-
 export async function updateMeta(input: UpdateMetaInput): Promise<PublicJobApplicationDTO> {
   const { id, logisticCenterId } = input;
 
   const doc = await JobApplication.findById(id).exec();
   if (!doc) throw new ApiError(404, "Application not found");
 
-  doc.logisticCenterId = logisticCenterId ? new mongoose.Types.ObjectId(logisticCenterId) : null;
+  // Store as ObjectId or null, per the model
+  if (logisticCenterId) {
+    if (!mongoose.isValidObjectId(logisticCenterId)) {
+      throw new ApiError(400, "Invalid logisticCenterId");
+    }
+    doc.logisticCenterId = new mongoose.Types.ObjectId(logisticCenterId) as any;
+  } else {
+    doc.logisticCenterId = null as any;
+  }
 
   await doc.save();
   return toPublicJobApplication(doc as JobApplicationBaseDoc);

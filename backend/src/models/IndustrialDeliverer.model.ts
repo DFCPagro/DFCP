@@ -52,6 +52,15 @@ const IndustrialDelivererSchema = new Schema(
 
     vehicleCapacityKg: { type: Number, default: null, min: 0 },
     vehicleCapacityLiters: { type: Number, default: null, min: 0 },
+    vehicleCargoCM: {
+      type: new Schema({
+        height: { type: Number, min: 0, required: true },
+        length: { type: Number, min: 0, required: true },
+        width: { type: Number, min: 0, required: true },
+      }),
+      required: true,
+    },
+
     speedKmH: { type: Number, default: null, min: 0 },
 
     // pay defaults

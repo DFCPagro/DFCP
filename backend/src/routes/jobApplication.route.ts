@@ -27,52 +27,21 @@ const router = Router();
  *           enum: [deliverer, industrialDeliverer, farmer, picker, sorter]
  *         logisticCenterId:
  *           type: string
+ *           format: objectId
  *           nullable: true
- *           description: Optional logistic center assignment (MongoId)
+ *           description: Optional logistic center assignment (Mongo ObjectId)
  *         applicationData:
  *           type: object
- *           description: Role-specific payload (see examples)
- *       examples:
- *         deliverer:
- *           value:
- *             appliedRole: deliverer
- *             logisticCenterId: null
- *             applicationData:
- *               licenseType: "B"
- *               driverLicenseNumber: "DL-1234567"
- *               vehicleType: "van"
- *               vehicleYear: 2020
- *               weeklySchedule: [3,0,12,0,15,0,0]
- *         industrialDeliverer:
- *           value:
- *             appliedRole: industrialDeliverer
- *             applicationData:
- *               licenseType: "C1"
- *               driverLicenseNumber: "C1-998877"
- *               refrigerated: true
- *               weeklySchedule: [15,15,15,15,15,0,0]
- *         farmer:
- *           value:
- *             appliedRole: farmer
- *             applicationData:
- *               farmName: "Green Fields"
- *               agriculturalInsurance: true
- *               lands:
- *                 - name: "North Plot"
- *                   ownership: "owned"
- *                   acres: 3.5
- *                   pickupAddress:
- *                     address: "Moshav A, Field Gate 2"
- *                     latitude: 31.78
- *                     longitude: 35.22
- *         picker:
- *           value:
- *             appliedRole: picker
- *             applicationData: {}
- *         sorter:
- *           value:
- *             appliedRole: sorter
- *             applicationData: {}
+ *           description: Role-specific payload (free-form by role)
+ *         notes:
+ *           type: string
+ *           maxLength: 1000
+ *         contactEmail:
+ *           type: string
+ *           format: email
+ *         contactPhone:
+ *           type: string
+ *           description: E.164 or local phone, 6–30 chars
  *
  *     JobApplicationDTO:
  *       type: object
@@ -92,6 +61,7 @@ const router = Router();
  *           enum: [deliverer, industrialDeliverer, farmer, picker, sorter]
  *         logisticCenterId:
  *           type: string
+ *           format: objectId
  *           nullable: true
  *         status:
  *           type: string
@@ -119,10 +89,10 @@ const router = Router();
 
 /**
  * @swagger
- * /job-applications/create:
+ * /job-applications:
  *   post:
  *     summary: Create a new job application (applicant)
- *     description: One open application per role. Re-apply only after denied.
+ *     description: Starts in 'pending'. One open application per role per user is recommended.
  *     tags: [JobApplications]
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
@@ -141,57 +111,18 @@ const router = Router();
  *       409: { description: Duplicate open application or user already holds this role }
  */
 router.post(
-  "/create",
+  "/",
   authenticate,
-  ...v.create,
+  ...v.createJobApplicationValidation,
   validate,
   ctrl.create
 );
 
 /**
  * @swagger
- * /job-applications/mine:
+ * /job-applications/admin:
  *   get:
- *     summary: List my job applications (applicant)
- *     tags: [JobApplications]
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: query
- *         name: role
- *         schema: { type: string, enum: [deliverer, industrialDeliverer, farmer, picker, sorter] }
- *       - in: query
- *         name: status
- *         schema: { type: string, enum: [pending, contacted, approved, denied] }
- *       - in: query
- *         name: page
- *         schema: { type: integer, minimum: 1, default: 1 }
- *       - in: query
- *         name: limit
- *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
- *       - in: query
- *         name: sort
- *         schema: { type: string, enum: ["-createdAt", "createdAt", "-updatedAt", "updatedAt"] }
- *     responses:
- *       200:
- *         description: OK
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/PaginatedJobApplications' }
- *       401: { description: Unauthorized }
- */
-router.get(
-  "/mine",
-  authenticate,
-  ...v.mineQuery,
-  validate,
-  ctrl.mine
-);
-
-/**
- * @swagger
- * /job-applications/search:
- *   get:
- *     summary: List job applications (admin)
+ *     summary: List job applications (admin/staff)
  *     tags: [JobApplications]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
@@ -203,10 +134,15 @@ router.get(
  *         schema: { type: string, enum: [pending, contacted, approved, denied] }
  *       - in: query
  *         name: user
- *         schema: { type: string, description: "User id (MongoId)" }
+ *         schema:
+ *           type: string
+ *           format: objectId
+ *           description: Filter by applicant user id
  *       - in: query
  *         name: logisticCenterId
- *         schema: { type: string, description: "MongoId" }
+ *         schema:
+ *           type: string
+ *           format: objectId
  *       - in: query
  *         name: from
  *         schema: { type: string, format: date-time }
@@ -221,7 +157,9 @@ router.get(
  *         schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
  *       - in: query
  *         name: sort
- *         schema: { type: string, enum: ["-createdAt","createdAt","-updatedAt","updatedAt","-status","status"] }
+ *         schema:
+ *           type: string
+ *           enum: ["-createdAt","createdAt","-updatedAt","updatedAt","-status","status"]
  *       - in: query
  *         name: includeUser
  *         schema: { type: boolean, default: false }
@@ -235,26 +173,26 @@ router.get(
  *       403: { description: Forbidden }
  */
 router.get(
-  "/search",
+  "/admin",
   authenticate,
   authorize("admin"),
-  ...v.listQuery,
+  ...v.adminListJobApplicationsValidation,
   validate,
-  ctrl.listAll
+  ctrl.adminList
 );
 
 /**
  * @swagger
- * /job-applications/{id}/details:
+ * /job-applications/admin/{id}:
  *   get:
- *     summary: Get a job application by id (owner or admin)
+ *     summary: Get a job application by id (admin/staff)
  *     tags: [JobApplications]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema: { type: string, format: objectId }
  *       - in: query
  *         name: includeUser
  *         schema: { type: boolean, default: false }
@@ -269,66 +207,27 @@ router.get(
  *       404: { description: Not found }
  */
 router.get(
-  "/:id/details",
+  "/admin/:id",
   authenticate,
-  ...v.idParam,
+  authorize("admin"),
+  ...v.idParamValidation,
   validate,
-  ctrl.read
+  ctrl.adminRead
 );
 
 /**
  * @swagger
- * /job-applications/{id}/update:
+ * /job-applications/admin/{id}/status:
  *   patch:
- *     summary: Update applicationData (owner; allowed while pending/contacted)
+ *     summary: Change application status (admin/staff)
+ *     description: Valid transitions: pending→contacted/approved/denied; contacted→approved/denied.
  *     tags: [JobApplications]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [applicationData]
- *             properties:
- *               applicationData:
- *                 type: object
- *     responses:
- *       200:
- *         description: Updated
- *         content:
- *           application/json:
- *             schema: { $ref: '#/components/schemas/JobApplicationDTO' }
- *       400: { description: Validation error or invalid status for edit }
- *       401: { description: Unauthorized }
- *       403: { description: Forbidden }
- *       404: { description: Not found }
- */
-router.patch(
-  "/:id/update",
-  authenticate,
-  ...v.patchApplication,
-  validate,
-  ctrl.patchApplication
-);
-
-/**
- * @swagger
- * /job-applications/{id}/status:
- *   patch:
- *     summary: Change application status (admin)
- *     tags: [JobApplications]
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: string }
+ *         schema: { type: string, format: objectId }
  *     requestBody:
  *       required: true
  *       content:
@@ -340,41 +239,48 @@ router.patch(
  *               status:
  *                 type: string
  *                 enum: [pending, contacted, approved, denied]
- *               note:
+ *               reviewerNotes:
  *                 type: string
  *                 maxLength: 2000
+ *               contactedAt:
+ *                 type: string
+ *                 format: date-time
+ *               approvedAt:
+ *                 type: string
+ *                 format: date-time
  *     responses:
  *       200:
  *         description: Updated
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/JobApplicationDTO' }
- *       400: { description: Invalid transition }
+ *       400: { description: Invalid transition or validation error }
  *       401: { description: Unauthorized }
  *       403: { description: Forbidden }
  *       404: { description: Not found }
  */
 router.patch(
-  "/:id/status",
+  "/admin/:id/status",
   authenticate,
   authorize("admin"),
-  ...v.patchStatus,
+  ...v.adminStatusUpdateValidation,
   validate,
-  ctrl.patchStatusCtrl
+  ctrl.adminPatchStatus
 );
 
 /**
  * @swagger
- * /job-applications/{id}/meta:
+ * /job-applications/admin/{id}:
  *   patch:
- *     summary: Update admin metadata (e.g., logisticCenterId) (admin)
+ *     summary: Update non-status fields (admin/staff)
+ *     description: Use this to edit metadata like logisticCenterId, notes, contact info, or appliedRole. Use /{id}/status to change status.
  *     tags: [JobApplications]
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         schema: { type: string }
+ *         schema: { type: string, format: objectId }
  *     requestBody:
  *       required: false
  *       content:
@@ -384,7 +290,19 @@ router.patch(
  *             properties:
  *               logisticCenterId:
  *                 type: string
+ *                 format: objectId
  *                 nullable: true
+ *               notes:
+ *                 type: string
+ *                 maxLength: 1000
+ *               contactEmail:
+ *                 type: string
+ *                 format: email
+ *               contactPhone:
+ *                 type: string
+ *               appliedRole:
+ *                 type: string
+ *                 enum: [deliverer, industrialDeliverer, farmer, picker, sorter]
  *     responses:
  *       200:
  *         description: Updated
@@ -396,12 +314,12 @@ router.patch(
  *       404: { description: Not found }
  */
 router.patch(
-  "/:id/meta",
+  "/admin/:id",
   authenticate,
   authorize("admin"),
-  ...v.patchMeta,
+  ...v.adminUpdateJobApplicationValidation,
   validate,
-  ctrl.patchMetaCtrl
+  ctrl.adminPatchMeta
 );
 
 export default router;

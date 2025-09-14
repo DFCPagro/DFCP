@@ -5,36 +5,30 @@ import {
   createApplication,
   getById,
   listApplications,
-  listMine,
-  updateApplicationData,
   updateStatus,
   updateMeta,
 } from "../services/jobApplication.service";
 
-/** Utils */
+/** ---------------------------
+ *  Helpers
+ * -------------------------- */
 function isStaffOrAdmin(role?: string) {
   return role === "admin" || role === "staff";
 }
 
-function getUserId(req: Request): string {
-  // Assumes your authenticate middleware attaches { id, role, ... } to req.user
+function getUser(req: Request): { id: string; role?: string } {
   const u = (req as any).user;
   if (!u?.id) throw new ApiError(401, "Unauthorized");
-  return String(u.id);
-}
-
-function getUserRole(req: Request): string | undefined {
-  const u = (req as any).user;
-  return u?.role ? String(u.role) : undefined;
+  return { id: String(u.id), role: u.role ? String(u.role) : undefined };
 }
 
 /** ---------------------------
- *  POST /job-applications
- *  (applicant)
+ *  POST /api/job-applications
+ *  (applicant creates)
  * -------------------------- */
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = getUserId(req);
+    const { id: userId } = getUser(req);
     const { appliedRole, logisticCenterId, applicationData } = req.body || {};
 
     const dto = await createApplication({
@@ -51,59 +45,12 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 }
 
 /** ---------------------------
- *  GET /job-applications/mine
- *  (applicant)
+ *  GET /api/admin/job-applications
+ *  (admin/staff list with filters)
  * -------------------------- */
-export async function mine(req: Request, res: Response, next: NextFunction) {
+export async function adminList(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = getUserId(req);
-
-    const {
-      role,
-      status,
-      logisticCenterId,
-      from,
-      to,
-      page = "1",
-      limit = "20",
-      sort = "-createdAt",
-    } = req.query as Record<string, string | undefined>;
-
-    const { items, total } = await listMine(
-      userId,
-      {
-        role: role as any,
-        status: status as any,
-        logisticCenterId,
-        from,
-        to,
-      },
-      {
-        page: Number(page),
-        limit: Number(limit),
-        sort: sort as any,
-        includeUser: false,
-      }
-    );
-
-    res.json({
-      items,
-      page: Number(page) || 1,
-      limit: Number(limit) || 20,
-      total,
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** ---------------------------
- *  GET /job-applications
- *  (staff/admin)
- * -------------------------- */
-export async function listAll(req: Request, res: Response, next: NextFunction) {
-  try {
-    const role = getUserRole(req);
+    const { role } = getUser(req);
     if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");
 
     const {
@@ -148,62 +95,33 @@ export async function listAll(req: Request, res: Response, next: NextFunction) {
 }
 
 /** ---------------------------
- *  GET /job-applications/:id
- *  (owner or staff/admin)
+ *  GET /api/admin/job-applications/:id
+ *  (admin/staff read single)
  * -------------------------- */
-export async function read(req: Request, res: Response, next: NextFunction) {
+export async function adminRead(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = getUserId(req);
-    const role = getUserRole(req);
-    const { id } = req.params;
-    const includeUser = isStaffOrAdmin(role) && req.query.includeUser === "true";
-
-    const dto = await getById(id, { includeUser });
-
-    // owner / staff-admin check
-    if (!isStaffOrAdmin(role) && String(dto.user) !== String(userId)) {
-      throw new ApiError(403, "Forbidden");
-    }
-
-    res.json(dto);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** ---------------------------
- *  PATCH /job-applications/:id
- *  (owner, pending/contacted only)
- *  Only applicationData is allowed (validated at route level)
- * -------------------------- */
-export async function patchApplication(req: Request, res: Response, next: NextFunction) {
-  try {
-    const userId = getUserId(req);
-    const { id } = req.params;
-    const { applicationData } = req.body || {};
-
-    const dto = await updateApplicationData({
-      id,
-      userId,
-      applicationData,
-    });
-
-    res.json(dto);
-  } catch (err) {
-    next(err);
-  }
-}
-
-/** ---------------------------
- *  PATCH /job-applications/:id/status
- *  (staff/admin)
- * -------------------------- */
-export async function patchStatusCtrl(req: Request, res: Response, next: NextFunction) {
-  try {
-    const role = getUserRole(req);
+    const { role } = getUser(req);
     if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");
 
-    const actorId = getUserId(req);
+    const { id } = req.params;
+    const includeUser = req.query.includeUser === "true";
+
+    const dto = await getById(id, { includeUser });
+    res.json(dto);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** ---------------------------
+ *  PATCH /api/admin/job-applications/:id/status
+ *  (admin/staff status change)
+ * -------------------------- */
+export async function adminPatchStatus(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id: actorId, role } = getUser(req);
+    if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");
+
     const { id } = req.params;
     const { status: toStatus, note } = req.body || {};
 
@@ -221,20 +139,21 @@ export async function patchStatusCtrl(req: Request, res: Response, next: NextFun
 }
 
 /** ---------------------------
- *  PATCH /job-applications/:id/meta
- *  (staff/admin) — e.g., logisticCenterId
+ *  PATCH /api/admin/job-applications/:id
+ *  (admin/staff meta updates — e.g., center)
+ *  Note: status changes must go through /:id/status
  * -------------------------- */
-export async function patchMetaCtrl(req: Request, res: Response, next: NextFunction) {
+export async function adminPatchMeta(req: Request, res: Response, next: NextFunction) {
   try {
-    const role = getUserRole(req);
+    const { role } = getUser(req);
     if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");
 
     const { id } = req.params;
-    const { logisticCenterId } = req.body || {};
+    const { logisticCenterId = null } = req.body || {};
 
     const dto = await updateMeta({
       id,
-      logisticCenterId: logisticCenterId ?? null,
+      logisticCenterId,
     });
 
     res.json(dto);
@@ -243,12 +162,11 @@ export async function patchMetaCtrl(req: Request, res: Response, next: NextFunct
   }
 }
 
+/** Grouped default export for cleaner imports */
 export default {
   create,
-  mine,
-  listAll,
-  read,
-  patchApplication,
-  patchStatusCtrl,
-  patchMetaCtrl,
+  adminList,
+  adminRead,
+  adminPatchStatus,
+  adminPatchMeta,
 };

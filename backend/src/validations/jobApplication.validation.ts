@@ -5,333 +5,210 @@ import {
   jobApplicationStatuses,
 } from "../utils/constants";
 
-/** ---------- Helpers ---------- */
+/* ----------------------------- Helpers ----------------------------- */
 
-const isNonEmptyTrimmed = (v: any) =>
-  typeof v === "string" && v.trim().length > 0;
+const MAX_LIMIT = 100; // local cap
 
-const sanitizeLimit = (n: any) => {
-  const x = Number(n);
-  if (Number.isNaN(x) || x <= 0) return 20;
-  return Math.min(Math.trunc(x), 100); // cap at 100
-};
+const OPTIONAL_TRIMMED_STRING = (field: string, min = 1, max = 200) =>
+  body(field)
+    .optional({ nullable: true })
+    .isString().withMessage(`${field} must be a string`)
+    .bail()
+    .trim()
+    .isLength({ min, max })
+    .withMessage(`${field} must be between ${min} and ${max} characters`);
 
-const sanitizePage = (n: any) => {
-  const x = Number(n);
-  if (Number.isNaN(x) || x <= 0) return 1;
-  return Math.trunc(x);
-};
-
-const WEEKLY_LEN = 7;
-const validateWeeklySchedule = (arr: unknown) => {
-  if (arr == null) return true; // optional
-  if (!Array.isArray(arr) || arr.length !== WEEKLY_LEN) return false;
-  return arr.every(
-    (n) =>
-      Number.isInteger(n) &&
-      n >= 0
-      // If you want to enforce 4 shifts/day (0..15), uncomment below:
-      // && n <= 15
+/**
+ * Accepts "createdAt", "updatedAt", "status", "appliedRole"
+ * Optional leading "-" for desc.
+ */
+const SORT_FIELD_WHITELIST = ["createdAt", "updatedAt", "status", "appliedRole"] as const;
+const sortQueryValidation = query("sort")
+  .optional({ nullable: true })
+  .isString().withMessage("sort must be a string")
+  .bail()
+  .trim()
+  .custom((val: string) => {
+    const field = val.startsWith("-") ? val.slice(1) : val;
+    return (SORT_FIELD_WHITELIST as readonly string[]).includes(field);
+  })
+  .withMessage(
+    `sort must be one of: ${SORT_FIELD_WHITELIST.join(", ")} (prefix with "-" for descending)`
   );
-};
 
-const allowedDelivererKeys = new Set([
-  "licenseType",
-  "driverLicenseNumber",
-  "vehicleMake",
-  "vehicleModel",
-  "vehicleType",
-  "vehicleYear",
-  "vehicleRegistrationNumber",
-  "vehicleInsurance",
-  "vehicleCapacityKg",
-  "vehicleCapacityLiters",
-  "speedKmH",
-  "payFixedPerShift",
-  "payPerKm",
-  "payPerStop",
-  "weeklySchedule",
-]);
+/* ------------------------- Reusable validators ------------------------- */
 
-const allowedIndustrialExtra = new Set(["refrigerated"]);
+/** For routes with /:id */
+export const idParamValidation = [
+  param("id")
+    .isMongoId()
+    .withMessage("Invalid id format (must be a Mongo ObjectId)"),
+];
 
-const allowedFarmerLandKeys = new Set([
-  "name",
-  "ownership",
-  "acres",
-  "pickupAddress",
-]);
-
-const validateDelivererData = (data: any, isIndustrial: boolean) => {
-  if (data == null || typeof data !== "object" || Array.isArray(data))
-    return "applicationData must be an object";
-
-  // Disallow unknown keys (strict)
-  for (const k of Object.keys(data)) {
-    if (!allowedDelivererKeys.has(k) && !(isIndustrial && allowedIndustrialExtra.has(k))) {
-      return `Unknown field in applicationData: ${k}`;
-    }
-  }
-
-  if (!isNonEmptyTrimmed(data.licenseType))
-    return "licenseType is required";
-  if (!isNonEmptyTrimmed(data.driverLicenseNumber))
-    return "driverLicenseNumber is required";
-
-  if (data.vehicleYear != null && (!Number.isInteger(data.vehicleYear) || data.vehicleYear < 1900 || data.vehicleYear > 3000))
-    return "vehicleYear must be an integer between 1900 and 3000";
-
-  for (const numField of [
-    "vehicleCapacityKg",
-    "vehicleCapacityLiters",
-    "speedKmH",
-    "payFixedPerShift",
-    "payPerKm",
-    "payPerStop",
-  ]) {
-    if (data[numField] != null && (typeof data[numField] !== "number" || data[numField] < 0)) {
-      return `${numField} must be a non-negative number`;
-    }
-  }
-
-  if (!validateWeeklySchedule(data.weeklySchedule)) {
-    return "weeklySchedule must be an array of exactly 7 non-negative integers";
-  }
-
-  if (!isIndustrial && "refrigerated" in data) {
-    return "refrigerated is only allowed for industrialDeliverer";
-  }
-  if (isIndustrial && data.refrigerated != null && typeof data.refrigerated !== "boolean") {
-    return "refrigerated must be a boolean";
-  }
-
-  return true;
-};
-
-const validateFarmerData = (data: any) => {
-  if (data == null || typeof data !== "object" || Array.isArray(data))
-    return "applicationData must be an object";
-
-  if (!isNonEmptyTrimmed(data.farmName))
-    return "farmName is required";
-
-  if (data.agriculturalInsurance != null && typeof data.agriculturalInsurance !== "boolean")
-    return "agriculturalInsurance must be a boolean";
-
-  if (data.agreementPercentage != null) {
-    if (typeof data.agreementPercentage !== "number" || data.agreementPercentage < 0 || data.agreementPercentage > 100) {
-      return "agreementPercentage must be a number between 0 and 100";
-    }
-  }
-
-  if (!Array.isArray(data.lands))
-    return "lands must be an array";
-
-  for (let i = 0; i < data.lands.length; i++) {
-    const land = data.lands[i];
-    if (land == null || typeof land !== "object" || Array.isArray(land))
-      return `lands[${i}] must be an object`;
-
-    // Disallow unknown keys (strict)
-    for (const k of Object.keys(land)) {
-      if (!allowedFarmerLandKeys.has(k)) {
-        return `Unknown field in lands[${i}]: ${k}`;
-      }
-    }
-
-    if (!isNonEmptyTrimmed(land.name))
-      return `lands[${i}].name is required`;
-
-    if (!["owned", "rented"].includes(land.ownership))
-      return `lands[${i}].ownership must be "owned" or "rented"`;
-
-    if (typeof land.acres !== "number" || land.acres < 0)
-      return `lands[${i}].acres must be a non-negative number`;
-
-    const addr = land.pickupAddress;
-    if (!addr || typeof addr !== "object" || Array.isArray(addr))
-      return `lands[${i}].pickupAddress must be an object`;
-
-    if (!isNonEmptyTrimmed(addr.address))
-      return `lands[${i}].pickupAddress.address is required`;
-
-    if (addr.latitude != null && (typeof addr.latitude !== "number" || addr.latitude < -90 || addr.latitude > 90))
-      return `lands[${i}].pickupAddress.latitude must be between -90 and 90`;
-
-    if (addr.longitude != null && (typeof addr.longitude !== "number" || addr.longitude < -180 || addr.longitude > 180))
-      return `lands[${i}].pickupAddress.longitude must be between -180 and 180`;
-  }
-
-  return true;
-};
-
-const validateMinimalWorkerData = (data: any) => {
-  if (data == null) return true; // allow empty / undefined
-  if (typeof data !== "object" || Array.isArray(data))
-    return "applicationData must be an object";
-  // currently empty object schema; no extra keys enforcement for future extensibility
-  return true;
-};
-
-const perRoleApplicationDataValidator = () =>
-  body("applicationData")
-    .custom((value, { req }) => {
-      const role = req.body?.appliedRole;
-      switch (role) {
-        case "deliverer": {
-          const ok = validateDelivererData(value, false);
-          if (ok !== true) throw new Error(ok);
-          return true;
-        }
-        case "industrialDeliverer": {
-          const ok = validateDelivererData(value, true);
-          if (ok !== true) throw new Error(ok);
-          return true;
-        }
-        case "farmer": {
-          const ok = validateFarmerData(value);
-          if (ok !== true) throw new Error(ok);
-          return true;
-        }
-        case "picker":
-        case "sorter": {
-          const ok = validateMinimalWorkerData(value);
-          if (ok !== true) throw new Error(ok);
-          return true;
-        }
-        default:
-          // If role missing/invalid, let the other validators handle it.
-          return true;
-      }
-    });
-
-/** ---------- Validators ---------- */
-
-// POST /job-applications
-export const create = [
+/* --------------------------- Create (public) --------------------------- */
+/**
+ * POST /api/job-applications
+ * Minimal applicant payload:
+ *  - appliedRole: required, enum
+ *  - applicationData: required object (free-form by role)
+ *  - logisticCenterId: optional ObjectId (nullable)
+ *  - notes/contactEmail/contactPhone: optional (light guards)
+ *  - status: must NOT be provided by applicant
+ */
+export const createJobApplicationValidation = [
   body("appliedRole")
-    .exists().withMessage("appliedRole is required")
-    .isIn(jobApplicationRoles).withMessage("Invalid appliedRole"),
+    .exists({ checkFalsy: true })
+    .withMessage("appliedRole is required")
+    .bail()
+    .isIn(jobApplicationRoles as unknown as string[])
+    .withMessage(`appliedRole must be one of: ${jobApplicationRoles.join(", ")}`),
+
+  body("applicationData")
+    .exists()
+    .withMessage("applicationData is required")
+    .bail()
+    .isObject()
+    .withMessage("applicationData must be an object"),
+
   body("logisticCenterId")
-  .optional({ values: "null" })
-  .matches(/^[A-Za-z0-9-]+$/)
-  .withMessage("logisticCenterId must be alphanumeric and may include dashes"),
-  perRoleApplicationDataValidator(),
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage("logisticCenterId must be a valid ObjectId"),
+
+  OPTIONAL_TRIMMED_STRING("notes", 1, 1000),
+
+  body("contactEmail")
+    .optional({ nullable: true })
+    .isString().withMessage("contactEmail must be a string")
+    .bail()
+    .trim()
+    .isEmail()
+    .withMessage("contactEmail must be a valid email"),
+
+  body("contactPhone")
+    .optional({ nullable: true })
+    .isString().withMessage("contactPhone must be a string")
+    .bail()
+    .trim()
+    .isLength({ min: 6, max: 30 })
+    .withMessage("contactPhone must be between 6 and 30 characters"),
+
+  body("status").not().exists().withMessage("status cannot be set by applicant"),
 ];
 
-// GET /job-applications/mine
-export const mineQuery = [
-  query("role")
-    .optional()
-    .isIn(jobApplicationRoles).withMessage("Invalid role filter"),
-  query("status")
-    .optional()
-    .isIn(jobApplicationStatuses).withMessage("Invalid status filter"),
+/* ----------------------------- Admin list ----------------------------- */
+/**
+ * GET /api/admin/job-applications
+ * Admin-only listing with filters & pagination
+ */
+export const adminListJobApplicationsValidation = [
   query("page")
-    .optional()
-    .customSanitizer(sanitizePage)
-    .isInt({ min: 1 }).withMessage("page must be a positive integer"),
-  query("limit")
-    .optional()
-    .customSanitizer(sanitizeLimit)
-    .isInt({ min: 1, max: 100 }).withMessage("limit must be 1..100"),
-  query("sort")
-    .optional()
-    .isIn(["-createdAt", "createdAt", "-updatedAt", "updatedAt"])
-    .withMessage("Invalid sort"),
-];
+    .optional({ nullable: true })
+    .isInt({ min: 1 })
+    .withMessage("page must be an integer ≥ 1"),
 
-// GET /job-applications (admin/staff)
-export const listQuery = [
+  query("limit")
+    .optional({ nullable: true })
+    .isInt({ min: 1, max: MAX_LIMIT })
+    .withMessage(`limit must be an integer between 1 and ${MAX_LIMIT}`),
+
   query("role")
-    .optional()
-    .isIn(jobApplicationRoles).withMessage("Invalid role filter"),
+    .optional({ nullable: true })
+    .isIn(jobApplicationRoles as unknown as string[])
+    .withMessage(`role must be one of: ${jobApplicationRoles.join(", ")}`),
+
   query("status")
-    .optional()
-    .isIn(jobApplicationStatuses).withMessage("Invalid status filter"),
-  query("logisticCenterId")
-   .optional()
-   .matches(/^[A-Za-z0-9-]+$/)
-   .withMessage("logisticCenterId must be alphanumeric and may include dashes"),
+    .optional({ nullable: true })
+    .isIn(jobApplicationStatuses as unknown as string[])
+    .withMessage(`status must be one of: ${jobApplicationStatuses.join(", ")}`),
+
   query("user")
-    .optional()
-    .isMongoId().withMessage("user must be a valid id"),
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage("user must be a valid ObjectId"),
+
+  query("logisticCenterId")
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage("logisticCenterId must be a valid ObjectId"),
+
   query("from")
-    .optional()
-    .isISO8601().withMessage("from must be an ISO8601 date"),
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage("from must be a valid ISO date"),
+
   query("to")
-    .optional()
-    .isISO8601().withMessage("to must be an ISO8601 date"),
-  query("page")
-    .optional()
-    .customSanitizer(sanitizePage)
-    .isInt({ min: 1 }).withMessage("page must be a positive integer"),
-  query("limit")
-    .optional()
-    .customSanitizer(sanitizeLimit)
-    .isInt({ min: 1, max: 100 }).withMessage("limit must be 1..100"),
-  query("sort")
-    .optional()
-    .isIn([
-      "-createdAt",
-      "createdAt",
-      "-updatedAt",
-      "updatedAt",
-      "-status",
-      "status",
-    ])
-    .withMessage("Invalid sort"),
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage("to must be a valid ISO date"),
+
+  sortQueryValidation,
 ];
 
-// :id param
-export const idParam = [
-  param("id").isMongoId().withMessage("Invalid id parameter"),
-];
+/* ------------------------- Admin status update ------------------------ */
+/**
+ * PATCH /api/admin/job-applications/:id/status
+ * Admin-only status changes.
+ * (Transition validity is enforced in service)
+ */
+export const adminStatusUpdateValidation = [
+  ...idParamValidation,
 
-// PATCH /job-applications/:id (owner edit)
-export const patchApplication = [
-  ...idParam,
-  // Only allow applicationData
-  body().custom((bodyObj) => {
-    const keys = Object.keys(bodyObj || {});
-    const allowed = new Set(["applicationData"]);
-    for (const k of keys) {
-      if (!allowed.has(k)) {
-        throw new Error(`Only 'applicationData' can be updated`);
-      }
-    }
-    return true;
-  }),
-  perRoleApplicationDataValidator(),
-];
-
-// PATCH /job-applications/:id/status (admin/staff)
-export const patchStatus = [
-  ...idParam,
   body("status")
-    .exists().withMessage("status is required")
-    .isIn(jobApplicationStatuses).withMessage("Invalid status"),
-  body("note")
-    .optional()
-    .isString().withMessage("note must be a string")
-    .isLength({ max: 2000 }).withMessage("note must be ≤ 2000 chars"),
+    .exists({ checkFalsy: true })
+    .withMessage("status is required")
+    .bail()
+    .isIn(jobApplicationStatuses as unknown as string[])
+    .withMessage(`status must be one of: ${jobApplicationStatuses.join(", ")}`),
+
+  OPTIONAL_TRIMMED_STRING("reviewerNotes", 1, 2000),
+
+  body("contactedAt")
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage("contactedAt must be a valid ISO date"),
+  body("approvedAt")
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage("approvedAt must be a valid ISO date"),
 ];
 
-// PATCH /job-applications/:id/meta (admin/staff)
-export const patchMeta = [
-  ...idParam,
+/* --------------------------- Admin edit fields ------------------------ */
+/**
+ * PATCH /api/admin/job-applications/:id
+ * Non-status field edits by admins (e.g., correcting contact info, role, center).
+ */
+export const adminUpdateJobApplicationValidation = [
+  ...idParamValidation,
+
+  OPTIONAL_TRIMMED_STRING("notes", 1, 1000),
+
+  body("contactEmail")
+    .optional({ nullable: true })
+    .isString().withMessage("contactEmail must be a string")
+    .bail()
+    .trim()
+    .isEmail()
+    .withMessage("contactEmail must be a valid email"),
+
+  body("contactPhone")
+    .optional({ nullable: true })
+    .isString().withMessage("contactPhone must be a string")
+    .bail()
+    .trim()
+    .isLength({ min: 6, max: 30 })
+    .withMessage("contactPhone must be between 6 and 30 characters"),
+
+  body("appliedRole")
+    .optional({ nullable: true })
+    .isIn(jobApplicationRoles as unknown as string[])
+    .withMessage(`appliedRole must be one of: ${jobApplicationRoles.join(", ")}`),
+
   body("logisticCenterId")
-    .optional({ values: "null" })
-    .matches(/^[A-Za-z0-9-]+$/)
-    .withMessage("logisticCenterId must be alphanumeric and may include dashes"),
-];
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage("logisticCenterId must be a valid ObjectId"),
 
-export default {
-  create,
-  mineQuery,
-  listQuery,
-  idParam,
-  patchApplication,
-  patchStatus,
-  patchMeta,
-};
+  // Prevent accidental status change via this route
+  body("status").not().exists().withMessage("Use /:id/status to change status"),
+];
