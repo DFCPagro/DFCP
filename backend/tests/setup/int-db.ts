@@ -1,32 +1,14 @@
-import mongoose from 'mongoose';
-import { MongoMemoryReplSet } from 'mongodb-memory-server';
-
-let replset: MongoMemoryReplSet;
+// tests/setup/int-db.ts
+import { startMongo, stopMongo, clearDatabase } from "./mongo-memory";
 
 beforeAll(async () => {
-  replset = await MongoMemoryReplSet.create({
-    replSet: { count: 1, storageEngine: 'wiredTiger' },
-  });
-  const uri = replset.getUri();
+  await startMongo();
+});
 
-  // connect mongoose
-  await mongoose.connect(uri, {
-    maxPoolSize: 10,
-    // useUnifiedTopology implied in modern mongoose
-  } as any);
-
-  // ensure replicas are primary before running transactions
-  await new Promise((r) => setTimeout(r, 500));
+afterEach(async () => {
+  await clearDatabase();
 });
 
 afterAll(async () => {
-  await mongoose.disconnect();
-  if (replset) await replset.stop();
-});
-
-beforeEach(async () => {
-  const { collections } = mongoose.connection;
-  await Promise.all(
-    Object.values(collections).map((c) => c.deleteMany({}))
-  );
+  await stopMongo();
 });

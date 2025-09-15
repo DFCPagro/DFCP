@@ -1,13 +1,11 @@
-import { Schema, model, InferSchemaType, HydratedDocument, Model } from "mongoose";
+import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { isHttpUrl } from "../utils/urls";
 import { QualityStandardsSchema } from "./shared/qualityStandards.schema";
 
-
 // --- categories ---
 export const itemCategories = ["fruit", "vegetable"] as const;
 export type ItemCategory = (typeof itemCategories)[number];
-
 
 const PriceSchema = new Schema(
   {
@@ -18,11 +16,11 @@ const PriceSchema = new Schema(
   { _id: false }
 );
 
-// --- main schema (ObjectId _id is implicit & auto-generated) ---
+// --- main schema ---
+// NOTE: _id is a STRING in this schema, so we generate a hex ObjectId string by default.
+// This keeps compatibility with your controllers/services that validate ObjectIds.
 const ItemSchema = new Schema(
   {
-    _id: { type: String, required: true },
-
     category: { type: String, enum: itemCategories, required: true, index: true },
     type: { type: String, required: true, trim: true, index: true },
     variety: { type: String, default: null, trim: true, index: true },
@@ -65,7 +63,6 @@ ItemSchema.plugin(toJSON as any);
 
 // --- virtuals ---
 ItemSchema.virtual("itemId").get(function (this: any) {
-  // expose as string for clients
   return this._id?.toString();
 });
 
@@ -95,7 +92,6 @@ ItemSchema.pre("validate", function (next) {
 });
 
 // Indexes
-// (no need to re-index _id; Mongo already does that)
 ItemSchema.index({ category: 1, type: 1, variety: 1 });
 
 // --- inferred types & model ---

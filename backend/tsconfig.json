@@ -9,15 +9,19 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "outDir": "dist",
-    "rootDir": ".",                           
-    "types": ["node", "express", "jest"],    // ⬅ add jest types
-    "typeRoots": ["./src/types", "./node_modules/@types"]
+    "rootDir": ".",
+    "types": ["node", "express", "jest"],
+    "typeRoots": ["./src/types", "./node_modules/@types"],
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"]
+    }
   },
   "include": [
     "src/**/*.ts",
-    "db/**/*.ts",                         
+    "db/**/*.ts",
     "scripts/**/*.ts",
-    "tests/**/*.ts"       
+    "tests/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

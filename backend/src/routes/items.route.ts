@@ -6,8 +6,8 @@ import {
   patchItemHandler,
   putItemHandler,
   deleteItemHandler,
-} from "../controllers/items.controller";
-import { authenticate, authorize  } from "../middlewares/auth"; // adjust path if different
+} from "@/controllers/items.controller";
+import { authenticate, authorize  } from "@/middlewares/auth"; // adjust path if different
 
 const router = Router();
 
