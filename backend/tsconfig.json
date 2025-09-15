@@ -13,9 +13,7 @@
     "types": ["node", "express", "jest"],
     "typeRoots": ["./src/types", "./node_modules/@types"],
     "baseUrl": "./src",
-    "paths": {
-      "@/*": ["*"]
-    }
+    "paths": { "@/*": ["*"] }
   },
   "include": [
     "src/**/*.ts",

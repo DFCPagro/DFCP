@@ -23,7 +23,7 @@ const ItemSchema = new Schema(
   {
     category: { type: String, enum: itemCategories, required: true, index: true },
     type: { type: String, required: true, trim: true, index: true },
-    variety: { type: String, default: null, trim: true, index: true },
+    variety: { type: String, required: true, default: null, trim: true, index: true },
 
     imageUrl: {
       type: String,

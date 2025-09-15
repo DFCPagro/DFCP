@@ -5,11 +5,13 @@ export const PATHS = {
   dashboard: "/dashboard",
   driverSchedule: "/driver-schedule",
   jobs: "/jobs",
-//costumer pages
+  //costumer pages
   market: "/market",
   // Farmer pages
   aggregations: "/aggregations",
   containers: "/containers",
+  // Item manager
+  ItemsManagment: "/admin/items",
   // Driver pages
   shipments: "/shipments",
   // Public QR routes
