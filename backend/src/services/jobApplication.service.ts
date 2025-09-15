@@ -17,7 +17,13 @@ import JobApplication,
   PickerApplication,
   SorterApplication,
 } from "../models/jobApplication.model";
-import { promoteFarmerApplication, promoteDelivererApplication } from "./promotion.service";
+import {
+  provisionFarmer,
+  provisionDeliverer,
+  provisionIndustrialDeliverer,
+  promoteUserRole,
+} from "./jobApplication.helpers";
+
 
 /** =========================
  * Types
@@ -288,46 +294,96 @@ export async function updateApplicationData(input: UpdateApplicationDataInput): 
 export async function updateStatus(input: UpdateStatusInput): Promise<PublicJobApplicationDTO> {
   const { id, actorId, toStatus, note } = input;
 
-  const doc = await JobApplication.findById(id).exec();
-  if (!doc) throw new ApiError(404, "Application not found");
+  // Load the application (no session yet—quick checks)
+  const existing = await JobApplication.findById(id).exec();
+  if (!existing) throw new ApiError(404, "Application not found");
 
-  const fromStatus = doc.status as JobApplicationStatus;
+  const fromStatus = existing.status as JobApplicationStatus;
   if (!canTransition(fromStatus, toStatus)) {
     throw new ApiError(400, `Invalid status transition: ${fromStatus} → ${toStatus}`);
   }
 
-  // Apply transition
-  doc.status = toStatus;
-  await doc.save();
+  // Fast path: statuses that only update the application (no provisioning)
+  if (toStatus === "pending" || toStatus === "contacted" || toStatus === "denied") {
+    existing.status = toStatus;
+    await existing.save();
 
-  // 🔑 Promotion flow after APPROVED
-  if (toStatus === "approved") {
-    switch (doc.appliedRole) {
-      case "farmer":
-        await promoteFarmerApplication(doc as any);
-        break;
-      case "deliverer":
-        await promoteDelivererApplication(doc as any);
-        break;
-      // TODO: add industrialDeliverer, picker, sorter handlers if/when you have them
-    }
+    // Best-effort audit
+    try {
+      logger.info("job-applications:status-change", {
+        appId: String(existing._id),
+        from: fromStatus,
+        to: toStatus,
+        by: actorId,
+        note: note || undefined,
+      });
+    } catch { /* no-op */ }
+
+    return toPublicJobApplication(existing as any);
   }
 
-  // Best-effort audit log
+  // Provisioning path: APPROVED
+  if (toStatus !== "approved") {
+    // Defensive: should never happen given our enums, but keep behavior explicit
+    throw new ApiError(400, `Unsupported target status: ${toStatus}`);
+  }
+
+  const session = await mongoose.startSession();
   try {
-    logger.info("job-applications:status-change", {
-      appId: String(doc._id),
-      from: fromStatus,
-      to: toStatus,
-      by: actorId,
-      note: note || undefined,
-    });
-  } catch {
-    // no-op
-  }
+    await session.withTransaction(async () => {
+      // Re-load inside the transaction to bind the document to the session
+      const app = await JobApplication.findById(id).session(session).exec();
+      if (!app) throw new ApiError(404, "Application not found (txn)");
 
-  return toPublicJobApplication(doc as any);
+      // Create worker entities by role (idempotent via unique user indexes / existence checks)
+      switch (app.appliedRole) {
+        case "farmer": {
+          await provisionFarmer({ app: app as any, session });
+          await promoteUserRole({ userId: app.user, role: "farmer", session });
+          break;
+        }
+        case "deliverer": {
+          await provisionDeliverer({ app: app as any, session });
+          await promoteUserRole({ userId: app.user, role: "deliverer", session });
+          break;
+        }
+        case "industrialDeliverer": {
+          await provisionIndustrialDeliverer({ app: app as any, session });
+          await promoteUserRole({ userId: app.user, role: "industrialDeliverer", session });
+          break;
+        }
+        case "picker":
+        case "sorter":
+          // No provisioning rules yet—only status flip
+          break;
+        default:
+          throw new ApiError(400, `Unsupported role for approval: ${app.appliedRole}`);
+      }
+
+      // Mark approved on the application within the same transaction
+      app.status = "approved";
+      await app.save({ session });
+    });
+
+    // Best-effort audit
+    try {
+      logger.info("job-applications:status-change", {
+        appId: String(existing._id),
+        from: fromStatus,
+        to: "approved",
+        by: actorId,
+        note: note || undefined,
+      });
+    } catch { /* no-op */ }
+
+    // Return fresh copy (outside the session)
+    const fresh = await JobApplication.findById(id).exec();
+    return toPublicJobApplication(fresh as any);
+  } finally {
+    session.endSession();
+  }
 }
+
 
 export async function updateMeta(input: UpdateMetaInput): Promise<PublicJobApplicationDTO> {
   const { id, logisticCenterId } = input;

@@ -44,6 +44,16 @@ const weeklyScheduleValidator = {
   message: "weeklySchedule must be an array of exactly 7 non-negative integers.",
 };
 
+const DelivererCargoCMSchema = new Schema(
+  {
+    height: { type: Number, required: true, min: 1 },
+    length: { type: Number, required: true, min: 1 },
+    width:  { type: Number, required: true, min: 1 },
+  },
+  { _id: false }
+);
+
+
 const DelivererDataSchema = new Schema(
   {
     licenseType: { type: String, required: true, trim: true },
@@ -63,6 +73,8 @@ const DelivererDataSchema = new Schema(
     payFixedPerShift: { type: Number, min: 0, default: 25 },
     payPerKm: { type: Number, min: 0, default: 1 },
     payPerStop: { type: Number, min: 0, default: 1 },
+
+    vehicleCargoCM: { type: DelivererCargoCMSchema, default: null },
 
     weeklySchedule: { type: [Number], validate: weeklyScheduleValidator },
   },
@@ -89,6 +101,7 @@ const IndustrialDelivererDataSchema = new Schema(
     payPerKm: { type: Number, min: 0, default: 1 },
     payPerStop: { type: Number, min: 0, default: 1 },
 
+    vehicleCargoCM: { type: DelivererCargoCMSchema, required: true },
     weeklySchedule: { type: [Number], validate: weeklyScheduleValidator },
     refrigerated: { type: Boolean, default: false },
   },
@@ -105,8 +118,6 @@ const AppFarmerLandSchema = new Schema(
     pickupAddress: { type: AddressSchema, default: null },
     measurements: { type: MeasurementsSchema, required: true },
 
-    // optional in the application; we can compute in promotion if missing
-    areaM2: { type: Number, min: 0, default: null },
   },
   { _id: false }
 );
@@ -119,11 +130,16 @@ const FarmerDataSchema = new Schema(
     lands: {
       type: [AppFarmerLandSchema],
       default: [],
-      validate: [(arr: unknown) => Array.isArray(arr), "lands must be an array"],
+      validate: [
+        (arr: unknown) => Array.isArray(arr),
+        "lands must be an array",
+        [(arr: unknown) => Array.isArray(arr) && arr.length >= 1, "lands must include at least one land"],
+      ],
     },
   },
   { _id: false }
 );
+
 
 
 
