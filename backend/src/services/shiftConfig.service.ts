@@ -1,6 +1,10 @@
 import ShiftConfig, { ShiftConfig as ShiftConfigType } from "../models/shiftConfig.model";
 import ApiError from "../utils/ApiError";
+import { DateTime } from "luxon";
 import { normalizeWindow } from "../utils/time";
+
+const SHIFT_ORDER: Array<ShiftConfigType["name"]> = ["morning", "afternoon", "evening", "night"];
+
 
 export async function getShiftConfigByKey(params: {
   logisticCenterId: string;
@@ -45,4 +49,79 @@ export async function listShiftWindowsByLC(logisticCenterId: string) {
       slotSizeMin: cfg.slotSizeMin ?? 30,
     },
   }));
+}
+
+
+/**
+ * Returns the next `count` available shifts from "now" in the LC timezone.
+ * A shift is "available" if `now < generalStartMin` for *today*; if none are left
+ * today, start from the first shift of *tomorrow*.
+ *
+ * Output: [{ date: "YYYY-MM-DD", name: "morning|afternoon|evening|night" }, ...]
+ */
+export async function getNextAvailableShifts(params: {
+  logisticCenterId: string;
+  count?: number;   // default 5
+  fromTs?: number;  // optional epoch millis for tests
+}) {
+  const { logisticCenterId, count = 5, fromTs } = params;
+
+  // Pull only what we need, lean for speed
+  const rows = await ShiftConfig.find(
+    { logisticCenterId },
+    {
+      name: 1,
+      timezone: 1,
+      generalStartMin: 1,
+    }
+  ).lean<Pick<ShiftConfigType, "name" | "timezone" | "generalStartMin">[]>().exec();
+
+  if (!rows?.length) {
+    throw new ApiError(404, `No ShiftConfig found for lc='${logisticCenterId}'`);
+  }
+
+  // Use LC timezone from first row; assume all same tz
+  const tz = rows[0].timezone || "Asia/Jerusalem";
+
+  // Sort shifts by start time within a day (earliest → latest).
+  // This naturally makes 00:00-night come before morning if you have such a config.
+  const ordered = rows
+    .slice()
+    .sort((a, b) => a.generalStartMin - b.generalStartMin);
+
+  const now = fromTs
+    ? DateTime.fromMillis(fromTs, { zone: tz })
+    : DateTime.now().setZone(tz);
+
+  const today = now.startOf("day"); // local day in tz
+  const minutesSinceMidnight = now.hour * 60 + now.minute;
+
+  // find the first shift that hasn't started yet today
+  let dayCursor = today;
+  let idx = ordered.findIndex(s => s.generalStartMin > minutesSinceMidnight);
+
+  // if none left today, move to next day and start from first (earliest) shift
+  if (idx === -1) {
+    dayCursor = dayCursor.plus({ days: 1 });
+    idx = 0;
+  }
+
+  const out: Array<{ date: string; name: ShiftConfigType["name"] }> = [];
+
+  while (out.length < count) {
+    const s = ordered[idx];
+    out.push({
+      date: dayCursor.toFormat("yyyy-LL-dd"),
+      name: s.name,
+    });
+
+    // advance to next shift
+    idx += 1;
+    if (idx >= ordered.length) {
+      idx = 0;
+      dayCursor = dayCursor.plus({ days: 1 });
+    }
+  }
+
+  return out;
 }

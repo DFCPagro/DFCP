@@ -47,3 +47,9 @@ export const windowsPatch = [
 ];
 
 export { SHIFT_NAMES };
+
+export const nextQuery = [
+  query("lc").exists().withMessage("lc is required").bail().isString().trim().notEmpty(),
+  query("count").optional().isInt({ min: 1, max: 20 }).toInt(),
+];
+

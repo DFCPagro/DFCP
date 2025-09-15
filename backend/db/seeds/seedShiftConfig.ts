@@ -1,10 +1,18 @@
 /**
- * Seed ShiftConfig collection with default shifts
+ * Seed ShiftConfig collection with your exact times.
  *
- * Usage:
+ * Morning base (local, Asia/Jerusalem):
+ *   general:                  01:00 → 07:00
+ *   industrialDeliverer:      01:00 → 03:00
+ *   deliverer:                05:30 → 07:00
+ *   deliveryTimeSlot:         06:00 → 07:00
+ *
+ * Other shifts are exactly +6 hours from morning: 07:00, 13:00, 19:00.
+ * Night wraps past midnight (e.g., 19:00 → 01:00 next day).
+ *
+ * Run:
  *   npx ts-node db/seeds/seedShiftConfig.ts
- * or with npm script:
- *   "seed:shifts": "ts-node db/seeds/seedShiftConfig.ts"
+ *   // or add "seed:shifts": "ts-node db/seeds/seedShiftConfig.ts" to package.json
  */
 
 import mongoose from "mongoose";
@@ -14,82 +22,73 @@ import ShiftConfig from "../../src/models/shiftConfig.model";
 dotenv.config();
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/dfcp";
-// npm run seed:shifts
+const LC = process.env.SEED_LC_ID || "LC-1";
+const TZ = "Asia/Jerusalem";
+
+// Helpers
+const h2m = (hh: number, mm: number = 0) => (hh * 60 + mm) % 1440;
+const addWrap = (min: number, plus: number) => (min + plus) % 1440;
+
+// Base (morning) in minutes since midnight
+const base = {
+  generalStart: h2m(1, 0),    // 01:00 -> 60
+  generalEnd:   h2m(7, 0),    // 07:00 -> 420
+
+  indStart:     h2m(1, 0),    // 01:00 -> 60
+  indEnd:       h2m(3, 0),    // 03:00 -> 180
+
+  delStart:     h2m(5, 30),   // 05:30 -> 330
+  delEnd:       h2m(7, 0),    // 07:00 -> 420
+
+  slotStart:    h2m(6, 0),    // 06:00 -> 360
+  slotEnd:      h2m(7, 0),    // 07:00 -> 420
+};
+
+// 6-hour steps for the 4 shifts
+const OFF = {
+  morning: 0,
+  afternoon: 360,   // +6h
+  evening: 720,     // +12h
+  night: 1080,      // +18h
+} as const;
+
+const NAMES = ["morning", "afternoon", "evening", "night"] as const;
+type ShiftName = typeof NAMES[number];
+
+function shiftRow(name: ShiftName) {
+  const o = OFF[name];
+  return {
+    logisticCenterId: LC,
+    name,
+    timezone: TZ,
+
+    generalStartMin: addWrap(base.generalStart, o),
+    generalEndMin:   addWrap(base.generalEnd,   o),
+
+    industrialDelivererStartMin: addWrap(base.indStart, o),
+    industrialDelivererEndMin:   addWrap(base.indEnd,   o),
+
+    delivererStartMin: addWrap(base.delStart, o),
+    delivererEndMin:   addWrap(base.delEnd,   o),
+
+    deliveryTimeSlotStartMin: addWrap(base.slotStart, o),
+    deliveryTimeSlotEndMin:   addWrap(base.slotEnd,   o),
+
+    slotSizeMin: 30, // granularity for splitting deliveryTimeSlot window (e.g., 30-minute slots)
+  };
+}
 
 async function seed() {
   await mongoose.connect(MONGO_URI);
-
-  const logisticCenterId = "LC-1"; // change or add more as needed
-  const timezone = "Asia/Jerusalem";
-
-  const seeds = [
-    {
-      logisticCenterId,
-      name: "morning",
-      timezone,
-      generalStartMin: 360,  // 06:00
-      generalEndMin:  900,   // 15:00
-      industrialDelivererStartMin: 420,  // 07:00
-      industrialDelivererEndMin:   840,  // 14:00
-      delivererStartMin: 540,   // 09:00
-      delivererEndMin:   1080,  // 18:00
-      deliveryTimeSlotStartMin: 600, // 10:00
-      deliveryTimeSlotEndMin:   1020, // 17:00
-      slotSizeMin: 30,
-    },
-    {
-      logisticCenterId,
-      name: "afternoon",
-      timezone,
-      generalStartMin: 900,   // 15:00
-      generalEndMin:   1260,  // 21:00
-      industrialDelivererStartMin: 930,  // 15:30
-      industrialDelivererEndMin:   1200, // 20:00
-      delivererStartMin: 960,   // 16:00
-      delivererEndMin:   1320,  // 22:00
-      deliveryTimeSlotStartMin: 990,  // 16:30
-      deliveryTimeSlotEndMin:   1260, // 21:00
-      slotSizeMin: 30,
-    },
-    {
-      logisticCenterId,
-      name: "evening",
-      timezone,
-      generalStartMin: 1260,  // 21:00
-      generalEndMin:   1439,  // 23:59
-      industrialDelivererStartMin: 1260, // 21:00
-      industrialDelivererEndMin:   1380, // 23:00
-      delivererStartMin: 1260, // 21:00
-      delivererEndMin:   1439, // 23:59
-      deliveryTimeSlotStartMin: 1260, // 21:00
-      deliveryTimeSlotEndMin:   1410, // 23:30
-      slotSizeMin: 30,
-    },
-    {
-      logisticCenterId,
-      name: "night",
-      timezone,
-      generalStartMin: 0,   // 00:00
-      generalEndMin:   360, // 06:00
-      industrialDelivererStartMin: 0,
-      industrialDelivererEndMin:   300, // 05:00
-      delivererStartMin: 60,   // 01:00
-      delivererEndMin:   360,  // 06:00
-      deliveryTimeSlotStartMin: 120, // 02:00
-      deliveryTimeSlotEndMin:   330, // 05:30
-      slotSizeMin: 30,
-    },
-  ];
-
-  for (const s of seeds) {
+  for (const name of NAMES) {
+    const row = shiftRow(name);
     await ShiftConfig.findOneAndUpdate(
-      { logisticCenterId: s.logisticCenterId, name: s.name },
-      { $set: s },
+      { logisticCenterId: LC, name },
+      { $set: row },
       { upsert: true, new: true }
     );
-    console.log(`✓ Seeded shift ${s.name} for ${s.logisticCenterId}`);
+    console.log(`✓ Seeded ${name} — start ${row.generalStartMin} min, end ${row.generalEndMin} min`);
   }
-
   await mongoose.disconnect();
 }
 

@@ -49,4 +49,12 @@ router.get("/windows", authenticate, ...v.windowsQuery, validate, ctrl.getShiftW
  */
 router.get("/windows/all", authenticate, ...v.listAllQuery, validate, ctrl.listShiftWindowsByLCController);
 
+
+router.get(
+  "/next",
+  authenticate,
+  v.nextQuery,
+  ctrl.getNextShiftsController
+);
+
 export default router;
