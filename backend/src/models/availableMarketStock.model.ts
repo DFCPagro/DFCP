@@ -45,7 +45,7 @@ const AvailableMarketStockSchema = new Schema(
   {
     availableDate: { type: Date, required: true, index: true },
     availableShift: { type: String, enum: SHIFT_NAMES, required: true, index: true },
-    LCid: { type: String, required: true, trim: true, index: true },
+    LCid: { type: Schema.Types.ObjectId, ref: "LogisticCenter", required: true, trim: true, index: true },
 
     createdById: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
 
