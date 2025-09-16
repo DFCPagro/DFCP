@@ -16,11 +16,6 @@
     "avgWeightPerUnitGr": 10,
     "avgQmPerUnit": 0.05,
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -97,11 +92,6 @@
       "c": 1.5
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -180,11 +170,6 @@
       "c": 2.5
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -263,11 +248,6 @@
       "c": 1.7
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -346,11 +326,6 @@
       "c": 16
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -429,11 +404,6 @@
       "c": 1.5
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -512,11 +482,6 @@
       "c": 5.5
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -595,11 +560,6 @@
       "c": 2.5
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -678,11 +638,6 @@
       "c": 1.5
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",
@@ -761,11 +716,6 @@
       "c": 1.5
     },
     "qualityStandards": {
-      "tolerance": {
-        "A": "",
-        "B": "",
-        "C": ""
-      },
       "brix": {
         "A": "13%+",
         "B": "11-12.9%",

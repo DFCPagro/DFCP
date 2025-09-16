@@ -23,7 +23,7 @@
     "mongo:setup": "ts-node ./scripts/mongo/setup-rs.ts",
     "mongo:status": "ts-node ./scripts/mongo/status-rs.ts",
     "mongo:stop": "ts-node ./scripts/mongo/stop-rs.ts"
-    },
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
