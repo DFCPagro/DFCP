@@ -51,6 +51,51 @@
         "farmerName": "Yousef Haddad",
         "farmName": "Hula Valley Produce",
         "status": "active"
+      },
+      {
+        "_id": "66f40a7b5f0a4c1a8e2aa001",
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "displayName": "Orange Navel",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 6.0,
+        "originalCommittedQuantityKg": 58,
+        "currentAvailableQuantityKg": 58,
+        "farmerOrderId": "66f40a7c5f0a4c1a8e2aa034",
+        "farmerID": "66f40a7d5f0a4c1a8e2aa067",
+        "farmerName": "Rina Mor",
+        "farmName": "Carmel Citrus",
+        "status": "active"
+      },
+      {
+        "_id": "66f40a7e5f0a4c1a8e2aa09a",
+        "itemId": "497bb3e65bf348533160cec0",
+        "displayName": "Grapes Red Globe",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "category": "fruit",
+        "pricePerUnit": 3.6,
+        "originalCommittedQuantityKg": 62,
+        "currentAvailableQuantityKg": 59,
+        "farmerOrderId": "66f40a7f5f0a4c1a8e2aa0cd",
+        "farmerID": "66f40a805f0a4c1a8e2aa100",
+        "farmerName": "Omar Nassar",
+        "farmName": "Upper Galilee Vines",
+        "status": "active"
+      },
+      {
+        "_id": "66f40a815f0a4c1a8e2aa133",
+        "itemId": "885df3d97431436c3a205ff3",
+        "displayName": "Carrot Nantes",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 3.0,
+        "originalCommittedQuantityKg": 54,
+        "currentAvailableQuantityKg": 52,
+        "farmerOrderId": "66f40a825f0a4c1a8e2aa166",
+        "farmerID": "66f40a835f0a4c1a8e2aa199",
+        "farmerName": "Yael Regev",
+        "farmName": "Jordan Valley Roots",
+        "status": "active"
       }
     ]
   },
@@ -105,6 +150,51 @@
         "farmerID": "66f32cb55f0a4c1a8e2a9f40",
         "farmerName": "Nurit Bar-On",
         "farmName": "Sharon Fields",
+        "status": "active"
+      },
+      {
+        "_id": "66f40a845f0a4c1a8e2aa1cc",
+        "itemId": "db63c0177cfae45a8385313a",
+        "displayName": "Apple Fuji",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "originalCommittedQuantityKg": 66,
+        "currentAvailableQuantityKg": 63,
+        "farmerOrderId": "66f40a855f0a4c1a8e2aa1ff",
+        "farmerID": "66f40a865f0a4c1a8e2aa232",
+        "farmerName": "Eli Harari",
+        "farmName": "Arava Orchards",
+        "status": "active"
+      },
+      {
+        "_id": "66f40a875f0a4c1a8e2aa265",
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "displayName": "Lettuce Romaine",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 8.4,
+        "originalCommittedQuantityKg": 57,
+        "currentAvailableQuantityKg": 53,
+        "farmerOrderId": "66f40a885f0a4c1a8e2aa298",
+        "farmerID": "66f40a895f0a4c1a8e2aa2cb",
+        "farmerName": "Sahar Azulai",
+        "farmName": "Valley Greens Coop",
+        "status": "active"
+      },
+      {
+        "_id": "66f40a8a5f0a4c1a8e2aa2fe",
+        "itemId": "f68140ef8273c40bbae48b98",
+        "displayName": "Spinach Baby",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 3.0,
+        "originalCommittedQuantityKg": 50,
+        "currentAvailableQuantityKg": 47,
+        "farmerOrderId": "66f40a8b5f0a4c1a8e2aa331",
+        "farmerID": "66f40a8c5f0a4c1a8e2aa364",
+        "farmerName": "Hadas Meir",
+        "farmName": "Shfela Greens",
         "status": "active"
       }
     ]
