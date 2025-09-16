@@ -134,6 +134,108 @@ async function computePriceFromItem(itemId: string | Types.ObjectId): Promise<nu
   return Number((it.price.a * 1.2).toFixed(2));
 }
 
+
+/**
+ * Atomically adjust quantity by deltaKg for a specific line in items[].
+ * - deltaKg < 0  => reserve (decrement)
+ * - deltaKg > 0  => release (increment)
+ *
+ * If `enforceEnoughForReserve` is true (default), a reserve (negative delta) will
+ * only succeed when currentAvailableQuantityKg >= |deltaKg|. Otherwise, the update
+ * is a no-op and matchedCount will be 0 (you should treat it as "not enough stock").
+ *
+ * Always clamps: 0 <= currentAvailableQuantityKg <= originalCommittedQuantityKg.
+ */
+export async function adjustAvailableQtyAtomic(params: {
+  docId: string;            // AvailableMarketStock _id
+  lineId: string;           // subdocument _id inside items[]
+  deltaKg: number;          // negative to reserve, positive to release
+  enforceEnoughForReserve?: boolean; // default true
+}) {
+  const { docId, lineId, deltaKg, enforceEnoughForReserve = true } = params;
+  if (!deltaKg || !Number.isFinite(deltaKg)) throw new Error("deltaKg must be a non-zero finite number");
+
+  const _docId = new Types.ObjectId(docId);
+  const _lineId = new Types.ObjectId(lineId);
+
+  // Base filter: target document
+  const filter: any = { _id: _docId };
+
+  // If reserving (delta < 0) and we want to enforce “enough stock”, add a precondition:
+  if (deltaKg < 0 && enforceEnoughForReserve) {
+    const need = Math.abs(deltaKg);
+    filter.items = {
+      $elemMatch: {
+        _id: _lineId,
+        currentAvailableQuantityKg: { $gte: need },
+      },
+    };
+  }
+
+  // Single pipeline update: map items[], adjust only the matching element, clamp [0, original]
+  const result = await AvailableMarketStockModel.updateOne(
+    filter,
+    [
+      {
+        $set: {
+          items: {
+            $map: {
+              input: "$items",
+              as: "it",
+              in: {
+                $cond: [
+                  { $eq: ["$$it._id", _lineId] },
+                  {
+                    $mergeObjects: [
+                      "$$it",
+                      {
+                        currentAvailableQuantityKg: {
+                          // clamp to [0, originalCommittedQuantityKg]
+                          $max: [
+                            0,
+                            {
+                              $min: [
+                                "$$it.originalCommittedQuantityKg",
+                                { $add: ["$$it.currentAvailableQuantityKg", deltaKg] },
+                              ],
+                            },
+                          ],
+                        },
+                      },
+                    ],
+                  },
+                  "$$it",
+                ],
+              },
+            },
+          },
+        },
+      },
+    ]
+  );
+
+  // If enforcing reserve & not enough stock, matchedCount will be 0
+  if (result.matchedCount === 0) {
+    if (deltaKg < 0 && enforceEnoughForReserve) {
+      throw new Error("Not enough available quantity to reserve");
+    }
+    throw new Error("Document not found or lineId invalid");
+  }
+
+  // Optional: you can fetch the fresh doc/line if caller needs the new qty
+  // const doc = await AvailableMarketStockModel.findById(_docId, { items: 1 }).lean();
+  // const line = doc?.items?.find((x: any) => String(x._id) === String(_lineId));
+  // return { ok: true, newQty: line?.currentAvailableQuantityKg };
+
+  return { ok: true };
+}
+
+
+/** 
+ *  when farmer approves the farmer order add item to available market stock
+ * 
+ * **/
+
 export async function addItemToAvailableMarketStock(params: {
   docId: string;
   item: {
@@ -179,12 +281,14 @@ export async function addItemToAvailableMarketStock(params: {
     { $push: { items: payload } },
     { new: true }
   );
+  const newLine = updated?.items.at(-1); // last element is the one we just pushed
+  console.log("new lineId:", newLine._id.toString());
   return updated;
 }
 
-export async function updateItemQtyStatus(params: {
+export async function updateItemQtyStatusAtomic(params: {
   docId: string;
-  lineId: string; // subdoc _id
+  lineId: string;
   currentAvailableQuantityKg?: number;
   status?: "active" | "soldout" | "removed";
 }) {
@@ -199,15 +303,18 @@ export async function updateItemQtyStatus(params: {
   if (typeof currentAvailableQuantityKg === "number") {
     if (currentAvailableQuantityKg < 0) throw new Error("Quantity cannot be negative");
     if (currentAvailableQuantityKg > line.originalCommittedQuantityKg) {
-      throw new Error("currentAvailableQuantityKg cannot exceed originalCommittedQuantityKg");
+      throw new Error("Exceeds original committed quantity");
     }
     line.currentAvailableQuantityKg = currentAvailableQuantityKg;
   }
-  if (status) line.status = status;
+  if (status) {
+    line.status = status;
+  }
 
   await doc.save();
   return doc;
 }
+
 
 export async function removeItemFromAvailableMarketStock(params: {
   docId: string;

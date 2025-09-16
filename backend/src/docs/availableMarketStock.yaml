@@ -6,8 +6,10 @@ info:
 paths:
   /api/market/available-stock/init:
     post:
-      summary: Initialize or find available market stock document
+      summary: Create or find AvailableMarketStock document
       description: Creates or finds an AvailableMarketStock doc for LC + date + shift.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -28,7 +30,7 @@ paths:
                   enum: [morning, afternoon, evening, night]
       responses:
         "200":
-          description: The AvailableMarketStock document
+          description: AvailableMarketStock document
           content:
             application/json:
               schema:
@@ -36,65 +38,46 @@ paths:
 
   /api/market/available-stock:
     get:
-      summary: Get available market stock by LC/date/shift
+      summary: Get AvailableMarketStock by LC/date/shift
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: LCid
-          schema: { type: string }
           required: true
+          schema: { type: string }
         - in: query
           name: date
-          schema: { type: string, format: date }
           required: true
+          schema: { type: string, format: date }
         - in: query
           name: shift
-          schema: { type: string, enum: [morning, afternoon, evening, night] }
           required: true
+          schema: { type: string, enum: [morning, afternoon, evening, night] }
       responses:
         "200":
-          description: Stock document
+          description: AvailableMarketStock document
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AvailableMarketStock"
 
-  /api/market/available-stock/upcoming:
-    get:
-      summary: List upcoming available stock documents
-      parameters:
-        - in: query
-          name: LCid
-          schema: { type: string }
-          required: true
-        - in: query
-          name: count
-          schema: { type: integer, default: 6 }
-        - in: query
-          name: fromDate
-          schema: { type: string, format: date }
-      responses:
-        "200":
-          description: List of docs
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AvailableMarketStock"
-
   /api/market/available-stock/next5:
     get:
-      summary: Get next 5 shifts with stock
-      description: Returns next 5 shifts from LC shift config that have stock.
+      summary: Get next 5 shifts that have stock
+      description: Returns the next 5 shifts (based on LC timezone) that already have stock items.
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: LCid
-          schema: { type: string }
           required: true
+          schema: { type: string }
         - in: query
           name: fromTs
+          required: false
           schema: { type: integer, format: int64 }
-          description: Optional epoch millis (testing)
+          description: Optional epoch millis (used for testing)
       responses:
         "200":
           description: List of shifts with stock
@@ -113,81 +96,93 @@ paths:
                       enum: [morning, afternoon, evening, night]
                     docId:
                       type: string
-                      description: MongoDB ObjectId
+                      description: AvailableMarketStock document ID
 
-  /api/market/available-stock/{docId}/items:
-    post:
-      summary: Add item to available stock document
+  /api/market/available-stock/upcoming:
+    get:
+      summary: List upcoming available stock documents
+      description: Returns upcoming AvailableMarketStock docs for the LC, starting today.
+      security:
+        - bearerAuth: []
       parameters:
-        - in: path
-          name: docId
-          schema: { type: string }
+        - in: query
+          name: LCid
           required: true
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AvailableStockItem"
+          schema: { type: string }
+        - in: query
+          name: count
+          required: false
+          schema: { type: integer, default: 6 }
+        - in: query
+          name: fromDate
+          required: false
+          schema: { type: string, format: date }
       responses:
         "200":
-          description: Updated document
+          description: List of AvailableMarketStock documents
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AvailableMarketStock"
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailableMarketStock"
 
-  /api/market/available-stock/{docId}/items/{lineId}:
-    patch:
-      summary: Update item quantity or status
-      parameters:
-        - in: path
-          name: docId
-          schema: { type: string }
-          required: true
-        - in: path
-          name: lineId
-          schema: { type: string }
-          required: true
+  /api/market/available-stock/adjustQty:
+    post:
+      summary: Adjust available quantity for a stock line
+      description: Reserve or release quantity on a specific line item.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required: [docId, lineId, deltaKg]
               properties:
-                currentAvailableQuantityKg:
-                  type: number
-                status:
+                docId:
                   type: string
-                  enum: [active, soldout, removed]
+                  description: AvailableMarketStock document ID
+                lineId:
+                  type: string
+                  description: Subdocument line ID (inside items[])
+                deltaKg:
+                  type: number
+                  description: Negative = reserve, Positive = release
+                enforceEnoughForReserve:
+                  type: boolean
+                  default: true
+                autoSoldoutOnZero:
+                  type: boolean
+                  default: true
       responses:
         "200":
-          description: Updated document
+          description: Adjustment result
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AvailableMarketStock"
-    delete:
-      summary: Remove item from document
-      parameters:
-        - in: path
-          name: docId
-          schema: { type: string }
-          required: true
-        - in: path
-          name: lineId
-          schema: { type: string }
-          required: true
-      responses:
-        "200":
-          description: Updated document
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/AvailableMarketStock"
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  docId:
+                    type: string
+                  lineId:
+                    type: string
+                  newQty:
+                    type: number
+                  status:
+                    type: string
+                    enum: [active, soldout, removed]
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     AvailableMarketStock:
       type: object
@@ -212,6 +207,8 @@ components:
     AvailableStockItem:
       type: object
       properties:
+        _id:
+          type: string
         itemId:
           type: string
         displayName:
