@@ -1,0 +1,239 @@
+openapi: 3.0.3
+info:
+  title: Available Market Stock API
+  version: 1.0.0
+
+paths:
+  /api/market/available-stock/init:
+    post:
+      summary: Initialize or find available market stock document
+      description: Creates or finds an AvailableMarketStock doc for LC + date + shift.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [LCid, date, shift]
+              properties:
+                LCid:
+                  type: string
+                  example: LC-1
+                date:
+                  type: string
+                  format: date
+                  example: 2025-09-16
+                shift:
+                  type: string
+                  enum: [morning, afternoon, evening, night]
+      responses:
+        "200":
+          description: The AvailableMarketStock document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableMarketStock"
+
+  /api/market/available-stock:
+    get:
+      summary: Get available market stock by LC/date/shift
+      parameters:
+        - in: query
+          name: LCid
+          schema: { type: string }
+          required: true
+        - in: query
+          name: date
+          schema: { type: string, format: date }
+          required: true
+        - in: query
+          name: shift
+          schema: { type: string, enum: [morning, afternoon, evening, night] }
+          required: true
+      responses:
+        "200":
+          description: Stock document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableMarketStock"
+
+  /api/market/available-stock/upcoming:
+    get:
+      summary: List upcoming available stock documents
+      parameters:
+        - in: query
+          name: LCid
+          schema: { type: string }
+          required: true
+        - in: query
+          name: count
+          schema: { type: integer, default: 6 }
+        - in: query
+          name: fromDate
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: List of docs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AvailableMarketStock"
+
+  /api/market/available-stock/next5:
+    get:
+      summary: Get next 5 shifts with stock
+      description: Returns next 5 shifts from LC shift config that have stock.
+      parameters:
+        - in: query
+          name: LCid
+          schema: { type: string }
+          required: true
+        - in: query
+          name: fromTs
+          schema: { type: integer, format: int64 }
+          description: Optional epoch millis (testing)
+      responses:
+        "200":
+          description: List of shifts with stock
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date:
+                      type: string
+                      format: date
+                    shift:
+                      type: string
+                      enum: [morning, afternoon, evening, night]
+                    docId:
+                      type: string
+                      description: MongoDB ObjectId
+
+  /api/market/available-stock/{docId}/items:
+    post:
+      summary: Add item to available stock document
+      parameters:
+        - in: path
+          name: docId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AvailableStockItem"
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableMarketStock"
+
+  /api/market/available-stock/{docId}/items/{lineId}:
+    patch:
+      summary: Update item quantity or status
+      parameters:
+        - in: path
+          name: docId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: lineId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentAvailableQuantityKg:
+                  type: number
+                status:
+                  type: string
+                  enum: [active, soldout, removed]
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableMarketStock"
+    delete:
+      summary: Remove item from document
+      parameters:
+        - in: path
+          name: docId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: lineId
+          schema: { type: string }
+          required: true
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailableMarketStock"
+
+components:
+  schemas:
+    AvailableMarketStock:
+      type: object
+      properties:
+        _id:
+          type: string
+        LCid:
+          type: string
+        availableDate:
+          type: string
+          format: date
+        availableShift:
+          type: string
+          enum: [morning, afternoon, evening, night]
+        createdById:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvailableStockItem"
+
+    AvailableStockItem:
+      type: object
+      properties:
+        itemId:
+          type: string
+        displayName:
+          type: string
+        imageUrl:
+          type: string
+        category:
+          type: string
+        pricePerUnit:
+          type: number
+        currentAvailableQuantityKg:
+          type: number
+        originalCommittedQuantityKg:
+          type: number
+        farmerOrderId:
+          type: string
+        farmerID:
+          type: string
+        farmerName:
+          type: string
+        farmName:
+          type: string
+        status:
+          type: string
+          enum: [active, soldout, removed]
