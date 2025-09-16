@@ -7,50 +7,41 @@ import {
   putItemHandler,
   deleteItemHandler,
 } from "@/controllers/items.controller";
-import { authenticate, authorize  } from "@/middlewares/auth"; // adjust path if different
+import { authenticate, authorize, authenticateIfPresent } from "@/middlewares/auth";
 
 const router = Router();
 
 /**
  * @route   GET /items
- * @query   category=fruit|vegetable
- *          type=Apple
- *          variety=Fuji
- *          q=ap  (searches type/variety, case-insensitive)
- *          minCalories=0
- *          maxCalories=120
- *          page=1
- *          limit=20
- *          sort=-updatedAt,type
+ * Public route, but if a valid Bearer token of admin/fManager is present,
+ * controllers will detect req.user and return full item data.
  */
-router.get("/", listItemsHandler);
+router.get("/", authenticateIfPresent, listItemsHandler);
 
 /**
- * @route   POST /items
- * @body    Partial<Item> (schema validation applied by Mongoose)
+ * @route   POST /items (protected)
  */
-router.post("/", authenticate, authorize('admin', 'fManager'), createItemHandler);
+router.post("/", authenticate, authorize("admin", "fManager"), createItemHandler);
 
 /**
  * @route   GET /items/:itemId
+ * Public route, same optional auth behavior.
  */
-router.get("/:itemId", getItemHandler);
+router.get("/:itemId", authenticateIfPresent, getItemHandler);
 
 /**
- * @route   PATCH /items/:itemId
- * @body    Partial fields to update (uses $set)
+ * @route   PATCH /items/:itemId (protected)
  */
-router.patch("/:itemId", authenticate, authorize('admin', 'fManager'), patchItemHandler);
+router.patch("/:itemId", authenticate, authorize("admin", "fManager"), patchItemHandler);
 
 /**
- * @route   PUT /items/:itemId
- * @body    Full replacement document (except itemId in path)
+ * @route   PUT /items/:itemId (protected)
  */
-router.put("/:itemId", authenticate, authorize('admin', 'fManager'), putItemHandler);
+router.put("/:itemId", authenticate, authorize("admin", "fManager"), putItemHandler);
 
 /**
- * @route   DELETE /items/:itemId
+ * @route   DELETE /items/:itemId (protected)
  */
-router.delete("/:itemId", authenticate, authorize('admin'), deleteItemHandler);
+router.delete("/:itemId", authenticate, authorize("admin"), deleteItemHandler);
 
 export default router;

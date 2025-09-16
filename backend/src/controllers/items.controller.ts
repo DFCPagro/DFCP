@@ -7,17 +7,54 @@ import {
   replaceItemByItemId,
   deleteItemByItemId,
 } from "../services/items.service";
-import { itemCategories } from "../models/Item.model";
+import { itemCategories, PUBLIC_ITEM_PROJECTION } from "../models/Item.model";
 import { Types } from "mongoose";
 
 const ensureValidObjectId = (id: string) => Types.ObjectId.isValid(id);
 
+// privileged = admin or fManager
+const isPrivileged = (req: Request) => {
+  // @ts-ignore injected by auth middleware
+  const role: string | undefined = req.user?.role;
+  return role === "admin" || role === "fManager";
+};
+
+// --- shaping helpers ---
+
+/** Always return a plain object and ensure `_id` exists as a string. */
+const toFullItem = (docOrObj: any) => {
+  const obj = docOrObj && typeof docOrObj.toObject === "function" ? docOrObj.toObject() : docOrObj;
+  if (obj && !("_id" in obj) && docOrObj?._id) {
+    obj._id = String(docOrObj._id);
+  }
+  // If _id exists but is an ObjectId, stringify for consistency
+  if (obj && obj._id && typeof obj._id !== "string") {
+    try { obj._id = String(obj._id); } catch {}
+  }
+  return obj;
+};
+
+/** Minimal public view (use `_id` instead of itemId) */
+const toPublicItem = (req: Request, item: any) => {
+  const id = String(item._id ?? item.itemId);
+  const displayName = item.name ?? [item.type, item.variety].filter(Boolean).join(" ");
+  const base = req.baseUrl || "/items";
+  return {
+    _id: id,
+    displayName,
+    category: item.category,
+    itemUrl: `${base}/${id}`,
+  };
+};
+
+// --- handlers ---
+
 export async function createItemHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    // ignore _id if client provides one — Mongo will create it
-    if (req.body?._id) delete req.body._id;
+    if (req.body?._id) delete req.body._id; // ignore _id if provided
     const doc = await createItem(req.body);
-    res.status(201).json(doc);
+    // createItem already returns plain object in your service, but normalize anyway
+    res.status(201).json(toFullItem(doc));
   } catch (err) { next(err); }
 }
 
@@ -39,6 +76,8 @@ export async function listItemsHandler(req: Request, res: Response, next: NextFu
       return res.status(400).json({ message: "minCalories/maxCalories must be numbers" });
     }
 
+    const privileged = isPrivileged(req);
+
     const data = await listItems(
       {
         category: category as any,
@@ -52,11 +91,21 @@ export async function listItemsHandler(req: Request, res: Response, next: NextFu
         page: page != null ? Number(page) : undefined,
         limit: limit != null ? Number(limit) : undefined,
         sort: typeof sort === "string" ? sort : undefined,
-        lean: true,
+        projection: privileged ? undefined : PUBLIC_ITEM_PROJECTION,
+        // Public = lean true (we reshape anyway). Privileged = non-lean (validators/hooks apply),
+        // then we normalize to ensure `_id` is present.
+        lean: !privileged,
       }
     );
 
-    res.json(data);
+    if (!privileged) {
+      const items = data.items.map((it: any) => toPublicItem(req, it));
+      return res.json({ ...data, items });
+    }
+
+    // privileged: ensure `_id` exists even if toJSON plugin hid it
+    const items = data.items.map((it: any) => toFullItem(it));
+    return res.json({ ...data, items });
   } catch (err) { next(err); }
 }
 
@@ -66,9 +115,20 @@ export async function getItemHandler(req: Request, res: Response, next: NextFunc
     if (!ensureValidObjectId(itemId)) {
       return res.status(400).json({ message: "Invalid itemId" });
     }
-    const doc = await getItemByItemId(itemId);
+
+    const privileged = isPrivileged(req);
+    const projection = privileged ? undefined : PUBLIC_ITEM_PROJECTION;
+
+    const doc = await getItemByItemId(itemId, projection);
     if (!doc) return res.status(404).json({ message: "Item not found" });
-    res.json(doc);
+
+    if (!privileged) {
+      const obj = (doc as any).toObject ? (doc as any).toObject() : doc;
+      return res.json(toPublicItem(req, obj));
+    }
+
+    // privileged: return full data and guarantee `_id`
+    return res.json(toFullItem(doc));
   } catch (err) { next(err); }
 }
 
@@ -80,7 +140,6 @@ export async function patchItemHandler(req: Request, res: Response, next: NextFu
       return res.status(400).json({ message: "Invalid itemId" });
     }
 
-    // if client sends _id in body, enforce consistency or drop it
     if (req.body && req.body._id && String(req.body._id) !== itemId) {
       return res.status(400).json({ message: "Body _id must match path :itemId" });
     }
@@ -88,7 +147,7 @@ export async function patchItemHandler(req: Request, res: Response, next: NextFu
 
     const updated = await updateItemByItemId(itemId, { $set: req.body }, { returnNew: true });
     if (!updated) return res.status(404).json({ message: "Item not found" });
-    res.json(updated);
+    res.json(toFullItem(updated));
   } catch (err) { next(err); }
 }
 
@@ -106,7 +165,7 @@ export async function putItemHandler(req: Request, res: Response, next: NextFunc
 
     const replaced = await replaceItemByItemId(itemId, { ...req.body, _id: itemId });
     if (!replaced) return res.status(404).json({ message: "Item not found" });
-    res.json(replaced);
+    res.json(toFullItem(replaced));
   } catch (err) { next(err); }
 }
 

@@ -25,13 +25,11 @@ export type ListItemsOptions = {
 const DEFAULT_LIMIT = 20;
 
 export async function createItem(payload: Partial<ItemType>): Promise<ItemType> {
-  // _id will be auto-generated (ObjectId)
   const doc = await ItemModel.create(payload as any);
   return doc.toObject ? (doc.toObject() as ItemType) : (doc as unknown as ItemType);
 }
 
 export async function getItemByItemId(_id: string, projection?: ProjectionType<ItemType>) {
-  // Let Mongoose cast valid hex strings to ObjectId; return null for invalid to avoid CastError
   if (!Types.ObjectId.isValid(_id)) return null;
   return ItemModel.findById(_id, projection).exec();
 }
@@ -45,9 +43,7 @@ export async function listItems(
   filters: ListItemsFilters = {},
   opts: ListItemsOptions = {}
 ) {
-  const {
-    category, type, variety, q, minCalories, maxCalories,
-  } = filters;
+  const { category, type, variety, q, minCalories, maxCalories } = filters;
 
   const query: FilterQuery<ItemType> = {};
 
@@ -110,7 +106,6 @@ export async function replaceItemByItemId(
   if (!Types.ObjectId.isValid(_id)) return null;
   const doc = await ItemModel.findOneAndReplace(
     { _id },
-    // ensure client-sent _id (if any) doesn't conflict
     { ...replacement, _id } as any,
     { new: true, upsert: false, runValidators: true }
   ).exec();
