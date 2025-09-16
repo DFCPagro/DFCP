@@ -22,6 +22,8 @@ const ArrivalConfirmPage  = lazy(() => import('@/pages/ArrivalConfirm'));
 const AggregationViewPage = lazy(() => import('@/pages/AggregationView'));
 const ContainerViewPage   = lazy(() => import('@/pages/ContainerView'));
 const Market              = lazy(() => import('@/pages/Market'));
+const Cart                = lazy(() => import('@/pages/Cart'));
+
 const NotFound            = lazy(() => import('@/pages/NotFound'));
 const ItemManager         = lazy(() => import('@/pages/ItemManager'));
 
@@ -49,6 +51,7 @@ export default function AppRoutes() {
           <Route path={PATHS.dashboard} element={<Dashboard />} />
           {/* customer-only pages */}
           <Route path={PATHS.market} element={<Market />} />
+           <Route path={PATHS.cart} element={<Cart />} />
           
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
           {/* farmer-only pages */}

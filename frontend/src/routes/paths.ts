@@ -7,6 +7,7 @@ export const PATHS = {
   jobs: "/jobs",
   //costumer pages
   market: "/market",
+  cart: "/cart",
   // Farmer pages
   aggregations: "/aggregations",
   containers: "/containers",

@@ -23,6 +23,7 @@ import type {
   UserLocation,
   CategoryCode,
 } from "@/types/market";
+import CartIconButton from "@/components/common/CartIconButton";
 
 export default function Market() {
   const [locationId, setLocationId] = useState<string>();
@@ -102,9 +103,11 @@ export default function Market() {
   return (
     <AuthGuard>
       <Container maxW="6xl" py={6}>
-        <Heading size="lg" mb={4}>
-          Market
-        </Heading>
+       <HStack gap={3} mb={4} align="center">
+  <Heading size="lg">Market</Heading>
+  <span style={{ flex: 1 }} />
+  <CartIconButton />
+</HStack>
 
         <Grid templateColumns={["1fr", null, "1fr 1fr"]} gap={4} mb={3}>
           <GridItem>
@@ -138,9 +141,9 @@ export default function Market() {
             <Alert.Description>{emptyState}</Alert.Description>
           </Alert.Root>
         ) : loading ? (
-          <HStack justify="center" py={10}>
-            <Spinner />
-          </HStack>
+          <HStack justifyContent="center" py={10}>
+  <Spinner />
+</HStack>
         ) : (
           <Grid
             templateColumns={["1fr", "repeat(2, 1fr)", "repeat(3, 1fr)", "repeat(4, 1fr)"]}
