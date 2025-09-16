@@ -22,7 +22,7 @@
     "seed:json:items": "node db/seeds/seed-from-json.js --file ./db/seeds/exports/items.json --collection items --upsert",
     "mongo:setup": "ts-node ./scripts/mongo/setup-rs.ts",
     "mongo:status": "ts-node ./scripts/mongo/status-rs.ts",
-    "mongo:stop": "ts-node ./scripts/mongo/stop-rs.ts"
+    "mongo:stop": "ts-node ./scripts/mongo/stop-rs.ts",
     "seed:shifts": "ts-node db/seeds/seedShiftConfig.ts"
   },
   "author": "",
@@ -41,9 +41,10 @@
     "express-validator": "^7.2.1",
     "get-port": "^7.1.0",
     "helmet": "^8.1.0",
+    "install": "^0.13.0",
     "jsonwebtoken": "^9.0.2",
-    "mongodb": "^6.19.0",
     "luxon": "^3.7.2",
+    "mongodb": "^6.19.0",
     "mongoose": "^8.18.0",
     "morgan": "^1.10.1",
     "swagger-autogen": "^2.23.7",
