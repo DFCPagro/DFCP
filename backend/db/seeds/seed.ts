@@ -6,9 +6,10 @@ import { connectDB, disconnectDB } from '../../src/db/connect';
 // import seeding functions (refactored below)
 import { seedUsers } from './dev/users.seeder';
 import { seedItems } from './dev/items.seeder'
-import { seedLogisticsCenters } from './dev/logisticsCenters.seeder'
+import { seedLogisticsCenters } from './dev/logisticCenters.seeder'
 import { seedDeliverers } from './dev/deliverers.seed'
 import { seedOrders } from './dev/orders.seed'
+import { seedShiftsConfig } from './dev/shiftConfig.seeder';
 
 type Args = {
   reset?: boolean;
@@ -74,6 +75,13 @@ async function main() {
     await timed(`Orders (count=${argv.orders})`, seedOrders);
   } else {
     console.log('⏭️  Skipping orders seeding');
+  }
+
+  // Orders next (unless disabled)
+  if (!argv['no-shifts']) {
+    await timed(`Shifts (count=${argv.orders})`, seedShiftsConfig);
+  } else {
+    console.log('⏭️  Skipping shofts seeding');
   }
 
   await disconnectDB();
