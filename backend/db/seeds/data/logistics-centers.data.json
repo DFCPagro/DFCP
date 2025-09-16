@@ -1,10 +1,10 @@
 [
   {
     "_id": "66e007000000000000000001",
-    "logisticName": "Tel Aviv Logistics Center",
+    "logisticName": "Zarzir Logistics Center",
     "locationObj": {
-      "name": "Tel Aviv",
-      "geo": { "type": "Point", "coordinates": [34.781768, 32.085300] }
+      "name": "Zarzir",
+      "geo": { "type": "Point", "coordinates": [32.733459, 35.218805] }
     },
     "employeeIds": [],
     "deliveryHistory": ["Opened hub"]
