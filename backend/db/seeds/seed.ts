@@ -6,9 +6,11 @@ import { connectDB, disconnectDB } from '../../src/db/connect';
 // import seeding functions (refactored below)
 import { seedUsers } from './dev/users.seeder';
 import { seedItems } from './dev/items.seeder'
-import { seedLogisticsCenters } from './dev/logisticsCenters.seeder'
-import { seedDeliverers } from './dev/deliverers.seed'
-import { seedOrders } from './dev/orders.seed'
+import { seedLogisticsCenters } from './dev/logisticCenters.seeder'
+import { seedDeliverers } from './dev/deliverers.seeder'
+import { seedOrders } from './dev/orders.seeder'
+import { seedShiftsConfig } from './dev/shiftConfig.seeder';
+import { seedAvailableStock } from './dev/seedAvailableStock';
 
 type Args = {
   reset?: boolean;
@@ -76,6 +78,19 @@ async function main() {
     console.log('⏭️  Skipping orders seeding');
   }
 
+  // Available stock next (unless disabled)
+  if (!argv['no-shifts']) {
+    await timed(`Shifts (count=${argv.orders})`, seedShiftsConfig);
+  } else {
+    console.log('⏭️  Skipping shofts seeding');
+  }
+
+  // Available stock next (unless disabled)
+  if (!argv['no-available-stock']) {
+    await timed(`Shifts (count=${argv.orders})`, seedAvailableStock);
+  } else {
+    console.log('⏭️  Skipping available stocks seeding');
+  }
   await disconnectDB();
   console.log('✅ All done.');
 }
