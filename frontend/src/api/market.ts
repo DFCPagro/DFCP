@@ -1,14 +1,39 @@
-import type { MarketItem, MarketQuery, ShiftCode, ShiftOption, UserLocation } from "@/types/market";
+// src/api/market.ts
+import type {
+  MarketItem,
+  MarketQuery,
+  ShiftCode,
+  ShiftOption,
+  UserLocation,
+} from "@/types/market";
 import { adaptToMarketItems } from "@/helpers/marketMockAdapter";
-// @ts-ignore
+export type ShiftOptionDTO = ShiftOption;
+
+// @ts-ignore – local JSON mock
 import mockDataJson from "@/data/mock-items.json";
+
+/* -------------------------------- utils ---------------------------------- */
 
 const shortShift = (s: ShiftCode) =>
   s === "MORNING" ? "MOR" : s === "AFTERNOON" ? "AFT" : s === "EVENING" ? "EVE" : "NIG";
 
+const pad3 = (n: number) => String(n).padStart(3, "0");
+
+/* ---------------------------- in-memory storage --------------------------- */
+
 let savedLocations: UserLocation[] = [
-  { _id: "LOC-1", label: "Home – Tel Aviv", street: "Ben Gurion 22", city: "Tel Aviv", lat: 32.08, lng: 34.78, logisticCenterId: "LC-CENTER" },
+  {
+    _id: "LOC-1",
+    label: "Home – Tel Aviv",
+    street: "Ben Gurion 22",
+    city: "Tel Aviv",
+    lat: 32.08,
+    lng: 34.78,
+    logisticCenterId: "LC-CENTER",
+  },
 ];
+
+/* --------------------------- LC resolution (demo) ------------------------- */
 
 const SHIFT_LABEL: Record<ShiftCode, string> = {
   MORNING: "Morning (06:00–12:00)",
@@ -17,7 +42,6 @@ const SHIFT_LABEL: Record<ShiftCode, string> = {
   NIGHT: "Night (22:00–06:00)",
 };
 
-// very simple demo resolution (by city / latitude)
 function resolveLogisticCenter(city?: string, lat?: number): string {
   const c = (city || "").toLowerCase();
   if (/tel.?aviv|ramat|givat/i.test(c)) return "LC-CENTER";
@@ -31,12 +55,16 @@ function resolveLogisticCenter(city?: string, lat?: number): string {
   return "LC-CENTER";
 }
 
+/* ------------------------------ locations API ---------------------------- */
+
 export async function fetchMyLocations(): Promise<UserLocation[]> {
   return structuredClone(savedLocations);
 }
 
 export async function addLocation(payload: Partial<UserLocation>): Promise<UserLocation> {
-  const logisticCenterId = payload.logisticCenterId ?? resolveLogisticCenter(payload.city, payload.lat);
+  const logisticCenterId =
+    payload.logisticCenterId ?? resolveLogisticCenter(payload.city, payload.lat);
+
   const loc: UserLocation = {
     _id: crypto.randomUUID(),
     label: payload.label || `${payload.street}, ${payload.city}`,
@@ -44,16 +72,18 @@ export async function addLocation(payload: Partial<UserLocation>): Promise<UserL
     city: payload.city || "",
     lat: payload.lat || 0,
     lng: payload.lng || 0,
-    logisticCenterId, // ← store it
+    logisticCenterId,
   };
   savedLocations = [loc, ...savedLocations];
   return loc;
 }
 
+/* ------------------------------- shifts API ------------------------------ */
+
 export async function fetchShiftsForLocation(_locationId: string): Promise<ShiftOption[]> {
-  const total = (mockDataJson as any[]).filter(i => (i?.count ?? 0) > 0).length;
+  const total = (mockDataJson as any[]).filter((i) => (i?.count ?? 0) > 0).length;
   const perShift = Math.max(0, Math.floor(total / 4));
-  return (["MORNING","AFTERNOON","EVENING","NIGHT"] as ShiftCode[]).map(code => ({
+  return (["MORNING", "AFTERNOON", "EVENING", "NIGHT"] as ShiftCode[]).map((code) => ({
     code,
     label: SHIFT_LABEL[code],
     remainingSkus: perShift,
@@ -61,25 +91,50 @@ export async function fetchShiftsForLocation(_locationId: string): Promise<Shift
   }));
 }
 
-export async function fetchMarket(q: MarketQuery): Promise<MarketItem[]> {
-  // resolve LC of this location (use your existing logic)
-  const loc = (await fetchMyLocations()).find(l => l._id === q.locationId);
-  const lcId = loc?.logisticCenterId ?? "LC1";
+// Used by ShiftPicker (LC-aware). For the mock we reuse the same options.
+export async function fetchShiftOptionsByLC(_logisticCenterId: string): Promise<ShiftOptionDTO[]> {
+  return fetchShiftsForLocation("any");
+}
 
-  // adapt raw -> MarketItem[] (build/accept inventoryId)
+/* ------------------------------- market API ------------------------------ */
+
+export async function fetchMarket(q: MarketQuery): Promise<MarketItem[]> {
+  // 1) Resolve LC for the selected location
+  const loc = (await fetchMyLocations()).find((l) => l._id === q.locationId);
+  const lcId = loc?.logisticCenterId ?? "LC-CENTER"; // default aligns with demo
+
+  // 2) Adapt raw JSON -> MarketItem[]
   let items = adaptToMarketItems(mockDataJson as any[], {
     logisticCenterId: lcId,
     shift: q.shift,
   });
 
-  // if your mock file mixes different LC/Shift rows, narrow to this selection
-  items = items.filter(i =>
-    i.inventoryId.startsWith(`${lcId}-${shortShift(q.shift)}-`)
-  );
+  // 3) Ensure each item has an inventoryId with the expected prefix
+  const prefix = `${lcId}-${shortShift(q.shift)}-`;
+  items = items.map((it, idx) => {
+    const inv = (it as any).inventoryId as string | undefined;
+    const normalized =
+      inv && inv.startsWith(prefix) ? inv : `${prefix}${pad3(idx + 1)}`;
+    return { ...it, inventoryId: normalized } as MarketItem & { inventoryId: string };
+  });
 
+  // 4) If your mock mixes LC/shift rows, explicitly keep only the current window
+  items = items.filter((it: any) => it.inventoryId.startsWith(prefix));
+
+  // 5) Category filter (if provided)
   if (q.category && q.category !== "ALL") {
-    items = items.filter(i => i.category === q.category);
+    items = items.filter((i) => i.category === q.category);
   }
+
+  // Debug (comment out if noisy)
+  console.log("fetchMarket ->", {
+    locationId: q.locationId,
+    lcId,
+    shift: q.shift,
+    category: q.category,
+    count: items.length,
+    sample: items[0],
+  });
 
   return items;
 }

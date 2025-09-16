@@ -1,5 +1,6 @@
 import { HStack, Button } from "@chakra-ui/react";
 import type { CategoryCode } from "@/types/market";
+import { StyledButton } from "@/components/ui/Button";
 
 const CATS: { value: CategoryCode | "ALL"; label: string }[] = [
   { value: "ALL",        label: "All" },
@@ -19,15 +20,16 @@ export default function CategoryFilter({
   return (
     <HStack wrap="wrap" gap="2">
       {CATS.map((c) => (
-        <Button
+        <StyledButton
           key={c.value}
+          visual={"solid"}
           size="sm"
           variant={value === c.value ? "solid" : "outline"}
           colorPalette="teal"
           onClick={() => onChange(c.value)}
         >
           {c.label}
-        </Button>
+        </StyledButton>
       ))}
     </HStack>
   );
