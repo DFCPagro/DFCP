@@ -1,21 +1,22 @@
 import { Request, Response } from "express";
 import { Types } from "mongoose";
 import ApiError from "../utils/ApiError";
+import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
+
 import {
   findOrCreateAvailableMarketStock,
   getAvailableMarketStockByKey,
   listUpcomingAvailableMarketStock,
-  addItemToAvailableMarketStock,
-  updateItemQtyStatus,
-  removeItemFromAvailableMarketStock,
+  adjustAvailableQtyAtomic,
+  updateItemQtyStatusAtomic,
   nextFiveShiftsWithStock,
 } from "../services/availableMarketStock.service";
 
 export async function initDoc(req: Request, res: Response) {
   try {
-    
+    const userId= req.user._id;
     const { LCid, date, shift } = req.body;
-    const createdById = (req as any).userId ?? null; // if you set this in auth middleware
+    const createdById = userId;
     if (!LCid || !date || !shift) return res.status(400).json({ error: "LCid, date, and shift are required" });
 
     const doc = await findOrCreateAvailableMarketStock({ LCid, date, shift, createdById });
@@ -66,39 +67,64 @@ export async function listNextFiveWithStock(req: Request, res: Response) {
   }
 }
 
-export async function addItem(req: Request, res: Response) {
+
+/**
+ * Body:
+ *  - docId: string (AvailableMarketStock _id)
+ *  - lineId: string (subdocument _id in items[])
+ *  - deltaKg: number (negative=reserve, positive=release)
+ *  - enforceEnoughForReserve?: boolean (default true)
+ *  - autoSoldoutOnZero?: boolean (default true)
+ *
+ * Response:
+ *  { ok: true, docId, lineId, newQty: number, status?: "soldout" }
+ */
+export async function adjustAvailableQty(req: Request, res: Response) {
   try {
-    const { docId } = req.params;
-    if (!docId) return res.status(400).json({ error: "docId is required" });
+    const { docId, lineId, deltaKg } = req.body ?? {};
+    const enforceEnoughForReserve =
+      req.body?.enforceEnoughForReserve === undefined ? true : !!req.body.enforceEnoughForReserve;
+    const autoSoldoutOnZero =
+      req.body?.autoSoldoutOnZero === undefined ? true : !!req.body.autoSoldoutOnZero;
 
-    const updated = await addItemToAvailableMarketStock({ docId, item: req.body });
-    res.json(updated);
+    if (!docId || !lineId || typeof deltaKg !== "number" || !isFinite(deltaKg) || deltaKg === 0) {
+      return res.status(400).json({ error: "docId, lineId, and non-zero numeric deltaKg are required" });
+    }
+
+    // Debug: log docId and lineId
+    console.log("adjustAvailableQty: docId=", docId, "lineId=", lineId);
+
+    // 1) Atomic adjust (clamped 0..original, and optionally enforced for reserves)
+    await adjustAvailableQtyAtomic({ docId, lineId, deltaKg, enforceEnoughForReserve });
+
+    // 2) Read back just this line to return the new quantity
+    const _docId = new Types.ObjectId(docId);
+    const _lineId = new Types.ObjectId(lineId);
+
+    const doc = await AvailableMarketStockModel.findOne(
+      { _id: _docId, "items._id": _lineId },
+      { "items.$": 1 } // project only the matched subdoc
+    ).lean();
+
+    // Debug: log the result of the query
+    console.log("adjustAvailableQty: doc after query=", JSON.stringify(doc));
+
+    if (!doc || !doc.items?.length) {
+      return res.status(404).json({ error: "Document or line not found after update" });
+    }
+
+    const line = doc.items[0];
+    const newQty = Number(line.currentAvailableQuantityKg ?? 0);
+
+    // 3) Optional: auto mark soldout if quantity hits 0
+    let newStatus: "soldout" | undefined = undefined;
+    if (autoSoldoutOnZero && newQty === 0 && line.status !== "soldout") {
+      await updateItemQtyStatusAtomic({ docId, lineId, status: "soldout" });
+      newStatus = "soldout";
+    }
+
+    return res.json({ ok: true, docId, lineId, newQty, ...(newStatus ? { status: newStatus } : {}) });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to add item" });
-  }
-}
-
-export async function updateLine(req: Request, res: Response) {
-  try {
-    const { docId, lineId } = req.params;
-    if (!docId || !lineId) return res.status(400).json({ error: "docId and lineId are required" });
-
-    const { currentAvailableQuantityKg, status } = req.body;
-    const updated = await updateItemQtyStatus({ docId, lineId, currentAvailableQuantityKg, status });
-    res.json(updated);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to update line" });
-  }
-}
-
-export async function removeLine(req: Request, res: Response) {
-  try {
-    const { docId, lineId } = req.params;
-    if (!docId || !lineId) return res.status(400).json({ error: "docId and lineId are required" });
-
-    const updated = await removeItemFromAvailableMarketStock({ docId, lineId });
-    res.json(updated);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to remove line" });
+    return res.status(409).json({ error: err.message || "Failed to adjust available quantity" });
   }
 }
