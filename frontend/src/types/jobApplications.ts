@@ -6,6 +6,50 @@ export type ApplicationRole =
   | "picker"
   | "sorter";
 
+export type SortParam =
+  | "-createdAt"
+  | "createdAt"
+  | "-updatedAt"
+  | "updatedAt"
+  | "-status"
+  | "status";
+
+  export type JobApplicationStatus =
+  | "pending"
+  | "contacted"
+  | "approved"
+  | "denied";
+
+
+// / Generic pagination envelope
+export interface Paginated<T> {
+  items: T[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+// Query params for the admin list endpoint
+export interface ListJobApplicationsParams {
+  role?: ApplicationRole;
+  status?: JobApplicationStatus;
+  user?: string;             // applicant user id (ObjectId)
+  logisticCenterId?: string; // your backend currently uses ObjectId here
+  from?: string | Date;      // createdAt >= from
+  to?: string | Date;        // createdAt <= to
+  page?: number;             // default: 1
+  limit?: number;            // default: 20
+  sort?: SortParam;          // default: "-createdAt"
+  includeUser?: boolean;     // include user data in DTO
+}
+
+// Payload for PATCH /admin/:id/status
+export interface PatchStatusPayload {
+  status: JobApplicationStatus; // server enforces: pending→contacted/approved/denied; contacted→approved/denied
+  reviewerNotes?: string;
+  contactedAt?: string | Date;
+  approvedAt?: string | Date;
+}
 /** Shared fields we always send */
 export interface JobApplicationCreateBase {
   appliedRole: ApplicationRole;
