@@ -17,6 +17,7 @@ import { toaster } from "@/components/ui/toaster";
 import type { FormEvent } from "react";
 import { PATHS } from "@/routes/paths";
 import type { User } from "@/types/auth";
+import { useSessionStore } from "@/store/session";
 
 type LoginForm = { email: string; password: string };
 type LoginResponse = { user: User; token: string };
@@ -37,10 +38,36 @@ export default function Login() {
   const { mutate, isPending } = useMutation<LoginResponse, unknown, LoginForm>({
     mutationFn: loginApi,
     onSuccess: ({ user, token }) => {
+      // 1) Persist auth + sync session via store/auth.ts
       setAuth({ user, token });
+
+      // 2) Nice toast
       toaster.create({ title: "Welcome back!", type: "success" });
 
-      const to = state?.from?.pathname ?? PATHS.home;
+      // 3) Role-aware landing
+      const role = user?.role;
+      let to: string;
+
+      switch (role) {
+        case "admin":
+          to = PATHS.adminDashboard;
+          break;
+
+        case "farmer":
+          to = PATHS.aggregations;
+          break;
+
+        case "driver":                // if your backend uses "deliverer"/"industrialDeliverer", include them:
+        case "deliverer":
+        case "industrialDeliverer":
+          to = PATHS.shipments;
+          break;
+
+        default:
+          // fallback for pure customers or unknown role
+          to = PATHS.market;
+      }
+
       navigate(to, { replace: true });
     },
     onError: (err: any) => {

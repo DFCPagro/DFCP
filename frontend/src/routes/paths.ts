@@ -1,3 +1,4 @@
+
 export const PATHS = {
   home: "/",
   login: "/login",
@@ -5,6 +6,7 @@ export const PATHS = {
   dashboard: "/dashboard",
   driverSchedule: "/driver-schedule",
   jobs: "/jobs",
+  jobApplication: "/job-application",
   //costumer pages
   market: "/market",
   cart: "/cart",
@@ -13,6 +15,9 @@ export const PATHS = {
   containers: "/containers",
   // Item manager
   ItemsManagment: "/admin/items",
+  //admin pages TEMP:- 
+  adminDashboard: "/admin/dashboard",
+  JobAppReview: "/admin/jobReview",
   // Driver pages
   shipments: "/shipments",
   // Public QR routes

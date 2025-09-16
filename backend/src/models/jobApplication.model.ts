@@ -165,7 +165,7 @@ const JobApplicationBaseSchema = new Schema(
       type: String,
       enum: [
         // prefer reading from constants, but keep list here for runtime validation stability
-        ...new Set(["pending", "contacted", "accepted", "denied", ...jobApplicationStatuses]),
+        ...new Set(["pending", "contacted", "approved", "denied", ...jobApplicationStatuses]),
       ],
       default: "pending",
       index: true,
