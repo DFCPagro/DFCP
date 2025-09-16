@@ -33,7 +33,7 @@ const FarmerDeliverySchema = new Schema(
   {
     // Assignment
     delivererId: { type: Types.ObjectId, ref: "User", required: true, index: true },
-    vehicleId: { type: Types.ObjectId, ref: "Vehicle", default: null },
+    //vehicleId: { type: Types.ObjectId, ref: "Vehicle", default: null },
 
     // Run context
     date: { type: String, required: true, index: true }, // "YYYY-MM-DD"
