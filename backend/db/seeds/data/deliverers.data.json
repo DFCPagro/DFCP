@@ -1,0 +1,39 @@
+[
+  {
+    "_id": "66f3bb000000000000000001",
+    "userUid": "DLV-1",
+    "licenseType": "B",
+    "driverLicenseNumber": "50A1234567",
+    "vehicleMake": "Toyota",
+    "vehicleModel": "Corolla",
+    "vehicleType": "Sedan",
+    "vehicleYear": 2018,
+    "vehicleRegistrationNumber": "12-345-67",
+    "vehicleInsurance": true,
+    "vehicleCapacityKg": 250,
+    "vehicleCapacityLiters": 500,
+    "speedKmH": 60,
+    "assignCenterIds": [
+      "66e007000000000000000001",
+      "66e007000000000000000002"
+    ]
+  },
+  {
+    "_id": "66f3bb000000000000000002",
+    "userUid": "IDL-1",
+    "licenseType": "C1",
+    "driverLicenseNumber": "60B9876543",
+    "vehicleMake": "Mercedes",
+    "vehicleModel": "Sprinter",
+    "vehicleType": "Van",
+    "vehicleYear": 2021,
+    "vehicleRegistrationNumber": "89-456-12",
+    "vehicleInsurance": true,
+    "vehicleCapacityKg": 1200,
+    "vehicleCapacityLiters": 8000,
+    "speedKmH": 70,
+    "assignCenterIds": [
+      "66e007000000000000000003"
+    ]
+  }
+]
