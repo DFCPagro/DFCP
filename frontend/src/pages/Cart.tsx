@@ -13,20 +13,53 @@ import {
 import { useCart } from "@/store/cart";
 import { CartItemCard } from "@/components/feature/cart";
 import { fmtILS } from "@/utils/format";
+const STORAGE_KEY = "dfcp_cart_v1";
 
 const Cart: React.FC = () => {
   const { state, totals, purgeExpired } = useCart();
-
+/**
+ * 1) Hydrate the store from localStorage if the hook state is empty
+ *    and storage already has items (added on Market page).
+ */
+  
   useEffect(() => {
+  try {
+    const bag = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (Array.isArray(bag.items) && bag.items.length && state.items.length === 0) {
+      // Try common zustand APIs if your store exposes them:
+      const api: any = (useCart as any).getState?.();
+      if (api?.import) {
+        api.import(bag);                      // preferred if you have it
+      } else if (api?.setState) {
+        // fall back: minimally set the persisted slice
+        api.setState((s: any) => ({
+          ...s,
+          state: {
+            ...(s.state || {}),
+            items: bag.items,
+            lcId: bag.lcId ?? null,
+            shiftKey: bag.shiftKey ?? null,
+          },
+        }));
+      }
+    }
+  } catch {}
+  // DO NOT purge here; let hydration happen first
+}, []);
+
+/**
+ * 2) Purge only when it won’t nuke the cart:
+ *    - there is at least one item
+ *    - at least one item has a valid holdExpiresAt in the future
+ */
+useEffect(() => {
+  const hasFuture = state.items.some(
+    (it: any) => typeof it?.holdExpiresAt === "number" && it.holdExpiresAt > Date.now()
+  );
+  if (state.items.length && hasFuture) {
     purgeExpired();
-  }, []);
-
-  useEffect(() => {
-    const onVis = () => purgeExpired();
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, []);
-
+  }
+}, [state.items.length]);
   const cartEmpty = state.items.length === 0;
 
   return (

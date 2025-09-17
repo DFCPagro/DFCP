@@ -2,12 +2,14 @@
 import NavBar from "@/components/layout/NavBar";
 import AppRoutes from "@/routes/AppRoutes";
 import { CartProvider } from "@/store/cart";
+import CartHydrator from "@/components/layout/CartHydrator";
 
 export default function App() {
   return (
     <CartProvider>
-      <NavBar />
-      <AppRoutes />
-    </CartProvider>
+        <CartHydrator /> {/* ← hydrates store from localStorage on app start */}
+        <NavBar />
+        <AppRoutes />
+      </CartProvider>
   );
 }

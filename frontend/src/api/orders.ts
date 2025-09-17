@@ -47,3 +47,13 @@ export async function confirmOrderByCustomerToken(
   const { data } = await api.post(`/orders/confirm/${token}`, body);
   return data;
 }
+
+
+// src/api/orders.ts
+export async function createOrder(payload: any): Promise<{ orderId: string }> {
+  // TODO: replace with your real backend call
+  // return fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
+
+  // mock success so you can wire UI first
+  return Promise.resolve({ orderId: Math.random().toString(36).slice(2, 10) });
+}

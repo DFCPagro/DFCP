@@ -10,6 +10,7 @@ export const PATHS = {
   //costumer pages
   market: "/market",
   cart: "/cart",
+  checkout: "/checkout",
   // Farmer pages
   aggregations: "/aggregations",
   containers: "/containers",
