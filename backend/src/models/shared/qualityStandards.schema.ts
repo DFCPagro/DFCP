@@ -42,8 +42,6 @@ export const NumericRangeSchema = new Schema(
  */
 export const QualityStandardsSchema = new Schema(
   {
-    tolerance: { type: ABCSchema, default: undefined },
-
     brix: { type: ABCSchema, default: undefined },
     acidityPercentage: { type: ABCSchema, default: undefined },
     pressure: { type: ABCSchema, default: undefined },

@@ -1,7 +1,15 @@
+// src/pages/items/components/ItemsTable.tsx
 import { Badge, Box, HStack, Spinner, Table } from "@chakra-ui/react"
 import { Pencil, Trash2 } from "lucide-react"
 import type { ItemsTableProps } from "../types"
 import { StyledIconButton } from "@/components/ui/IconButton"
+import QualityStandardsDialog from "./QualityStandardsDialog" // 👈 replace popover import
+import { Tooltip } from "@/components/ui/tooltip"
+
+function formatTolerance(value?: string | null) {
+  const v = (value ?? "").trim()
+  return v || "±2%"
+}
 
 export default function ItemsTable({ items, isBusy, onEdit, onDelete }: ItemsTableProps) {
   return (
@@ -19,6 +27,9 @@ export default function ItemsTable({ items, isBusy, onEdit, onDelete }: ItemsTab
               <Table.ColumnHeader>Category</Table.ColumnHeader>
               <Table.ColumnHeader>Type</Table.ColumnHeader>
               <Table.ColumnHeader>Variety</Table.ColumnHeader>
+              <Table.ColumnHeader>Season</Table.ColumnHeader>
+              <Table.ColumnHeader>Tolerance</Table.ColumnHeader>
+              <Table.ColumnHeader>Quality</Table.ColumnHeader>
               <Table.ColumnHeader textAlign="end">Calories/100g</Table.ColumnHeader>
               <Table.ColumnHeader>Price (A/B/C)</Table.ColumnHeader>
               <Table.ColumnHeader>Updated</Table.ColumnHeader>
@@ -32,6 +43,24 @@ export default function ItemsTable({ items, isBusy, onEdit, onDelete }: ItemsTab
                 <Table.Cell><Badge>{it.category}</Badge></Table.Cell>
                 <Table.Cell>{it.type}</Table.Cell>
                 <Table.Cell>{it.variety ?? "-"}</Table.Cell>
+
+                {/* Season */}
+                <Table.Cell>
+                  {it.season ? <Badge variant="subtle">{it.season}</Badge> : <Box color="fg.muted">-</Box>}
+                </Table.Cell>
+
+                {/* Tolerance (fallback to ±2%) */}
+                <Table.Cell>
+                  <Tooltip content="Default shown if not provided">
+                    <Badge variant="surface">{formatTolerance(it.tolerance)}</Badge>
+                  </Tooltip>
+                </Table.Cell>
+
+                {/* Quality dialog */}
+                <Table.Cell>
+                  <QualityStandardsDialog item={it} />
+                </Table.Cell>
+
                 <Table.Cell textAlign="end">{it.caloriesPer100g ?? "-"}</Table.Cell>
                 <Table.Cell>
                   {it.price
@@ -67,7 +96,7 @@ export default function ItemsTable({ items, isBusy, onEdit, onDelete }: ItemsTab
 
             {items.length === 0 && !isBusy && (
               <Table.Row>
-                <Table.Cell colSpan={7}>
+                <Table.Cell colSpan={10}>
                   <Box py={6} textAlign="center" color="fg.muted">
                     No items found
                   </Box>
