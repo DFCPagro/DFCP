@@ -145,7 +145,7 @@ function DimensionsInput({
               onKeyDown={(e) => {
                 if (e.key === "-" || e.key === "+") e.preventDefault();
               }}
-              onChange={(e) => onChange({ ...v, [k]: e.target.value })}
+              onChange={(e) => onChange({ ...v, [k]: e.target.value === "" ? undefined : Number(e.target.value) })}
             />
           </Field.Root>
         ))}
@@ -208,6 +208,13 @@ function RenderField({
   const isCheckbox = f.type === "checkbox";
   const error = errors?.[name];
 
+    // Hide Agreement Percentage for farmer and set a default so it still submits
+  if (name === "agreementPercentage") {
+    if (values[name] == null) onChange(name, 60);
+    return null; // don't render the input
+  }
+
+  
   if (f.type === "dimensions") {
     return (
       <Box gridColumn={spanToGrid(f.colSpan)}>
@@ -258,7 +265,15 @@ function RenderField({
               if (f.type === "number" && (e.key === "-" || e.key === "+"))
                 e.preventDefault();
             }}
-            onChange={(e) => onChange(name, e.target.value)}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const next =
+                f.type === "number"
+                  ? (raw === "" ? undefined : Number(raw))
+                  : raw;
+              onChange(name, next);
+            }}
+
           />
         )}
 

@@ -20,6 +20,31 @@ export type SortParam =
   | "approved"
   | "denied";
 
+// ADD (below the per-role shapes comment)
+export type AppAddress = {
+  alt: number; // latitude
+  lnt: number; // longitude
+  address: string;
+  logisticCenterId?: string | null;
+  note?: string;
+};
+
+export type Measurements = {
+  abM: number;
+  bcM: number;
+  cdM: number;
+  daM: number;
+  rotationDeg?: number;
+};
+
+export type AppFarmerLand = {
+  name: string;
+  ownership: "owned" | "rented";
+  address: AppAddress;
+  pickupAddress?: AppAddress | null;
+  measurements: Measurements;
+};
+
 
 // / Generic pagination envelope
 export interface Paginated<T> {
@@ -75,16 +100,12 @@ export interface DelivererApplicationData {
 
 // Farmer (example fields; extend as needed)
 export interface FarmerApplicationData {
-  farmName?: string;
-  address?: {
-    address: string;
-    city?: string | null;
-    lat?: number | null;
-    lng?: number | null;
-  };
-  categories?: string[]; // e.g., ["tomatoes","cucumbers"]
-  weeklySupplyKg?: number;
+  farmName: string;
+  agriculturalInsurance: boolean;
+  agreementPercentage: number; // 0..100
+  lands: AppFarmerLand[];
 }
+
 
 // For picker/sorter you can add shapes later
 export type GenericApplicationData = Record<string, unknown>;

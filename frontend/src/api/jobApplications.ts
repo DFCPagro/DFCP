@@ -14,13 +14,15 @@ function toIso(v: string | Date | undefined): string | undefined {
   return v instanceof Date ? v.toISOString() : v;
 }
 
-function prune<T extends Record<string, unknown>>(obj: T): T {
-  const out = { ...obj };
+// REPLACE prune with this
+function prune<T extends object>(obj: T): T {
+  const out = { ...(obj as any) } as Record<string, any>;
   for (const k of Object.keys(out)) {
-    if (out[k] === undefined) delete (out as any)[k];
+    if (out[k] === undefined) delete out[k];
   }
-  return out;
+  return out as T;
 }
+
 
 const BASE = "/jobApp";
 
@@ -79,9 +81,12 @@ export async function patchJobApplicationStatus(
 }
 
 /** POST /job-applications (auth required) */
+// REPLACE only the create function
 export async function createJobApplication(
   payload: JobApplicationCreateInput
 ): Promise<JobApplicationDTO> {
-  const { data } = await api.post<JobApplicationDTO>("/jobApp", payload);
+  const body = prune(payload); // drop top-level undefined; keep nulls
+  const { data }: AxiosResponse<JobApplicationDTO> = await api.post(`${BASE}`, body);
   return data;
 }
+
