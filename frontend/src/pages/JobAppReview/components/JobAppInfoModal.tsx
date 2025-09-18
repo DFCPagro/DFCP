@@ -129,8 +129,11 @@ export default function JobAppInfoModal({
               </Box>
 
               {/* Role-aware fields (from RolesTable) */}
-              <JobAppFields item={item} title="Role Details" />
-
+              <JobAppFields
+                item={item}
+                title="Role Details"
+                hideFields={["vehicleCapacityValue", "vehicleCapacityUnit"]}
+              />
               {/* Weekly schedule (if configured for role and present) */}
               {includeSchedule ? (
                 <ScheduleCard

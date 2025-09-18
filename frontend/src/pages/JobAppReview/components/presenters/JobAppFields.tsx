@@ -23,6 +23,9 @@ export type JobAppFieldsProps = {
   twoColumn?: boolean;
   /** Placeholder for missing values (default: "—") */
   emptyPlaceholder?: string;
+
+  hideFields?: string[] | ((field: RoleField, key: string) => boolean);
+
 };
 
 // ---------- Helpers ----------
@@ -41,6 +44,7 @@ function toCamelKey(label: string) {
 
 function resolveFieldKey(field: RoleField) {
   return field.name ?? toCamelKey(field.label);
+  
 }
 
 function formatValue(
@@ -118,9 +122,17 @@ function JobAppFieldsBase({
   showStepHeadings = true,
   twoColumn = true,
   emptyPlaceholder = "—",
+  hideFields,
 }: JobAppFieldsProps) {
+  
   const { appliedRole, applicationData } = item;
 
+  const isHiddenByProp = (f: RoleField) => {
+    const key = resolveFieldKey(f);
+    if (Array.isArray(hideFields)) return hideFields.includes(key);
+    if (typeof hideFields === "function") return !!hideFields(f, key);
+    return false;
+  };
   const roleDef = useMemo<RoleDef | undefined>(
     () => RolesTable.find((r) => r.name === appliedRole),
     [appliedRole]
@@ -162,8 +174,9 @@ function JobAppFieldsBase({
           ) : null}
 
           {twoColumn ? (
-            <SimpleGrid columns={{ base: 1, md: 2 }} gapX={6} gapY={2}>
+            <SimpleGrid columns={{ base: 1, md: 2 }} columnGap={6} rowGap={2}>
               {fields.map((f) => {
+                if (isHiddenByProp(f)) return null; 
                 const key = resolveFieldKey(f);
                 const raw = (applicationData as any)?.[key];
                 const value = formatValue(f, raw, emptyPlaceholder);
@@ -208,7 +221,9 @@ function JobAppFieldsBase({
       ))}
     </Stack>
   );
+  
 }
+
 
 export const JobAppFields = memo(JobAppFieldsBase);
 export default JobAppFields;
