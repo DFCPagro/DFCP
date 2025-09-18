@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import ShiftConfig from "../../../src/models/shiftConfig.model";
 
-const STATIC_SHIFTS_PATH = path.resolve(__dirname, "../data/shifts.data.json");
+const STATIC_SHIFTS_PATH = path.resolve(__dirname, "../data/shift-configs.data.json");
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 

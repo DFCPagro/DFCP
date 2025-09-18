@@ -1,0 +1,17 @@
+[
+  {
+    "scope": "global",
+    "inactivityMinutes": 1,
+    "updatedBy": "seed"
+  },
+  {
+    "scope": "LC_TEL_AVIV",
+    "inactivityMinutes": 1,
+    "updatedBy": "seed"
+  },
+  {
+    "scope": "LC_JERUSALEM",
+    "inactivityMinutes": 1,
+    "updatedBy": "seed"
+  }
+]

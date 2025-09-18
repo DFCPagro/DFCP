@@ -1,0 +1,144 @@
+openapi: 3.0.0
+info:
+  title: Config API
+  version: "1.0.0"
+
+paths:
+  /config/inactivity:
+    get:
+      tags: [Config]
+      summary: Get inactivity configuration
+      description: >
+        Returns the resolved inactivity minutes. If `scope` is provided (LogisticsCenter _id as hex string),
+        returns the resolved value for that scope with its source (`override` or `default`).  
+        If `scope` is omitted, returns the default and all overrides.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: scope
+          required: false
+          description: "Optional scope (LogisticsCenter ObjectId as hex string). If omitted, returns full listing."
+          schema: { type: string }
+      responses:
+        '200':
+          description: Inactivity configuration
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ResolvedInactivity'   # when scope is provided
+                  - $ref: '#/components/schemas/InactivityListing'    # when scope is omitted
+              examples:
+                resolved:
+                  summary: Resolved for a scope
+                  value:
+                    scope: "6711d5114fd2bc001234ab00"
+                    inactivityMinutes: 5
+                    source: "override"
+                    defaultMinutes: 20
+                listing:
+                  summary: Default + overrides listing
+                  value:
+                    defaultMinutes: 20
+                    overrides:
+                      - _id: "671200aa4fd2bc001234cd00"
+                        scope: "6711d5114fd2bc001234ab00"
+                        inactivityMinutes: 5
+                        updatedBy: "admin@acme.co"
+                        updatedAt: "2025-09-18T07:05:00.000Z"
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+    post:
+      tags: [Config]
+      summary: Set inactivity minutes for a scope (admin)
+      description: >
+        Creates or updates an override for the given `scope` (LogisticsCenter _id as hex string).  
+        Pass `inactivityMinutes` as a positive integer. Controllers may record `updatedBy` from the auth user.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetInactivityInput'
+            examples:
+              set:
+                value:
+                  scope: "6711d5114fd2bc001234ab00"
+                  inactivityMinutes: 5
+      responses:
+        '200':
+          description: Upserted config entry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppConfigEntry'
+        '400': { description: Bad request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SetInactivityInput:
+      type: object
+      required: [scope, inactivityMinutes]
+      properties:
+        scope:
+          type: string
+          description: "LogisticsCenter _id (hex string). Use the LC's ObjectId as the scope key."
+        inactivityMinutes:
+          type: integer
+          minimum: 1
+
+    ResolvedInactivity:
+      type: object
+      required: [scope, inactivityMinutes, source, defaultMinutes]
+      properties:
+        scope: { type: string }
+        inactivityMinutes: { type: integer, minimum: 1 }
+        source:
+          type: string
+          enum: [override, default]
+        defaultMinutes:
+          type: integer
+          description: "Current system-wide default used when no override exists"
+
+    InactivityListing:
+      type: object
+      required: [defaultMinutes, overrides]
+      properties:
+        defaultMinutes: { type: integer }
+        overrides:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppConfigEntry'
+
+    AppConfigEntry:
+      type: object
+      required: [scope, inactivityMinutes]
+      properties:
+        _id: { type: string }
+        scope:
+          type: string
+          description: "LogisticsCenter _id (hex string)"
+        inactivityMinutes:
+          type: integer
+          minimum: 1
+        updatedBy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time

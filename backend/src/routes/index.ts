@@ -8,6 +8,8 @@ import centerMapRoutes from './centerMap.routes';
 import marketRoutes from './availableMarketStock.routes';
 import delivererRoutes from './deliverer.routes';
 import shiftRoutes from './shiftConfig.route';
+import cartRoutes from './cart.routes';
+import configRoutes from './config.routes';
 
 const router = Router();
 router.use('/auth', authRoutes);
@@ -17,6 +19,9 @@ router.use('/orders', orderRoutes);
 router.use("/jobApp", jobApplicationRouter);
 router.use('/market', marketRoutes);
 router.use('/deliverers', delivererRoutes);
-router.use(centerMapRoutes);
+router.use('/carts', cartRoutes);
+router.use('/config', configRoutes);
+
+// router.use(centerMapRoutes);
 router.use('/shifts',shiftRoutes);
 export default router;

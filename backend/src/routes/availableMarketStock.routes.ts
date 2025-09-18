@@ -1,7 +1,6 @@
 import { Router } from "express";
 import * as ctrl from "../controllers/availableMarketStock.controller";
 import { authenticate, authorize } from "../middlewares/auth";
-import { ro } from "@faker-js/faker/.";
 
 const router = Router();
 

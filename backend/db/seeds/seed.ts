@@ -8,8 +8,9 @@ import { seedUsers } from './dev/users.seeder';
 import { seedItems } from './dev/items.seeder'
 import { seedLogisticsCenters } from './dev/logisticCenters.seeder'
 import { seedDeliverers } from './dev/deliverers.seed'
-import { seedOrders } from './dev/orders.seed'
+// import { seedOrders } from './dev/orders.seed'
 import { seedShiftsConfig } from './dev/shiftConfig.seeder';
+import seedAppConfig from './dev/seedAppConfig';
 
 type Args = {
   reset?: boolean;
@@ -71,17 +72,23 @@ async function main() {
   }
 
   // Orders next (unless disabled)
-  if (!argv['no-orders']) {
-    await timed(`Orders (count=${argv.orders})`, seedOrders);
-  } else {
-    console.log('⏭️  Skipping orders seeding');
-  }
+  // if (!argv['no-orders']) {
+  //   await timed(`Orders (count=${argv.orders})`, seedOrders);
+  // } else {
+  //   console.log('⏭️  Skipping orders seeding');
+  // }
 
   // Orders next (unless disabled)
   if (!argv['no-shifts']) {
     await timed(`Shifts (count=${argv.orders})`, seedShiftsConfig);
   } else {
     console.log('⏭️  Skipping shofts seeding');
+  }
+
+  if (!argv['no-config']) {
+    await timed(`App Config`, seedAppConfig);
+  } else {
+    console.log('⏭️  Skipping App Config seeding');
   }
 
   await disconnectDB();
