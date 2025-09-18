@@ -50,17 +50,33 @@ export function mapWeeklyToMonthlyActiveSchedule(
  * can vary by UI; if we can't compute, return null and let the real Land
  * validator accept it (if optional) or service reject with a clear message.
  */
+// services/jobApplication.helpers.ts
+
 export function computeAreaM2FromMeasurements(measurements: any): number | null {
   if (!measurements || typeof measurements !== "object") return null;
 
-  // Common rectangle conventions we’ve seen:
-  // 1) { lengthM: number, widthM: number }
+  // 0) FE shape you use on farmer lands: { abM, bcM, cdM, daM, rotationDeg }
+  if (
+    typeof measurements.abM === "number" &&
+    typeof measurements.bcM === "number" &&
+    typeof measurements.cdM === "number" &&
+    typeof measurements.daM === "number"
+  ) {
+    const { abM, bcM, cdM, daM } = measurements;
+    const eps = 1e-6;
+    // rectangle-ish if opposite sides match
+    const rect = Math.abs(abM - cdM) < eps && Math.abs(bcM - daM) < eps && abM > 0 && bcM > 0;
+    const area = rect ? abM * bcM : abM * bcM; // fall back to abM×bcM estimate
+    return Number.isFinite(area) && area > 0 ? area : null;
+  }
+
+  // 1) { lengthM, widthM }
   if (typeof measurements.lengthM === "number" && typeof measurements.widthM === "number") {
     const area = measurements.lengthM * measurements.widthM;
     return Number.isFinite(area) && area > 0 ? area : null;
   }
 
-  // 2) { length: number, width: number, unit: "m" | "meter" }
+  // 2) { length, width, unit?: "m" | "meter" }
   if (
     typeof measurements.length === "number" &&
     typeof measurements.width === "number" &&
@@ -70,7 +86,7 @@ export function computeAreaM2FromMeasurements(measurements: any): number | null 
     return Number.isFinite(area) && area > 0 ? area : null;
   }
 
-  // 3) Polygon with points (rough shoelace if provided as [{x,y}] in meters)
+  // 3) Polygon points [{x,y}]
   if (Array.isArray(measurements.points) && measurements.points.length >= 3) {
     const pts = measurements.points;
     if (pts.every((p: any) => typeof p?.x === "number" && typeof p?.y === "number")) {
@@ -84,9 +100,9 @@ export function computeAreaM2FromMeasurements(measurements: any): number | null 
     }
   }
 
-  // Couldn’t infer
   return null;
 }
+
 
 /** Promote the user's role to the approved worker role (single-role model). */
 export async function promoteUserRole(params: {
@@ -108,65 +124,63 @@ function mapLogisticCenterToArray(lcId?: string | null): string[] {
 }
 
 /** Provision Farmer + FarmerLand(s) from an approved application. */
+// services/jobApplication.helpers.ts
+
 export async function provisionFarmer(params: {
   app: JobApplicationBase & { appliedRole: "farmer"; applicationData: any };
   session: ClientSession;
 }): Promise<{ farmer: any; lands: any[] }> {
   const { app, session } = params;
   const data = app.applicationData || {};
-  const lands = Array.isArray(data.lands) ? data.lands : [];
+  const landsInput = Array.isArray(data.lands) ? data.lands : [];
 
-  if (lands.length < 1) {
+  if (landsInput.length < 1) {
     throw new Error("Farmer application must include at least one land.");
   }
 
-  // Create Farmer first
+  // Pre-allocate a farmer _id so lands can reference it
+  const farmerId = new (require("mongoose").Types.ObjectId)();
+
+  // Build land docs first (compute required areaM2; throw if we can't)
+  const landDocsPayload = landsInput.map((l: any, idx: number) => {
+    const areaM2 = computeAreaM2FromMeasurements(l.measurements);
+    if (areaM2 == null) {
+      throw new Error(`Cannot compute areaM2 for land #${idx + 1} (${l?.name ?? "unnamed"}). Check measurements.`);
+    }
+    return {
+      farmer: farmerId,
+      name: l.name,
+      ownership: l.ownership,               // "owned" | "rented"
+      address: l.address,
+      pickupAddress: l.pickupAddress ?? null,
+      measurements: l.measurements,
+      areaM2,
+      sections: [],
+    };
+  });
+
+  // Insert lands
+  const insertedLands = await FarmerLand.insertMany(landDocsPayload, { session });
+
+  // Now create Farmer WITH lands already set (so validator passes)
   const farmer = await Farmer.create(
-    [
-      {
-        user: app.user,
-        farmName: data.farmName,
-        agriculturalInsurance: !!data.agriculturalInsurance,
-        agreementPercentage: typeof data.agreementPercentage === "number" ? data.agreementPercentage : undefined,
-        // If your Farmer model stores logisticCenterIds, map it; otherwise ignore
-        logisticCenterIds: mapLogisticCenterToArray((app as any).logisticCenterId),
-      },
-    ],
+    [{
+      _id: farmerId,
+      user: app.user,
+      farmName: data.farmName,
+      agriculturalInsurance: !!data.agriculturalInsurance,
+      agreementPercentage:
+        typeof data.agreementPercentage === "number" ? data.agreementPercentage : undefined,
+      // If your Farmer schema doesn’t have logisticCenterIds (it currently doesn’t), this field is ignored by strict mode
+      logisticCenterIds: (app as any).logisticCenterId ? [(app as any).logisticCenterId] : [],
+      lands: insertedLands.map((d) => d._id),
+    }],
     { session }
   ).then((arr) => arr[0]);
 
-  // Create FarmerLand(s)
-  const landDocs = await FarmerLand.insertMany(
-    lands.map((l: any) => {
-      const areaM2 = computeAreaM2FromMeasurements(l.measurements);
-      return {
-        farmer: farmer._id,
-        name: l.name,
-        ownership: l.ownership, // "owned" | "rented"
-        address: l.address,
-        pickupAddress: l.pickupAddress ?? null,
-        measurements: l.measurements,
-        // If FarmerLand requires areaM2: ensure it’s set; otherwise pass null
-        areaM2: areaM2 ?? null,
-        sections: [], // default; can be filled later by ops
-      };
-    }),
-    { session }
-  );
-
-  // Backlink from Farmer to lands if your schema expects it
-  try {
-    await Farmer.findByIdAndUpdate(
-      farmer._id,
-      { $set: { lands: landDocs.map((d) => d._id) } },
-      { session }
-    );
-  } catch {
-    // If Farmer doesn't have a "lands" array, this update will be a no-op
-  }
-
-  return { farmer, lands: landDocs };
+  return { farmer, lands: insertedLands };
 }
+
 
 /** Provision Deliverer from an approved application (non-industrial). */
 export async function provisionDeliverer(params: {
@@ -174,61 +188,61 @@ export async function provisionDeliverer(params: {
   session: ClientSession;
   now?: Date; // allow testing / deterministic month
 }): Promise<{ deliverer: any }> {
-  const { app, session } = params;
-  const data = app.applicationData || {};
-  const now = params.now ?? new Date();
-  const currentMonth = startOfMonth(now);
-  const activeSchedule = mapWeeklyToMonthlyActiveSchedule(data.weeklySchedule, currentMonth);
+    const { app, session } = params;
+    const data = app.applicationData || {};
+    const now = params.now ?? new Date();
+    // Use Date for schedule mapping
+    const monthStart = startOfMonth(now);
+    const activeSchedule = mapWeeklyToMonthlyActiveSchedule(data.weeklySchedule, monthStart);
 
-  // Idempotency by uniqueness: reuse if exists
-  const existing = await Deliverer.findOne({ user: app.user }).session(session);
-  if (existing) {
-    // Optionally refresh schedule/currentMonth on re-approve, but most flows return early
-    return { deliverer: existing };
-  }
+    // Use 1..12 number for the model field
+    const currentMonthNum = now.getMonth() + 1;
 
-  const deliverer = await Deliverer.create(
-    [
-      {
+    const existing = await Deliverer.findOne({ user: app.user }).session(session);
+    if (existing) return { deliverer: existing };
+
+    const deliverer = await Deliverer.create(
+      [{
         user: app.user,
-
-        // License / ID
+        // createdFromApplication: app.id,
+        // license / id
         licenseType: data.licenseType,
         driverLicenseNumber: data.driverLicenseNumber,
 
-        // Vehicle basics
+        // vehicle basics
         vehicleMake: data.vehicleMake,
         vehicleModel: data.vehicleModel,
         vehicleType: data.vehicleType,
         vehicleYear: data.vehicleYear,
         vehicleRegistrationNumber: data.vehicleRegistrationNumber,
-        vehicleInsuranceNumber: data.vehicleInsuranceNumber,
 
-        // Capacities / performance
+        // boolean in schema; accept either boolean or number from FE
+        vehicleInsurance: !!data.vehicleInsurance,
+
+        // capacities
         vehicleCapacityKg: data.vehicleCapacityKg,
         vehicleCapacityLiters: data.vehicleCapacityLiters,
         speedKmH: data.speedKmH,
 
-        // Cargo dims (required at application)
-        vehicleCargoCM: data.vehicleCargoCM,
+        // cargo dims: accept either vehicleCargoCM or cargoDimensions
+        vehicleCargoCM: data.vehicleCargoCM ?? data.cargoDimensions,
 
-        // Pay
+        // pay
         payFixedPerShift: data.payFixedPerShift,
         payPerKm: data.payPerKm,
         payPerStop: data.payPerStop,
 
-        // Region/center mapping
-        logisticCenterIds: mapLogisticCenterToArray((app as any).logisticCenterId),
+        // centers
+        logisticCenterIds: (app as any).logisticCenterId ? [(app as any).logisticCenterId] : [],
 
-        // Schedules (derived monthly)
-        currentMonth,
+        // schedules
+        currentMonth: currentMonthNum,      // <-- number (1..12)
         activeSchedule,
-      },
-    ],
-    { session }
-  ).then((arr) => arr[0]);
+      }],
+      { session }
+    ).then(arr => arr[0]);
 
-  return { deliverer };
+    return { deliverer };
 }
 
 /** Provision Industrial Deliverer (same as Deliverer + refrigerated). */

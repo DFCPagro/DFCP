@@ -5,10 +5,9 @@ import {
   CloseButton,
   Box,
   VStack,
-  Text,
   Heading,
   Link as CLink,
-  Separator, // ✅ v3 replacement for Divider/StackDivider
+  Separator, // ✅ v3 replacement for box/StackDivider
 } from "@chakra-ui/react";
 import { Link as RouterLink, useLocation } from "react-router-dom";
 import { isMenuGroup, isVisible, type MenuItem } from "@/types/menu";

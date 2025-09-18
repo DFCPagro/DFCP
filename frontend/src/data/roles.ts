@@ -69,7 +69,7 @@ export const RolesTable: readonly RoleDef[] = [
       // Cargo dimensions
       {
         label: "Cargo dimensions",
-        name: "cargoDimensions",
+        name: "vehicleCargoCM",
         type: "dimensions",
         step: "vehicle",
         unit: "cm",
@@ -77,7 +77,20 @@ export const RolesTable: readonly RoleDef[] = [
         colSpan: { base: 1, md: 2 },
       },
 
-      { label: "Vehicle Capacity (t)", type: "number", step: "vehicle", stepAttr: "0.1", min: "0" },
+      // line 1 (full width)
+      { label: "Vehicle Capacity (L)", name: "vehicleCapacityLiters", type: "number", step: "vehicle", stepAttr: "0.1", min: "0", colSpan: { base: 1, md: 2 } },
+
+      // line 2 (two columns side-by-side)
+      { label: "Vehicle Weight Capacity", name: "vehicleCapacityValue", type: "number", step: "vehicle", stepAttr: "0.1", min: "0" }, // spans 1 col by default
+      { label: "Weight Unit", name: "vehicleCapacityUnit", type: "text", step: "vehicle", help: "Choose kg or t" },       // spans 1 col by default
+
+      // hidden computed (still hidden)
+      { label: "Capacity (kg, computed)", name: "vehicleCapacityKg", type: "number", step: "vehicle", colSpan: { base: 0 } },
+
+      // line 3 (full width)
+      { label: "Max Speed (km/h)", name: "speedKmH", type: "number", step: "vehicle", min: "0", colSpan: { base: 1, md: 2 } },
+
+
 
       // Driver
       { label: "License Type",           type: "text", step: "driver" },
@@ -90,7 +103,7 @@ export const RolesTable: readonly RoleDef[] = [
   },
 
   {
-    name: "industrialDriindustrialDelivererver",
+    name: "industrialDeliverer",
     description: "Delivers goods from farms to the logistics center.",
     includeSchedule: true,
     includeLand: false,
@@ -105,7 +118,31 @@ export const RolesTable: readonly RoleDef[] = [
       { label: "Vehicle Model", type: "text", step: "vehicle" },
       { label: "Vehicle Type", type: "text", step: "vehicle" },
       { label: "Vehicle Year", type: "number", step: "vehicle" },
-      { label: "Vehicle Capacity (t)", type: "number", step: "vehicle", stepAttr: "0.1", min: "0" },
+
+      // Cargo dimensions
+      {
+        label: "Cargo dimensions",
+        name: "vehicleCargoCM",
+        type: "dimensions",
+        step: "vehicle",
+        unit: "cm",
+        help: "Internal cargo box size.",
+        colSpan: { base: 1, md: 2 },
+      },
+
+      // line 1 (full width)
+      { label: "Vehicle Capacity (L)", name: "vehicleCapacityLiters", type: "number", step: "vehicle", stepAttr: "0.1", min: "0", colSpan: { base: 1, md: 2 } },
+
+      // line 2 (two columns side-by-side)
+      { label: "Vehicle Weight Capacity", name: "vehicleCapacityValue", type: "number", step: "vehicle", stepAttr: "0.1", min: "0" }, // spans 1 col by default
+      { label: "Weight Unit", name: "vehicleCapacityUnit", type: "text", step: "vehicle", help: "Choose kg or t" },       // spans 1 col by default
+
+      // hidden computed (still hidden)
+      { label: "Capacity (kg, computed)", name: "vehicleCapacityKg", type: "number", step: "vehicle", colSpan: { base: 0 } },
+
+      // line 3 (full width)
+      { label: "Max Speed (km/h)", name: "speedKmH", type: "number", step: "vehicle", min: "0", colSpan: { base: 1, md: 2 } },
+
 
       { label: "License Type", type: "text", step: "driver" },
       { label: "Driver License Number", type: "text", step: "driver" },

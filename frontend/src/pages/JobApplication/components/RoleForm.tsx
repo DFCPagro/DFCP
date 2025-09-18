@@ -13,6 +13,7 @@ import {
   createListCollection,
 } from "@chakra-ui/react";
 import type { RoleDef, RoleField } from "@/data/roles";
+import type { LandInput } from "@/api/jobApplications";
 import { ScheduleGrid } from "./ScheduleGrid";
 import { LandList } from "./LandList";
 
@@ -26,8 +27,8 @@ type Props = {
   // composite sections
   scheduleMask?: number[] | undefined;
   onScheduleChange?: (m?: number[]) => void;
-  lands?: any[];
-  onLandsChange?: (next: any[]) => void;
+  lands?: LandInput[];
+  onLandsChange?: (next: LandInput[]) => void;
   // errors from Zod
   errors?: Record<string, string | undefined>;
 };
@@ -214,6 +215,71 @@ function RenderField({
     return null; // don't render the input
   }
 
+  // Hide derived Vehicle Capacity (kg)
+  if (name === "vehicleCapacityKg") {
+    return null;
+  }
+
+  // Special-case: vehicle capacity unit (kg/t) dropdown
+  if (name === "vehicleCapacityUnit") {
+    const unitOptions = createListCollection({
+      items: [
+        { label: "kg", value: "kg" },
+        { label: "t",  value: "t"  },
+      ],
+    });
+    const u = (values[name] ?? "kg") as "kg" | "t";
+
+    return (
+      <Box gridColumn={spanToGrid(f.colSpan)}>
+        <Field.Root invalid={Boolean(error)}>
+          <Field.Label htmlFor={name}>{f.label}</Field.Label>
+          <Select.Root
+            id={name}
+            name={name}
+            collection={unitOptions}
+            value={[u]}
+            onValueChange={(e) => {
+              const nextUnit = (e.value[0] ?? u) as "kg" | "t";
+              onChange(name, nextUnit);
+              // recompute derived kg using current numeric value
+              const val = values["vehicleCapacityValue"];
+              const kg =
+                typeof val === "number" ? val * (nextUnit === "t" ? 1000 : 1) : undefined;
+              onChange("vehicleCapacityKg", kg);
+            }}
+          >
+            <Select.HiddenSelect />
+            <Select.Control>
+              <Select.Trigger>
+                <Select.ValueText placeholder="Select unit" />
+              </Select.Trigger>
+              <Select.IndicatorGroup>
+                <Select.Indicator />
+                <Select.ClearTrigger />
+              </Select.IndicatorGroup>
+            </Select.Control>
+            <Select.Positioner>
+              <Select.Content>
+                {unitOptions.items.map((item) => (
+                  <Select.Item key={item.value} item={item}>
+                    {item.label}
+                    <Select.ItemIndicator />
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Select.Root>
+          {error && (
+            <Text mt={1} fontSize="sm" color="red.500">
+              {error}
+            </Text>
+          )}
+        </Field.Root>
+      </Box>
+    );
+  }
+
   
   if (f.type === "dimensions") {
     return (
@@ -272,6 +338,12 @@ function RenderField({
                   ? (raw === "" ? undefined : Number(raw))
                   : raw;
               onChange(name, next);
+
+              if (name === "vehicleCapacityValue") {
+                const unit = (values["vehicleCapacityUnit"] ?? "kg") as "kg" | "t";
+                const kg = typeof next === "number" ? next * (unit === "t" ? 1000 : 1) : undefined;
+                onChange("vehicleCapacityKg", kg);
+              }
             }}
 
           />
@@ -361,7 +433,7 @@ export function RoleForm({
             <Heading size="sm" mb={3}>
               Lands
             </Heading>
-            <LandList value={lands ?? []} onChange={onLandsChange!} />
+            <LandList value={(lands ?? []) as LandInput[]} onChange={onLandsChange!} />
           </Card.Body>
         </Card.Root>
       )}

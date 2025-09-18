@@ -1,3 +1,4 @@
+
 // src/pages/Market.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -14,18 +15,16 @@ import {
   Field,
   Dialog,
 } from "@chakra-ui/react";
+
 import AuthGuard from "@/guards/AuthGuard";
 import MapPickerDialog from "@/components/common/MapPickerDialog";
 import ShiftPicker from "@/components/ui/ShiftPicker";
 import ItemCard from "@/components/feature/market/ItemCard";
 import CategoryFilter from "@/components/feature/market/CategoryFilter";
+
 import { fetchMarket, addLocation, fetchMyLocations } from "@/api/market";
-import type {
-  MarketItem,
-  ShiftCode,
-  UserLocation,
-  CategoryCode,
-} from "@/types/market";
+
+import type { MarketItem, ShiftCode, UserLocation, CategoryCode } from "@/types/market";
 import CartIconButton from "@/components/common/CartIconButton";
 import { useCart } from "@/store/cart";
 import { useCartItemsUnified } from "@/hooks/useCartItemsUnified";
@@ -40,47 +39,34 @@ import {
   type CartLine,
 } from "@/utils/cart";
 
-// Cart's canonical ShiftKey type: 'morning'|'afternoon'|'night'
+// Cart ShiftKey type (4 shifts)
 import type { ShiftKey as CartShiftKey } from "@/types/cart";
 
-/* ---------------- ShiftCode ↔ ShiftKey mapping (+legacy EVENING) ---------------- */
+/* ---------------- ShiftCode ↔ ShiftKey mapping (4 shifts) ---------------- */
 function toShiftKey(code?: ShiftCode | null): CartShiftKey | null {
   switch (code) {
-    case "MORNING":
-      return "morning";
-    case "AFTERNOON":
-      return "afternoon";
-    case "NIGHT":
-      return "night";
-    // some older parts might still emit "EVENING"
-    // @ts-ignore
-    case "EVENING":
-      return "night";
-    default:
-      return null;
+    case "MORNING": return "morning";
+    case "AFTERNOON": return "afternoon";
+    case "EVENING": return "evening";
+    case "NIGHT": return "night";
+    default: return null;
   }
 }
 function fromShiftKey(key?: CartShiftKey | null): ShiftCode | undefined {
   switch (key) {
-    case "morning":
-      return "MORNING";
-    case "afternoon":
-      return "AFTERNOON";
-    case "night":
-      return "NIGHT";
-    default:
-      return undefined;
+    case "morning": return "MORNING";
+    case "afternoon": return "AFTERNOON";
+    case "evening": return "EVENING";
+    case "night": return "NIGHT";
+    default: return undefined;
   }
 }
 function normalizeKey(input?: unknown): CartShiftKey | null {
   if (!input) return null;
-  const v = String(input).toLowerCase();
-  if (v === "evening") return "night";
-  if (v === "night" || v === "morning" || v === "afternoon")
-    return v as CartShiftKey;
-  return null;
+  const v = String(input).toLowerCase() as CartShiftKey;
+  return v === "morning" || v === "afternoon" || v === "evening" || v === "night" ? v : null;
 }
-/* ------------------------------------------------------------------------------ */
+/* ------------------------------------------------------------------------ */
 
 type PendingAction =
   | { kind: "shift"; value?: ShiftCode }
@@ -105,16 +91,13 @@ export default function Market() {
   const [logisticCenterId, setLogisticCenterId] = useState<string>();
   const [locations, setLocations] = useState<UserLocation[]>([]);
 
-  // Live cart items from both sources (store + LS util)
+  // Items from both sources (store + LS util)
   const storeItems = useCartItemsUnified();
   const [lsItems, setLsItems] = useState<CartLine[]>([]);
   useEffect(() => onCartUpdated(({ items }) => setLsItems(items)), []);
 
-  // ---- Helper: only call cart.setLock when value actually changes
-  const lastLock = useRef<{ lc: string | null; sk: CartShiftKey | null }>({
-    lc: null,
-    sk: null,
-  });
+  // Only call cart.setLock when value actually changes
+  const lastLock = useRef<{ lc: string | null; sk: CartShiftKey | null }>({ lc: null, sk: null });
   const setLockSafe = (lc: string | null, sk: CartShiftKey | null) => {
     if (lastLock.current.lc !== lc || lastLock.current.sk !== sk) {
       lastLock.current = { lc, sk };
@@ -172,18 +155,10 @@ export default function Market() {
       const parts = address.split(",").map((s) => s.trim());
       const city = parts.length >= 2 ? ((parts.at(-2) as string) ?? "") : "";
       const street = address;
-      const saved: UserLocation = await addLocation({
-        label: address,
-        street,
-        city,
-        lat,
-        lng,
-      });
+      const saved: UserLocation = await addLocation({ label: address, street, city, lat, lng });
 
       setLocationId((prev) => (prev === saved._id ? prev : saved._id));
-      setSelectedAddress((prev) =>
-        prev === (saved.label || address) ? prev : (saved.label || address)
-      );
+      setSelectedAddress((prev) => (prev === (saved.label || address) ? prev : (saved.label || address)));
       const lc = (saved as any)?.logisticCenterId ?? undefined;
       setLogisticCenterId((prev) => (prev === lc ? prev : lc));
       setLockSafe(lc ?? null, toShiftKey(shift));
@@ -204,9 +179,7 @@ export default function Market() {
         if (mounted) setLocations(list);
       } catch {}
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   // When locationId resolves, update label/LC and lock (only if changed)
@@ -219,36 +192,30 @@ export default function Market() {
     }
     const loc = locations.find((l) => l._id === locationId);
     if (!loc) return;
-    if (loc.label && loc.label !== selectedAddress) {
-      setSelectedAddress(loc.label);
-    }
+    if (loc.label && loc.label !== selectedAddress) setSelectedAddress(loc.label);
     const lc = (loc as any)?.logisticCenterId ?? undefined;
     if (lc !== logisticCenterId) {
       setLogisticCenterId(lc);
       setLockSafe(lc ?? null, toShiftKey(shift));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationId, locations]); // (avoid including selectedAddress/logisticCenterId to prevent churn)
+  }, [locationId, locations]);
 
   // Hydrate once from saved meta (idempotent)
   useEffect(() => {
     const meta = getCartMeta();
     // location
-    if (meta?.locationId && meta.locationId !== locationId) {
-      setLocationId(meta.locationId);
-    }
-    // shift (normalize legacy)
+    if (meta?.locationId && meta.locationId !== locationId) setLocationId(meta.locationId);
+    // shift
     const key = normalizeKey((meta as any)?.shiftKey);
     const shiftCode = fromShiftKey(key);
-    if (shiftCode && shiftCode !== shift) {
-      setShift(shiftCode);
-    }
+    if (shiftCode && shiftCode !== shift) setShift(shiftCode);
     // lock
     setLockSafe(meta?.logisticCenterId ?? null, key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep lock in sync when shift changes (only if it actually changes)
+  // Keep lock in sync when shift changes
   const lastShiftForLock = useRef<ShiftCode | undefined>(undefined);
   useEffect(() => {
     if (lastShiftForLock.current !== shift) {
@@ -258,17 +225,12 @@ export default function Market() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shift]);
 
-  // Reset items when location changes (but avoid re-render churn)
-  useEffect(() => {
-    setItems([]); // safe clear
-  }, [locationId]);
+  // Reset items when location changes
+  useEffect(() => { setItems([]); }, [locationId]);
 
   // Fetch items (locationId + shift + category)
   useEffect(() => {
-    if (!locationId || !shift) {
-      setItems([]);
-      return;
-    }
+    if (!locationId || !shift) { setItems([]); return; }
     let mounted = true;
     (async () => {
       setLoading(true);
@@ -279,16 +241,13 @@ export default function Market() {
         if (mounted) setLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [locationId, shift, category]);
 
   const emptyState = useMemo(() => {
     if (!locationId) return "Pick your delivery location to continue.";
     if (!shift) return "Choose a shift to load available items.";
-    if (!loading && items.length === 0)
-      return "No items available for this shift.";
+    if (!loading && items.length === 0) return "No items available for this shift.";
     return null;
   }, [locationId, shift, loading, items.length]);
 
@@ -329,65 +288,58 @@ export default function Market() {
     setPickerOpen(false);
   };
 
-  // Add to cart (clamps qty; persists meta; updates lock safely)
-// ======= Add to cart (clamps to available; stores meta + updates store) =======
-function handleAddToCart(inventoryId: string, qty: number) {
-  const product = items.find((i) => i.inventoryId === inventoryId);
-  if (!product) return;
+  // ======= Add to cart (clamps to available; stores meta + updates store) =======
+  function handleAddToCart(inventoryId: string, qty: number) {
+    const product = items.find((i) => i.inventoryId === inventoryId);
+    if (!product) return;
 
-  const reserved = reservedByCart[inventoryId] ?? 0;
-  const baseStock = Number(product.inStock ?? 0);
-  const available = Math.max(0, baseStock - reserved);
-  if (available <= 0) return;
+    const reserved = reservedByCart[inventoryId] ?? 0;
+    const baseStock = Number(product.inStock ?? 0);
+    const available = Math.max(0, baseStock - reserved);
+    if (available <= 0) return;
 
-  const clampQty = Math.max(1, Math.min(qty, available));
+    const clampQty = Math.max(1, Math.min(qty, available));
 
-  setCartMeta({
-    locationId,
-    logisticCenterId,
-    shiftKey: toShiftKey(shift),
-  });
+    setCartMeta({
+      locationId,
+      logisticCenterId,
+      shiftKey: toShiftKey(shift),
+    });
 
-  addToCartLS({
-    inventoryId,
-    name: product.name,
-    price: Number(product.price ?? 0),
-    imageUrl: product.imageUrl,
-    farmer: product.farmer
-      ? { name: product.farmer.name, farmName: product.farmer.farmName }
-      : undefined,
-    qty: clampQty,
-    maxQty: available,
-  });
-
-  cart.addOrInc(
-    {
-      id: inventoryId,
+    addToCartLS({
+      inventoryId,
       name: product.name,
+      price: Number(product.price ?? 0),
       imageUrl: product.imageUrl,
-      pricePerKg: Number(product.price ?? 0),
-      farmerName:
-        product.farmer ? product.farmer.name || product.farmer.farmName : "",
-      lcId: logisticCenterId ?? undefined,
-      shiftKey: toShiftKey(shift) ?? undefined,
-      holdId: undefined,
-      holdExpiresAt: Date.now() + 3 * 60_000,
-    },
-    clampQty
-  );
-}
+      farmer: product.farmer
+        ? { name: product.farmer.name, farmName: product.farmer.farmName }
+        : undefined,
+      qty: clampQty,
+      maxQty: available,
+    });
 
-
+    cart.addOrInc(
+      {
+        id: inventoryId,
+        name: product.name,
+        imageUrl: product.imageUrl,
+        pricePerKg: Number(product.price ?? 0),
+        farmerName: product.farmer ? product.farmer.name || product.farmer.farmName : "",
+        lcId: logisticCenterId ?? undefined,
+        shiftKey: toShiftKey(shift) ?? undefined,
+        holdId: undefined,
+        holdExpiresAt: Date.now() + 3 * 60_000,
+      },
+      clampQty
+    );
+  }
 
   // Render list with live reserved stock
   const computedItems = useMemo(
     () =>
       items.map((it) => ({
         it,
-        displayStock: Math.max(
-          0,
-          Number(it.inStock ?? 0) - (reservedByCart[it.inventoryId] ?? 0)
-        ),
+        displayStock: Math.max(0, Number(it.inStock ?? 0) - (reservedByCart[it.inventoryId] ?? 0)),
       })),
     [items, reservedByCart]
   );
@@ -407,29 +359,22 @@ function handleAddToCart(inventoryId: string, qty: number) {
           <GridItem>
             <HStack gap={3} align="end" style={{ flexWrap: "wrap" }}>
               <Field.Root>
-                <Field.Label htmlFor="location-select">
-                  Saved locations
-                </Field.Label>
+                <Field.Label htmlFor="location-select">Saved locations</Field.Label>
                 <select
                   id="location-select"
                   value={locationId ?? ""}
-                  onChange={(e) =>
-                    onSelectSavedLocation(e.target.value || undefined)
-                  }
+                  onChange={(e) => onSelectSavedLocation(e.target.value || undefined)}
                   aria-label="Saved locations"
                   style={{
                     padding: "8px 10px",
                     borderRadius: "8px",
-                    border:
-                      "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+                    border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
                     minWidth: 280,
                     background: "var(--chakra-colors-white, #fff)",
                   }}
                 >
                   <option value="">
-                    {locations.length
-                      ? "Choose saved address"
-                      : "No saved addresses"}
+                    {locations.length ? "Choose saved address" : "No saved addresses"}
                   </option>
                   {locations.map((l) => (
                     <option key={l._id} value={l._id}>
@@ -439,25 +384,13 @@ function handleAddToCart(inventoryId: string, qty: number) {
                 </select>
               </Field.Root>
 
-              <Button
-                type="button"
-                onClick={() => setPickerOpen(true)}
-                variant="outline"
-              >
-                {selectedAddress
-                  ? "Change delivery location"
-                  : "Pick delivery location"}
+              <Button type="button" onClick={() => setPickerOpen(true)} variant="outline">
+                {selectedAddress ? "Change delivery location" : "Pick delivery location"}
               </Button>
 
               {selectedAddress && (
-                <Badge
-                  colorPalette="green"
-                  variant="surface"
-                  title={selectedAddress}
-                >
-                  <Text style={{ display: "block", maxWidth: "36ch" }}>
-                    {selectedAddress}
-                  </Text>
+                <Badge colorPalette="green" variant="surface" title={selectedAddress}>
+                  <Text style={{ display: "block", maxWidth: "36ch" }}>{selectedAddress}</Text>
                 </Badge>
               )}
             </HStack>
@@ -490,12 +423,7 @@ function handleAddToCart(inventoryId: string, qty: number) {
           </HStack>
         ) : (
           <Grid
-            templateColumns={[
-              "1fr",
-              "repeat(2, 1fr)",
-              "repeat(3, 1fr)",
-              "repeat(4, 1fr)",
-            ]}
+            templateColumns={["1fr", "repeat(2, 1fr)", "repeat(3, 1fr)", "repeat(4, 1fr)"]}
             gap={6}
           >
             {computedItems.map(({ it, displayStock }) => (
@@ -524,10 +452,7 @@ function handleAddToCart(inventoryId: string, qty: number) {
         />
 
         {/* Confirm dialog */}
-        <Dialog.Root
-          open={!!pending}
-          onOpenChange={(e) => !e.open && setPending(null)}
-        >
+        <Dialog.Root open={!!pending} onOpenChange={(e) => !e.open && setPending(null)}>
           <Dialog.Backdrop />
           <Dialog.Positioner>
             <Dialog.Content maxW="md">
@@ -536,10 +461,8 @@ function handleAddToCart(inventoryId: string, qty: number) {
               </Dialog.Header>
               <Dialog.Body>
                 Changing your{" "}
-                {pending?.kind === "shift"
-                  ? "delivery shift"
-                  : "delivery location"}{" "}
-                will empty your cart. Do you want to continue?
+                {pending?.kind === "shift" ? "delivery shift" : "delivery location"} will empty your
+                cart. Do you want to continue?
               </Dialog.Body>
               <Dialog.Footer gap="2">
                 <Button variant="ghost" onClick={() => setPending(null)}>
@@ -556,3 +479,7 @@ function handleAddToCart(inventoryId: string, qty: number) {
     </AuthGuard>
   );
 }
+
+
+
+

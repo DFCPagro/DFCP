@@ -1,34 +1,35 @@
+
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import AuthGuard from "@/guards/AuthGuard";
 import GuestGuard from "@/guards/GuestGuard";
-import RoleGuard from '@/guards/RoleGuard';
+import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
-// import JobApplication from "@/pages/JobApplication/index";
 
-const Home                = lazy(() => import('@/pages/Home'));
-const Login               = lazy(() => import('@/pages/Login'));
-const Register            = lazy(() => import('@/pages/Register'));
-const Dashboard           = lazy(() => import('@/pages/Dashboard'));
-const DriverSchedule      = lazy(() => import('@/pages/DriverSchedule'));
-const JobApplication      = lazy(() => import ('@/pages/JobApplication'))
-const AvailabileJobs      = lazy(() => import ('@/pages/AvailableJobs'))
-const AggregationsPage    = lazy(() => import('@/pages/Aggregations'));
-const ContainersPage      = lazy(() => import('@/pages/Containers'));
-const ShipmentsPage       = lazy(() => import('@/pages/Shipments'));
-const OpsOrderPage        = lazy(() => import('@/pages/OpsOrder'));
-const CustomerConfirmPage = lazy(() => import('@/pages/CustomerConfirm'));
-const ArrivalConfirmPage  = lazy(() => import('@/pages/ArrivalConfirm'));
-const AggregationViewPage = lazy(() => import('@/pages/AggregationView'));
-const ContainerViewPage   = lazy(() => import('@/pages/ContainerView'));
-const Market              = lazy(() => import('@/pages/Market'));
-const Cart                = lazy(() => import('@/pages/Cart'));
-const Checkout            = lazy(() => import('@/pages/Checkout'));
-
-const NotFound            = lazy(() => import('@/pages/NotFound'));
-const ItemManager         = lazy(() => import('@/pages/ItemManager'));
-const AdminDashboard     = lazy(() => import('@/pages/AdminDashboard'));
-const JobAppReview       = lazy(() => import('@/pages/JobAppReview'));
+// Lazy pages
+const Home                 = lazy(() => import("@/pages/Home"));
+const Login                = lazy(() => import("@/pages/Login"));
+const Register             = lazy(() => import("@/pages/Register"));
+const Dashboard            = lazy(() => import("@/pages/Dashboard"));
+const DriverSchedule       = lazy(() => import("@/pages/DriverSchedule"));
+const JobApplication       = lazy(() => import("@/pages/JobApplication"));
+const AvailabileJobs       = lazy(() => import("@/pages/AvailableJobs"));
+const AggregationsPage     = lazy(() => import("@/pages/Aggregations"));
+const ContainersPage       = lazy(() => import("@/pages/Containers"));
+const ShipmentsPage        = lazy(() => import("@/pages/Shipments"));
+const OpsOrderPage         = lazy(() => import("@/pages/OpsOrder"));
+const CustomerConfirmPage  = lazy(() => import("@/pages/CustomerConfirm"));
+const ArrivalConfirmPage   = lazy(() => import("@/pages/ArrivalConfirm"));
+const AggregationViewPage  = lazy(() => import("@/pages/AggregationView"));
+const ContainerViewPage    = lazy(() => import("@/pages/ContainerView"));
+const FarmerDashboard      = lazy(() => import("@/pages/farmer")); // NOTE: PascalCase
+const Market               = lazy(() => import("@/pages/Market"));
+const Cart                 = lazy(() => import("@/pages/Cart"));
+const Checkout             = lazy(() => import("@/pages/Checkout"));
+const NotFound             = lazy(() => import("@/pages/NotFound"));
+const ItemManager          = lazy(() => import("@/pages/ItemManager"));
+const AdminDashboard       = lazy(() => import("@/pages/AdminDashboard"));
+const JobAppReview         = lazy(() => import("@/pages/JobAppReview"));
 
 export default function AppRoutes() {
   return (
@@ -53,20 +54,28 @@ export default function AppRoutes() {
           <Route path={PATHS.ItemsManagment} element={<ItemManager />} />
           <Route path={PATHS.adminDashboard} element={<RoleGuard allow={['admin']}><AdminDashboard /></RoleGuard>} />
           <Route path={PATHS.JobAppReview} element={<RoleGuard allow={['admin']}><JobAppReview /></RoleGuard>} />
-
           <Route path={PATHS.dashboard} element={<Dashboard />} />
+
           {/* customer-only pages */}
           <Route path={PATHS.market} element={<Market />} />
           <Route path={PATHS.cart} element={<Cart />} />
           <Route path={PATHS.checkout} element={<Checkout />} />
 
+          {/* driver-only page */}
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
+          <Route path={PATHS.shipments} element={<RoleGuard allow={['deliverer']}><ShipmentsPage /></RoleGuard>} />
+
           {/* farmer-only pages */}
+          <Route
+            path={PATHS.farmerDashboard}   // e.g., "/farmer/dashboard"
+            element={
+              <RoleGuard allow={['farmer']}>
+                <FarmerDashboard />
+              </RoleGuard>
+            }
+          />
           <Route path={PATHS.aggregations} element={<RoleGuard allow={['farmer']}><AggregationsPage /></RoleGuard>} />
           <Route path={PATHS.containers}   element={<RoleGuard allow={['farmer']}><ContainersPage /></RoleGuard>} />
-
-          {/* driver-only page */}
-          <Route path={PATHS.shipments} element={<RoleGuard allow={['deliverer']}><ShipmentsPage /></RoleGuard>} />
         </Route>
 
         <Route path={PATHS.notFound} element={<NotFound />} />
@@ -75,3 +84,6 @@ export default function AppRoutes() {
     </Suspense>
   );
 }
+
+
+

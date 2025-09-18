@@ -1,4 +1,4 @@
-export type ShiftKey = 'morning' | 'afternoon' | 'night';
+export type ShiftKey = 'morning' | 'afternoon' | 'night'|'evening';
 const API = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 

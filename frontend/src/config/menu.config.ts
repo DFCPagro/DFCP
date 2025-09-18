@@ -39,6 +39,7 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     label: "Delivery Reports",
     path: "/farmer/deliveries/reports",
   },
+  { type: "link", key: "farmer-dashboard", label: "Dashboard", path: "/farmerDashboard" },
 ] as const;
 
 const workAdmin: ReadonlyArray<MenuItem> = [

@@ -1,4 +1,4 @@
-export type ShiftKey = "morning" | "afternoon" | "night";
+export type ShiftKey = "morning" | "afternoon" | "night"|"evening";
 
 
 export interface CartItem {

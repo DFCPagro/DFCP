@@ -1,4 +1,5 @@
 
+
 export const PATHS = {
   home: "/",
   login: "/login",
@@ -12,6 +13,7 @@ export const PATHS = {
   cart: "/cart",
   checkout: "/checkout",
   // Farmer pages
+  farmerDashboard: "/farmerDashboard",
   aggregations: "/aggregations",
   containers: "/containers",
   // Item manager
