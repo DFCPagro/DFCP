@@ -112,3 +112,147 @@ export async function getPublicUserById(id: string): Promise<PublicUser> {
   const user = await getUserById(id);
   return toPublicUser(user);
 }
+
+// ====== (user personal info ) ======
+import { Types } from "mongoose";
+
+
+// For now, always pin LC to this id regardless of what the client sends.
+export const DEFAULT_LC_ID = "66e007000000000000000001";
+
+export type NewAddressInput = {
+  lnt: number;         // longitude (kept as 'lnt' per your schema)
+  alt: number;         // latitude  (kept as 'alt' per your schema)
+  address: string;
+  // logisticCenterId?: string; // intentionally ignored for now
+};
+
+export type UpdateContactInput = {
+  email?: string;
+  phone?: string;
+};
+
+function asObjectId(id: string) {
+  if (!Types.ObjectId.isValid(id)) throw new Error("Invalid user id");
+  return new Types.ObjectId(id);
+}
+
+/**
+ * Get all addresses for a user.
+ */
+export async function getUserAddresses(userId: string) {
+  const user = await User.findById(asObjectId(userId), { addresses: 1 }).lean();
+  if (!user) throw new Error("User not found");
+  return user.addresses ?? [];
+}
+
+/**
+ * Add a new address to the user.
+ * NOTE: For now, we always set logisticCenterId = DEFAULT_LC_ID, ignoring any incoming LC id.
+ * TODO: later compute the closest LC from (alt, lnt) and assign it here.
+ */
+export async function addUserAddress(userId: string, payload: NewAddressInput) {
+  if (typeof payload?.lnt !== "number" || !isFinite(payload.lnt)) {
+    throw new Error("lnt (longitude) must be a finite number");
+  }
+  if (typeof payload?.alt !== "number" || !isFinite(payload.alt)) {
+    throw new Error("alt (latitude) must be a finite number");
+  }
+  if (typeof payload?.address !== "string" || !payload.address.trim()) {
+    throw new Error("address is required");
+  }
+
+  const addressDoc = {
+    lnt: payload.lnt,
+    alt: payload.alt,
+    address: payload.address.trim(),
+    logisticCenterId: DEFAULT_LC_ID, // pinned LC for now
+  };
+
+  const updated = await User.findByIdAndUpdate(
+    asObjectId(userId),
+    { $push: { addresses: addressDoc } },
+    { new: true, projection: { addresses: 1 } }
+  ).lean();
+
+  if (!updated) throw new Error("User not found");
+  return updated.addresses ?? [];
+}
+
+/**
+ * Fetch just the user's name.
+ */
+export async function getUserName(userId: string) {
+  const user = await User.findById(asObjectId(userId), { name: 1 }).lean();
+  if (!user) throw new Error("User not found");
+  return { name: user.name };
+}
+
+/**
+ * Fetch contact info (name, email, phone, birthday).
+ */
+export async function getUserContactInfo(userId: string) {
+  const user = await User.findById(asObjectId(userId), {
+    name: 1,
+    email: 1,
+    phone: 1,
+    birthday: 1,
+  }).lean();
+  if (!user) throw new Error("User not found");
+  return {
+    name: user.name,
+    email: user.email,
+    phone: user.phone ?? null,
+    birthday: user.birthday ?? null,
+  };
+}
+
+/**
+ * Update email and/or phone (either field is optional).
+ * - Email is normalized to lowercase.
+ * - Basic format checks included (schema validators still apply).
+ * - Duplicate email will surface a Mongo duplicate key error to the caller.
+ */
+export async function updateUserContact(
+  userId: string,
+  updates: UpdateContactInput
+) {
+  const $set: Record<string, any> = {};
+
+  if (typeof updates.email === "string") {
+    const normalized = updates.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      throw new Error("Invalid email format");
+    }
+    $set.email = normalized;
+  }
+
+  if (typeof updates.phone === "string") {
+    const phone = updates.phone.trim();
+    // light sanity: allow +, digits, spaces, (), and dashes
+    if (!/^[+\d\s\-()]{7,20}$/.test(phone)) {
+      throw new Error("Invalid phone format");
+    }
+    $set.phone = phone;
+  }
+
+  if (Object.keys($set).length === 0) {
+    throw new Error("No updatable fields provided (email or phone)");
+  }
+
+  const updated = await User.findByIdAndUpdate(
+    asObjectId(userId),
+    { $set },
+    { new: true, projection: { name: 1, email: 1, phone: 1, birthday: 1 } }
+  ).lean();
+
+  if (!updated) throw new Error("User not found");
+
+  return {
+    name: updated.name,
+    email: updated.email,
+    phone: updated.phone ?? null,
+    birthday: updated.birthday ?? null,
+  };
+}
+

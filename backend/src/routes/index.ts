@@ -8,6 +8,7 @@ import centerMapRoutes from './centerMap.routes';
 import marketRoutes from './availableMarketStock.routes';
 import delivererRoutes from './deliverer.routes';
 import shiftRoutes from './shiftConfig.route';
+import userRoutes from './user.route';
 
 const router = Router();
 router.use('/auth', authRoutes);
@@ -19,4 +20,5 @@ router.use('/market', marketRoutes);
 router.use('/deliverers', delivererRoutes);
 router.use(centerMapRoutes);
 router.use('/shifts',shiftRoutes);
+router.use('/users', userRoutes);
 export default router;
