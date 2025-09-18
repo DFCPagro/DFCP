@@ -39,3 +39,40 @@ export async function startPreparingShipment(shipmentId: string) {
   await new Promise((r) => setTimeout(r, 200));
   return { ok: true, shipmentId };
 }
+
+
+/*  // TODO backend final:
+import type { FarmerDelivery, FarmerOrder, FarmerSection } from "@/types/farmer";
+
+// Replace fetch with your real API client (axios, fetch wrapper, etc.)
+export async function fetchFarmerDashboard(): Promise<{
+  approvedShipments: FarmerDelivery[];
+  shipmentRequests: FarmerOrder[];
+  crops: FarmerSection[];
+}> {
+  const res = await fetch("/api/farmer/dashboard");
+  if (!res.ok) throw new Error("Failed to fetch farmer dashboard");
+  return res.json();
+}
+
+export async function approveShipmentRequest(
+  orderId: string,
+  approvedKg: number,
+  validUntilISO: string
+) {
+  await fetch(`/api/farmer/orders/${orderId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ approvedKg, validUntilISO }),
+  });
+}
+
+export async function startPreparingShipment(deliveryId: string) {
+  await fetch(`/api/farmer/deliveries/${deliveryId}/start`, {
+    method: "POST",
+  });
+}
+// 
+
+
+*/
