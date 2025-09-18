@@ -1,0 +1,56 @@
+
+tags:
+  - name: HakkunnahMatata
+    description: Endpoints for Hakkunnah Matata (require authentication)  
+paths:
+  /hakkunnah-matata/some-endpoint:
+    get:
+      tags: [HakkunnahMatata]
+      summary: Example endpoint 
+      security:
+        - bearerAuth: []  
+      responses:
+        '200':    
+          description: Example response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "This is an example response from Hakkunnah Matata endpoint."  
+        '401':      
+          description: Unauthorized           
+        '403':     
+           description: Forbidden  
+
+
+components:
+  schemas:    
+    HakkunnahMatataExample:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "example-id"
+        name:
+          type: string
+          example: "Example Name"
+        description:
+          type: string
+          example: "This is an example description for Hakkunnah Matata."
+      required: [id, name]
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT   
+      description: JWT Authorization header using the Bearer scheme. Example: 
+      Authorization : Bearer {token}
+  responses:
+    UnauthorizedError:
+      description: Access token is missing or invalid
+    ForbiddenError:
+      description: You do not have permission to access this resource
+  

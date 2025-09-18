@@ -22,6 +22,7 @@ router.get("/available-stock/:docId", authenticate, ctrl.getStockById);
 // Upcoming (today and forward) for LC
 router.get("/available-stock/upcoming",authenticate, ctrl.listUpcoming);
 
+//remove if we create the cart model
 router.post("/available-stock/adjustQty", authenticate, ctrl.adjustAvailableQty);
 
 
