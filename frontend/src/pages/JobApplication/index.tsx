@@ -20,7 +20,7 @@ import type {
 } from "@/types/jobApplications";
 
 // (keep LandInput if you use it for the lands UI)
-import type { LandInput } from "@/api/applications";
+import type { LandInput } from "@/api/jobApplications";
 import { meApi } from "@/api/auth";
 import { toaster } from "@/components/ui/toaster";
 import {
@@ -90,9 +90,21 @@ export default function EmploymentApplication() {
 
   const validateAll = (data: Record<string, any>) => {
     if (!schema) return {};
-    const parsed = schema.safeParse(data);
+
+    // Shape UI into backend form before validating
+    const shaped: Record<string, any> = { ...data };
+
+    if (role?.includeLand) {
+      shaped.lands = (data.lands ?? []).map(mapLand);
+    }
+    if (role?.includeSchedule) {
+      shaped.weeklySchedule = normalizeWeekly(data.weeklySchedule);
+    }
+
+    const parsed = schema.safeParse(shaped);
     return extractErrors(parsed);
   };
+
 
   const updateField = (n: string, v: any) => {
     setFields((prev) => {
@@ -113,11 +125,11 @@ export default function EmploymentApplication() {
   };
 
   const updateLands = (ls: LandInput[]) => {
+    console.log("[updateLands]", ls);
     setLands(ls);
-    setErrors(
-      validateAll({ ...fields, weeklySchedule: scheduleMask, lands: ls })
-    );
+    setErrors(validateAll({ ...fields, lands: ls }));
   };
+
 
   const { mutateAsync, isPending } = useMutation({
   mutationFn: (payload: JobApplicationCreateInput) => createJobApplication(payload),
@@ -191,24 +203,30 @@ export default function EmploymentApplication() {
   // place this in JobApplication/index.tsx, near the other helpers (above handleSubmit)
 const mapLand = (land: any) => {
   // Build backend-ready addresses from the UI fields
-  const address = mapAddress({
-    address: land?.location,
-    alt: land?.locLat,
-    lnt: land?.locLng,
-  });
+  // Prefer structured objects if present; fall back to old string+lat/lng fields
+  const address = mapAddress(
+    land?.addressObj ?? {
+      address: land?.location,
+      alt: land?.locLat,
+      lnt: land?.locLng,
+    }
+  );
 
-  const pickupAddress = land?.pickupAddress
-    ? mapAddress({
-        address: land.pickupAddress,
-        alt: land.pickupLat,
-        lnt: land.pickupLng,
-      })
-    : null;
+  const pickupAddress =
+    land?.pickupAddressObj != null
+      ? mapAddress(land.pickupAddressObj)
+      : land?.pickupAddress
+      ? mapAddress({
+          address: land.pickupAddress,
+          alt: land.pickupLat,
+          lnt: land.pickupLng,
+        })
+      : null;
 
-  // Prefer explicit edges if present; otherwise derive a square from acres
+  // Prefer the new nested measurements; fall back to acres logic
   const measurements =
-    land?.abM != null || land?.bcM != null || land?.cdM != null || land?.daM != null
-      ? mapMeasurements(land)
+    land?.measurements
+      ? mapMeasurements(land.measurements)
       : land?.acres
       ? (() => {
           const m2 = land.acres * 4046.8564224;

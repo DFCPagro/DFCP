@@ -69,7 +69,7 @@ export const RolesTable: readonly RoleDef[] = [
       // Cargo dimensions
       {
         label: "Cargo dimensions",
-        name: "cargoDimensions",
+        name: "vehicleCargoCM",
         type: "dimensions",
         step: "vehicle",
         unit: "cm",

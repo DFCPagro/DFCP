@@ -13,6 +13,7 @@ import {
   createListCollection,
 } from "@chakra-ui/react";
 import type { RoleDef, RoleField } from "@/data/roles";
+import type { LandInput } from "@/api/jobApplications";
 import { ScheduleGrid } from "./ScheduleGrid";
 import { LandList } from "./LandList";
 
@@ -26,8 +27,8 @@ type Props = {
   // composite sections
   scheduleMask?: number[] | undefined;
   onScheduleChange?: (m?: number[]) => void;
-  lands?: any[];
-  onLandsChange?: (next: any[]) => void;
+  lands?: LandInput[];
+  onLandsChange?: (next: LandInput[]) => void;
   // errors from Zod
   errors?: Record<string, string | undefined>;
 };
@@ -361,7 +362,7 @@ export function RoleForm({
             <Heading size="sm" mb={3}>
               Lands
             </Heading>
-            <LandList value={lands ?? []} onChange={onLandsChange!} />
+            <LandList value={(lands ?? []) as LandInput[]} onChange={onLandsChange!} />
           </Card.Body>
         </Card.Root>
       )}

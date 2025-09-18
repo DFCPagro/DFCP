@@ -9,7 +9,7 @@ import {
 } from "@chakra-ui/react";
 import { useState } from "react";
 import MapPickerDialog from "@/components/common/MapPickerDialog";
-import type { LandInput } from "@/api/applications";
+import type { LandInput } from "@/api/jobApplications";
 
 type Land = LandInput;
 // derive a square from acres so we can send abM/bcM/cdM/daM
@@ -27,14 +27,33 @@ export function LandList({ value, onChange }: { value: Land[]; onChange: (lands:
 const add = () =>
   onChange([
     ...value,
-    { landName: `Land ${value.length + 1}`, ownership: "Owned" } as Land,
+    {
+      landName: `Land ${value.length + 1}`,
+      ownership: "Owned",
+      // start measurements so inputs are controlled
+      measurements: { abM: undefined, bcM: undefined, cdM: undefined, daM: undefined, rotationDeg: undefined },
+    } as Land,
   ]);
+
 
 
   const remove = (idx: number) => onChange(value.filter((_, i) => i !== idx));
 
   const upd = (idx: number, patch: Partial<Land>) =>
     onChange(value.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+
+  const updMeas = (
+    idx: number,
+    patch: Partial<NonNullable<Land["measurements"]>>
+  ) => {
+    const curr = value[idx];
+    const next = {
+      ...curr,
+      measurements: { ...(curr.measurements ?? {}), ...patch },
+    } as Land;
+    onChange(value.map((l, i) => (i === idx ? next : l)));
+  };
+
 
   return (
     <Stack gap={4}>
@@ -64,19 +83,30 @@ const add = () =>
                 <NativeSelect.Indicator />
               </NativeSelect.Root>
             </Field.Root>
+            <Flex gap={3} wrap="wrap">
+              {(["abM", "bcM", "cdM", "daM"] as const).map((k) => (
+                <Field.Root key={k} maxW="xs">
+                  <Field.Label>{k} (m)</Field.Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.1"
+                    placeholder="0"
+                    value={(land.measurements as any)?.[k] ?? ""}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "+") e.preventDefault();
+                    }}
+                    onChange={(e) =>
+                      updMeas(i, {
+                        [k]: e.target.value === "" ? undefined : Number(e.target.value),
+                      } as any)
+                    }
+                  />
+                </Field.Root>
+              ))}
+            </Flex>
 
-            <Field.Root maxW="sm">
-              <Field.Label>Acres</Field.Label>
-              <Input
-                type="number"
-                step="any"
-                value={land.acres ?? ""}
-                  onChange={(e) => {
-                    const acres = e.target.value === "" ? undefined : Number(e.target.value);
-                    upd(i, { acres });
-                  }}
-              />
-            </Field.Root>
           </Flex>
 
           <Flex gap={3} mt={3} wrap="wrap">
@@ -117,16 +147,31 @@ const add = () =>
         onConfirm={(p) => {
           if (!picker) return;
           const { i, field } = picker;
+
+          // helpful visibility
+          console.log("[MapPickerDialog confirm]", { field, address: p.address, lat: p.lat, lng: p.lng });
+
           if (field === "pickup") {
-            upd(i, { pickupAddress: p.address, pickupLat: p.lat, pickupLng: p.lng });
+            // keep existing string fields for UI
+            // ALSO store a structured copy that matches backend keys (non-breaking extra)
+            upd(i, {
+              pickupAddress: p.address,
+              pickupLat: p.lat,
+              pickupLng: p.lng,
+              pickupAddressObj: { alt: p.lat, lnt: p.lng, address: p.address },
+            } as any);
           } else {
-            upd(i, { location: p.address, locLat: p.lat, locLng: p.lng });
+            upd(i, {
+              location: p.address,
+              locLat: p.lat,
+              locLng: p.lng,
+              addressObj: { alt: p.lat, lnt: p.lng, address: p.address },
+            } as any);
           }
           setPicker(null);
         }}
-
-
       />
+
     </Stack>
   );
 }

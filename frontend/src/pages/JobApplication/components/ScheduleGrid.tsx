@@ -4,15 +4,15 @@ import { useState, useEffect } from "react";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
-// Display order you requested: Morning, Evening, Afternoon, Night
-const SHIFTS = ["Morning", "Evening", "Afternoon", "Night"] as const;
+// Display order you requested: Morning, Afternoon, Evening, Night
+const SHIFTS = ["Morning","Afternoon", "Evening",  "Night"] as const;
 
 // Backend bit mapping (keep this stable!)
 // Morning=1, Afternoon=2, Evening=4, Night=8
 const SHIFT_BITS: Record<(typeof SHIFTS)[number], number> = {
   Morning: 1,
-  Evening: 4,
   Afternoon: 2,
+  Evening: 4,
   Night: 8,
 };
 
