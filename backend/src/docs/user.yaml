@@ -1,11 +1,3 @@
-openapi: 3.0.3
-info:
-  title: User (Customer) API
-  version: 1.0.0
-  description: Endpoints for customer self-service (addresses, name, contact info)
-
-servers:
-  - url: /api/v1
 
 tags:
   - name: User
