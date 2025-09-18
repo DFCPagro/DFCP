@@ -1,10 +1,13 @@
 import { FilterQuery, Types } from "mongoose";
-import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
+import { AvailableMarketStockModel, AvailableStockItem, AvailableMarketStock} from "../models/availableMarketStock.model";
 import { SHIFT_NAMES } from "../models/availableMarketStock.model";
 import ItemModel from "../models/Item.model"; // adjust import to your project path
-import { getNextAvailableShifts } from "./shiftConfig.service"; // <-- use your actual path
-
+import { getNextAvailableShifts, getShiftConfigByKey } from "./shiftConfig.service"; // <-- use your actual path
+import { DateTime } from "luxon";
+import { normalizeWindow } from "../utils/time";
 type ShiftName = (typeof SHIFT_NAMES)[number];
+type ItemsOnly = { _id: Types.ObjectId; items: AvailableStockItem[] };
+
 
 function normalizeDateUTC(d: Date | string): Date {
   const dd = typeof d === "string" ? new Date(d) : new Date(d);
@@ -12,6 +15,23 @@ function normalizeDateUTC(d: Date | string): Date {
   return dd;
 }
 
+function toDateTime(tz: string, dateISO: string, minutesFromMidnight: number) {
+  const hours = Math.floor(minutesFromMidnight / 60);
+  const minutes = minutesFromMidnight % 60;
+  return DateTime.fromISO(dateISO, { zone: tz }).set({ hour: hours, minute: minutes, second: 0, millisecond: 0 });
+}
+
+const fmtHHMM = (mins: number) => {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
+async function getDeliverySlotLabel(params: { LCid: string; shift: ShiftName }): Promise<string> {
+  const cfg = await getShiftConfigByKey({ logisticCenterId: params.LCid, name: params.shift });
+  const slot = normalizeWindow(cfg.deliveryTimeSlotStartMin, cfg.deliveryTimeSlotEndMin);
+  return `${fmtHHMM(slot.startMin)}–${fmtHHMM(slot.endMin)}`;
+}
 export async function findOrCreateAvailableMarketStock(params: {
   LCid: string;
   date: string | Date;       // "YYYY-MM-DD" or Date
@@ -43,6 +63,22 @@ export async function getAvailableMarketStockByKey(params: {
   return AvailableMarketStockModel.findOne({ LCid, availableDate, availableShift: shift });
 }
 
+/**
+ * Get an AvailableMarketStock document by its _id (stock id).
+ */
+export async function getAvailableMarketStockById(docId: string) {
+  const _docId = new Types.ObjectId(docId);
+
+  const doc = await AvailableMarketStockModel.findById(_docId).lean<AvailableMarketStock | null>();
+
+  if (!doc) {
+    throw new Error("AvailableMarketStock not found");
+  }
+
+  return doc;
+}
+
+
 
 //returns full on shifts stock
 export async function listUpcomingAvailableMarketStock(params: {
@@ -63,41 +99,34 @@ export async function listUpcomingAvailableMarketStock(params: {
 }
 
 
+
 /**
  * For the next 5 shifts (by LC timezone), return only those that have
- * an AvailableMarketStock doc WITH at least 1 item.
- * Output: [{ date: "YYYY-MM-DD", shift: "morning|...", docId: "<ObjectId>" }]
+ * a stock doc with items, plus the delivery time-slot label for that shift.
  */
 export async function nextFiveShiftsWithStock(params: {
   LCid: string;
-  fromTs?: number; // optional for tests
-}): Promise<Array<{ date: string; shift: ShiftName; docId: string }>> {
+  fromTs?: number;
+}): Promise<Array<{ date: string; shift: ShiftName; docId: string; deliverySlotLabel: string }>> {
   const { LCid, fromTs } = params;
 
-  // 1) Get exactly the next 5 shifts
-  const upcoming = await getNextAvailableShifts({
-    logisticCenterId: LCid,
-    count: 5,
-    fromTs,
-  }); // [{ date, name }]
+  // 1) Next exactly 5 shifts from shiftConfig (ordered)
+  const upcoming = await getNextAvailableShifts({ logisticCenterId: LCid, count: 5, fromTs }); // [{date, name}]
 
-  // 2) Build an $or for a single Mongo query
-  const orPairs = upcoming.map((s) => ({
+  // 2) Single Mongo query for any existing docs among those 5
+  const orPairs = upcoming.map(s => ({
     LCid,
     availableDate: normalizeDateUTC(s.date),
     availableShift: s.name as ShiftName,
   }));
-
-  // If LC has fewer than 4 defined shifts, avoid empty $or
   if (orPairs.length === 0) return [];
 
-  // 3) Fetch all matching docs at once (only what we need)
   const docs = await AvailableMarketStockModel.find(
     { $or: orPairs },
     { _id: 1, availableDate: 1, availableShift: 1, items: 1 }
   ).lean();
 
-  // 4) Index by (dateISO + "|" + shift) for O(1) lookup preserving original order
+  // 3) Index found docs by (dateISO|shift)
   const key = (d: Date, s: string) => `${d.toISOString()}|${s}`;
   const byKey = new Map<string, { _id: Types.ObjectId; items: any[] }>();
   for (const d of docs) {
@@ -105,16 +134,18 @@ export async function nextFiveShiftsWithStock(params: {
     byKey.set(k, { _id: d._id as Types.ObjectId, items: d.items ?? [] });
   }
 
-  // 5) Map the 5 shifts, keep only those with stock items
-  const out: Array<{ date: string; shift: ShiftName; docId: string }> = [];
+  // 4) Build output in the same order, only if doc has items
+  const out: Array<{ date: string; shift: ShiftName; docId: string; deliverySlotLabel: string }> = [];
   for (const s of upcoming) {
     const k = key(normalizeDateUTC(s.date), s.name);
     const hit = byKey.get(k);
     if (hit && hit.items.length > 0) {
+      const deliverySlotLabel = await getDeliverySlotLabel({ LCid, shift: s.name as ShiftName });
       out.push({
         date: s.date,
         shift: s.name as ShiftName,
         docId: String(hit._id),
+        deliverySlotLabel,
       });
     }
   }

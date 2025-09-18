@@ -11,10 +11,14 @@ router.post("/available-stock/init", authenticate, authorize("fManager"), ctrl.i
 // Read by LC + date + shift
 router.get("/available-stock", authenticate, ctrl.getDoc);
 
-// Next 5 shifts (by LC timezone) that have stock items
+// Next 5 shifts (by LC timezone) that have stock items for customer to order from
 router.get("/available-stock/next5", authenticate, ctrl.listNextFiveWithStock);
 
-// GET /api/market/available-stock/next5?LCid=LC-1
+
+// GET /api/market/available-stock/:docId
+router.get("/available-stock/:docId", authenticate, ctrl.getStockById);
+
+
 // Upcoming (today and forward) for LC
 router.get("/available-stock/upcoming",authenticate, ctrl.listUpcoming);
 

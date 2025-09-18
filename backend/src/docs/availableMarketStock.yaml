@@ -2,12 +2,21 @@ openapi: 3.0.3
 info:
   title: Available Market Stock API
   version: 1.0.0
+  description: Read-oriented endpoints for market stock (creation is internal; adjustQty is exposed for cart flows)
+
+servers:
+  - url: /
+
+tags:
+  - name: AvailableMarket
+    description: Market stock queries and cart adjustments (require authentication)
 
 paths:
   /api/market/available-stock/init:
     post:
+      tags: [AvailableMarket]
       summary: Create or find AvailableMarketStock document
-      description: Creates or finds an AvailableMarketStock doc for LC + date + shift.
+      description: Creates or finds an AvailableMarketStock doc for LC + date + shift. Typically used for seeding/dev.
       security:
         - bearerAuth: []
       requestBody:
@@ -18,26 +27,26 @@ paths:
               type: object
               required: [LCid, date, shift]
               properties:
-                LCid:
-                  type: string
-                  example: LC-1
-                date:
-                  type: string
-                  format: date
-                  example: 2025-09-16
-                shift:
-                  type: string
-                  enum: [morning, afternoon, evening, night]
+                LCid:   { type: string, example: LC-1 }
+                date:   { type: string, format: date, example: 2025-09-16 }
+                shift:  { type: string, enum: [morning, afternoon, evening, night] }
       responses:
-        "200":
-          description: AvailableMarketStock document
+        '200':
+          description: Stock document (created or found)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AvailableMarketStock"
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AvailableMarketStock'
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
 
   /api/market/available-stock:
     get:
+      tags: [AvailableMarket]
       summary: Get AvailableMarketStock by LC/date/shift
       security:
         - bearerAuth: []
@@ -55,17 +64,51 @@ paths:
           required: true
           schema: { type: string, enum: [morning, afternoon, evening, night] }
       responses:
-        "200":
-          description: AvailableMarketStock document
+        '200':
+          description: Stock document
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AvailableMarketStock"
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AvailableMarketStock'
+        '401': { description: Unauthorized }
+        '404': { description: Not found }
+
+  /api/market/available-stock/{docId}:
+    get:
+      tags: [AvailableMarket]
+      summary: Get AvailableMarketStock by document ID
+      description: Returns a full AvailableMarketStock document by its MongoDB `_id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: docId
+          required: true
+          schema: { type: string }
+          description: MongoDB `_id` of the stock document
+      responses:
+        '200':
+          description: Stock document
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AvailableMarketStock'
+        '401': { description: Unauthorized }
+        '404': { description: Not found }
 
   /api/market/available-stock/next5:
     get:
+      tags: [AvailableMarket]
       summary: Get next 5 shifts that have stock
-      description: Returns the next 5 shifts (based on LC timezone) that already have stock items.
+      description: Next 5 shifts (per LC timezone) that already have items in stock.
       security:
         - bearerAuth: []
       parameters:
@@ -77,30 +120,35 @@ paths:
           name: fromTs
           required: false
           schema: { type: integer, format: int64 }
-          description: Optional epoch millis (used for testing)
+          description: Optional epoch millis (testing)
       responses:
-        "200":
+        '200':
           description: List of shifts with stock
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    date:
-                      type: string
-                      format: date
-                    shift:
-                      type: string
-                      enum: [morning, afternoon, evening, night]
-                    docId:
-                      type: string
-                      description: AvailableMarketStock document ID
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [date, shift, docId]
+                      properties:
+                        date:  { type: string, format: date }
+                        shift: { type: string, enum: [morning, afternoon, evening, night] }
+                        docId: { type: string, description: Stock document ID }
+                        deliverySlotLabel:
+                          type: string
+                          example: "06:00–07:00"
+                          description: Human-friendly delivery window label for that shift
+        '401': { description: Unauthorized }
 
   /api/market/available-stock/upcoming:
     get:
-      summary: List upcoming available stock documents
+      tags: [AvailableMarket]
+      summary: List upcoming stock documents
       description: Returns upcoming AvailableMarketStock docs for the LC, starting today.
       security:
         - bearerAuth: []
@@ -118,19 +166,25 @@ paths:
           required: false
           schema: { type: string, format: date }
       responses:
-        "200":
-          description: List of AvailableMarketStock documents
+        '200':
+          description: Upcoming stock documents
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AvailableMarketStock"
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AvailableMarketStock'
+        '401': { description: Unauthorized }
 
   /api/market/available-stock/adjustQty:
     post:
+      tags: [AvailableMarket]
       summary: Adjust available quantity for a stock line
-      description: Reserve or release quantity on a specific line item.
+      description: Reserve or release quantity on a specific line item. Negative `deltaKg` reserves; positive releases.
       security:
         - bearerAuth: []
       requestBody:
@@ -141,12 +195,8 @@ paths:
               type: object
               required: [docId, lineId, deltaKg]
               properties:
-                docId:
-                  type: string
-                  description: AvailableMarketStock document ID
-                lineId:
-                  type: string
-                  description: Subdocument line ID (inside items[])
+                docId: { type: string, description: Stock document ID }
+                lineId: { type: string, description: Subdocument line ID (items[]._id) }
                 deltaKg:
                   type: number
                   description: Negative = reserve, Positive = release
@@ -157,24 +207,29 @@ paths:
                   type: boolean
                   default: true
       responses:
-        "200":
+        '200':
           description: Adjustment result
           content:
             application/json:
               schema:
                 type: object
+                required: [data]
                 properties:
-                  ok:
-                    type: boolean
-                  docId:
-                    type: string
-                  lineId:
-                    type: string
-                  newQty:
-                    type: number
-                  status:
-                    type: string
-                    enum: [active, soldout, removed]
+                  data:
+                    type: object
+                    required: [ok, docId, lineId, newQty]
+                    properties:
+                      ok:     { type: boolean, example: true }
+                      docId:  { type: string }
+                      lineId: { type: string }
+                      newQty: { type: number, example: 42.5 }
+                      status:
+                        type: string
+                        enum: [active, soldout, removed]
+                        nullable: true
+        '400': { description: Invalid input }
+        '401': { description: Unauthorized }
+        '409': { description: Conflict (e.g., not enough stock to reserve) }
 
 components:
   securitySchemes:
@@ -187,50 +242,31 @@ components:
     AvailableMarketStock:
       type: object
       properties:
-        _id:
-          type: string
-        LCid:
-          type: string
-        availableDate:
-          type: string
-          format: date
-        availableShift:
-          type: string
-          enum: [morning, afternoon, evening, night]
-        createdById:
-          type: string
+        _id:            { type: string }
+        LCid:           { type: string }
+        availableDate:  { type: string, format: date }
+        availableShift: { type: string, enum: [morning, afternoon, evening, night] }
+        createdById:    { type: string, nullable: true }
+        createdAt:      { type: string, format: date-time, nullable: true }
+        updatedAt:      { type: string, format: date-time, nullable: true }
         items:
           type: array
           items:
-            $ref: "#/components/schemas/AvailableStockItem"
+            $ref: '#/components/schemas/AvailableStockItem'
 
     AvailableStockItem:
       type: object
       properties:
-        _id:
-          type: string
-        itemId:
-          type: string
-        displayName:
-          type: string
-        imageUrl:
-          type: string
-        category:
-          type: string
-        pricePerUnit:
-          type: number
-        currentAvailableQuantityKg:
-          type: number
-        originalCommittedQuantityKg:
-          type: number
-        farmerOrderId:
-          type: string
-        farmerID:
-          type: string
-        farmerName:
-          type: string
-        farmName:
-          type: string
-        status:
-          type: string
-          enum: [active, soldout, removed]
+        _id:                         { type: string, description: lineId (subdocument id) }
+        itemId:                      { type: string }
+        displayName:                 { type: string }
+        imageUrl:                    { type: string, nullable: true }
+        category:                    { type: string }
+        pricePerUnit:                { type: number }
+        currentAvailableQuantityKg:  { type: number }
+        originalCommittedQuantityKg: { type: number }
+        farmerOrderId:               { type: string, nullable: true }
+        farmerID:                    { type: string }
+        farmerName:                  { type: string }
+        farmName:                    { type: string }
+        status:                      { type: string, enum: [active, soldout, removed] }
