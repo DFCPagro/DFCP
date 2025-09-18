@@ -41,3 +41,4 @@ export async function getNextShiftsController(req: Request, res: Response, next:
     next(err);
   }
 }
+

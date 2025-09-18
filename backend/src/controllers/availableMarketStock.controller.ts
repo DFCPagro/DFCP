@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 import ApiError from "../utils/ApiError";
 import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
+import { get } from './deliverer.controller';
 
 import {
   findOrCreateAvailableMarketStock,
@@ -10,6 +11,7 @@ import {
   adjustAvailableQtyAtomic,
   updateItemQtyStatusAtomic,
   nextFiveShiftsWithStock,
+  getAvailableMarketStockById
 } from "../services/availableMarketStock.service";
 
 export async function initDoc(req: Request, res: Response) {
@@ -39,10 +41,27 @@ export async function getDoc(req: Request, res: Response) {
   }
 }
 
+/**
+ * Get an AvailableMarketStock document by its _id (stock id).
+ */
+export async function getStockById(req: Request, res: Response) {
+  try {
+    const { docId } = req.params;
+    if (!docId) {
+      return res.status(400).json({ error: "docId is required" });
+    }
+
+    const stock = await getAvailableMarketStockById(docId);
+    return res.json(stock);
+  } catch (err: any) {
+    return res.status(404).json({ error: err.message || "AvailableMarketStock not found" });
+  }
+}
+
 export async function listUpcoming(req: Request, res: Response) {
   try {
     const LCid = String(req.query.LCid || "");
-    const count = req.query.count ? Number(req.query.count) : 6;
+    const count = req.query.count ? Number(req.query.count) : 5;
     const fromDate = (req.query.fromDate as string) || undefined;
 
     if (!LCid) return res.status(400).json({ error: "LCid is required" });

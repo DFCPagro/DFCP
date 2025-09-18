@@ -1,6 +1,13 @@
-export type Address = {
-  // match the backend exactly:
-  lnt: number;     // longitude
-  alt: number;     // latitude
-  address: string; // full address text
-};
+import { z } from "zod";
+
+// Runtime schema
+export const AddressSchema = z.object({
+  lnt: z.number(),
+  alt: z.number(),
+  address: z.string(),
+  logisticCenterId: z.string().optional(),
+  
+});
+
+// TS type inferred automatically from schema
+export type Address = z.infer<typeof AddressSchema>;
