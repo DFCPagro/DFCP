@@ -11,6 +11,7 @@ export default function CropsTable({ rows }: { rows: CropRow[] }) {
         <Table.Header>
           <Table.Row>
             <Table.ColumnHeader>Land</Table.ColumnHeader>
+            <Table.ColumnHeader>Section</Table.ColumnHeader> {/* NEW */}
             <Table.ColumnHeader>Crop Item</Table.ColumnHeader>
             <Table.ColumnHeader textAlign="end">Planted (kg)</Table.ColumnHeader>
             <Table.ColumnHeader>Planted On</Table.ColumnHeader>
@@ -23,8 +24,9 @@ export default function CropsTable({ rows }: { rows: CropRow[] }) {
 
         <Table.Body>
           {rows.map((c, i) => (
-            <Table.Row key={`${c.land}-${i}`}>
+            <Table.Row key={`${c.land}-${c.sectionId ?? i}`}>
               <Table.Cell>{c.land}</Table.Cell>
+              <Table.Cell>{c.sectionName ?? c.sectionId ?? "—"}</Table.Cell> {/* NEW */}
               <Table.Cell>{c.cropItem}</Table.Cell>
               <Table.Cell textAlign="end">{c.plantedKg.toLocaleString()}</Table.Cell>
               <Table.Cell>{fmtDate(c.plantedOnISO)}</Table.Cell>
