@@ -6,6 +6,75 @@ export type ApplicationRole =
   | "picker"
   | "sorter";
 
+export type SortParam =
+  | "-createdAt"
+  | "createdAt"
+  | "-updatedAt"
+  | "updatedAt"
+  | "-status"
+  | "status";
+
+  export type JobApplicationStatus =
+  | "pending"
+  | "contacted"
+  | "approved"
+  | "denied";
+
+// ADD (below the per-role shapes comment)
+export type AppAddress = {
+  alt: number; // latitude
+  lnt: number; // longitude
+  address: string;
+  logisticCenterId?: string | null;
+  note?: string;
+};
+
+export type Measurements = {
+  abM: number;
+  bcM: number;
+  cdM: number;
+  daM: number;
+  rotationDeg?: number;
+};
+
+export type AppFarmerLand = {
+  name: string;
+  ownership: "owned" | "rented";
+  address: AppAddress;
+  pickupAddress?: AppAddress | null;
+  measurements: Measurements;
+};
+
+
+// / Generic pagination envelope
+export interface Paginated<T> {
+  items: T[];
+  page: number;
+  limit: number;
+  total: number;
+}
+
+// Query params for the admin list endpoint
+export interface ListJobApplicationsParams {
+  role?: ApplicationRole;
+  status?: JobApplicationStatus;
+  user?: string;             // applicant user id (ObjectId)
+  logisticCenterId?: string; // your backend currently uses ObjectId here
+  from?: string | Date;      // createdAt >= from
+  to?: string | Date;        // createdAt <= to
+  page?: number;             // default: 1
+  limit?: number;            // default: 20
+  sort?: SortParam;          // default: "-createdAt"
+  includeUser?: boolean;     // include user data in DTO
+}
+
+// Payload for PATCH /admin/:id/status
+export interface PatchStatusPayload {
+  status: JobApplicationStatus; // server enforces: pending→contacted/approved/denied; contacted→approved/denied
+  reviewerNotes?: string;
+  contactedAt?: string | Date;
+  approvedAt?: string | Date;
+}
 /** Shared fields we always send */
 export interface JobApplicationCreateBase {
   appliedRole: ApplicationRole;
@@ -31,16 +100,12 @@ export interface DelivererApplicationData {
 
 // Farmer (example fields; extend as needed)
 export interface FarmerApplicationData {
-  farmName?: string;
-  address?: {
-    address: string;
-    city?: string | null;
-    lat?: number | null;
-    lng?: number | null;
-  };
-  categories?: string[]; // e.g., ["tomatoes","cucumbers"]
-  weeklySupplyKg?: number;
+  farmName: string;
+  agriculturalInsurance: boolean;
+  agreementPercentage: number; // 0..100
+  lands: AppFarmerLand[];
 }
+
 
 // For picker/sorter you can add shapes later
 export type GenericApplicationData = Record<string, unknown>;

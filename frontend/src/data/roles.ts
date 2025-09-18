@@ -23,6 +23,7 @@ export type RoleField = {
 
   // native input props
   min?: string | number;
+  max?: string | number;
   pattern?: string;
   stepAttr?: string; // numeric step attribute for <input type="number">
 
@@ -119,15 +120,31 @@ export const RolesTable: readonly RoleDef[] = [
   {
     name: "farmer",
     description: "Supplies produce and quality reports.",
-    includeSchedule: false,
-    includeLand: true,
+    includeSchedule: false,   // farmer never uses weekly schedule
+    includeLand: true,        // farmer requires lands array
     stepsMeta: [
       { id: "farm", title: "Farm", help: "Basic farm details.", order: 1 },
       { id: "compliance", title: "Compliance", order: 2 },
+      // no lands here — handled by LandList UI
     ],
     fields: [
-      { label: "Farm Name", type: "text", step: "farm" },
-      { label: "Agricultural Insurance", type: "checkbox", step: "compliance" },
+      { label: "Farm Name", name: "farmName", type: "text", step: "farm" },
+      {
+        label: "Agricultural Insurance",
+        name: "agriculturalInsurance",
+        type: "checkbox",
+        step: "compliance",
+      },
+      {
+        label: "Agreement Percentage",
+        name: "agreementPercentage",
+        type: "number",
+        step: "compliance",
+        min: 0,
+        max: 100,
+        // hide from UI but include in payload with default value
+        colSpan: { base: 0 },
+      },
     ],
   },
 

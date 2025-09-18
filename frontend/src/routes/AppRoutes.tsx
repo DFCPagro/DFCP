@@ -23,9 +23,12 @@ const AggregationViewPage = lazy(() => import('@/pages/AggregationView'));
 const ContainerViewPage   = lazy(() => import('@/pages/ContainerView'));
 const Market              = lazy(() => import('@/pages/Market'));
 const Cart                = lazy(() => import('@/pages/Cart'));
+const Checkout            = lazy(() => import('@/pages/Checkout'));
 
 const NotFound            = lazy(() => import('@/pages/NotFound'));
 const ItemManager         = lazy(() => import('@/pages/ItemManager'));
+const AdminDashboard     = lazy(() => import('@/pages/AdminDashboard'));
+const JobAppReview       = lazy(() => import('@/pages/JobAppReview'));
 
 export default function AppRoutes() {
   return (
@@ -35,7 +38,7 @@ export default function AppRoutes() {
         <Route path={PATHS.login} element={<GuestGuard><Login /></GuestGuard>} />
         <Route path={PATHS.register} element={<GuestGuard><Register /></GuestGuard>} />
         <Route path={PATHS.jobs} element={<AvailabileJobs />} />
-        <Route path="/job-application" element={<JobApplication />} />
+        <Route path={PATHS.jobApplication} element={<JobApplication />} />
 
         {/* Public QR endpoints */}
         <Route path={PATHS.ops} element={<OpsOrderPage />} />
@@ -46,20 +49,24 @@ export default function AppRoutes() {
 
         {/* Authenticated routes */}
         <Route element={<AuthGuard />}>
+          {/* admin-only pages */}
           <Route path={PATHS.ItemsManagment} element={<ItemManager />} />
+          <Route path={PATHS.adminDashboard} element={<RoleGuard allow={['admin']}><AdminDashboard /></RoleGuard>} />
+          <Route path={PATHS.JobAppReview} element={<RoleGuard allow={['admin']}><JobAppReview /></RoleGuard>} />
 
           <Route path={PATHS.dashboard} element={<Dashboard />} />
           {/* customer-only pages */}
           <Route path={PATHS.market} element={<Market />} />
-           <Route path={PATHS.cart} element={<Cart />} />
-          
+          <Route path={PATHS.cart} element={<Cart />} />
+          <Route path={PATHS.checkout} element={<Checkout />} />
+
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
           {/* farmer-only pages */}
           <Route path={PATHS.aggregations} element={<RoleGuard allow={['farmer']}><AggregationsPage /></RoleGuard>} />
           <Route path={PATHS.containers}   element={<RoleGuard allow={['farmer']}><ContainersPage /></RoleGuard>} />
 
           {/* driver-only page */}
-          <Route path={PATHS.shipments} element={<RoleGuard allow={['driver']}><ShipmentsPage /></RoleGuard>} />
+          <Route path={PATHS.shipments} element={<RoleGuard allow={['deliverer']}><ShipmentsPage /></RoleGuard>} />
         </Route>
 
         <Route path={PATHS.notFound} element={<NotFound />} />

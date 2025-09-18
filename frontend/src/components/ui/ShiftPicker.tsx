@@ -1,87 +1,105 @@
 import { useEffect, useMemo, useState } from "react";
-import { Field, HStack, Spinner, Text } from "@chakra-ui/react";
-import type { ShiftCode, ShiftOption } from "@/types/market";
-import { fetchShiftsForLocation } from "@/api/market";
+import {
+  Field,
+  NativeSelectRoot,
+  NativeSelectField,
+  Spinner,
+  HStack,
+  Badge,
+} from "@chakra-ui/react";
+import type { ShiftCode } from "@/types/market";
+import {
+  fetchShiftOptionsByLC,
+  type ShiftOptionDTO,
+  // ⬇️ add this import so we can fallback
+  fetchShiftsForLocation,
+} from "@/api/market";
 
 type Props = {
   locationId?: string;
   value?: ShiftCode;
   onChange: (v: ShiftCode | undefined) => void;
+  logisticCenterId?: string; // optional
+  placeholder?: string;
 };
 
-export default function ShiftPicker({ locationId, value, onChange }: Props) {
-  const [options, setOptions] = useState<ShiftOption[]>([]);
+export default function ShiftPicker({
+  locationId,
+  logisticCenterId,
+  value,
+  onChange,
+  placeholder = "Select a shift",
+}: Props) {
+  const [opts, setOpts] = useState<ShiftOptionDTO[]>([]);
   const [loading, setLoading] = useState(false);
+  const disabled = !locationId; // ✅ allow fallback even if LC not ready
 
-  // reload whenever location changes
   useEffect(() => {
     if (!locationId) {
-      setOptions([]);
+      setOpts([]);
       onChange(undefined);
       return;
     }
-    let cancelled = false;
-    setLoading(true);
+    let mounted = true;
     (async () => {
+      setLoading(true);
       try {
-        const res = await fetchShiftsForLocation(locationId);
-        if (!cancelled) setOptions(res);
-        if (!cancelled && value && !res.some((o) => o.code === value)) onChange(undefined);
+        // ✅ Prefer LC, fallback to location-based API
+        const rows = logisticCenterId
+          ? await fetchShiftOptionsByLC(logisticCenterId)
+          : await fetchShiftsForLocation(locationId);
+        if (!mounted) return;
+        setOpts(rows ?? []);
+        if (value && !rows.some((r) => r.code === value)) onChange(undefined);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (mounted) setLoading(false);
       }
     })();
     return () => {
-      cancelled = true;
+      mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationId]);
+  }, [locationId, logisticCenterId]);
 
-  const placeholder = useMemo(
-    () =>
-      !locationId
-        ? "Pick a location first"
-        : loading
-        ? "Loading shifts..."
-        : "Select a shift",
-    [locationId, loading]
-  );
-
-  const selectId = "shift-select";
+  const placeholderText = useMemo(() => {
+    if (!locationId) return "Pick delivery location first";
+    return placeholder; // ✅ no “resolving” message
+  }, [locationId, placeholder]);
 
   return (
     <Field.Root>
-      <Field.Label htmlFor={selectId}>Delivery shift</Field.Label>
-      <HStack align="center" gap={2}>
-        <select
-          id={selectId}
-          value={value ?? ""}
-          onChange={(e) => onChange((e.target.value || undefined) as ShiftCode | undefined)}
-          disabled={!locationId || loading}
-          aria-label="Delivery shift"
-          style={{
-            padding: "8px 10px",
-            borderRadius: "8px",
-            border: "1px solid var(--chakra-colors-gray-300)",
-            minWidth: 240,
-            background: "var(--chakra-colors-white)",
-          }}
-        >
-          <option value="">{placeholder}</option>
-          {options.map((opt) => (
-            <option key={opt.code} value={opt.code}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+      <Field.Label htmlFor="shift-select">Delivery shift</Field.Label>
+      <HStack gap="3" align="center">
+        <NativeSelectRoot disabled={disabled || loading}>
+          <NativeSelectField
+            id="shift-select"
+            value={value ?? ""}
+            onChange={(e) =>
+              onChange((e.target.value || undefined) as ShiftCode | undefined)
+            }
+          >
+            <option value="">{placeholderText}</option>
+            {opts.map((o) => (
+              <option key={o.code} value={o.code}>
+                {o.label}
+              </option>
+            ))}
+          </NativeSelectField>
+        </NativeSelectRoot>
 
         {loading && <Spinner size="sm" />}
-        {!loading && locationId && options.length === 0 && (
-          <Text fontSize="sm" color="gray.600">
-            No shifts for this location
-          </Text>
+
+        {!loading && value && opts.find((o) => o.code === value)?.isOpenNow && (
+          <Badge colorPalette="green" variant="subtle">
+            Open now
+          </Badge>
         )}
       </HStack>
+      <Field.HelperText>
+        {!locationId
+          ? "Choose an address to see available shifts."
+          : "Pick a shift to see stock for that window."}
+      </Field.HelperText>
     </Field.Root>
   );
 }

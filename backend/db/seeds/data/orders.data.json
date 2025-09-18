@@ -1,0 +1,342 @@
+[
+  {
+    "_id": "66f100000000000000000001",
+    "customerUid": "CNS-1",
+    "deliveryAddress": { "line1": "17 Dizengoff St", "city": "Tel Aviv", "country": "IL" },
+    "items": [
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Apple Fuji",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "pricePerUnit": 2.5,
+        "quantity": 1.5,
+        "category": "fruit",
+        "sourceFarmerName": "Levi",
+        "sourceFarmName": "Green Valley",
+        "farmerOrderId": "66f1000000000000000000a1"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Cucumber Persian",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "pricePerUnit": 3.5,
+        "quantity": 0.8,
+        "category": "vegetable",
+        "sourceFarmerName": "Maya",
+        "sourceFarmName": "Oasis Fields",
+        "farmerOrderId": "66f1000000000000000000a2"
+      }
+    ],
+    "status": "pending",
+    "assignedDelivererUid": null,
+    "historyAuditTrail": [{ "message": "Seeded order" }]
+  },
+  {
+    "_id": "66f100000000000000000002",
+    "customerUid": "USR-1",
+    "deliveryAddress": { "line1": "221 King George", "city": "Jerusalem", "country": "IL" },
+    "items": [
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Banana Cavendish",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "pricePerUnit": 3.0,
+        "quantity": 1.2,
+        "category": "fruit",
+        "sourceFarmerName": "Shai",
+        "sourceFarmName": "Sunrise Grove",
+        "farmerOrderId": "66f1000000000000000000b1"
+      }
+    ],
+    "status": "confirmed",
+    "assignedDelivererUid": null,
+    "historyAuditTrail": [{ "message": "Confirmed by ops" }]
+  },
+  {
+    "_id": "66f100000000000000000003",
+    "customerUid": "USR-2",
+    "deliveryAddress": { "line1": "4 HaNassi Blvd", "city": "Haifa", "country": "IL" },
+    "items": [
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Orange Navel",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "pricePerUnit": 5.0,
+        "quantity": 2.0,
+        "category": "fruit",
+        "sourceFarmerName": "Eden",
+        "sourceFarmName": "Citrus Hill",
+        "farmerOrderId": "66f1000000000000000000c1"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Lettuce Romaine",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "pricePerUnit": 7.0,
+        "quantity": 0.6,
+        "category": "vegetable",
+        "sourceFarmerName": "Noa",
+        "sourceFarmName": "Leafy Acres",
+        "farmerOrderId": "66f1000000000000000000c2"
+      }
+    ],
+    "status": "preparing",
+    "assignedDelivererUid": null,
+    "historyAuditTrail": [{ "message": "Packing in progress" }]
+  },
+  {
+    "_id": "66f100000000000000000004",
+    "customerUid": "USR-3",
+    "deliveryAddress": { "line1": "12 Ben Gurion Ave", "city": "Ramat Gan", "country": "IL" },
+    "items": [
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Strawberry Albion",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "pricePerUnit": 20.0,
+        "quantity": 0.7,
+        "category": "fruit",
+        "sourceFarmerName": "Itay",
+        "sourceFarmName": "Berry Lane",
+        "farmerOrderId": "66f1000000000000000000d1"
+      }
+    ],
+    "status": "ready",
+    "assignedDelivererUid": "DLV-1",
+    "historyAuditTrail": [{ "message": "Order ready for pickup" }]
+  },
+  {
+    "_id": "66f100000000000000000005",
+    "customerUid": "USR-4",
+    "deliveryAddress": { "line1": "5 Rothschild Blvd", "city": "Tel Aviv", "country": "IL" },
+    "items": [
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Tomato Cherry",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "pricePerUnit": 2.5,
+        "quantity": 1.3,
+        "category": "vegetable",
+        "sourceFarmerName": "Rina",
+        "sourceFarmName": "Red Vine",
+        "farmerOrderId": "66f1000000000000000000e1"
+      },
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Carrot Nantes",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "pricePerUnit": 2.5,
+        "quantity": 1.0,
+        "category": "vegetable",
+        "sourceFarmerName": "Tal",
+        "sourceFarmName": "Root Farm",
+        "farmerOrderId": "66f1000000000000000000e2"
+      }
+    ],
+    "status": "delivered",
+    "assignedDelivererUid": "IDL-1",
+    "historyAuditTrail": [{ "message": "Delivered successfully" }]
+  },
+  {
+    "_id": "66f100000000000000000006",
+    "customerUid": "USR-5",
+    "deliveryAddress": { "line1": "99 Herzl St", "city": "Beer Sheva", "country": "IL" },
+    "items": [
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Grapes Red Globe",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "pricePerUnit": 3.0,
+        "quantity": 1.8,
+        "category": "fruit",
+        "sourceFarmerName": "Yossi",
+        "sourceFarmName": "Vine Valley",
+        "farmerOrderId": "66f1000000000000000000f1"
+      }
+    ],
+    "status": "delivered",
+    "assignedDelivererUid": "IDL-1",
+    "historyAuditTrail": [{ "message": "Delivered successfully" }]
+  },
+  {
+    "_id": "66f100000000000000000007",
+    "customerUid": "CNS-1",
+    "deliveryAddress": { "line1": "7 Weizmann St", "city": "Rehovot", "country": "IL" },
+    "items": [
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Spinach Baby",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "pricePerUnit": 3.5,
+        "quantity": 0.5,
+        "category": "vegetable",
+        "sourceFarmerName": "Adi",
+        "sourceFarmName": "Green Leaf",
+        "farmerOrderId": "66f100000000000000000101"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Orange Navel",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "pricePerUnit": 5.0,
+        "quantity": 1.0,
+        "category": "fruit",
+        "sourceFarmerName": "Eden",
+        "sourceFarmName": "Citrus Hill",
+        "farmerOrderId": "66f100000000000000000102"
+      }
+    ],
+    "status": "problem",
+    "assignedDelivererUid": null,
+    "historyAuditTrail": [{ "message": "Address issue reported" }]
+  },
+  {
+    "_id": "66f100000000000000000008",
+    "customerUid": "USR-1",
+    "deliveryAddress": { "line1": "3 HaPalmach St", "city": "Kfar Saba", "country": "IL" },
+    "items": [
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Apple Fuji",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "pricePerUnit": 2.5,
+        "quantity": 2.2,
+        "category": "fruit",
+        "sourceFarmerName": "Levi",
+        "sourceFarmName": "Green Valley",
+        "farmerOrderId": "66f100000000000000000111"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Tomato Cherry",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "pricePerUnit": 2.5,
+        "quantity": 0.9,
+        "category": "vegetable",
+        "sourceFarmerName": "Rina",
+        "sourceFarmName": "Red Vine",
+        "farmerOrderId": "66f100000000000000000112"
+      }
+    ],
+    "status": "confirmed",
+    "assignedDelivererUid": null,
+    "historyAuditTrail": [{ "message": "Awaiting prep" }]
+  },
+  {
+    "_id": "66f100000000000000000009",
+    "customerUid": "USR-2",
+    "deliveryAddress": { "line1": "44 Hashalom Rd", "city": "Givatayim", "country": "IL" },
+    "items": [
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Strawberry Albion",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "pricePerUnit": 20.0,
+        "quantity": 0.4,
+        "category": "fruit",
+        "sourceFarmerName": "Itay",
+        "sourceFarmName": "Berry Lane",
+        "farmerOrderId": "66f100000000000000000121"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Cucumber Persian",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "pricePerUnit": 3.5,
+        "quantity": 1.1,
+        "category": "vegetable",
+        "sourceFarmerName": "Maya",
+        "sourceFarmName": "Oasis Fields",
+        "farmerOrderId": "66f100000000000000000122"
+      }
+    ],
+    "status": "ready",
+    "assignedDelivererUid": "DLV-1",
+    "historyAuditTrail": [{ "message": "Staged at hub" }]
+  },
+  {
+    "_id": "66f10000000000000000000a",
+    "customerUid": "USR-3",
+    "deliveryAddress": { "line1": "8 Begin Rd", "city": "Ashdod", "country": "IL" },
+    "items": [
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Grapes Red Globe",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "pricePerUnit": 3.0,
+        "quantity": 2.4,
+        "category": "fruit",
+        "sourceFarmerName": "Yossi",
+        "sourceFarmName": "Vine Valley",
+        "farmerOrderId": "66f100000000000000000131"
+      }
+    ],
+    "status": "pending",
+    "assignedDelivererUid": null,
+    "historyAuditTrail": [{ "message": "Awaiting confirmation" }]
+  },
+  {
+    "_id": "66f10000000000000000000b",
+    "customerUid": "USR-4",
+    "deliveryAddress": { "line1": "23 Jabotinsky St", "city": "Petah Tikva", "country": "IL" },
+    "items": [
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Lettuce Romaine",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "pricePerUnit": 7.0,
+        "quantity": 0.9,
+        "category": "vegetable",
+        "sourceFarmerName": "Noa",
+        "sourceFarmName": "Leafy Acres",
+        "farmerOrderId": "66f100000000000000000141"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Orange Navel",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "pricePerUnit": 5.0,
+        "quantity": 1.6,
+        "category": "fruit",
+        "sourceFarmerName": "Eden",
+        "sourceFarmName": "Citrus Hill",
+        "farmerOrderId": "66f100000000000000000142"
+      }
+    ],
+    "status": "out_for_delivery",
+    "assignedDelivererUid": "IDL-1",
+    "historyAuditTrail": [{ "message": "On the way" }]
+  },
+  {
+    "_id": "66f10000000000000000000c",
+    "customerUid": "USR-5",
+    "deliveryAddress": { "line1": "6 Emek Refaim", "city": "Jerusalem", "country": "IL" },
+    "items": [
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Carrot Nantes",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "pricePerUnit": 2.5,
+        "quantity": 2.0,
+        "category": "vegetable",
+        "sourceFarmerName": "Tal",
+        "sourceFarmName": "Root Farm",
+        "farmerOrderId": "66f100000000000000000151"
+      },
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Spinach Baby",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "pricePerUnit": 3.5,
+        "quantity": 0.7,
+        "category": "vegetable",
+        "sourceFarmerName": "Adi",
+        "sourceFarmName": "Green Leaf",
+        "farmerOrderId": "66f100000000000000000152"
+      }
+    ],
+    "status": "canceled",
+    "assignedDelivererUid": null,
+    "historyAuditTrail": [{ "message": "Canceled by customer" }]
+  }
+]

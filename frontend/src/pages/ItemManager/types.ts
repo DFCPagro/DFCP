@@ -8,6 +8,15 @@ export type QueryState = {
   sort?: string;
 };
 
+export type RowsAndPaginationProps = {
+  limit: number;
+  pages: number;
+  currentPage: number;
+  onLimitChange: (n: number) => void;
+  onPageChange: (p: number) => void;
+};
+
+
 export type ItemsTableProps = {
   items: Item[];
   isBusy: boolean;
@@ -20,10 +29,3 @@ export type FiltersBarProps = {
   setQuery: React.Dispatch<React.SetStateAction<QueryState>>;
 };
 
-export type RowsAndPaginationProps = {
-  limit: number;
-  pages: number;
-  currentPage: number;
-  onLimitChange: (n: number) => void;
-  onPageChange: (p: number) => void;
-};

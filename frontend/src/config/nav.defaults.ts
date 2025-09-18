@@ -4,6 +4,7 @@ import type { Mode } from "@/types/menu";
 export const DEFAULT_LANDINGS = {
   customer: "/market",
   work: {
+    admin: "/admin/dashboard",
     farmer: "/farmer/crops",
     manager: "/manager/orders/active",
     deliverer: "/deliverer/schedule",

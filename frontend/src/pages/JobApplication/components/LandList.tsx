@@ -12,12 +12,24 @@ import MapPickerDialog from "@/components/common/MapPickerDialog";
 import type { LandInput } from "@/api/applications";
 
 type Land = LandInput;
+// derive a square from acres so we can send abM/bcM/cdM/daM
+const deriveSquareFromAcres = (acres?: number) => {
+  if (acres == null || Number.isNaN(acres)) return undefined;
+  const areaM2 = acres * 4046.8564224;
+  const side = Math.sqrt(areaM2);
+  return { abM: side, bcM: side, cdM: side, daM: side, rotationDeg: 0 };
+};
+
 
 export function LandList({ value, onChange }: { value: Land[]; onChange: (lands: Land[]) => void }) {
   const [picker, setPicker] = useState<null | { i: number; field: "pickup" | "loc" }>(null);
 
-  const add = () =>
-    onChange([...value, { landName: `Land ${value.length + 1}`, ownership: "Owned" }]);
+const add = () =>
+  onChange([
+    ...value,
+    { landName: `Land ${value.length + 1}`, ownership: "Owned" } as Land,
+  ]);
+
 
   const remove = (idx: number) => onChange(value.filter((_, i) => i !== idx));
 
@@ -31,7 +43,10 @@ export function LandList({ value, onChange }: { value: Land[]; onChange: (lands:
           <Flex gap={3} wrap="wrap">
             <Field.Root maxW="sm">
               <Field.Label>Custom Name</Field.Label>
-              <Input value={land.landName ?? ""} onChange={(e) => upd(i, { landName: e.target.value })} />
+              <Input
+                value={land.landName ?? ""}
+                onChange={(e) => upd(i, { landName: e.target.value })}
+              />
             </Field.Root>
 
             <Field.Root maxW="sm">
@@ -39,7 +54,9 @@ export function LandList({ value, onChange }: { value: Land[]; onChange: (lands:
               <NativeSelect.Root size="sm" width="100%">
                 <NativeSelect.Field
                   value={land.ownership}
-                  onChange={(e) => upd(i, { ownership: e.target.value as Land["ownership"] })}
+                    onChange={(e) =>
+                      upd(i, { ownership: e.target.value as Land["ownership"] })
+                    }
                 >
                   <option value="Owned">Owned</option>
                   <option value="Rented">Rented</option>
@@ -54,7 +71,10 @@ export function LandList({ value, onChange }: { value: Land[]; onChange: (lands:
                 type="number"
                 step="any"
                 value={land.acres ?? ""}
-                onChange={(e) => upd(i, { acres: e.target.value === "" ? undefined : Number(e.target.value) })}
+                  onChange={(e) => {
+                    const acres = e.target.value === "" ? undefined : Number(e.target.value);
+                    upd(i, { acres });
+                  }}
               />
             </Field.Root>
           </Flex>
@@ -104,6 +124,8 @@ export function LandList({ value, onChange }: { value: Land[]; onChange: (lands:
           }
           setPicker(null);
         }}
+
+
       />
     </Stack>
   );

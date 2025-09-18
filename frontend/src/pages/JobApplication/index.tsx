@@ -162,6 +162,71 @@ export default function EmploymentApplication() {
     [errors, agree]
   );
 
+  // --- helpers to normalize farmer lands -> backend shape ---
+  const num = (v: any, d: number = 0) =>
+    v === "" || v == null || Number.isNaN(Number(v)) ? d : Number(v);
+
+  const mapAddress = (a: any) => {
+    if (!a) return null;
+    // Accept either {lat,lng,formattedAddress} or {alt,lnt,address}
+    const alt = a.alt != null ? Number(a.alt) : num(a.lat, undefined as any);
+    const lnt = a.lnt != null ? Number(a.lnt) : num(a.lng, undefined as any);
+    const address = a.address ?? a.formattedAddress ?? "";
+    if (alt == null || lnt == null || !address) return null;
+    return { alt, lnt, address };
+  };
+
+  const mapMeasurements = (m: any) => {
+    // Allow UIs that capture length/width (rect) or abM/bcM/cdM/daM
+    const abM = num(m?.abM ?? m?.length);
+    const bcM = num(m?.bcM ?? m?.width);
+    // For rectangles, mirror opposite sides if not provided
+    const cdM = num(m?.cdM ?? m?.length ?? abM);
+    const daM = num(m?.daM ?? m?.width ?? bcM);
+    const rotationDeg =
+      m?.rotationDeg == null ? 0 : num(m.rotationDeg);
+    return { abM, bcM, cdM, daM, rotationDeg };
+  };
+
+  // place this in JobApplication/index.tsx, near the other helpers (above handleSubmit)
+const mapLand = (land: any) => {
+  // Build backend-ready addresses from the UI fields
+  const address = mapAddress({
+    address: land?.location,
+    alt: land?.locLat,
+    lnt: land?.locLng,
+  });
+
+  const pickupAddress = land?.pickupAddress
+    ? mapAddress({
+        address: land.pickupAddress,
+        alt: land.pickupLat,
+        lnt: land.pickupLng,
+      })
+    : null;
+
+  // Prefer explicit edges if present; otherwise derive a square from acres
+  const measurements =
+    land?.abM != null || land?.bcM != null || land?.cdM != null || land?.daM != null
+      ? mapMeasurements(land)
+      : land?.acres
+      ? (() => {
+          const m2 = land.acres * 4046.8564224;
+          const side = Math.sqrt(m2);
+          return { abM: side, bcM: side, cdM: side, daM: side, rotationDeg: 0 };
+        })()
+      : mapMeasurements({ length: undefined, width: undefined });
+
+  return {
+    name: land?.landName ?? "",
+    ownership: String(land?.ownership ?? "Owned").toLowerCase() as "owned" | "rented",
+    address,        // required
+    pickupAddress,  // nullable
+    measurements,   // required
+  };
+};
+
+
  const handleSubmit = async () => {
   const full = { ...fields, weeklySchedule: scheduleMask, lands };
   const errs = validateAll(full);
@@ -189,10 +254,29 @@ if (role.includeSchedule) {
   delete (applicationData as any).scheduleBitmask;
 }
 
-if (role.includeLand) {
-  applicationData.lands = lands;
-  applicationData.agreementPercentage = 60;
-}
+  if (role.includeLand) {
+    // Map UI lands -> backend shape
+    const mapped = (lands ?? []).map(mapLand);
+
+    // Basic client-side guardrails (avoid 400s)
+    const invalid = mapped.find(
+      (l: any) => !l.name || !l.address || !l.address.address || l.address.alt == null || l.address.lnt == null
+    );
+    if (invalid) {
+      toaster.create({
+        type: "warning",
+        title: "Please complete all land fields",
+        description: "Each land needs a name, full address (coords + text), and measurements.",
+      });
+      return;
+    }
+
+    (applicationData as any).lands = mapped;
+    if ((applicationData as any).agreementPercentage == null) {
+      (applicationData as any).agreementPercentage = 60; // hidden default
+    }
+  }
+
 
 // Strip any UI-only weekday keys
 ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]

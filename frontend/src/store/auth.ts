@@ -4,6 +4,19 @@ import { persist } from "zustand/middleware";
 import type { User, Role } from "../types/auth";
 import { useSessionStore } from "@/store/session";
 
+function syncSessionForRole(role: Role | null | undefined) {
+  const session = useSessionStore.getState();
+  if (isWorkRole(role)) {
+    // ORDER MATTERS: mode → role
+    session.setMode("work");
+    session.setActiveWorkerRole(role as string);
+  } else {
+    session.setMode("customer");
+    session.setActiveWorkerRole(null);
+  }
+}
+
+
 /** Treat anything that's not "customer" as a work role */
 const isWorkRole = (role: Role | null | undefined) => !!role && role !== "customer";
 
@@ -33,9 +46,7 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token, role: user.role });
 
         // 🔗 Sync session mode + worker role
-        const session = useSessionStore.getState();
-        session.setMode("customer"); // authenticated UI baseline
-        session.setActiveWorkerRole(isWorkRole(user.role) ? (user.role as string) : null);
+        syncSessionForRole(user.role);
       },
 
       /** Update user object (e.g., /me refresh or profile edit) */
@@ -49,20 +60,14 @@ export const useAuthStore = create<AuthState>()(
           session.resetForLogout(true);
         } else {
           // Ensure we're in an authenticated mode; default to customer
-          if (session.mode === "noUser") session.setMode("customer");
-          session.setActiveWorkerRole(isWorkRole(user.role) ? (user.role as string) : null);
+          syncSessionForRole(user.role);
         }
       },
 
       /** Update role explicitly */
       setRole: (role) => {
         set({ role });
-
-        // 🔗 Keep session worker role consistent
-        const session = useSessionStore.getState();
-        session.setActiveWorkerRole(isWorkRole(role) ? (role as string) : null);
-        // If we somehow were "noUser" but a role arrived, ensure customer mode
-        if (session.mode === "noUser" && get().token) session.setMode("customer");
+        syncSessionForRole(role);
       },
 
       /** Full logout */
@@ -94,8 +99,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (s.token && s.user) {
             // Persisted login → ensure UI is authenticated
-            if (session.mode === "noUser") session.setMode("customer");
-            session.setActiveWorkerRole(isWorkRole(s.role) ? (s.role as string) : null);
+            syncSessionForRole(s.role); 
           } else {
             // No persisted auth → ensure guest UI
             session.resetForLogout(true);

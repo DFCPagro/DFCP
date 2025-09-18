@@ -16,18 +16,34 @@ import ItemModel from "@/models/Item.model";
 // ✅ use your real seeder (no connect/disconnect inside)
 import { seedItems } from "../../db/seeds/dev/items.seeder";
 
-// ---- Mock the auth middleware so protected routes are reachable ----
-// Your router imports from "@/middlewares/auth", so mock the SAME module id:
+// ---- Mock the auth middleware exactly by module id "@/middlewares/auth" ----
 jest.mock("@/middlewares/auth", () => ({
+  /**
+   * For protected routes, always act as an authenticated admin
+   */
   authenticate: (req: any, _res: any, next: any) => {
-    req.user = { id: "u1", roles: ["admin"] };
+    req.user = { id: "u1", role: "admin" };
     next();
   },
+
+  /**
+   * For public GET routes: act as guest unless header x-test-role is provided.
+   * If x-test-role is present, attach req.user with that role so controllers can return full data.
+   */
+  authenticateIfPresent: (req: any, _res: any, next: any) => {
+    const role = req.header?.("x-test-role");
+    if (role) req.user = { id: "guest-impersonated", role };
+    next();
+  },
+
+  /**
+   * Standard authorize check against the single role string
+   */
   authorize:
     (...allowed: string[]) =>
     (req: any, res: any, next: any) => {
-      const roles: string[] = req.user?.roles ?? [];
-      return roles.some((r) => allowed.includes(r))
+      const role: string | undefined = req.user?.role;
+      return role && allowed.includes(role)
         ? next()
         : res.status(403).json({ message: "Forbidden" });
     },
@@ -43,7 +59,9 @@ function buildApp() {
   app.use((err: any, _req: any, res: any, _next: any) => {
     // eslint-disable-next-line no-console
     console.error(err);
-    res.status(500).json({ message: "Internal Server Error" });
+    res
+      .status(err?.statusCode || err?.status || 500)
+      .json({ message: err?.message || "Internal Server Error" });
   });
 
   return app;
@@ -63,10 +81,43 @@ describe("Items E2E", () => {
     await seedItems();
   });
 
-  // ---------- GET /items (list) ----------
-  it("lists items with pagination, filtering & sorting", async () => {
+  // ---------- GET /items (PUBLIC) ----------
+  it("lists items with the PUBLIC shape when unauthenticated", async () => {
     const res = await request(app)
       .get("/items")
+      .query({ category: "fruit", limit: 2, page: 1, sort: "type,-updatedAt" })
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      page: 1,
+      limit: 2,
+      total: expect.any(Number),
+      pages: expect.any(Number),
+    });
+
+    expect(Array.isArray(res.body.items)).toBe(true);
+    expect(res.body.items.length).toBeGreaterThan(0);
+
+    const first = res.body.items[0];
+
+    // PUBLIC fields present:
+    expect(first).toHaveProperty("_id");
+    expect(first).toHaveProperty("displayName");
+    expect(first).toHaveProperty("category");
+    expect(first).toHaveProperty("itemUrl");
+
+    // Private fields absent:
+    expect(first).not.toHaveProperty("type");
+    expect(first).not.toHaveProperty("variety");
+    expect(first).not.toHaveProperty("caloriesPer100g");
+    expect(first).not.toHaveProperty("price");
+  });
+
+  // ---------- GET /items (PRIVILEGED via authenticateIfPresent) ----------
+  it("lists items with FULL shape when role is admin (token present)", async () => {
+    const res = await request(app)
+      .get("/items")
+      .set("x-test-role", "admin")
       .query({ category: "fruit", q: "apple", limit: 1, page: 1, sort: "type,-updatedAt" })
       .expect(200);
 
@@ -78,9 +129,11 @@ describe("Items E2E", () => {
     });
     expect(Array.isArray(res.body.items)).toBe(true);
     expect(res.body.items.length).toBe(1);
-    // schema fields present
-    expect(res.body.items[0]).toHaveProperty("type");
-    expect(res.body.items[0]).toHaveProperty("category");
+
+    const item = res.body.items[0];
+    expect(item).toHaveProperty("_id");
+    expect(item).toHaveProperty("type");
+    expect(item).toHaveProperty("category");
   });
 
   it("rejects invalid category with 400", async () => {
@@ -93,16 +146,38 @@ describe("Items E2E", () => {
     await request(app).get("/items").query({ maxCalories: "xyz" }).expect(400);
   });
 
-  // ---------- GET /items/:itemId ----------
-  it("gets a single item by valid ObjectId", async () => {
+  // ---------- GET /items/:itemId (PUBLIC) ----------
+  it("gets a single item with PUBLIC shape when unauthenticated", async () => {
     const anyItem = await ItemModel.findOne({}).lean();
     expect(anyItem).toBeTruthy();
 
     const res = await request(app).get(`/items/${anyItem!._id}`).expect(200);
 
-    // Your toJSON plugin likely hides `_id` and exposes `itemId`
-    expect(res.body).toHaveProperty("itemId", String(anyItem!._id));
+    // PUBLIC shape
+    expect(res.body).toHaveProperty("_id", String(anyItem!._id));
+    expect(res.body).toHaveProperty("displayName");
+    expect(res.body).toHaveProperty("category");
+    expect(res.body).toHaveProperty("itemUrl");
+
+    // Private fields absent
+    expect(res.body).not.toHaveProperty("type");
+    expect(res.body).not.toHaveProperty("variety");
+    expect(res.body).not.toHaveProperty("caloriesPer100g");
+  });
+
+  // ---------- GET /items/:itemId (PRIVILEGED via authenticateIfPresent) ----------
+  it("gets a single item with FULL shape when role is fManager (token present)", async () => {
+    const anyItem = await ItemModel.findOne({}).lean();
+    expect(anyItem).toBeTruthy();
+
+    const res = await request(app)
+      .get(`/items/${anyItem!._id}`)
+      .set("x-test-role", "fManager")
+      .expect(200);
+
+    expect(res.body).toHaveProperty("_id", String(anyItem!._id));
     expect(res.body).toHaveProperty("type");
+    expect(res.body).toHaveProperty("category");
   });
 
   it("returns 400 for invalid ObjectId", async () => {
@@ -129,12 +204,12 @@ describe("Items E2E", () => {
       })
       .expect(201);
 
-    // Expect itemId (virtual) rather than _id in JSON
-    expect(res.body).toHaveProperty("itemId");
+    // Expect _id in JSON
+    expect(res.body).toHaveProperty("_id");
     expect(res.body.type).toBe("Cucumber");
 
     // And confirm it persisted
-    const saved = await ItemModel.findById(res.body.itemId).lean();
+    const saved = await ItemModel.findById(res.body._id).lean();
     expect(saved).toBeTruthy();
     expect(saved!.type).toBe("Cucumber");
   });
@@ -146,8 +221,8 @@ describe("Items E2E", () => {
 
     const res = await request(app).patch(`/items/${tomato!._id}`).send({ variety: "Grape" }).expect(200);
 
-    // Response body exposes itemId instead of _id
-    expect(res.body).toHaveProperty("itemId", String(tomato!._id));
+    // Response body includes _id
+    expect(res.body).toHaveProperty("_id", String(tomato!._id));
     expect(res.body.variety).toBe("Grape");
 
     const reloaded = await ItemModel.findById(tomato!._id).lean();
@@ -184,8 +259,7 @@ describe("Items E2E", () => {
 
     const res = await request(app).put(`/items/${someItem!._id}`).send(payload).expect(200);
 
-    // Response exposes itemId instead of _id
-    expect(res.body).toHaveProperty("itemId", String(someItem!._id));
+    expect(res.body).toHaveProperty("_id", String(someItem!._id));
     expect(res.body.type).toBe("Apple");
     expect(res.body.variety).toBe("Pink Lady");
 
@@ -231,17 +305,18 @@ describe("Items E2E", () => {
     expect(res.body).toEqual({ message: "Invalid itemId" });
   });
 
-  // ---------- Calories filtering ----------
-  it("filters by calories range", async () => {
+  // ---------- Calories filtering (privileged GET to see caloriesPer100g) ----------
+  it("filters by calories range (admin can see caloriesPer100g)", async () => {
     const res = await request(app)
       .get("/items")
+      .set("x-test-role", "admin") // privileged GET
       .query({ minCalories: 50, maxCalories: 60, category: "fruit" })
       .expect(200);
 
-    // Assert the *rule*, not specific names (since seedItems controls data)
     expect(Array.isArray(res.body.items)).toBe(true);
     for (const it of res.body.items) {
       expect(it.category).toBe("fruit");
+      // privileged response includes caloriesPer100g (may be null if not set)
       expect(typeof it.caloriesPer100g === "number" || it.caloriesPer100g === null).toBe(true);
       if (it.caloriesPer100g != null) {
         expect(it.caloriesPer100g).toBeGreaterThanOrEqual(50);

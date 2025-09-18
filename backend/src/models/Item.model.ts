@@ -1,4 +1,4 @@
-import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
+import { Schema, model, InferSchemaType, HydratedDocument, Model } from "mongoose";
 import toJSON from "../utils/toJSON";
 import { isHttpUrl } from "../utils/urls";
 import { QualityStandardsSchema } from "./shared/qualityStandards.schema";
@@ -6,6 +6,9 @@ import { QualityStandardsSchema } from "./shared/qualityStandards.schema";
 // --- categories ---
 export const itemCategories = ["fruit", "vegetable"] as const;
 export type ItemCategory = (typeof itemCategories)[number];
+
+// public projection (used for unauthenticated + non-privileged users)
+export const PUBLIC_ITEM_PROJECTION = { _id: 1, category: 1, type: 1, variety: 1 } as const;
 
 const PriceSchema = new Schema(
   {
@@ -17,8 +20,6 @@ const PriceSchema = new Schema(
 );
 
 // --- main schema ---
-// NOTE: _id is a STRING in this schema, so we generate a hex ObjectId string by default.
-// This keeps compatibility with your controllers/services that validate ObjectIds.
 const ItemSchema = new Schema(
   {
     category: { type: String, enum: itemCategories, required: true, index: true },

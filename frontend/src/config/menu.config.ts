@@ -45,7 +45,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
   {
     type: "group",
     key: "mgr-orders",
-    label: "Orders",
+    label: "Orders-WIP",
     children: [
       { type: "link", key: "mgr-orders-report", label: "Orders Report", path: "/manager/orders/report" },
       { type: "link", key: "mgr-orders-active", label: "Active Orders", path: "/manager/orders/active" },
@@ -55,7 +55,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
   {
     type: "group",
     key: "mgr-logistics",
-    label: "Logistics",
+    label: "Logistics-WIP",
     children: [
       { type: "link", key: "mgr-containers", label: "Containers", path: "/manager/containers" },
       { type: "link", key: "mgr-shipments", label: "Shipments", path: "/manager/shipments" },
@@ -65,10 +65,10 @@ const workAdmin: ReadonlyArray<MenuItem> = [
   {
     type: "group",
     key: "mgr-confirm",
-    label: "Confirmations",
+    label: "Working Links",
     children: [
-      { type: "link", key: "mgr-arrival-confirm", label: "Arrival Confirm", path: "/manager/confirm/arrival" },
-      { type: "link", key: "mgr-customer-confirm", label: "Customer Confirm", path: "/manager/confirm/customer" },
+      { type: "link", key: "mgr-admin-items", label: "Manage Items", path: "/admin/items" },
+      { type: "link", key: "mgr-admin-jobReview", label: "Job Application Review", path: "/admin/jobReview" },
     ],
   },
 ] as const;
@@ -86,6 +86,7 @@ export const MENUS: MenuRegistry = {
   noUser: noUserMenu,
   customer: customerMenu,
   work: {
+    admin: workAdmin,
     farmer: workFarmer,
     manager: workAdmin,
     deliverer: workDeliverer,
