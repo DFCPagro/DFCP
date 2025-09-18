@@ -295,6 +295,16 @@ if (role.includeSchedule) {
     }
   }
 
+// Derive canonical capacity (kg) for deliverer roles and strip UI-only fields
+if (role.name.toLowerCase() === "deliverer" || role.name.toLowerCase() === "industrialDeliverer") {
+  const val = (fields as any)?.vehicleCapacityValue;
+  const unit = (fields as any)?.vehicleCapacityUnit ?? "kg";
+  if (typeof val === "number") {
+    (applicationData as any).vehicleCapacityKg = val * (unit === "t" ? 1000 : 1);
+  }
+  delete (applicationData as any).vehicleCapacityValue;
+  delete (applicationData as any).vehicleCapacityUnit;
+}
 
 // Strip any UI-only weekday keys
 ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]

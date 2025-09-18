@@ -93,10 +93,14 @@ export interface JobApplicationCreateBase {
 export interface DelivererApplicationData {
   vehicleType?: "car" | "van" | "truck" | "bike";
   refrigerated?: boolean;
-  capacityKg?: number;
-  workRegions?: string[]; // e.g., ["east", "west"]
+  vehicleCapacityKg?: number; // ← this is what we submit
+  vehicleCapacityLiters?: number;
+  speedKmH?: number;
+  workRegions?: string[];
   licenseNumber?: string;
+
 }
+
 
 // Farmer (example fields; extend as needed)
 export interface FarmerApplicationData {

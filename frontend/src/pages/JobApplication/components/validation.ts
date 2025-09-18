@@ -18,13 +18,20 @@ const stringOrEmail = (type: RoleField["type"]) =>
     : z.string().trim().min(1, "Required");
 
 const scalarFor = (f: RoleField) => {
+  const fieldName = f.name ?? toCamelCase(f.label);
+
   // Coerce numeric inputs to numbers (works whether UI passes string or number)
   if (f.type === "number") {
     // special-case: agreementPercentage must be 0..100 (and can be hidden)
-    if ((f.name ?? toCamelCase(f.label)) === "agreementPercentage") {
+    if (fieldName === "agreementPercentage") {
       return z.coerce.number().min(0, "Min 0").max(100, "Max 100").optional();
     }
     return z.coerce.number().min(0, "Must be ≥ 0").optional();
+  }
+
+  // Special-case: capacity unit must be exactly "kg" or "t"
+  if (fieldName === "vehicleCapacityUnit") {
+    return z.enum(["kg", "t"]).default("kg");
   }
 
   switch (f.type) {
@@ -45,6 +52,7 @@ const scalarFor = (f: RoleField) => {
       return z.any();
   }
 };
+
 
 
 function toCamelCase(label: string) {
