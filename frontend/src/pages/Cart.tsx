@@ -89,7 +89,7 @@ useEffect(() => {
           </SimpleGrid>
         )}
 
-        {/* Divider replacement */}
+        {/* box replacement */}
         <Box borderTopWidth="1px" />
 
         <Box borderWidth="1px" borderRadius="2xl" p={6}>
