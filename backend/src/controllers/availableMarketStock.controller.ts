@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { Types } from "mongoose";
 import ApiError from "../utils/ApiError";
-import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
+import { AvailableMarketStockModel , type ItemStatus} from "../models/availableMarketStock.model";
 
 import {
   findOrCreateAvailableMarketStock,
@@ -11,6 +11,17 @@ import {
   updateItemQtyStatusAtomic,
   nextFiveShiftsWithStock,
 } from "../services/availableMarketStock.service";
+
+type LeanMatchedItem = {
+  _id: Types.ObjectId;
+  currentAvailableQuantityKg: number;
+  status: ItemStatus;
+};
+
+type LeanMatchedDoc = {
+  items: LeanMatchedItem[];
+};
+
 
 export async function initDoc(req: Request, res: Response) {
   try {
@@ -79,6 +90,7 @@ export async function listNextFiveWithStock(req: Request, res: Response) {
  * Response:
  *  { ok: true, docId, lineId, newQty: number, status?: "soldout" }
  */
+
 export async function adjustAvailableQty(req: Request, res: Response) {
   try {
     const { docId, lineId, deltaKg } = req.body ?? {};
@@ -91,10 +103,7 @@ export async function adjustAvailableQty(req: Request, res: Response) {
       return res.status(400).json({ error: "docId, lineId, and non-zero numeric deltaKg are required" });
     }
 
-    // Debug: log docId and lineId
-    console.log("adjustAvailableQty: docId=", docId, "lineId=", lineId);
-
-    // 1) Atomic adjust (clamped 0..original, and optionally enforced for reserves)
+    // 1) Atomic adjust (you already have this)
     await adjustAvailableQtyAtomic({ docId, lineId, deltaKg, enforceEnoughForReserve });
 
     // 2) Read back just this line to return the new quantity
@@ -102,14 +111,13 @@ export async function adjustAvailableQty(req: Request, res: Response) {
     const _lineId = new Types.ObjectId(lineId);
 
     const doc = await AvailableMarketStockModel.findOne(
-      { _id: _docId, "items._id": _lineId },
-      { "items.$": 1 } // project only the matched subdoc
-    ).lean();
+      { _id: _docId, "items._id": _lineId }
+    )
+      .select({ "items.$": 1 })            // project only the matched array element
+      .lean<LeanMatchedDoc>()              // ✅ tell TS exactly what comes back
+      .exec();
 
-    // Debug: log the result of the query
-    console.log("adjustAvailableQty: doc after query=", JSON.stringify(doc));
-
-    if (!doc || !doc.items?.length) {
+    if (!doc || !doc.items || doc.items.length === 0) {
       return res.status(404).json({ error: "Document or line not found after update" });
     }
 

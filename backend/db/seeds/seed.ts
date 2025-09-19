@@ -11,6 +11,7 @@ import { seedDeliverers } from './dev/deliverers.seed'
 // import { seedOrders } from './dev/orders.seed'
 import { seedShiftsConfig } from './dev/shiftConfig.seeder';
 import seedAppConfig from './dev/seedAppConfig';
+import seedAvailableMarketStock from './dev/seedAvailableMarketStock';
 
 type Args = {
   reset?: boolean;
@@ -83,6 +84,12 @@ async function main() {
     await timed(`Shifts (count=${argv.orders})`, seedShiftsConfig);
   } else {
     console.log('⏭️  Skipping shofts seeding');
+  }
+
+  if (!argv['no-available-stock']) {
+    await timed(`available stock`, seedAvailableMarketStock);
+  } else {
+    console.log('⏭️  Skipping stock seeding');
   }
 
   if (!argv['no-config']) {

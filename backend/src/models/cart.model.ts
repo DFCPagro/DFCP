@@ -56,6 +56,7 @@ CartSchema.pre("validate", function (next) {
 
 CartSchema.index({ status: 1, expiresAt: 1 }); // reclaimExpiredCarts
 CartSchema.index({ availableDate: 1, availableShift: 1, status: 1 }); // global shift wipe
+
 CartSchema.plugin(toJSON);
 
 export type Cart = InferSchemaType<typeof CartSchema>;
@@ -65,8 +66,8 @@ export type CartModel = Model<Cart>;
 export default (models.Cart as CartModel) || model<Cart, CartModel>("Cart", CartSchema);
 
 // ---------- Expiry helper (GLOBAL shift configs) ----------
-function addUtcMinutes(baseUtcMidnight: Date, minutes: number) {
-  const d = new Date(baseUtcMidnight);
+function addUtcMinutes(base: Date, minutes: number) {
+  const d = new Date(base);
   d.setUTCMinutes(d.getUTCMinutes() + minutes);
   return d;
 }
@@ -77,15 +78,28 @@ function addUtcMinutes(baseUtcMidnight: Date, minutes: number) {
  */
 export async function computeNewExpiry(
   _LCid: Types.ObjectId | null,
-  availableDate: Date,
-  shiftName: ShiftName,
+  availableDate: Date,                     // 00:00 UTC for the service day
+  shiftName: "morning" | "afternoon" | "evening" | "night",
   inactivityMinutes: number
 ): Promise<Date> {
-  const cfg = await ShiftConfig.findOne({ name: shiftName }).lean();
-  const endMin = cfg?.generalEndMin ?? 24 * 60; // fallback full day if missing
+  // pull both start & end
+  const cfg = await ShiftConfig.findOne(
+    { name: shiftName },
+    { generalStartMin: 1, generalEndMin: 1 }
+  ).lean<{ generalStartMin: number; generalEndMin: number }>();
 
+  const startMin = cfg?.generalStartMin ?? 0;
+  let endMin   = cfg?.generalEndMin   ?? 24 * 60;
+
+  // handle wrap past midnight: if end <= start, add 24h
+  if (endMin <= startMin) endMin += 24 * 60;
+
+  // compute real shift end in UTC
   const shiftEnd = addUtcMinutes(availableDate, endMin);
+
+  // inactivity end from "now"
   const inactivityEnd = new Date(Date.now() + inactivityMinutes * 60 * 1000);
 
+  // expire at the earlier one
   return inactivityEnd < shiftEnd ? inactivityEnd : shiftEnd;
 }

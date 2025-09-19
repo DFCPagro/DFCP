@@ -9,7 +9,7 @@ import {
   refreshCartExpiry,
   getActiveCartForContext,
   getCartById,
-  wipeCartsForShift, // optional admin op
+  wipeCartsForShift,
 } from "@/services/cart.service";
 
 /* ------------------------------ helpers ------------------------------ */
@@ -21,8 +21,7 @@ function toObjectId(id: unknown, name: string): Types.ObjectId {
 }
 
 function requireUserId(req: Request): Types.ObjectId {
-  // your authenticate middleware attaches a full User doc on req.user
-  // @ts-ignore
+  // @ts-ignore your auth middleware attaches user
   const u = req.user;
   if (!u?._id) throw new ApiError(401, "Unauthorized");
   return toObjectId(u._id, "userId");
@@ -36,10 +35,7 @@ function parsePositiveNumber(n: any, name: string): number {
 
 /* ------------------------------ controllers ------------------------------ */
 
-/**
- * GET /carts/active?ams=<availableMarketStockId>
- * Returns the user's active cart for a given AvailableMarketStock context (LC+date+shift).
- */
+/** GET /carts/active?ams=<availableMarketStockId> */
 export async function getActiveCart(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = requireUserId(req);
@@ -51,10 +47,7 @@ export async function getActiveCart(req: Request, res: Response, next: NextFunct
   }
 }
 
-/**
- * GET /carts/:cartId
- * Returns a single cart (must belong to the authenticated user).
- */
+/** GET /carts/:cartId */
 export async function getCart(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = requireUserId(req);
@@ -66,11 +59,7 @@ export async function getCart(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-/**
- * POST /carts/add
- * Body: { availableMarketStockId, amsItemId, amountKg, inactivityMinutesOverride? }
- * Adds (or increases) an item line in the active cart; creates the cart if missing.
- */
+/** POST /carts/add */
 export async function addItem(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = requireUserId(req);
@@ -82,7 +71,9 @@ export async function addItem(req: Request, res: Response, next: NextFunction) {
     let inactivityMinutesOverride: number | undefined = undefined;
     if (req.body.inactivityMinutesOverride != null) {
       const n = Number(req.body.inactivityMinutesOverride);
-      if (!Number.isFinite(n) || n <= 0) throw new ApiError(400, "inactivityMinutesOverride must be a positive number");
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new ApiError(400, "inactivityMinutesOverride must be a positive number");
+      }
       inactivityMinutesOverride = Math.floor(n);
     }
 
@@ -100,10 +91,7 @@ export async function addItem(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-/**
- * PATCH /carts/:cartId/items/:cartItemId
- * Body: { amountKg? }  (omit -> remove full line)
- */
+/** PATCH /carts/:cartId/items/:cartItemId */
 export async function removeItem(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = requireUserId(req);
@@ -124,15 +112,11 @@ export async function removeItem(req: Request, res: Response, next: NextFunction
   }
 }
 
-/**
- * POST /carts/:cartId/clear
- * Clears the entire cart and returns the stock to AMS; marks cart as 'abandoned'.
- */
+/** POST /carts/:cartId/clear */
 export async function clear(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = requireUserId(req);
     const cartId = toObjectId(req.params.cartId, "cartId");
-
     await clearCart({ userId, cartId });
     return res.status(204).send();
   } catch (err) {
@@ -140,15 +124,11 @@ export async function clear(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-/**
- * POST /carts/:cartId/checkout
- * Marks the cart as checked out (stock remains deducted; order creation would happen in service).
- */
+/** POST /carts/:cartId/checkout */
 export async function checkout(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = requireUserId(req);
     const cartId = toObjectId(req.params.cartId, "cartId");
-
     const out = await checkoutCart({ userId, cartId });
     return res.status(200).json(out);
   } catch (err) {
@@ -156,15 +136,11 @@ export async function checkout(req: Request, res: Response, next: NextFunction) 
   }
 }
 
-/**
- * POST /carts/:cartId/refresh-expiry
- * Recomputes expiresAt based on current AppConfig + global shift end.
- */
+/** POST /carts/:cartId/refresh-expiry */
 export async function refreshExpiry(req: Request, res: Response, next: NextFunction) {
   try {
-    requireUserId(req); // just ensure auth; not used directly here
+    requireUserId(req);
     const cartId = toObjectId(req.params.cartId, "cartId");
-
     const cart = await refreshCartExpiry(cartId);
     return res.status(200).json(cart);
   } catch (err) {
@@ -172,29 +148,18 @@ export async function refreshExpiry(req: Request, res: Response, next: NextFunct
   }
 }
 
-/* ------------------------------ optional admin ------------------------------ */
-
-/**
- * POST /carts/wipe-shift
- * Body: { availableDate: string|Date (00:00 UTC), shiftName: 'morning'|'afternoon'|'evening'|'night', hardDelete?: boolean }
- * Global wipe at shift end (does NOT return stock to AMS).
- * Protect this route with `authorize('admin')` or similar.
- */
+/** POST /carts/wipe-shift  (admin) */
 export async function wipeShift(req: Request, res: Response, next: NextFunction) {
   try {
     const { availableDate, shiftName, hardDelete } = req.body ?? {};
     if (!availableDate) throw new ApiError(400, "availableDate is required");
     const date = new Date(availableDate);
     if (isNaN(date.getTime())) throw new ApiError(400, "availableDate must be an ISO date");
-
     if (!["morning", "afternoon", "evening", "night"].includes(String(shiftName))) {
       throw new ApiError(400, "Invalid shiftName");
     }
-
-    // normalize to 00:00 UTC (same as model)
     const d = new Date(date);
     d.setUTCHours(0, 0, 0, 0);
-
     await wipeCartsForShift({ availableDate: d, shiftName, hardDelete: Boolean(hardDelete) });
     return res.status(204).send();
   } catch (err) {

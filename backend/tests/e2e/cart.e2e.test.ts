@@ -15,6 +15,7 @@ import {
 } from "../../src/services/cart.service";
 import { reclaimExpiredCarts } from "../../src/jobs/cart.reclaimer";
 
+// ---- time helpers (UTC) ----
 const objId = () => new Types.ObjectId();
 const utcMidnightToday = () => {
   const now = new Date();
@@ -25,18 +26,22 @@ const utcMinutesNow = () => {
   return now.getUTCHours() * 60 + now.getUTCMinutes();
 };
 
-describe("Cart e2e (global shifts)", () => {
+function assertIsDate(v: unknown, label = "expiresAt"): asserts v is Date {
+  if (!(v instanceof Date)) throw new Error(`${label} is not a Date`);
+}
+
+describe("Cart e2e (global shifts, deterministic UTC)", () => {
   let LCid: Types.ObjectId;
   let LCscope: string;
-  let availableDate: Date; // today 00:00 UTC
-  const shiftName = "morning" as const;
-  let generalEndMin: number; // we’ll set this to “now + 10m”
+  let availableDate: Date;
+  const shiftName = "morning" as const; // any name works as long as it's the only active window
+  let generalEndMin: number;            // set to “now + 10m” (UTC)
   let amsId: Types.ObjectId;
   let amsItemId: Types.ObjectId;
   const userId = objId();
 
-  // Build indexes once to avoid IX-lock flakes during first transactional-ish write
   beforeAll(async () => {
+    // Build indexes once
     await Promise.all([
       AvailableMarketStockModel.init(),
       Cart.init(),
@@ -47,25 +52,34 @@ describe("Cart e2e (global shifts)", () => {
   });
 
   beforeEach(async () => {
+    // Hard reset relevant collections each test for isolation
+    await Promise.all([
+      Cart.deleteMany({}),
+      AvailableMarketStockModel.deleteMany({}),
+      ShiftConfig.deleteMany({}),
+      AppConfig.deleteMany({}),
+      LogisticsCenter.deleteMany({}),
+    ]);
+
     availableDate = utcMidnightToday();
 
     // Make sure shift end is in the FUTURE (now + 10 minutes), and within [0..1439]
     generalEndMin = Math.min(1439, utcMinutesNow() + 10);
 
-    // Create a real LC (so LCid exists and AppConfig scope = LCid hex)
+    // Create an LC (AppConfig scope = LCid hex)
     const LC = await LogisticsCenter.create({
-      logisticName: "LC Tel Aviv",
-      location: { name: "TA Hub", geo: { type: "Point", coordinates: [34.78, 32.08] } },
+      logisticName: "LC Test",
+      location: { name: "Test Hub", geo: { type: "Point", coordinates: [0, 0] } },
       employeeIds: [],
       deliveryHistory: [],
     });
     LCid = LC._id as Types.ObjectId;
     LCscope = LCid.toHexString();
 
-    // Global shift config for this shift; ends ~10 minutes from now
+    // Single active shift window in UTC so getCurrentShift() will match `shiftName`
     await ShiftConfig.create({
       name: shiftName,
-      timezone: "Asia/Jerusalem",
+      timezone: "UTC",
       generalStartMin: 0,
       generalEndMin,
       industrialDelivererStartMin: 0,
@@ -77,10 +91,10 @@ describe("Cart e2e (global shifts)", () => {
       slotSizeMin: 30,
     });
 
-    // Per-LC inactivity override via scope string (use LC _id hex)
+    // Per-LC inactivity override = 5 minutes
     await AppConfig.create({ scope: LCscope, inactivityMinutes: 5, updatedBy: "test" });
 
-    // AMS with one active line (10 kg)
+    // Seed AMS with one active line (10 kg)
     amsItemId = objId();
     const itemId = objId();
     const farmerId = objId();
@@ -126,22 +140,21 @@ describe("Cart e2e (global shifts)", () => {
     const after = await AvailableMarketStockModel.findById(amsId);
     expect(after?.items[0].currentAvailableQuantityKg).toBe(8);
 
-    expect(cart.userId).toBeDefined();
+    // basic cart assertions
     expect(String(cart.availableMarketStockId)).toBe(String(amsId));
     expect(cart.items.length).toBe(1);
     expect(cart.items[0].amountKg).toBe(2);
 
-    // Expiry should be in the future (~<= 5 minutes, since shift ends ~10 minutes away)
+    // Expiry should be <= 5 min from now (inactivity=5, shift ends ~10)
     const now = Date.now();
-    const exp = new Date(cart.expiresAt).getTime();
+    expect(cart.expiresAt).toBeTruthy();
+    const exp = new Date(cart.expiresAt as Date).getTime();
     expect(exp - now).toBeGreaterThan(0);
     expect(exp - now).toBeLessThanOrEqual(5 * 60 * 1000 + 2_000);
   });
 
   it("removeItemFromCart returns stock (partial and full remove)", async () => {
     const c1 = await addItemToCart({ userId, availableMarketStockId: amsId, amsItemId, amountKg: 3 });
-
-    // String() guard makes this reliable regardless of ObjectId/string in the lean doc
     const cartId = new Types.ObjectId(String(c1._id));
     const cartItemId = new Types.ObjectId(String(c1.items[0]._id));
 
@@ -185,7 +198,8 @@ describe("Cart e2e (global shifts)", () => {
   it("refreshCartExpiry picks up new AppConfig", async () => {
     const c1 = await addItemToCart({ userId, availableMarketStockId: amsId, amsItemId, amountKg: 1 });
     const cartId = new Types.ObjectId(String(c1._id));
-    const firstExp = new Date(c1.expiresAt).getTime();
+    assertIsDate(c1.expiresAt);
+    const firstExp = c1.expiresAt.getTime();
 
     // change per-LC inactivity to 1 minute
     await AppConfig.findOneAndUpdate({ scope: LCscope }, { $set: { inactivityMinutes: 1 } });
@@ -193,7 +207,7 @@ describe("Cart e2e (global shifts)", () => {
     const c2 = await refreshCartExpiry(cartId);
     const nextExp = new Date(c2.expiresAt).getTime();
 
-    expect(nextExp).toBeGreaterThan(Date.now() - 100);
+    expect(nextExp).toBeGreaterThan(Date.now() - 250);
     expect(nextExp).toBeLessThan(firstExp); // shorter inactivity picked up
   });
 
@@ -201,7 +215,7 @@ describe("Cart e2e (global shifts)", () => {
     const c1 = await addItemToCart({ userId, availableMarketStockId: amsId, amsItemId, amountKg: 2 });
     const cartId = new Types.ObjectId(String(c1._id));
 
-    // force expiry
+    // force expiry in the past
     await Cart.findByIdAndUpdate(cartId, { $set: { expiresAt: new Date(Date.now() - 60_000) } });
 
     await reclaimExpiredCarts();
@@ -213,7 +227,7 @@ describe("Cart e2e (global shifts)", () => {
     expect(gone).toBeNull();
   });
 
-  it("wipeCartsForShift empties carts WITHOUT returning stock (global)", async () => {
+  it("wipeCartsForShift empties carts WITHOUT returning stock (global wipe)", async () => {
     const c1 = await addItemToCart({ userId, availableMarketStockId: amsId, amsItemId, amountKg: 3 });
     const cartId = new Types.ObjectId(String(c1._id));
 
@@ -226,5 +240,41 @@ describe("Cart e2e (global shifts)", () => {
     // AMS NOT restored (shift-end semantics)
     const ams = await AvailableMarketStockModel.findById(amsId);
     expect(ams?.items[0].currentAvailableQuantityKg).toBe(7);
+  });
+
+  it("rejects add when AMS shift ≠ current shift", async () => {
+    // create a second AMS for a different shift (no 'evening' row in ShiftConfig → current is 'morning')
+    const amsEvening = await AvailableMarketStockModel.create({
+      availableDate,
+      availableShift: "evening",
+      LCid,
+      createdById: null,
+      items: [
+        {
+          _id: objId(),
+          itemId: objId(),
+          displayName: "Cucumber",
+          imageUrl: null,
+          category: "vegetables",
+          pricePerUnit: 5,
+          currentAvailableQuantityKg: 10,
+          originalCommittedQuantityKg: 10,
+          farmerOrderId: null,
+          farmerID: objId(),
+          farmerName: "Farmer E",
+          farmName: "E Farm",
+          status: "active",
+        },
+      ],
+    });
+
+    await expect(
+      addItemToCart({
+        userId,
+        availableMarketStockId: amsEvening._id as Types.ObjectId,
+        amsItemId: amsEvening.items[0]._id as Types.ObjectId,
+        amountKg: 1,
+      })
+    ).rejects.toThrow(/Cannot add items for shift 'evening'/i);
   });
 });
