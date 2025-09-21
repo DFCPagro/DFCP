@@ -16,7 +16,7 @@ const JobApplication       = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs       = lazy(() => import("@/pages/AvailableJobs"));
 const AggregationsPage     = lazy(() => import("@/pages/Aggregations"));
 const ContainersPage       = lazy(() => import("@/pages/Containers"));
-const ShipmentsPage        = lazy(() => import("@/pages/Shipments"));
+
 const OpsOrderPage         = lazy(() => import("@/pages/OpsOrder"));
 const CustomerConfirmPage  = lazy(() => import("@/pages/CustomerConfirm"));
 const ArrivalConfirmPage   = lazy(() => import("@/pages/ArrivalConfirm"));
@@ -63,7 +63,6 @@ export default function AppRoutes() {
 
           {/* driver-only page */}
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
-          <Route path={PATHS.shipments} element={<RoleGuard allow={['deliverer']}><ShipmentsPage /></RoleGuard>} />
 
           {/* farmer-only pages */}
           <Route
