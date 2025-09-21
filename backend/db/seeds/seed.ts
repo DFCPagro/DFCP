@@ -8,7 +8,7 @@ import { seedUsers } from './dev/users.seeder';
 import { seedItems } from './dev/items.seeder'
 import { seedLogisticsCenters } from './dev/logisticCenters.seeder'
 import { seedDeliverers } from './dev/deliverers.seeder'
-import { seedOrders } from './dev/orders.seeder'
+// import { seedOrders } from './dev/orders.seeder'
 import { seedShiftsConfig } from './dev/shiftConfig.seeder';
 import { seedAvailableStock } from './dev/seedAvailableStock';
 
@@ -72,11 +72,11 @@ async function main() {
   }
 
   // Orders next (unless disabled)
-  if (!argv['no-orders']) {
-    await timed(`Orders (count=${argv.orders})`, seedOrders);
-  } else {
-    console.log('⏭️  Skipping orders seeding');
-  }
+  // if (!argv['no-orders']) {
+  //   await timed(`Orders (count=${argv.orders})`, seedOrders);
+  // } else {
+  //   console.log('⏭️  Skipping orders seeding');
+  // }
 
   // Available stock next (unless disabled)
   if (!argv['no-shifts']) {
