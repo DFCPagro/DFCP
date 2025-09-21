@@ -11,6 +11,7 @@ export interface ILocation {
   geo?: IGeoPoint;
 }
 export interface ILogisticsCenter extends Document {
+  _id: Types.ObjectId;
   logisticName: string;
   location: ILocation;
   employeeIds: Types.ObjectId[];

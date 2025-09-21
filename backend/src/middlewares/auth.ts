@@ -19,7 +19,6 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
     if (!user) throw new ApiError(401, "User not found");
     // @ts-ignore attach user to req
     req.user = user;
-    console.log("User in req:", req.user); // Debug line to check req.user
 
     next();
   } catch {
