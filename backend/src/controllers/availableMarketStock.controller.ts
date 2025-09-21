@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import { Types } from "mongoose";
 import ApiError from "../utils/ApiError";
-import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
 import { get } from './deliverer.controller';
+import { AvailableMarketStockModel , type ItemStatus} from "../models/availableMarketStock.model";
 
 import {
   findOrCreateAvailableMarketStock,
@@ -13,6 +13,17 @@ import {
   nextFiveShiftsWithStock,
   getAvailableMarketStockById
 } from "../services/availableMarketStock.service";
+
+type LeanMatchedItem = {
+  _id: Types.ObjectId;
+  currentAvailableQuantityKg: number;
+  status: ItemStatus;
+};
+
+type LeanMatchedDoc = {
+  items: LeanMatchedItem[];
+};
+
 
 export async function initDoc(req: Request, res: Response) {
   try {
@@ -107,6 +118,7 @@ type LineOut = {
  * Response:
  *  { ok: true, docId, lineId, newQty: number, status?: "soldout" }
  */
+
 export async function adjustAvailableQty(req: Request, res: Response) {
   try {
     const { docId, lineId, deltaKg } = req.body ?? {};

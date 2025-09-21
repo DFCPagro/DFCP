@@ -5,6 +5,14 @@ import { normalizeWindow } from "../utils/time";
 
 const SHIFT_ORDER: Array<ShiftConfigType["name"]> = ["morning", "afternoon", "evening", "night"];
 
+function isNowInShift(nowMinutes: number, start: number, end: number): boolean {
+  if (start <= end) {
+    return nowMinutes >= start && nowMinutes < end;
+  } else {
+    // wrap-around, e.g. 1140 → 60 (19:00 → 01:00)
+    return nowMinutes >= start || nowMinutes < end;
+  }
+}
 
 export async function getShiftConfigByKey(params: {
   logisticCenterId: string;
@@ -22,7 +30,6 @@ export async function getShiftWindows(params: {
   const cfg = await getShiftConfigByKey(params);
 
   return {
-    logisticCenterId: cfg.logisticCenterId,
     name: cfg.name,
     timezone: cfg.timezone,
     general: normalizeWindow(cfg.generalStartMin, cfg.generalEndMin),
@@ -36,9 +43,8 @@ export async function getShiftWindows(params: {
 }
 
 export async function listShiftWindowsByLC(logisticCenterId: string) {
-  const rows = await ShiftConfig.find({ logisticCenterId }).lean<ShiftConfigType[]>().exec();
+  const rows = await ShiftConfig.find().lean<ShiftConfigType[]>().exec();
   return rows.map((cfg) => ({
-    logisticCenterId: cfg.logisticCenterId,
     name: cfg.name,
     timezone: cfg.timezone,
     general: normalizeWindow(cfg.generalStartMin, cfg.generalEndMin),
@@ -124,4 +130,21 @@ export async function getNextAvailableShifts(params: {
   }
 
   return out;
+}
+
+
+export async function getCurrentShift(): Promise<"morning"|"afternoon"|"evening"|"night"|"none"> {
+  const configs = await ShiftConfig.find({}).lean().exec();
+  if (!configs.length) return "none";
+
+  const tz = configs[0].timezone || "Asia/Jerusalem";
+  const now = DateTime.now().setZone(tz);
+  const nowMinutes = now.hour * 60 + now.minute;
+
+  for (const cfg of configs) {
+    if (isNowInShift(nowMinutes, cfg.generalStartMin, cfg.generalEndMin)) {
+      return cfg.name as any;
+    }
+  }
+  return "none";
 }

@@ -7,6 +7,8 @@ import { connectDB, disconnectDB } from '../../src/db/connect';
 import { seedUsers } from './dev/users.seeder';
 import { seedItems } from './dev/items.seeder'
 import { seedLogisticsCenters } from './dev/logisticCenters.seeder'
+import seedAppConfig from './dev/seedAppConfig';
+import seedAvailableMarketStock from './dev/seedAvailableMarketStock';
 import { seedDeliverers } from './dev/deliverers.seeder'
 // import { seedOrders } from './dev/orders.seeder'
 import { seedShiftsConfig } from './dev/shiftConfig.seeder';
@@ -85,12 +87,18 @@ async function main() {
     console.log('⏭️  Skipping shofts seeding');
   }
 
-  // Available stock next (unless disabled)
   if (!argv['no-available-stock']) {
-    await timed(`Shifts (count=${argv.orders})`, seedAvailableStock);
+    await timed(`available stock`, seedAvailableMarketStock);
   } else {
-    console.log('⏭️  Skipping available stocks seeding');
+    console.log('⏭️  Skipping stock seeding');
   }
+
+  if (!argv['no-config']) {
+    await timed(`App Config`, seedAppConfig);
+  } else {
+    console.log('⏭️  Skipping App Config seeding');
+  }
+
   await disconnectDB();
   console.log('✅ All done.');
 }

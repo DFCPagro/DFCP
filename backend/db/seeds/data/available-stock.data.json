@@ -2,16 +2,15 @@
   {
     "_id": "66f32c9f5f0a4c1a8e2a9b11",
     "LCid": "LC-1",
-    "availableDate": "2025-09-16T00:00:00.000Z",
+    "availableDate": "today",
     "availableShift": "morning",
     "createdById": "66f32ca05f0a4c1a8e2a9b44",
-    "createdAt": "2025-09-16T08:05:00.000Z",
     "items": [
       {
         "_id": "66f32ca15f0a4c1a8e2a9b77",
         "itemId": "db63c0177cfae45a8385313a",
         "displayName": "Apple Fuji",
-        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/6/67/Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
         "originalCommittedQuantityKg": 70,
@@ -21,52 +20,21 @@
         "farmerName": "Levy Cohen",
         "farmName": "Galilee Orchards",
         "status": "active"
-      },
-      {
-        "_id": "66f32ca45f0a4c1a8e2a9c10",
-        "itemId": "39bd70c4db17647c60d33c8f",
-        "displayName": "Lettuce Romaine",
-        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
-        "category": "vegetable",
-        "pricePerUnit": 8.4,
-        "originalCommittedQuantityKg": 60,
-        "currentAvailableQuantityKg": 56,
-        "farmerOrderId": "66f32ca55f0a4c1a8e2a9c43",
-        "farmerID": "66f32ca65f0a4c1a8e2a9c76",
-        "farmerName": "Ayala Ben-David",
-        "farmName": "Romi Greens",
-        "status": "active"
-      },
-      {
-        "_id": "66f32ca75f0a4c1a8e2a9ca9",
-        "itemId": "ad126949daa1c7dd61ffcc4c",
-        "displayName": "Tomato Cherry",
-        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
-        "category": "vegetable",
-        "pricePerUnit": 3.0,
-        "originalCommittedQuantityKg": 65,
-        "currentAvailableQuantityKg": 60,
-        "farmerOrderId": "66f32ca85f0a4c1a8e2a9cdc",
-        "farmerID": "66f32ca95f0a4c1a8e2a9d0f",
-        "farmerName": "Yousef Haddad",
-        "farmName": "Hula Valley Produce",
-        "status": "active"
       }
     ]
   },
   {
     "_id": "66f32cab5f0a4c1a8e2a9d42",
     "LCid": "LC-1",
-    "availableDate": "2025-09-16T00:00:00.000Z",
+    "availableDate": "today",
     "availableShift": "afternoon",
     "createdById": "66f32cac5f0a4c1a8e2a9d75",
-    "createdAt": "2025-09-16T08:05:00.000Z",
     "items": [
       {
         "_id": "66f32cad5f0a4c1a8e2a9da8",
         "itemId": "6873f67b8027abff0fdb32f3",
         "displayName": "Banana Cavendish",
-        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/930x720/resize/880x681!/quality/90/?url=http://npr-brightspot.s3.amazonaws.com/legacy/sites/upr/files/201903/Bananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.6,
         "originalCommittedQuantityKg": 80,
@@ -76,9 +44,18 @@
         "farmerName": "Maya Klein",
         "farmName": "Kineret Farms",
         "status": "active"
-      },
+      }
+    ]
+  },
+  {
+    "_id": "66f32cb95f0a4c1a8e2a9f99",
+    "LCid": "LC-1",
+    "availableDate": "today",
+    "availableShift": "evening",
+    "createdById": "66f32cb85f0a4c1a8e2a9f88",
+    "items": [
       {
-        "_id": "66f32cb05f0a4c1a8e2a9e41",
+        "_id": "66f32cba5f0a4c1a8e2a9faa",
         "itemId": "fa56428339a4f47db7d15600",
         "displayName": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
@@ -91,9 +68,18 @@
         "farmerName": "Tomer Azulay",
         "farmName": "Negev Greens",
         "status": "active"
-      },
+      }
+    ]
+  },
+  {
+    "_id": "66f32cc05f0a4c1a8e2aa000",
+    "LCid": "LC-1",
+    "availableDate": "today",
+    "availableShift": "night",
+    "createdById": "66f32cbf5f0a4c1a8e2a9fff",
+    "items": [
       {
-        "_id": "66f32cb35f0a4c1a8e2a9eda",
+        "_id": "66f32cc15f0a4c1a8e2aa011",
         "itemId": "30eb71d9a20cb517be34112f",
         "displayName": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
