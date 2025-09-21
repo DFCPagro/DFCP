@@ -1,5 +1,5 @@
 // -------- Statuses (shared) --------
-export const STAGE_STATUSES = ["pending", "ok", "current", "done"] as const;
+export const STAGE_STATUSES = ["pending", "ok", "current", "done", "problem"] as const;
 /**
  * pending  = not started yet
  * ok       = approved/acknowledged (farmer or user)

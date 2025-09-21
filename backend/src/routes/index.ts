@@ -11,6 +11,7 @@ import shiftRoutes from './shiftConfig.route';
 import userRoutes from './user.route';
 import cartRoutes from './cart.routes';
 import configRoutes from './config.routes';
+import farmerOrderRoutes from './farmerOrder.route';
 
 const router = Router();
 router.use('/auth', authRoutes);
@@ -22,6 +23,7 @@ router.use('/market', marketRoutes);
 router.use('/deliverers', delivererRoutes);
 router.use('/carts', cartRoutes);
 router.use('/config', configRoutes);
+router.use('/farmer-orders', farmerOrderRoutes);
 
 // router.use(centerMapRoutes);
 router.use('/shifts',shiftRoutes);

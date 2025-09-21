@@ -1,6 +1,10 @@
-import { FilterQuery, Types } from "mongoose";
+import mongoose,{ FilterQuery, Types } from "mongoose";
 import { Order, OrderDoc, OrderStatus, ORDER_STATUSES } from "../models/order.model";
 import ApiError from "../utils/ApiError";
+import { addOrderIdToFarmerOrder } from "./farmerOrder.service";
+import LogisticsCenter from '../models/logisticsCenter.model';
+const STATIC_LC_ID = "66e007000000000000000001";
+
 
 export interface CreateOrderInput {
   customerId: Types.ObjectId;
@@ -55,6 +59,7 @@ export const isValidStatus = (s: string): s is OrderStatus =>
   (ORDER_STATUSES as readonly string[]).includes(s as OrderStatus);
 
 /** Create */
+
 export async function createOrder(payload: CreateOrderInput) {
   const created = await Order.create({
     customerId: payload.customerId,
@@ -63,6 +68,55 @@ export async function createOrder(payload: CreateOrderInput) {
   });
   return created;
 }
+
+/*
+HAS LINKING TO ORDER USE IT AFTER TESTING THAT CREATING AN ORDER FROM MOCK AMS WORKS
+export async function createOrder(payload: CreateOrderInput) {
+  const session = await mongoose.startSession();
+  let createdOrder: any;
+
+  try {
+    await session.withTransaction(async () => {
+      // 1) create order to get its _id
+      const [created] = await Order.create(
+        [
+          {
+            customerId: payload.customerId,
+            deliveryAddress: payload.deliveryAddress,
+            items: payload.items,
+            LogisticsCenterId: STATIC_LC_ID || payload.deliveryAddress.LogisticsCenterId,
+          },
+        ],
+        { session }
+      );
+      createdOrder = created;
+
+      // 2) link each item to its farmer order with that line's quantity
+      for (const it of payload.items) {
+        const qty = Number(it.quantity);
+        if (!Number.isFinite(qty) || qty <= 0) {
+          const e: any = new Error("BadRequest");
+          e.name = "BadRequest";
+          e.details = [`quantity must be > 0 for farmerOrderId ${String(it.farmerOrderId)}`];
+          throw e;
+        }
+
+        await addOrderIdToFarmerOrder(
+          created._id,           // accepts ObjectId or string
+          it.farmerOrderId,      // accepts ObjectId or string
+          qty,
+          { session }            // keep atomic with order creation
+        );
+      }
+    });
+
+    return createdOrder;
+  } finally {
+    session.endSession();
+  }
+}
+
+*/
 
 /** Get by id */
 export async function getOrderById(id: string) {

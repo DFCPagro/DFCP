@@ -2,6 +2,7 @@ import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "
 import toJSON from "../utils/toJSON";
 import { AddressSchema } from "./shared/address.schema";
 import { AuditEntrySchema } from "./shared/audit.schema";
+import LogisticsCenter from './logisticsCenter.model';
 
 // ------ statuses ------
 export const ORDER_STATUSES = [
@@ -42,7 +43,7 @@ const OrderSchema = new Schema(
   {
     customerId: { type: Types.ObjectId, ref: "User", required: true, index: true },
     deliveryAddress: { type: AddressSchema, required: true },
-
+    LogisticsCenterId: { type: Types.ObjectId, ref: "LogisticsCenter", required: true, index: true },
     items: {
       type: [OrderItemSchema],
       default: [],
