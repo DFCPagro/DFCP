@@ -1,53 +1,67 @@
-import { useEffect, useState } from "react";
-import { fetchMyLocations } from "@/api/market";
-import type { UserLocation } from "@/types/market";
+// src/components/ui/LocationPicker.tsx
+import {
+  HStack,
+  Field,
+  Button,
+  Badge,
+  Text,
+} from "@chakra-ui/react";
+import type { Address } from "@/types/address";
 
-type Props = {
-  value?: string;
-  onChange: (locationId: string) => void;
-  onAddNew: () => void;
-};
+export interface LocationPickerProps {
+  locations: Address[];
+  value?: string; // use address as the key
+  onChange?: (address?: string) => void;
+  onOpenMap?: () => void;
+}
 
-export default function LocationPicker({ value, onChange, onAddNew }: Props) {
-  const [locations, setLocations] = useState<UserLocation[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await fetchMyLocations();
-        if (mounted) setLocations(res);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
+export default function LocationPicker({
+  locations,
+  value,
+  onChange,
+  onOpenMap,
+}: LocationPickerProps) {
+  const selected = locations.find((l) => l.address === value);
+console.log("LocationPicker selected:", selected);
   return (
-    <div className="grid gap-2">
-      <label className="text-sm font-medium">Delivery location</label>
-      <div className="flex gap-2">
+    <HStack gap={3} align="end" flexWrap="wrap">
+      <Field.Root>
+        <Field.Label htmlFor="location-select">Saved locations</Field.Label>
         <select
-          className="border rounded px-3 py-2 flex-1"
-          value={value || ""}
-          onChange={e => onChange(e.target.value)}
-          disabled={loading || locations.length === 0}
+          id="location-select"
+          value={value ?? ""}
+          onChange={(e) => onChange?.(e.target.value || undefined)}
+          aria-label="Saved locations"
+          style={{
+            padding: "8px 10px",
+            borderRadius: "8px",
+            border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+            minWidth: 280,
+            background: "var(--chakra-colors-white, #fff)",
+          }}
         >
-          <option value="" disabled>
-            {loading ? "Loading..." : "Select a saved location"}
+          <option value="">
+            {locations.length ? "Choose saved address" : "No saved addresses"}
           </option>
-          {locations.map(l => (
-            <option key={l._id} value={l._id}>
-              {l.label || `${l.street}, ${l.city}`}
+          {locations.map((l) => (
+            <option key={l.address} value={l.address}>
+              {l.address}
             </option>
           ))}
         </select>
-        <button type="button" className="border rounded px-3 py-2"
-                onClick={onAddNew}>+ Add</button>
-      </div>
-    </div>
+      </Field.Root>
+
+      <Button type="button" onClick={onOpenMap} variant="outline">
+        {selected ? "Change delivery location" : "Pick delivery location"}
+      </Button>
+
+      {selected && (
+        <Badge colorPalette="green" variant="surface" title={selected.address}>
+          <Text maxW="36ch" >
+            {selected.address}
+          </Text>
+        </Badge>
+      )}
+    </HStack>
   );
 }

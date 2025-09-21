@@ -27,8 +27,10 @@ export async function getMyAddresses(req: Request, res: Response) {
 }
 
 export async function postNewAddress(req: Request, res: Response) {
+
   try {
     const userId = authId(req);
+    console.log("postNewAddress body:", req.body);
     const { lnt, alt, address } = req.body ?? {};
     const data = await addUserAddress(userId, { lnt, alt, address });
 

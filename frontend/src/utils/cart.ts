@@ -12,7 +12,7 @@ export type CartLine = {
 
 export type CartTotals = { count: number; subtotal: number };
 export type CartMeta = {
-  locationId?: string | null;
+  locationKey?: string | null;
   logisticCenterId?: string | null;
   shiftKey?: string | null;
 };

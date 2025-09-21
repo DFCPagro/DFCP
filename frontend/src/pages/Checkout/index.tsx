@@ -25,11 +25,11 @@ export default function Checkout() {
   const itemsUnified = useCartItemsUnified(); // reads store + LS
   const [address, setAddress] = useState<SavedLoc | null>(null);
 
-  // meta (lc + shift + locationId) saved from Market
+  // meta (lc + shift + locationKey) saved from Market
   const meta = getCartMeta();
   const shiftKey = meta?.shiftKey ?? null; // 'morning' | 'afternoon' | 'night'
   const lcId = meta?.logisticCenterId ?? null;
-  const locationId = meta?.locationId ?? null;
+  const locationKey = meta?.locationKey ?? null;
 
   // read nice label we saved when the user picked map location (optional)
   useEffect(() => {
@@ -53,11 +53,11 @@ export default function Checkout() {
 
   async function placeOrder() {
     // simple guards
-    if (isCartEmpty || !shiftKey || !lcId || !locationId) return;
+    if (isCartEmpty || !shiftKey || !lcId || !locationKey) return;
 
     // prepare payload that your backend expects
     const payload = {
-      locationId,
+      locationKey,
       logisticCenterId: lcId,
       shiftKey,
       items: itemsUnified.map((it: any) => ({
@@ -110,7 +110,7 @@ export default function Checkout() {
             <Badge colorPalette="blue">Shift: {shiftKey ?? "?"}</Badge>
             <Badge colorPalette="gray">LC: {lcId ?? "?"}</Badge>
           </HStack>
-          {!locationId || !shiftKey ? (
+          {!locationKey || !shiftKey ? (
             <Alert.Root status="warning" borderRadius="md">
               <Alert.Indicator />
               <Alert.Description>
@@ -175,7 +175,7 @@ export default function Checkout() {
               mt={2}
               size="lg"
               colorPalette="green"
-              disabled={isCartEmpty || !locationId || !shiftKey || !lcId}
+              disabled={isCartEmpty || !locationKey || !shiftKey || !lcId}
               onClick={placeOrder}
             >
               Place Order

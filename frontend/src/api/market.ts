@@ -1,5 +1,5 @@
 import { api } from "./config";
-import { AddressSchema, type Address } from "@/types/address";
+import { AddressSchema, AddressListSchema, type Address} from "@/types/address";
 import {
   AvailableShiftSchema,
   MarketStockDocSchema,
@@ -12,12 +12,13 @@ export async function getCustomerAddresses(): Promise<Address[]> {
   const { data } = await api.get("/users/addresses");
   return AddressSchema.array().parse(data?.data ?? data);
 }
+type AddressInput = Omit<Address, "logisticCenterId">;
 
-export async function addCustomerAddress(address: Omit<Address, "logisticCenterId">): Promise<Address> {
-  const { data } = await api.post("/users/addresses", address);
-  return AddressSchema.parse(data?.data ?? data);
+
+export async function addCustomerAddress(input: AddressInput): Promise<Address[]> {
+  const { data } = await api.post("/users/addresses", input);   // <-- flat body
+  return AddressListSchema.parse(data?.data ?? data);           // <-- parse array
 }
-
 /** 2) After user selects an address, fetch shifts by LC of that address */
 // Upcoming (today and forward) for LC
 export async function getAvailableShiftsByLC(LCid: string): Promise<AvailableShift[]> {
