@@ -1,152 +1,162 @@
-[
-  {
-    "itemId": "FRT-001",
-    "type": "Apple",
-    "variety": "Fuji",
-    "category": "fruit",
-    "packing": {
-      "bulkDensityKgPerL": 0.50,
-      "fragility": "normal",
-      "maxWeightPerBoxKg": 10,
-      "minBoxType": "Small",
-      "requiresVentedBox": false,
-      "allowMixing": true,
-      "avoidMixingWithCategories": ["aromatic"]
+{
+  "items": [
+    {
+      "itemId": "30eb71d9a20cb517be34112f",
+      "type": "Strawberry",
+      "variety": "Albion",
+      "category": "fruit",
+      "packing": {
+        "bulkDensityKgPerL": 0.247,
+        "litersPerKg": 4.049,
+        "fragility": "fragile",
+        "allowMixing": true,
+        "requiresVentedBox": true,
+        "minBoxType": "Small",
+        "maxWeightPerBoxKg": 2,
+        "notes": "1 lb clamshell ≈ 1.84 L; ideal top-vented small boxes to reduce compression."
+      }
+    },
+    {
+      "itemId": "ad126949daa1c7dd61ffcc4c",
+      "type": "Tomato",
+      "variety": "Cherry",
+      "category": "vegetable",
+      "packing": {
+        "bulkDensityKgPerL": 0.637,
+        "litersPerKg": 1.570,
+        "fragility": "fragile",
+        "allowMixing": true,
+        "requiresVentedBox": true,
+        "minBoxType": "Small",
+        "maxWeightPerBoxKg": 3,
+        "notes": "Based on 12×1-pint clamshell case ≈ 7.97 lb total."
+      }
+    },
+    {
+      "itemId": "39bd70c4db17647c60d33c8f",
+      "type": "Lettuce",
+      "variety": "Romaine",
+      "category": "vegetable",
+      "packing": {
+        "bulkDensityKgPerL": 0.250,
+        "litersPerKg": 4.000,
+        "fragility": "very_fragile",
+        "allowMixing": true,
+        "requiresVentedBox": true,
+        "minBoxType": "Small",
+        "maxWeightPerBoxKg": 4,
+        "notes": "Leafy-greens proxy (bushel 18–20 lb) used to estimate romaine volume; avoid overfill."
+      }
+    },
+    {
+      "itemId": "fa56428339a4f47db7d15600",
+      "type": "Cucumber",
+      "variety": "Persian",
+      "category": "vegetable",
+      "packing": {
+        "bulkDensityKgPerL": 0.630,
+        "litersPerKg": 1.587,
+        "fragility": "normal",
+        "allowMixing": true,
+        "requiresVentedBox": false,
+        "minBoxType": "Small",
+        "notes": "Based on 48–50 lb per bushel."
+      }
+    },
+    {
+      "itemId": "885df3d97431436c3a205ff3",
+      "type": "Carrot",
+      "variety": "Nantes",
+      "category": "vegetable",
+      "packing": {
+        "bulkDensityKgPerL": 0.644,
+        "litersPerKg": 1.553,
+        "fragility": "sturdy",
+        "allowMixing": true,
+        "requiresVentedBox": false,
+        "minBoxType": "Small",
+        "notes": "Based on 50 lb per bushel (topped)."
+      }
+    },
+    {
+      "itemId": "f68140ef8273c40bbae48b98",
+      "type": "Spinach",
+      "variety": "Baby",
+      "category": "vegetable",
+      "packing": {
+        "bulkDensityKgPerL": 0.090,
+        "litersPerKg": 11.111,
+        "fragility": "very_fragile",
+        "allowMixing": true,
+        "requiresVentedBox": true,
+        "minBoxType": "Small",
+        "maxWeightPerBoxKg": 2,
+        "notes": "4 lb foodservice case ≈ 0.71 ft³; extremely airy—watch compression."
+      }
+    },
+    {
+      "itemId": "db63c0177cfae45a8385313a",
+      "type": "Apple",
+      "variety": "Fuji",
+      "category": "fruit",
+      "packing": {
+        "bulkDensityKgPerL": 0.618,
+        "litersPerKg": 1.618,
+        "fragility": "normal",
+        "allowMixing": true,
+        "requiresVentedBox": false,
+        "minBoxType": "Small",
+        "notes": "Based on 48 lb per bushel."
+      }
+    },
+    {
+      "itemId": "6873f67b8027abff0fdb32f3",
+      "type": "Banana",
+      "variety": "Cavendish",
+      "category": "fruit",
+      "packing": {
+        "bulkDensityKgPerL": 0.346,
+        "litersPerKg": 2.890,
+        "fragility": "normal",
+        "allowMixing": true,
+        "requiresVentedBox": false,
+        "minBoxType": "Small",
+        "notes": "Std. banana box ≈ 52 L holds ~18 kg."
+      }
+    },
+    {
+      "itemId": "bb87115ed0ab8a728b7d9622",
+      "type": "Orange",
+      "variety": "Navel",
+      "category": "fruit",
+      "packing": {
+        "bulkDensityKgPerL": 0.620,
+        "litersPerKg": 1.613,
+        "fragility": "normal",
+        "allowMixing": true,
+        "requiresVentedBox": false,
+        "minBoxType": "Small",
+        "notes": "Within 46–50 lb/bushel range; conservative average."
+      }
+    },
+    {
+      "itemId": "497bb3e65bf348533160cec0",
+      "type": "Grape",
+      "variety": "Red Globe",
+      "category": "fruit",
+      "packing": {
+        "bulkDensityKgPerL": 0.600,
+        "litersPerKg": 1.667,
+        "fragility": "fragile",
+        "allowMixing": true,
+        "requiresVentedBox": true,
+        "minBoxType": "Small",
+        "maxWeightPerBoxKg": 4,
+        "notes": "Midpoint of literature range; avoid stacking pressure."
+      }
     }
-  },
-  {
-    "itemId": "FRT-002",
-    "type": "Banana",
-    "variety": "Cavendish",
-    "category": "fruit",
-    "packing": {
-      "bulkDensityKgPerL": 0.45,
-      "fragility": "normal",
-      "maxWeightPerBoxKg": 8,
-      "minBoxType": "Small",
-      "requiresVentedBox": false,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "FRT-003",
-    "type": "Orange",
-    "variety": "Navel",
-    "category": "fruit",
-    "packing": {
-      "bulkDensityKgPerL": 0.55,
-      "fragility": "normal",
-      "maxWeightPerBoxKg": 12,
-      "minBoxType": "Small",
-      "requiresVentedBox": false,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "FRT-004",
-    "type": "Grapes",
-    "variety": "Red Globe",
-    "category": "fruit",
-    "packing": {
-      "bulkDensityKgPerL": 0.60,
-      "fragility": "fragile",
-      "maxWeightPerBoxKg": 5,
-      "minBoxType": "Small",
-      "requiresVentedBox": true,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "FRT-005",
-    "type": "Strawberry",
-    "variety": "Albion",
-    "category": "fruit",
-    "packing": {
-      "bulkDensityKgPerL": 0.26,
-      "fragility": "fragile",
-      "maxWeightPerBoxKg": 2,
-      "minBoxType": "Small",
-      "requiresVentedBox": true,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "VEG-001",
-    "type": "Tomato",
-    "variety": "Cherry",
-    "category": "vegetable",
-    "packing": {
-      "bulkDensityKgPerL": 0.62,
-      "fragility": "fragile",
-      "maxWeightPerBoxKg": 3,
-      "minBoxType": "Small",
-      "requiresVentedBox": true,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "VEG-002",
-    "type": "Lettuce",
-    "variety": "Romaine",
-    "category": "vegetable",
-    "packing": {
-      "bulkDensityKgPerL": 0.22,
-      "fragility": "fragile",
-      "maxWeightPerBoxKg": 2.5,
-      "minBoxType": "Medium",
-      "requiresVentedBox": true,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "VEG-003",
-    "type": "Cucumber",
-    "variety": "Persian",
-    "category": "vegetable",
-    "packing": {
-      "bulkDensityKgPerL": 0.63,
-      "fragility": "normal",
-      "maxWeightPerBoxKg": 10,
-      "minBoxType": "Small",
-      "requiresVentedBox": false,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "VEG-004",
-    "type": "Carrot",
-    "variety": "Nantes",
-    "category": "vegetable",
-    "packing": {
-      "bulkDensityKgPerL": 0.60,
-      "fragility": "hardy",
-      "maxWeightPerBoxKg": 12,
-      "minBoxType": "Small",
-      "requiresVentedBox": false,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
-  },
-  {
-    "itemId": "VEG-005",
-    "type": "Spinach",
-    "variety": "Baby",
-    "category": "vegetable",
-    "packing": {
-      "bulkDensityKgPerL": 0.10,
-      "fragility": "fragile",
-      "maxWeightPerBoxKg": 1.5,
-      "minBoxType": "Medium",
-      "requiresVentedBox": true,
-      "allowMixing": true,
-      "avoidMixingWithCategories": []
-    }
+  ],
+  "units": {
+    "notes": "All densities are net produce (no packaging). Volumetric calc: litersNeeded = kg / bulkDensityKgPerL."
   }
-]
+}
