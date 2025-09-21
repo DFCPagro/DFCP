@@ -2,7 +2,6 @@
 import {
   Badge,
   Box,
-  Button,
   HStack,
   Image,
   Spinner,
@@ -18,12 +17,8 @@ import type { SectionDTO } from "@/types/agri";
 
 export type CropsTableProps = {
   landName: string | null | undefined;
-  /** Selected section to display crops for */
   section: SectionDTO | null | undefined;
-  /** Loading flag for sections/crops query */
   isLoading?: boolean;
-  /** Trigger to open the Add Crop drawer */
-  onAddCropClick?: () => void;
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -45,11 +40,9 @@ export default function CropsTable({
   landName,
   section,
   isLoading = false,
-  onAddCropClick,
 }: CropsTableProps) {
   const crops = section?.crops ?? [];
 
-  // Top area: title + add button
   return (
     <Stack gap="3" w="full">
       <HStack justify="space-between">
@@ -61,10 +54,6 @@ export default function CropsTable({
             Land: {landName ?? "—"} • Last updated: {formatDate(section?.updatedAt)}
           </Text>
         </Stack>
-
-        <Button onClick={onAddCropClick} size="sm">
-          Add Crop
-        </Button>
       </HStack>
 
       {isLoading ? (
@@ -77,18 +66,14 @@ export default function CropsTable({
       ) : !section ? (
         <EmptyState
           title="No section selected"
-          subtitle="Choose a section to view its crops."
+          subtitle="Choose a section to view its crop."
           showOutline
         />
       ) : crops.length === 0 ? (
         <EmptyState
-          title="No crops yet"
-          subtitle="Add your first crop to this section."
-          action={
-            <Button size="sm" onClick={onAddCropClick}>
-              Add Crop
-            </Button>
-          }
+          title="No crop in this section"
+          subtitle="Use the Add button next to the section name to create one."
+          showOutline
         />
       ) : (
         <Box overflowX="auto">
@@ -135,7 +120,6 @@ export default function CropsTable({
                         w="10"
                         rounded="md"
                         onError={(e) => {
-                          // fallback for v3 (no fallbackSrc prop)
                           (e.currentTarget as HTMLImageElement).src = fallbackSrc;
                         }}
                       />

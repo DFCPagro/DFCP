@@ -86,6 +86,15 @@ export default function FarmerCropManagementPage() {
     setParams(next);
   }
 
+  function handleAddCrop(sectionId: string) {
+  // make sure URL reflects the section we clicked "Add" on
+  if (sectionId !== selectedSectionId) {
+    handleSelectSection(sectionId);
+  }
+  setIsAddOpen(true);
+}
+
+
   function handleSelectSection(newSectionId: string) {
     const next = new URLSearchParams(params);
     next.set("sectionId", newSectionId);
@@ -126,6 +135,7 @@ export default function FarmerCropManagementPage() {
               sections={sections}
               selectedSectionId={selectedSectionId}
               onSelect={handleSelectSection}
+              onAddCrop={handleAddCrop}
               isLoading={sectionsLoading}
             />
 
@@ -133,7 +143,6 @@ export default function FarmerCropManagementPage() {
               landName={selectedLandName}
               section={selectedSection}
               isLoading={sectionsLoading}
-              onAddCropClick={() => setIsAddOpen(true)}
             />
           </Stack>
         )}

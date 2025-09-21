@@ -301,6 +301,44 @@ export async function createSectionCrop(
   return deepClone(crop);
 }
 
+export async function createSection(
+  landId: string,
+  input: { name?: string; areaM2?: number; measurements?: Record<string, unknown> }
+): Promise<SectionDTO> {
+  await delay();
+
+  // find target land and its sections list (or make one)
+  const list = sectionsByLand.get(landId) ?? [];
+  const nextIndex = list.length + 1;
+  const id = `sec-${landId}-${Math.random().toString(36).slice(2, 7)}`;
+
+  const newSection: SectionDTO = {
+    id,
+    landId,
+    name: (input.name ?? `Section ${nextIndex}`).trim(),
+    areaM2: typeof input.areaM2 === "number" && input.areaM2 > 0 ? input.areaM2 : 1000,
+    updatedAt: isoNow(),
+    measurements: (input.measurements as any) ?? {},
+    crops: [], // IMPORTANT: new sections start empty
+  };
+
+  // insert + touch land
+  list.push(newSection);
+  sectionsByLand.set(landId, list);
+
+  const landIdx = lands.findIndex(l => l.id === landId);
+  if (landIdx >= 0) {
+    lands[landIdx] = {
+      ...lands[landIdx],
+      sectionsCount: list.length,
+      updatedAt: isoNow(),
+    };
+  }
+
+  return deepClone(newSection);
+}
+
+
 /* =========================
  * Optional default export
  * ======================= */
@@ -310,6 +348,7 @@ const fakeFarmerCropsApi = {
   listSectionsByLand,
   listCropCatalog,
   createSectionCrop,
+  createSection,
 };
 
 export default fakeFarmerCropsApi;
@@ -325,3 +364,4 @@ export const __internal = {
     catalog: deepClone(catalog),
   }),
 };
+

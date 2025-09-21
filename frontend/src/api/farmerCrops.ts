@@ -6,6 +6,7 @@
 
 import * as fake from "./fakes/farmerCrops.fake";
 
+import type { CreateSectionInput } from "@/types/agri";
 /* =========================
  * Env config
  * ======================= */
@@ -32,6 +33,28 @@ export const farmerCropsKeys = {
   // If you ever split crops per section into a dedicated endpoint:
   sectionCrops: (sectionId: string) => ["farmer", "section", "crops", sectionId] as const,
 };
+
+async function real_createSection(
+  landId: string,
+  payload: CreateSectionInput
+) : Promise<SectionDTO> {
+  return request<SectionDTO>(`/farmer/lands/${encodeURIComponent(landId)}/sections`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createSection(
+  landId: string,
+  payload: CreateSectionInput
+): Promise<SectionDTO> {
+  if (USE_FAKE) {
+    // if your fake file doesn't import shared types, payload is structurally compatible
+    // ts-expect-error allow structural typing against local fake type
+    return fake.createSection(landId, payload as any);
+  }
+  return real_createSection(landId, payload);
+}
 
 /* =========================
  * Types (kept local; you can lift to /src/types/agri.ts later)
@@ -218,6 +241,7 @@ const farmerCropsApi = {
   listCropCatalog,
   createSectionCrop,
   keys: farmerCropsKeys,
+  createSection,
 };
 
 export default farmerCropsApi;

@@ -1,5 +1,7 @@
 // src/pages/FarmerCropManagement/components/AddCropDrawer.tsx
 import {
+  Badge,
+  Box,
   Button,
   CloseButton,
   Drawer,
@@ -29,6 +31,26 @@ export type AddCropDrawerProps = {
 };
 
 type Errors = Partial<Record<keyof CreateCropInput | "form", string>>;
+type FieldKey =
+  | "itemId"
+  | "plantedAmountGrams"
+  | "avgRatePerUnit"
+  | "expectedFruitingPerPlant"
+  | "plantedOnDate"
+  | "expectedHarvestDate";
+
+type FieldSpec = {
+  key: FieldKey;
+  label: string;
+  type: "select" | "number" | "date";
+  required?: boolean;
+  placeholder?: string;
+  /** getter / setter for controlled value (string) */
+  get: () => string;
+  set: (v: string) => void;
+  /** optional helper text under the field */
+  helperText?: string | null;
+};
 
 export default function AddCropDrawer({
   isOpen,
@@ -55,6 +77,10 @@ export default function AddCropDrawer({
   const [plantedOnDate, setPlantedOnDate] = useState<string>("");
   const [expectedHarvestDate, setExpectedHarvestDate] = useState<string>("");
 
+  // WIP section layout (non-functional for now)
+  const [xCells, setXCells] = useState<string>("10");
+  const [yCells, setYCells] = useState<string>("6");
+
   const [errors, setErrors] = useState<Errors>({});
 
   // Reset form when the drawer opens
@@ -69,6 +95,10 @@ export default function AddCropDrawer({
       // Prefill planted date as today for convenience
       setPlantedOnDate(toISODate(new Date()));
       setExpectedHarvestDate("");
+
+      // WIP layout defaults
+      setXCells("10");
+      setYCells("6");
     }
   }, [isOpen, reset]);
 
@@ -125,6 +155,116 @@ export default function AddCropDrawer({
     }
   }
 
+  /** -------------------------
+   * Config-driven field list
+   * ------------------------*/
+  const FIELD_SPECS: FieldSpec[] = [
+    {
+      key: "itemId",
+      label: "Crop *",
+      type: "select",
+      required: true,
+      get: () => itemId,
+      set: setItemId,
+    },
+    {
+      key: "plantedAmountGrams",
+      label: "Planted Amount (g) *",
+      type: "number",
+      required: true,
+      placeholder: "e.g., 120000",
+      get: () => plantedAmountGrams,
+      set: setPlantedAmountGrams,
+      helperText: fmtGrams(Number(plantedAmountGrams) || 0),
+    },
+    {
+      key: "avgRatePerUnit",
+      label: "Average Rate per Plant (g)",
+      type: "number",
+      placeholder: "Optional",
+      get: () => avgRatePerUnit,
+      set: setAvgRatePerUnit,
+    },
+    {
+      key: "expectedFruitingPerPlant",
+      label: "Expected Fruiting per Plant",
+      type: "number",
+      placeholder: "Optional",
+      get: () => expectedFruitingPerPlant,
+      set: setExpectedFruitingPerPlant,
+    },
+  ];
+
+  const DATE_FIELDS: FieldSpec[] = [
+    {
+      key: "plantedOnDate",
+      label: "Planted On",
+      type: "date",
+      get: () => plantedOnDate,
+      set: setPlantedOnDate,
+    },
+    {
+      key: "expectedHarvestDate",
+      label: "Expected Harvest Date",
+      type: "date",
+      get: () => expectedHarvestDate,
+      set: setExpectedHarvestDate,
+    },
+  ];
+
+  function renderField(spec: FieldSpec) {
+    const err = errors[spec.key];
+
+    if (spec.type === "select") {
+      return (
+        <Field.Root key={spec.key} required={!!spec.required} invalid={!!err}>
+          <Field.Label>{spec.label}</Field.Label>
+
+          <NativeSelect.Root disabled={isDisabled}>
+            <NativeSelect.Field
+              ref={firstFieldRef}
+              value={spec.get()}
+              onChange={(e) => spec.set(e.currentTarget.value)}
+            >
+              <option value="">Select a crop...</option>
+              {catalog.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </NativeSelect.Field>
+            <NativeSelect.Indicator />
+          </NativeSelect.Root>
+
+          {err ? <Field.ErrorText>{err}</Field.ErrorText> : null}
+        </Field.Root>
+      );
+    }
+
+    return (
+      <Field.Root key={spec.key} required={!!spec.required} invalid={!!err}>
+        <Field.Label>{spec.label}</Field.Label>
+        <Input
+          type={spec.type === "number" ? "number" : "date"}
+          inputMode={spec.type === "number" ? "decimal" : undefined}
+          min={spec.type === "number" ? "0" : undefined}
+          step={spec.type === "number" ? "1" : undefined}
+          placeholder={spec.placeholder}
+          value={spec.get()}
+          onChange={(e) => spec.set(e.currentTarget.value)}
+          disabled={isDisabled}
+        />
+        {spec.helperText ? <Field.HelperText>{spec.helperText}</Field.HelperText> : null}
+        {err ? <Field.ErrorText>{err}</Field.ErrorText> : null}
+      </Field.Root>
+    );
+  }
+
+  // WIP matrix grid
+  const xCount = Math.max(1, Math.min(50, Number(xCells) || 0));
+  const yCount = Math.max(1, Math.min(50, Number(yCells) || 0));
+  const matrixCells = Array.from({ length: xCount * yCount }, (_, i) => i);
+
   return (
     <Drawer.Root
       open={isOpen}
@@ -148,115 +288,81 @@ export default function AddCropDrawer({
 
             <Drawer.Body>
               <Stack gap="4">
-                {/* Select Crop */}
-                <Field.Root required invalid={!!errors.itemId}>
-                    <Field.Label>Crop *</Field.Label>
+                {/* Config-driven fields */}
+                {FIELD_SPECS.map(renderField)}
 
-                    {/* move disabled here */}
-                    <NativeSelect.Root disabled={isDisabled}>
-                        <NativeSelect.Field
-                        ref={firstFieldRef}
-                        value={itemId}
-                        onChange={(e) => setItemId(e.currentTarget.value)}
-                        >
-                        <option value="">Select a crop...</option>
-                        {catalog.map((c) => (
-                            <option key={c.id} value={c.id}>
-                            {c.name}
-                            </option>
-                        ))}
-                        </NativeSelect.Field>
-                        <NativeSelect.Indicator />
-                    </NativeSelect.Root>
-
-                {errors.itemId ? <Field.ErrorText>{errors.itemId}</Field.ErrorText> : null}
-                </Field.Root>
-
-
-
-                {/* Planted Amount (g) */}
-                <Field.Root required invalid={!!errors.plantedAmountGrams}>
-                  <Field.Label>Planted Amount (g) *</Field.Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="1"
-                    placeholder="e.g., 120000"
-                    value={plantedAmountGrams}
-                    onChange={(e) => setPlantedAmountGrams(e.currentTarget.value)}
-                    disabled={isDisabled}
-                  />
-                  <Field.HelperText>{fmtGrams(Number(plantedAmountGrams) || 0)}</Field.HelperText>
-                  {errors.plantedAmountGrams ? (
-                    <Field.ErrorText>{errors.plantedAmountGrams}</Field.ErrorText>
-                  ) : null}
-                </Field.Root>
-
-                {/* Average Rate per Plant (g) */}
-                <Field.Root invalid={!!errors.avgRatePerUnit}>
-                  <Field.Label>Average Rate per Plant (g)</Field.Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="1"
-                    placeholder="Optional"
-                    value={avgRatePerUnit}
-                    onChange={(e) => setAvgRatePerUnit(e.currentTarget.value)}
-                    disabled={isDisabled}
-                  />
-                  {errors.avgRatePerUnit ? (
-                    <Field.ErrorText>{errors.avgRatePerUnit}</Field.ErrorText>
-                  ) : null}
-                </Field.Root>
-
-                {/* Expected Fruiting per Plant */}
-                <Field.Root invalid={!!errors.expectedFruitingPerPlant}>
-                  <Field.Label>Expected Fruiting per Plant</Field.Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="1"
-                    placeholder="Optional"
-                    value={expectedFruitingPerPlant}
-                    onChange={(e) => setExpectedFruitingPerPlant(e.currentTarget.value)}
-                    disabled={isDisabled}
-                  />
-                  {errors.expectedFruitingPerPlant ? (
-                    <Field.ErrorText>{errors.expectedFruitingPerPlant}</Field.ErrorText>
-                  ) : null}
-                </Field.Root>
-
-                {/* Dates */}
+                {/* Dates side-by-side */}
                 <HStack gap="4">
-                  <Field.Root flex="1" invalid={!!errors.plantedOnDate}>
-                    <Field.Label>Planted On</Field.Label>
-                    <Input
-                      type="date"
-                      value={plantedOnDate}
-                      onChange={(e) => setPlantedOnDate(e.currentTarget.value)}
-                      disabled={isDisabled}
-                    />
-                    {errors.plantedOnDate ? (
-                      <Field.ErrorText>{errors.plantedOnDate}</Field.ErrorText>
-                    ) : null}
-                  </Field.Root>
-
-                  <Field.Root flex="1" invalid={!!errors.expectedHarvestDate}>
-                    <Field.Label>Expected Harvest Date</Field.Label>
-                    <Input
-                      type="date"
-                      value={expectedHarvestDate}
-                      onChange={(e) => setExpectedHarvestDate(e.currentTarget.value)}
-                      disabled={isDisabled}
-                    />
-                    {errors.expectedHarvestDate ? (
-                      <Field.ErrorText>{errors.expectedHarvestDate}</Field.ErrorText>
-                    ) : null}
-                  </Field.Root>
+                  {DATE_FIELDS.map((spec) => (
+                    <Box key={spec.key} flex="1">
+                      {renderField(spec)}
+                    </Box>
+                  ))}
                 </HStack>
+
+                {/* WIP: Section layout */}
+                <Box
+                  borderWidth="1px"
+                  rounded="l3"
+                  p="4"
+                  bg="gray.50"
+                  _dark={{ bg: "gray.800", borderColor: "gray.700" }}
+                >
+                  <HStack justify="space-between" mb="3">
+                    <Text fontWeight="semibold">Section layout (WIP)</Text>
+                    <Badge colorPalette="yellow">WIP</Badge>
+                  </HStack>
+
+                  <HStack align="start" gap="4">
+                    <Box flex="1" overflow="hidden">
+                      <Box
+                        display="grid"
+                        gridTemplateColumns={`repeat(${xCount}, 1fr)`}
+                        gap="1"
+                        height="180px"
+                      >
+                        {matrixCells.map((i) => (
+                          <Box
+                            key={i}
+                            rounded="sm"
+                            bg={i % 7 === 0 ? "green.300" : "gray.200"}
+                            _dark={{ bg: i % 7 === 0 ? "green.700" : "gray.700" }}
+                          />
+                        ))}
+                      </Box>
+                    </Box>
+
+                    <Stack w="220px" gap="3">
+                      <Field.Root>
+                        <Field.Label>X</Field.Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="50"
+                          step="1"
+                          value={xCells}
+                          onChange={(e) => setXCells(e.currentTarget.value)}
+                          disabled={isDisabled}
+                        />
+                        <Field.HelperText>Columns</Field.HelperText>
+                      </Field.Root>
+
+                      <Field.Root>
+                        <Field.Label>Y</Field.Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="50"
+                          step="1"
+                          value={yCells}
+                          onChange={(e) => setYCells(e.currentTarget.value)}
+                          disabled={isDisabled}
+                        />
+                        <Field.HelperText>Rows</Field.HelperText>
+                      </Field.Root>
+                    </Stack>
+                  </HStack>
+                </Box>
 
                 {/* Global error (mutation) */}
                 {submitErr ? (

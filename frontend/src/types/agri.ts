@@ -221,3 +221,11 @@ export function isCropStatus(x: unknown): x is CropStatus {
 export function looksLikeISODate(d: unknown): d is ISODateString {
   return typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
 }
+
+
+// Create Section payload
+export interface CreateSectionInput {
+  name?: string;
+  areaM2?: number;
+  measurements?: Measurements; // optional AB/BC/etc
+}

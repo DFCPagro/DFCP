@@ -1,5 +1,6 @@
 // src/pages/FarmerCropManagement/components/SectionTabs.tsx
-import { Box, HStack, Spinner, Tabs, Text } from "@chakra-ui/react";
+import { Box, Button, Spinner, Tabs, Text } from "@chakra-ui/react";
+import { FiPlus } from "react-icons/fi";
 import type { SectionDTO } from "@/types/agri";
 
 export type SectionTabsProps = {
@@ -8,6 +9,8 @@ export type SectionTabsProps = {
   selectedSectionId: string | null | undefined;
   /** Called when the user selects a different section */
   onSelect: (sectionId: string) => void;
+  /** Called when the user clicks the right-most "+" button */
+  onAddCrop?: (sectionId: string) => void;
   /** Show loading state while sections are being fetched */
   isLoading?: boolean;
 };
@@ -20,26 +23,26 @@ export default function SectionTabs({
   sections,
   selectedSectionId,
   onSelect,
+  onAddCrop,
   isLoading = false,
 }: SectionTabsProps) {
   const hasSections = sections?.length > 0;
-
-  // Use controlled Tabs. Fall back to the first section id if none provided.
   const value = selectedSectionId ?? (hasSections ? sections[0].id : null);
+
+  const selectedSection = value ? sections.find((s) => s.id === value) ?? null : null;
+  // Respect "one crop per section": enable + only when the selected section has no crop
+  const canAddOnSelected =
+    !!selectedSection && (selectedSection.crops?.length ?? 0) === 0;
 
   return (
     <Box w="full">
       {isLoading ? (
-        <HStack gap="3" py="3">
+        <Box display="inline-flex" gap="12px" py="12px" alignItems="center">
           <Spinner />
-          <Text fontSize="sm" color="fg.muted">
-            Loading sections…
-          </Text>
-        </HStack>
+          <Text fontSize="sm" color="fg.muted">Loading sections…</Text>
+        </Box>
       ) : !hasSections ? (
-        <Text py="3" color="fg.muted">
-          No sections for this land yet.
-        </Text>
+        <Text py="12px" color="fg.muted">No sections for this land yet.</Text>
       ) : (
         <Tabs.Root
           value={value}
@@ -51,17 +54,18 @@ export default function SectionTabs({
               minW="fit-content"
               bg="bg.muted"
               rounded="l3"
-              p="1"
-              // keep the list compact and pill-like
+              p="4px"
               display="inline-flex"
-              gap="1"
+              gap="4px"
+              alignItems="center"
             >
+              {/* All section triggers */}
               {sections.map((s, idx) => (
                 <Tabs.Trigger
                   key={s.id}
                   value={s.id}
-                  px="3"
-                  py="2"
+                  px="12px"
+                  py="8px"
                   rounded="l2"
                   fontSize="sm"
                   whiteSpace="nowrap"
@@ -69,10 +73,31 @@ export default function SectionTabs({
                   {labelForSection(s, idx)}
                 </Tabs.Trigger>
               ))}
+
+              {/* Far-right "+" pseudo-tab */}
+              <Button
+                size="xs"
+                variant="subtle"
+                rounded="l2"
+                aria-label="Add crop to selected section"
+                title={
+                  canAddOnSelected
+                    ? "Add crop to selected section"
+                    : "Selected section already has a crop"
+                }
+                colorPalette={canAddOnSelected ? "green" : "gray"}
+                disabled={!canAddOnSelected || !onAddCrop}
+                onClick={() => {
+                  if (value && onAddCrop) onAddCrop(value);
+                }}
+              >
+                <FiPlus />
+              </Button>
+
+              {/* Keep indicator last so it aligns to the selected trigger */}
               <Tabs.Indicator rounded="l2" />
             </Tabs.List>
           </Box>
-          {/* We render content below in the page (CropsTable), so no <Tabs.Content> here */}
         </Tabs.Root>
       )}
     </Box>
