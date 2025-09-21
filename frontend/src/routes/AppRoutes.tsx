@@ -14,15 +14,14 @@ const Dashboard            = lazy(() => import("@/pages/Dashboard"));
 const DriverSchedule       = lazy(() => import("@/pages/DriverSchedule"));
 const JobApplication       = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs       = lazy(() => import("@/pages/AvailableJobs"));
-const AggregationsPage     = lazy(() => import("@/pages/Aggregations"));
 const ContainersPage       = lazy(() => import("@/pages/Containers"));
 
 const OpsOrderPage         = lazy(() => import("@/pages/OpsOrder"));
 const CustomerConfirmPage  = lazy(() => import("@/pages/CustomerConfirm"));
 const ArrivalConfirmPage   = lazy(() => import("@/pages/ArrivalConfirm"));
-const AggregationViewPage  = lazy(() => import("@/pages/AggregationView"));
 const ContainerViewPage    = lazy(() => import("@/pages/ContainerView"));
-const FarmerDashboard      = lazy(() => import("@/pages/farmer")); // NOTE: PascalCase
+const FarmerDashboard      = lazy(() => import("@/pages/FarmerDashboard")); // NOTE: PascalCase
+const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
 const Market               = lazy(() => import("@/pages/Market"));
 const Cart                 = lazy(() => import("@/pages/Cart"));
 const Checkout             = lazy(() => import("@/pages/Checkout"));
@@ -45,7 +44,6 @@ export default function AppRoutes() {
         <Route path={PATHS.ops} element={<OpsOrderPage />} />
         <Route path={PATHS.customerConfirm} element={<CustomerConfirmPage />} />
         <Route path={PATHS.arrivalConfirm} element={<ArrivalConfirmPage />} />
-        <Route path={PATHS.aggregationView} element={<AggregationViewPage />} />
         <Route path={PATHS.containerView} element={<ContainerViewPage />} />
 
         {/* Authenticated routes */}
@@ -73,8 +71,7 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
-          <Route path={PATHS.aggregations} element={<RoleGuard allow={['farmer']}><AggregationsPage /></RoleGuard>} />
-          <Route path={PATHS.containers}   element={<RoleGuard allow={['farmer']}><ContainersPage /></RoleGuard>} />
+          <Route path={PATHS.FarmerCropManagement} element={<RoleGuard allow={['farmer']}><FarmerCropManagement /></RoleGuard>} />
         </Route>
 
         <Route path={PATHS.notFound} element={<NotFound />} />

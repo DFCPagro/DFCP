@@ -13,8 +13,8 @@ export const PATHS = {
   cart: "/cart",
   checkout: "/checkout",
   // Farmer pages
-  farmerDashboard: "/farmerDashboard",
-  aggregations: "/aggregations",
+  farmerDashboard: "/FarmerDashboard",
+  FarmerCropManagement: "/farmer/crops",
   containers: "/containers",
   // Item manager
   ItemsManagment: "/admin/items",

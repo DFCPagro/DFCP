@@ -54,7 +54,7 @@ export default function Login() {
           break;
 
         case "farmer":
-          to = PATHS.aggregations;
+          to = PATHS.farmerDashboard;
           break;
 
         case "driver":                // if your backend uses "deliverer"/"industrialDeliverer", include them:
