@@ -97,6 +97,15 @@ export async function listNextFiveWithStock(req: Request, res: Response) {
   }
 }
 
+type LineOut = {
+  _id: Types.ObjectId;
+  items: Array<{
+    _id: Types.ObjectId;
+    currentAvailableQuantityKg: number;
+    originalCommittedQuantityKg: number;
+    status: "active" | "soldout" | "removed";
+  }>;
+};
 
 /**
  * Body:
@@ -122,28 +131,38 @@ export async function adjustAvailableQty(req: Request, res: Response) {
       return res.status(400).json({ error: "docId, lineId, and non-zero numeric deltaKg are required" });
     }
 
-    // 1) Atomic adjust (you already have this)
-    await adjustAvailableQtyAtomic({ docId, lineId, deltaKg, enforceEnoughForReserve });
-
-    // 2) Read back just this line to return the new quantity
     const _docId = new Types.ObjectId(docId);
     const _lineId = new Types.ObjectId(lineId);
 
-    const doc = await AvailableMarketStockModel.findOne(
-      { _id: _docId, "items._id": _lineId }
-    )
-      .select({ "items.$": 1 })            // project only the matched array element
-      .lean<LeanMatchedDoc>()              // ✅ tell TS exactly what comes back
-      .exec();
+    // 1) atomic adjust
+    await adjustAvailableQtyAtomic({ docId, lineId, deltaKg, enforceEnoughForReserve });
 
-    if (!doc || !doc.items || doc.items.length === 0) {
+    // 2) fetch only the matched line via aggregation (typed)
+    const rows = await AvailableMarketStockModel.aggregate<LineOut>([
+      { $match: { _id: _docId } },
+      {
+        $project: {
+          items: {
+            $filter: {
+              input: "$items",
+              as: "it",
+              cond: { $eq: ["$$it._id", _lineId] },
+            },
+          },
+        },
+      },
+      // Optionally ensure the line exists
+      { $match: { "items.0": { $exists: true } } },
+    ]);
+
+    if (!rows.length) {
       return res.status(404).json({ error: "Document or line not found after update" });
     }
 
-    const line = doc.items[0];
+    const line = rows[0].items[0];
     const newQty = Number(line.currentAvailableQuantityKg ?? 0);
 
-    // 3) Optional: auto mark soldout if quantity hits 0
+    // 3) optional auto-soldout
     let newStatus: "soldout" | undefined = undefined;
     if (autoSoldoutOnZero && newQty === 0 && line.status !== "soldout") {
       await updateItemQtyStatusAtomic({ docId, lineId, status: "soldout" });

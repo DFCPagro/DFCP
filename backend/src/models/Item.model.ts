@@ -45,9 +45,9 @@ const ItemSchema = new Schema(
     weightPerUnitG: { type: Number, default: null, min: 0 },
 
     qualityStandards: { type: QualityStandardsSchema, default: undefined },
-    tolerance: { type: String, default: null, trim: true },
+    tolerance: { type: String, default: 0.02, trim: true },
 
-    count: { type: Number, default: null, min: 0 },
+    
 
     lastUpdated: { type: Date, default: () => new Date() },
   },

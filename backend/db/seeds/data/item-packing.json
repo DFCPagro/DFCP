@@ -1,0 +1,152 @@
+[
+  {
+    "itemId": "FRT-001",
+    "type": "Apple",
+    "variety": "Fuji",
+    "category": "fruit",
+    "packing": {
+      "bulkDensityKgPerL": 0.50,
+      "fragility": "normal",
+      "maxWeightPerBoxKg": 10,
+      "minBoxType": "Small",
+      "requiresVentedBox": false,
+      "allowMixing": true,
+      "avoidMixingWithCategories": ["aromatic"]
+    }
+  },
+  {
+    "itemId": "FRT-002",
+    "type": "Banana",
+    "variety": "Cavendish",
+    "category": "fruit",
+    "packing": {
+      "bulkDensityKgPerL": 0.45,
+      "fragility": "normal",
+      "maxWeightPerBoxKg": 8,
+      "minBoxType": "Small",
+      "requiresVentedBox": false,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "FRT-003",
+    "type": "Orange",
+    "variety": "Navel",
+    "category": "fruit",
+    "packing": {
+      "bulkDensityKgPerL": 0.55,
+      "fragility": "normal",
+      "maxWeightPerBoxKg": 12,
+      "minBoxType": "Small",
+      "requiresVentedBox": false,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "FRT-004",
+    "type": "Grapes",
+    "variety": "Red Globe",
+    "category": "fruit",
+    "packing": {
+      "bulkDensityKgPerL": 0.60,
+      "fragility": "fragile",
+      "maxWeightPerBoxKg": 5,
+      "minBoxType": "Small",
+      "requiresVentedBox": true,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "FRT-005",
+    "type": "Strawberry",
+    "variety": "Albion",
+    "category": "fruit",
+    "packing": {
+      "bulkDensityKgPerL": 0.26,
+      "fragility": "fragile",
+      "maxWeightPerBoxKg": 2,
+      "minBoxType": "Small",
+      "requiresVentedBox": true,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "VEG-001",
+    "type": "Tomato",
+    "variety": "Cherry",
+    "category": "vegetable",
+    "packing": {
+      "bulkDensityKgPerL": 0.62,
+      "fragility": "fragile",
+      "maxWeightPerBoxKg": 3,
+      "minBoxType": "Small",
+      "requiresVentedBox": true,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "VEG-002",
+    "type": "Lettuce",
+    "variety": "Romaine",
+    "category": "vegetable",
+    "packing": {
+      "bulkDensityKgPerL": 0.22,
+      "fragility": "fragile",
+      "maxWeightPerBoxKg": 2.5,
+      "minBoxType": "Medium",
+      "requiresVentedBox": true,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "VEG-003",
+    "type": "Cucumber",
+    "variety": "Persian",
+    "category": "vegetable",
+    "packing": {
+      "bulkDensityKgPerL": 0.63,
+      "fragility": "normal",
+      "maxWeightPerBoxKg": 10,
+      "minBoxType": "Small",
+      "requiresVentedBox": false,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "VEG-004",
+    "type": "Carrot",
+    "variety": "Nantes",
+    "category": "vegetable",
+    "packing": {
+      "bulkDensityKgPerL": 0.60,
+      "fragility": "hardy",
+      "maxWeightPerBoxKg": 12,
+      "minBoxType": "Small",
+      "requiresVentedBox": false,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  },
+  {
+    "itemId": "VEG-005",
+    "type": "Spinach",
+    "variety": "Baby",
+    "category": "vegetable",
+    "packing": {
+      "bulkDensityKgPerL": 0.10,
+      "fragility": "fragile",
+      "maxWeightPerBoxKg": 1.5,
+      "minBoxType": "Medium",
+      "requiresVentedBox": true,
+      "allowMixing": true,
+      "avoidMixingWithCategories": []
+    }
+  }
+]
