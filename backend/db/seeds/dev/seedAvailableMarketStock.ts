@@ -73,8 +73,7 @@ const FIXED_JSON_PATH = path.resolve(__dirname, "../data/available-stock.data.js
 // Map LC codes to your seeded center _ids (from logistics-centers.data.json)
 const LC_CODE_TO_ID: Record<string, string> = {
   "LC-1": "66e007000000000000000001", // Zarzir Logistics Center
-  "LC-2": "66e007000000000000000002", // Jerusalem Logistics Center
-  "LC-3": "66e007000000000000000003", // Haifa Logistics Center
+
 };
 
 // Fallback fields to try when LCid is a name (rare)
