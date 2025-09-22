@@ -83,14 +83,16 @@ export async function listUpcoming(req: Request, res: Response) {
     res.status(500).json({ error: err.message || "Failed to list upcoming available market stock" });
   }
 }
-
 export async function listNextFiveWithStock(req: Request, res: Response) {
   try {
     const LCid = String(req.query.LCid || "66e007000000000000000001");
+    const LCid = String(req.query.LCid || "66e007000000000000000001");
     if (!LCid) return res.status(400).json({ error: "LCid is required" });
      const fromTs = Date.now();
-    const rows = await nextFiveShiftsWithStock({ LCid, fromTs });
-    console.log(rows);
+    
+    console.log("listNextFiveWithStock for LCid", LCid, "fromTs", fromTs);
+     const rows = await nextFiveShiftsWithStock({ LCid, fromTs });
+    console.log("Found rows:", rows);
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to list next five shifts with stock" });

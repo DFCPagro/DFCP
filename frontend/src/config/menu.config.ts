@@ -21,6 +21,8 @@ const customerMenu: MenuRegistry["customer"] = [
   { type: "link", key: "market", label: "Market", path: "/market", exact: true },
   { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
   { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+    { type: "link", key: "profile", label: "Profile", path: "/profile" },
+
 ] as const;
 
 /* ------------------------ Work menus by role ------------------------ */

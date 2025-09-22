@@ -12,6 +12,7 @@ export const PATHS = {
   market: "/market",
   cart: "/cart",
   checkout: "/checkout",
+  profile: "/profile",
   // Farmer pages
   farmerDashboard: "/FarmerDashboard",
   FarmerCropManagement: "/farmer/crops",

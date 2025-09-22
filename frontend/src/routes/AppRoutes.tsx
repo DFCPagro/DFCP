@@ -24,6 +24,10 @@ const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
 const Market               = lazy(() => import("@/pages/Market"));
 const Cart                 = lazy(() => import("@/pages/Cart"));
 const Checkout             = lazy(() => import("@/pages/Checkout"));
+const Profile              = lazy(() => import("@/pages/profile"));
+
+
+
 const NotFound             = lazy(() => import("@/pages/NotFound"));
 const ItemManager          = lazy(() => import("@/pages/ItemManager"));
 const AdminDashboard       = lazy(() => import("@/pages/AdminDashboard"));
@@ -70,6 +74,8 @@ export default function AppRoutes() {
           <Route path={PATHS.market} element={<Market />} />
           <Route path={PATHS.cart} element={<Cart />} />
           <Route path={PATHS.checkout} element={<Checkout />} />
+          <Route path={PATHS.profile} element={<Profile />} />
+      
 
           {/* driver-only page */}
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
