@@ -90,6 +90,7 @@ export async function listNextFiveWithStock(req: Request, res: Response) {
     if (!LCid) return res.status(400).json({ error: "LCid is required" });
      const fromTs = Date.now();
     const rows = await nextFiveShiftsWithStock({ LCid, fromTs });
+    console.log(rows);
     res.json(rows);
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to list next five shifts with stock" });
