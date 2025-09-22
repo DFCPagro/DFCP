@@ -25,6 +25,7 @@ const Market               = lazy(() => import("@/pages/Market"));
 const Cart                 = lazy(() => import("@/pages/Cart"));
 const Checkout             = lazy(() => import("@/pages/Checkout"));
 const Profile              = lazy(() => import("@/pages/profile"));
+const Orders               = lazy(() => import("@/pages/Orders"));
 
 
 
@@ -52,6 +53,7 @@ export default function AppRoutes() {
         <Route path={PATHS.arrivalConfirm} element={<ArrivalConfirmPage />} />
         <Route path={PATHS.containerView} element={<ContainerViewPage />} />
 
+
         {/* Authenticated routes */}
         <Route element={<AuthGuard />}>
           {/* admin-only pages */}
@@ -75,6 +77,7 @@ export default function AppRoutes() {
           <Route path={PATHS.cart} element={<Cart />} />
           <Route path={PATHS.checkout} element={<Checkout />} />
           <Route path={PATHS.profile} element={<Profile />} />
+          <Route path={PATHS.orders} element={<Orders />} />
       
 
           {/* driver-only page */}

@@ -13,6 +13,7 @@ export const PATHS = {
   cart: "/cart",
   checkout: "/checkout",
   profile: "/profile",
+  orders: "/orders",
   // Farmer pages
   farmerDashboard: "/FarmerDashboard",
   FarmerCropManagement: "/farmer/crops",

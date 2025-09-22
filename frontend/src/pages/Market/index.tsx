@@ -1,6 +1,19 @@
+// src/pages/Market.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Container, Heading, Grid, GridItem, Button, HStack, Text, Badge, Spinner, Alert, Field, Dialog,
+  Container,
+  Heading,
+  Grid,
+  GridItem,
+  Button,
+  HStack,
+  Text,
+  Badge,
+  Spinner,
+  Alert,
+  Field,
+  Dialog,
+  Input,
 } from "@chakra-ui/react";
 import { z } from "zod";
 
@@ -29,7 +42,6 @@ import CartIconButton from "@/components/common/CartIconButton";
 import { useCart } from "@/store/cart";
 import { useCartItemsUnified } from "@/hooks/useCartItemsUnified";
 
-// cart LS helpers
 import {
   addToCart as addToCartLS,
   clearCart as clearCartLS,
@@ -39,7 +51,6 @@ import {
   type CartLine,
 } from "@/utils/cart";
 
-// ===== ShiftName ↔ cart ShiftKey =====
 import type { ShiftKey as CartShiftKey } from "@/types/cart";
 function toShiftKey(code?: ShiftName | null): CartShiftKey | null {
   switch (code) {
@@ -52,14 +63,15 @@ function toShiftKey(code?: ShiftName | null): CartShiftKey | null {
       return null;
   }
 }
-function fromShiftKey(key?: CartShiftKey | null): ShiftName | undefined { return key ?? undefined; }
+function fromShiftKey(key?: CartShiftKey | null): ShiftName | undefined {
+  return key ?? undefined;
+}
 function normalizeKey(input?: unknown): CartShiftKey | null {
   if (!input) return null;
   const v = String(input).toLowerCase() as CartShiftKey;
   return v === "morning" || v === "afternoon" || v === "evening" || v === "night" ? v : null;
 }
 
-// ===== Local types/state =====
 type CategoryCode = string | "ALL";
 type PendingAction =
   | { kind: "shift"; value?: ShiftName }
@@ -85,6 +97,9 @@ export default function Market() {
   const [category, setCategory] = useState<CategoryCode | "ALL">("ALL");
   const [items, setItems] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Search
+  const [query, setQuery] = useState("");
 
   // Guards
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -122,7 +137,6 @@ export default function Market() {
     return m;
   }, [storeItems, lsItems]);
 
-  // ---------- helpers ----------
   const openGuard = (a: PendingAction) => setPending(a);
   const clearCartEverywhere = () => {
     (cart as any)?.clear?.();
@@ -163,6 +177,7 @@ export default function Market() {
         const updatedList = await addCustomerAddress({ address, lnt: lat, alt: lng });
         const list: Address[] = Array.isArray(updatedList) ? updatedList : [updatedList];
         setLocations(list);
+
         const added = list.find((a) => a.address === address) ?? list[list.length - 1];
         if (added) {
           setLocationKey(added.address);
@@ -189,7 +204,7 @@ export default function Market() {
     }
   };
 
-  // ---------- initial load ----------
+  // initial load
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -198,7 +213,9 @@ export default function Market() {
         if (mounted) setLocations(list);
       } catch {}
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // locationKey → selected label + LC + lock
@@ -241,33 +258,29 @@ export default function Market() {
     (async () => {
       try {
         const raw = await getAvailableShiftsByLC(logisticCenterId);
-
-        // normalize API → flat schema
         const normalized = raw.map((r: any) => ({
           date: r.date,
           shift: r.shift,
           marketStockId: r.docId,
           slotLabel: r.deliverySlotLabel,
         }));
-
         const parsed: AvailableShiftFlat[] = z.array(AvailableShiftFlatSchema).parse(normalized);
-
         if (!mounted) return;
         setAvailableShifts(parsed);
-
         if (shift) {
           const hit = parsed.find((s) => s.shift === shift);
           setMarketStockId(hit?.marketStockId ?? undefined);
         }
-      } catch (e) {
+      } catch {
         if (mounted) {
-          console.warn("Couldn’t load shifts for LC", logisticCenterId, e);
           setAvailableShifts([]);
           setMarketStockId(undefined);
         }
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [logisticCenterId, shift]);
 
   // keep lock on shift changes and map to marketStockId
@@ -286,11 +299,16 @@ export default function Market() {
   }, [shift, availableShifts, logisticCenterId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // reset items on location/stock change
-  useEffect(() => { setItems([]); }, [locationKey, marketStockId]);
+  useEffect(() => {
+    setItems([]);
+  }, [locationKey, marketStockId]);
 
   // fetch stock when we have marketStockId
   useEffect(() => {
-    if (!marketStockId) { setItems([]); return; }
+    if (!marketStockId) {
+      setItems([]);
+      return;
+    }
     let mounted = true;
     (async () => {
       setLoading(true);
@@ -303,17 +321,40 @@ export default function Market() {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [marketStockId, category]);
+
+  // display list with reserved deduction
+  const computedItems = useMemo(
+    () =>
+      items.map((it) => ({
+        it,
+        displayStock: Math.max(0, Number(it.availableKg ?? 0) - (reservedByCart[it.stockId] ?? 0)),
+      })),
+    [items, reservedByCart]
+  );
+
+  // real-time search filter
+  const visibleItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return computedItems;
+    return computedItems.filter(({ it }) => {
+      const hay = `${it.name} ${it.farmerName ?? ""} ${it.farmName ?? ""} ${it.category ?? ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [computedItems, query]);
 
   const emptyState = useMemo(() => {
     if (!locationKey) return "Pick your delivery location to continue.";
     if (!shift) return "Choose a shift to load available items.";
+    if (!loading && query && visibleItems.length === 0) return "No items match your search.";
     if (!loading && items.length === 0) return "No items available for this shift.";
     return null;
-  }, [locationKey, shift, loading, items.length]);
+  }, [locationKey, shift, loading, items.length, query, visibleItems.length]);
 
-  // ---------- interactions ----------
+  // interactions
   const onSelectSavedLocation = (newKey?: string) => {
     if (cartNotEmpty) openGuard({ kind: "locationKey", value: newKey });
     else {
@@ -347,12 +388,16 @@ export default function Market() {
       res?.lat ??
       res?.latitude ??
       get(res, ["position", "lat"]) ??
-      (typeof get(res, ["geometry", "location", "lat"]) === "function" ? get(res, ["geometry", "location", "lat"])() : undefined);
+      (typeof get(res, ["geometry", "location", "lat"]) === "function"
+        ? get(res, ["geometry", "location", "lat"])()
+        : undefined);
     const rawLng =
       res?.lng ??
       res?.longitude ??
       get(res, ["position", "lng"]) ??
-      (typeof get(res, ["geometry", "location", "lng"]) === "function" ? get(res, ["geometry", "location", "lng"])() : undefined);
+      (typeof get(res, ["geometry", "location", "lng"]) === "function"
+        ? get(res, ["geometry", "location", "lng"])()
+        : undefined);
 
     const payload = {
       address: res?.address ?? res?.formatted_address ?? selectedAddress,
@@ -370,7 +415,6 @@ export default function Market() {
     setPickerOpen(false);
   };
 
-  // add to cart
   function handleAddToCart(stockId: string, qty: number) {
     const product = items.find((i) => i.stockId === stockId);
     if (!product) return;
@@ -410,15 +454,6 @@ export default function Market() {
     );
   }
 
-  // render
-  const computedItems = useMemo(
-    () => items.map((it) => ({
-      it,
-      displayStock: Math.max(0, Number(it.availableKg ?? 0) - (reservedByCart[it.stockId] ?? 0)),
-    })),
-    [items, reservedByCart]
-  );
-
   return (
     <AuthGuard>
       <Container maxW="6xl" py={6}>
@@ -446,9 +481,13 @@ export default function Market() {
                     background: "var(--chakra-colors-white, #fff)",
                   }}
                 >
-                  <option value="">{locations.length ? "Choose saved address" : "No saved addresses"}</option>
+                  <option value="">
+                    {locations.length ? "Choose saved address" : "No saved addresses"}
+                  </option>
                   {locations.map((l) => (
-                    <option key={l.address} value={l.address}>{l.address}</option>
+                    <option key={l.address} value={l.address}>
+                      {l.address}
+                    </option>
                   ))}
                 </select>
               </Field.Root>
@@ -474,8 +513,15 @@ export default function Market() {
           </GridItem>
         </Grid>
 
-        <HStack mb={4}>
+        <HStack mb={4} gap="3" align="center" style={{ flexWrap: "wrap" }}>
           <CategoryFilter value={category} onChange={setCategory} />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search items or farmers"
+            aria-label="Search items"
+            maxW="360px"
+          />
         </HStack>
 
         {emptyState ? (
@@ -484,10 +530,15 @@ export default function Market() {
             <Alert.Description>{emptyState}</Alert.Description>
           </Alert.Root>
         ) : loading ? (
-          <HStack justifyContent="center" py={10}><Spinner /></HStack>
+          <HStack justifyContent="center" py={10}>
+            <Spinner />
+          </HStack>
         ) : (
-          <Grid templateColumns={["1fr", "repeat(2, 1fr)", "repeat(3, 1fr)", "repeat(4, 1fr)"]} gap={6}>
-            {computedItems.map(({ it, displayStock }) => (
+          <Grid
+            templateColumns={["1fr", "repeat(2, 1fr)", "repeat(3, 1fr)", "repeat(4, 1fr)"]}
+            gap={6}
+          >
+            {visibleItems.map(({ it, displayStock }) => (
               <ItemCard
                 key={it.stockId}
                 item={{
@@ -512,20 +563,36 @@ export default function Market() {
           onClose={() => setPickerOpen(false)}
           onConfirm={(r: any) => handleMapConfirm(r)}
           countries={countries}
-          initial={{ address: selectedAddress || undefined, lat: 31.771959, lng: 35.217018 }}
+          initial={{
+            address: selectedAddress || undefined,
+            lat: 31.771959,
+            lng: 35.217018,
+          }}
         />
 
         <Dialog.Root open={!!pending} onOpenChange={(e) => !e.open && setPending(null)}>
           <Dialog.Backdrop />
           <Dialog.Positioner>
             <Dialog.Content maxW="md">
-              <Dialog.Header><Dialog.Title>Clear cart?</Dialog.Title></Dialog.Header>
+              <Dialog.Header>
+                <Dialog.Title>Clear cart?</Dialog.Title>
+              </Dialog.Header>
               <Dialog.Body>
-                Changing your {pending?.kind === "shift" ? "delivery shift" : "delivery location"} will empty your cart. Do you want to continue?
+                Changing your{" "}
+                {pending?.kind === "shift" ? "delivery shift" : "delivery location"} will empty your
+                cart. Do you want to continue?
               </Dialog.Body>
               <Dialog.Footer gap="2">
-                <Button variant="ghost" onClick={() => setPending(null)}>Cancel</Button>
-                <Button colorPalette="red" onClick={async () => { clearCartEverywhere(); await applyPending(); }}>
+                <Button variant="ghost" onClick={() => setPending(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  colorPalette="red"
+                  onClick={async () => {
+                    clearCartEverywhere();
+                    await applyPending();
+                  }}
+                >
                   Confirm
                 </Button>
               </Dialog.Footer>
