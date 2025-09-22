@@ -26,7 +26,7 @@ export async function getAvailableShiftsByLC(LCid: string): Promise<AvailableShi
  {
     params: { LCid },
   });
-  return AvailableShiftSchema.array().parse(data?.data ?? data);
+  return Array.isArray(data?.data) ? data.data : data;
 }
 
 /** 3) Based on selected shift (with marketStockId), fetch the stock doc */
