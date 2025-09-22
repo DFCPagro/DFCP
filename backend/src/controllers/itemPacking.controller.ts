@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
-import * as svc from "../services/packingProfile.service";
+import { Types } from "mongoose";
+import * as svc from "../services/ItemPacking.service";
 import ApiError from "../utils/ApiError";
 
 /**
- * GET /packing-profiles
+ * GET /item-packings
  * Public (auth optional): use `authenticateIfPresent`
  */
 export const list = async (req: Request, res: Response) => {
@@ -39,44 +40,46 @@ export const list = async (req: Request, res: Response) => {
 };
 
 /**
- * GET /packing-profiles/:idOrKey
- * For now we only support Mongo ObjectId. Param kept as idOrKey for parity.
+ * GET /item-packings/:id
+ * For now we only support Mongo ObjectId.
  */
 export const getOne = async (req: Request, res: Response) => {
-  const { idOrKey } = req.params;
-  if (!idOrKey) throw new ApiError(400, "Missing id");
-  const doc = await svc.getById(idOrKey, String(req.query.populate ?? "") === "true");
+  const { id } = req.params as { id?: string };
+  if (!id) throw new ApiError(400, "Missing id");
+  if (!Types.ObjectId.isValid(id)) throw new ApiError(400, "Invalid id");
+  const doc = await svc.getById(id, String(req.query.populate ?? "") === "true");
   res.json(doc);
 };
 
 /**
- * POST /packing-profiles
+ * POST /item-packings
  * Protected: admin, dManager
  */
 export const create = async (req: Request, res: Response) => {
-  // req.body must conform to schema; Mongoose will validate.
   const created = await svc.create(req.body);
   res.status(201).json(created);
 };
 
 /**
- * PATCH /packing-profiles/:idOrKey
+ * PATCH /item-packings/:id
  * Protected: admin, dManager
  */
 export const update = async (req: Request, res: Response) => {
-  const { idOrKey } = req.params;
-  if (!idOrKey) throw new ApiError(400, "Missing id");
-  const updated = await svc.update(idOrKey, req.body);
+  const { id } = req.params as { id?: string };
+  if (!id) throw new ApiError(400, "Missing id");
+  if (!Types.ObjectId.isValid(id)) throw new ApiError(400, "Invalid id");
+  const updated = await svc.update(id, req.body);
   res.json(updated);
 };
 
 /**
- * DELETE /packing-profiles/:idOrKey
+ * DELETE /item-packings/:id
  * Protected: admin, dManager
  */
 export const remove = async (req: Request, res: Response) => {
-  const { idOrKey } = req.params;
-  if (!idOrKey) throw new ApiError(400, "Missing id");
-  const result = await svc.remove(idOrKey);
+  const { id } = req.params as { id?: string };
+  if (!id) throw new ApiError(400, "Missing id");
+  if (!Types.ObjectId.isValid(id)) throw new ApiError(400, "Invalid id");
+  const result = await svc.remove(id);
   res.json(result);
 };

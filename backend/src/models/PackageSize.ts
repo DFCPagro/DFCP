@@ -1,7 +1,10 @@
 import mongoose, { Schema, model, InferSchemaType, HydratedDocument } from "mongoose";
 
 // helper
-export function calcUsableLiters(d: { l: number; w: number; h: number }, headroomPct: number) {
+export function calcUsableLiters(
+  d: { l: number; w: number; h: number },
+  headroomPct: number
+) {
   return (d.l * d.w * d.h * (1 - headroomPct)) / 1000;
 }
 
@@ -18,59 +21,123 @@ const PackageSizeSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     key: {
-      type: String,
-      required: true,
-      enum: ["Small", "Medium", "Large"],
-      index: true,
-      unique: true,
-    },
+    type: String,
+    required: true,
+    enum: ["Small", "Medium", "Large"],
+    index: true,
+  },
     innerDimsCm: { type: InnerDimsSchema, required: true },
     headroomPct: { type: Number, required: true, min: 0, max: 0.9 },
     maxSkusPerBox: { type: Number, required: true, min: 1 },
     maxWeightKg: { type: Number, required: true, min: 0.001 },
     mixingAllowed: { type: Boolean, required: true },
     tareWeightKg: { type: Number, required: true, min: 0 },
-    usableLiters: {
-      type: Number,
-      required: true,
-      min: 0.001,
-      validate: {
-        // use `this: any` here so TS doesn't complain inside validator
-        validator(this: any, v: number) {
-          const expected = calcUsableLiters(this.innerDimsCm, this.headroomPct);
-          const relErr = Math.abs(v - expected) / (expected || 1);
-          return relErr <= 0.1;
-        },
-        message: "usableLiters must be close to l*w*h*(1 - headroomPct)/1000 (±10%).",
-      },
-    },
+    // We'll compute/overwrite this in hooks; keep minimal validation here.
+    usableLiters: { type: Number, required: true, min: 0 },
     vented: { type: Boolean, required: true },
     values: { type: Map, of: Number, default: undefined },
   },
   { collection: "package_sizes", timestamps: true }
 );
 
+PackageSizeSchema.index({ key: 1, vented: 1 }, { unique: true });
+
+
 // ---------- Types ----------
 type PackageSizeAttrs = InferSchemaType<typeof PackageSizeSchema>;
 export type PackageSizeDoc = HydratedDocument<PackageSizeAttrs>;
 
-// ---------- Hooks ----------
-PackageSizeSchema.pre("validate", function (this: PackageSizeDoc, next) {
-  const expected = calcUsableLiters(this.innerDimsCm, this.headroomPct);
+/**
+ * Compute rounded usable liters from given dims/headroom.
+ */
+function computeRoundedUsableLiters(
+  dims?: { l: number; w: number; h: number } | null,
+  head?: number | null
+): number | undefined {
+  if (!dims || typeof head !== "number") return undefined;
+  return Number(calcUsableLiters(dims, head).toFixed(1));
+}
 
-  if (
-    this.isModified("innerDimsCm") ||
-    this.isModified("headroomPct") ||
-    this.isModified("usableLiters")
-  ) {
-    if (this.usableLiters == null) {
-      this.usableLiters = expected;
-    } else {
-      const relErr = Math.abs(this.usableLiters - expected) / (expected || 1);
-      if (relErr > 0.1) this.usableLiters = expected;
-    }
+/**
+ * Apply computed usableLiters into a Mongoose update object (handles $set/no-$set).
+ */
+function ensureUsableLitersInUpdate(update: any, val: number) {
+  if (!update) return;
+  if (update.$set) {
+    update.$set.usableLiters = val;
+  } else {
+    update.usableLiters = val;
+  }
+}
+
+/**
+ * Extract candidate dims/headroom from either doc (save) or update (query).
+ */
+function pickDimsAndHeadroomFromUpdate(thisAny: any) {
+  const update = thisAny.getUpdate?.();
+  const $set = update?.$set ?? update ?? {};
+  const dims = $set.innerDimsCm;
+  const head = $set.headroomPct;
+  return { update, dims, head };
+}
+
+// ---------- Hooks ----------
+
+// On document saves (create/save)
+PackageSizeSchema.pre("validate", function (this: PackageSizeDoc, next) {
+  const dims = this.innerDimsCm;
+  const head = this.headroomPct;
+  const val = computeRoundedUsableLiters(dims, head);
+
+  if (typeof val === "number") {
+    // Always overwrite to keep it canonical
+    this.usableLiters = val;
   }
   next();
+});
+
+// On updates with query context
+PackageSizeSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function (next) {
+  // `this` is a Query
+  const { update, dims, head } = pickDimsAndHeadroomFromUpdate(this);
+
+  // If the update doesn't modify dims/headroom, do nothing (leave usableLiters unchanged).
+  if (dims == null && head == null) return next();
+
+  // We need both dims & headroom to compute correctly.
+  // If only one is provided in this update, try to pull the other from the current doc.
+  const applyWithDocIfNeeded = async () => {
+    let effectiveDims = dims;
+    let effectiveHead = head;
+
+    if (effectiveDims == null || typeof effectiveHead !== "number") {
+      // Load current doc to fill missing pieces
+      const current = await (this as any).model.findOne(this.getQuery()).lean();
+      if (current) {
+        if (effectiveDims == null) effectiveDims = current.innerDimsCm;
+        if (typeof effectiveHead !== "number") effectiveHead = current.headroomPct;
+      }
+    }
+
+    const computed = computeRoundedUsableLiters(effectiveDims, effectiveHead as any);
+    if (typeof computed === "number") {
+      ensureUsableLitersInUpdate(update, computed);
+    }
+  };
+
+  // If both provided, compute immediately; else fetch doc to complete context.
+  if (dims != null && typeof head === "number") {
+    const computed = computeRoundedUsableLiters(dims, head);
+    if (typeof computed === "number") {
+      ensureUsableLitersInUpdate(update, computed);
+    }
+    return next();
+  }
+
+  // async branch when we must read the current doc
+  applyWithDocIfNeeded()
+    .then(() => next())
+    .catch(next);
 });
 
 // ---------- toJSON ----------

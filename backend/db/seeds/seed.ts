@@ -1,43 +1,73 @@
-/* db/seeds/seed.ts */
-import 'dotenv/config';
-import minimist from 'minimist';
-import { connectDB, disconnectDB } from '../../src/db/connect';
+import "dotenv/config";
+import minimist from "minimist";
+import { connectDB, disconnectDB } from "../../src/db/connect";
 
-// import seeding functions (refactored below)
-import { seedUsers } from './dev/users.seeder';
-import { seedItems } from './dev/items.seeder'
-import { seedLogisticsCenters } from './dev/logisticCenters.seeder'
-import seedAppConfig from './dev/seedAppConfig';
-import seedAvailableMarketStock from './dev/seedAvailableMarketStock';
-import { seedDeliverers } from './dev/deliverers.seeder'
+// existing seeders
+import { seedUsers } from "./dev/users.seeder";
+import { seedItems } from "./dev/items.seeder";
+import { seedLogisticsCenters } from "./dev/logisticCenters.seeder";
+import seedAppConfig from "./dev/seedAppConfig";
+import seedAvailableMarketStock from "./dev/seedAvailableMarketStock";
+import { seedDeliverers } from "./dev/deliverers.seeder";
 // import { seedOrders } from './dev/orders.seeder'
-import { seedShiftsConfig } from './dev/shiftConfig.seeder';
-import { seedAvailableStock } from './dev/seedAvailableStock';
+import { seedShiftsConfig } from "./dev/shiftConfig.seeder";
+
+// NEW: packing + package sizes
+import { seedItemPacking } from "./dev/seedItemPacking.seeder";
+import { seedPackageSizes } from "./dev/seedPackageSizes.seeder";
 
 type Args = {
   reset?: boolean;
-  env?: string;        // just for logging, if you want
-  orders?: number;     // how many orders to create
-  'no-users'?: boolean;
-  'no-orders'?: boolean;
+  env?: string;
+  orders?: number;
+  "no-users"?: boolean;
+  "no-orders"?: boolean;
   /** Skip aggregation seeding */
-  'no-aggregations'?: boolean;
+  "no-aggregations"?: boolean;
   /** Skip container seeding */
-  'no-containers'?: boolean;
+  "no-containers"?: boolean;
   /** Skip shipment seeding */
-  'no-shipments'?: boolean;
+  "no-shipments"?: boolean;
+
+  // NEW flags
+  "no-package-sizes"?: boolean;
+  "no-item-packing"?: boolean;
+
+  // existing (implicit) flags referenced below
+  "no-items"?: boolean;
+  "no-logistic-centers"?: boolean;
+  "no-deliverers"?: boolean;
+  "no-shifts"?: boolean;
+  "no-available-stock"?: boolean;
+  "no-config"?: boolean;
 };
 
 async function main() {
   const argv = minimist<Args>(process.argv.slice(2), {
-    boolean: ['reset', 'no-users', 'no-orders', 'no-aggregations', 'no-containers', 'no-shipments'],
-    string: ['env'],
+    boolean: [
+      "reset",
+      "no-users",
+      "no-orders",
+      "no-aggregations",
+      "no-containers",
+      "no-shipments",
+      "no-items",
+      "no-logistic-centers",
+      "no-deliverers",
+      "no-shifts",
+      "no-available-stock",
+      "no-config",
+      // NEW
+      "no-package-sizes",
+      "no-item-packing",
+    ],
+    string: ["env"],
     default: { orders: 15 },
-    alias: { r: 'reset' },
+    alias: { r: "reset" },
   });
 
-  console.log('🌱 Seed orchestrator starting…');
-  console.log('   flags:', argv);
+  console.log("🌱 Seed orchestrator starting…");
+  console.log("   flags:", argv);
 
   const conn = await connectDB();
   console.log(`🔌 Connected to ${conn.name}`);
@@ -45,32 +75,49 @@ async function main() {
   if (argv.reset) {
     console.log(`⚠️ Dropping database: ${conn.name}…`);
     await conn.dropDatabase();
-    console.log('✅ Database dropped');
+    console.log("✅ Database dropped");
   }
 
   // Users first (unless disabled)
-  if (!argv['no-users']) {
-    await timed('Users', seedUsers);
+  if (!argv["no-users"]) {
+    await timed("Users", seedUsers);
   } else {
-    console.log('⏭️  Skipping users seeding');
+    console.log("⏭️  Skipping users seeding");
   }
 
-  if (!argv['no-items']){
-    await timed('Items', seedItems)
-  } else{
-    console.log('⏭️  Skipping items seeding');
+  // Items
+  if (!argv["no-items"]) {
+    await timed("Items", seedItems);
+  } else {
+    console.log("⏭️  Skipping items seeding");
   }
 
-  if (!argv['no-logistic-centers']){
-    await timed('logsitic-center', seedLogisticsCenters)
-  } else{
-    console.log('⏭️  Skipping logistic-centers seeding');
+  // Logistics Centers
+  if (!argv["no-logistic-centers"]) {
+    await timed("logistic-center", seedLogisticsCenters);
+  } else {
+    console.log("⏭️  Skipping logistic-centers seeding");
   }
 
-  if (!argv['no-deliverers']){
-    await timed('deliverers', seedDeliverers)
-  } else{
-    console.log('⏭️  Skipping deliverers seeding');
+  // Deliverers
+  if (!argv["no-deliverers"]) {
+    await timed("deliverers", seedDeliverers);
+  } else {
+    console.log("⏭️  Skipping deliverers seeding");
+  }
+
+  // Package Sizes (box dimensions, etc.)
+  if (!argv["no-package-sizes"]) {
+    await timed("package-sizes", () => seedPackageSizes());
+  } else {
+    console.log("⏭️  Skipping package-sizes seeding");
+  }
+
+  // Item Packing (bulk densities per item/variety)
+  if (!argv["no-item-packing"]) {
+    await timed("item-packing", () => seedItemPacking());
+  } else {
+    console.log("⏭️  Skipping item-packing seeding");
   }
 
   // Orders next (unless disabled)
@@ -80,27 +127,29 @@ async function main() {
   //   console.log('⏭️  Skipping orders seeding');
   // }
 
-  // Available stock next (unless disabled)
-  if (!argv['no-shifts']) {
+  // Shifts config
+  if (!argv["no-shifts"]) {
     await timed(`Shifts (count=${argv.orders})`, seedShiftsConfig);
   } else {
-    console.log('⏭️  Skipping shofts seeding');
+    console.log("⏭️  Skipping shifts seeding");
   }
 
-  if (!argv['no-available-stock']) {
+  // Available stock (market)
+  if (!argv["no-available-stock"]) {
     await timed(`available stock`, seedAvailableMarketStock);
   } else {
-    console.log('⏭️  Skipping stock seeding');
+    console.log("⏭️  Skipping stock seeding");
   }
 
-  if (!argv['no-config']) {
+  // App Config
+  if (!argv["no-config"]) {
     await timed(`App Config`, seedAppConfig);
   } else {
-    console.log('⏭️  Skipping App Config seeding');
+    console.log("⏭️  Skipping App Config seeding");
   }
 
   await disconnectDB();
-  console.log('✅ All done.');
+  console.log("✅ All done.");
 }
 
 async function timed(name: string, fn: () => Promise<any>) {
@@ -113,7 +162,9 @@ async function timed(name: string, fn: () => Promise<any>) {
 main()
   .then(() => process.exit(0))
   .catch(async (err) => {
-    console.error('❌ Seeding failed:', err);
-    try { await disconnectDB(); } catch {}
+    console.error("❌ Seeding failed:", err);
+    try {
+      await disconnectDB();
+    } catch {}
     process.exit(1);
   });

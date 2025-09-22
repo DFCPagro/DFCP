@@ -2,6 +2,13 @@ import mongoose from "mongoose";
 import ApiError from "../utils/ApiError";
 import { PackageSize } from "../models/PackageSize"; // adjust path if needed
 
+type PackageSizeLean = {
+  _id: mongoose.Types.ObjectId;
+  key: "Small" | "Medium" | "Large";
+  vented: boolean;
+};
+
+
 const isObjectId = (v: string) => /^[a-f\d]{24}$/i.test(v);
 
 export interface ListQuery {
@@ -48,19 +55,48 @@ export async function createPackageSize(payload: any) {
 }
 
 export async function updatePackageSize(idOrKey: string, payload: any) {
-  const filter = isObjectId(idOrKey) ? { _id: new mongoose.Types.ObjectId(idOrKey) } : { key: idOrKey };
+  // 1) Resolve the current document first (by id or key)
+  const baseFilter = isObjectId(idOrKey)
+    ? { _id: new mongoose.Types.ObjectId(idOrKey) }
+    : { key: idOrKey as PackageSizeLean["key"] };
 
-  // Prevent key collision on updates
-  if (payload?.key) {
-    const conflict = await PackageSize.findOne({ key: payload.key, ...("_id" in filter ? { _id: { $ne: filter._id } } : {}) });
-    if (conflict) throw new ApiError(409, `PackageSize with key "${payload.key}" already exists`);
+  const current = await PackageSize.findOne(baseFilter)
+    .select("_id key vented") // ensure fields exist on lean result
+    .lean<PackageSizeLean | null>();
+
+  if (!current) throw new ApiError(404, "PackageSize not found");
+
+  // 2) Compute the target unique fields after update (unique index is on { key, vented })
+  const nextKey: PackageSizeLean["key"] = (payload?.key ?? current.key) as PackageSizeLean["key"];
+  const nextVented: boolean =
+    typeof payload?.vented === "boolean" ? payload.vented : current.vented;
+
+  // 3) Prevent collision with any OTHER document (exclude self by _id)
+  const conflict = await PackageSize.findOne({
+    key: nextKey,
+    vented: nextVented,
+    _id: { $ne: current._id },
+  })
+    .select("_id")
+    .lean();
+
+  if (conflict) {
+    throw new ApiError(
+      409,
+      `PackageSize with key "${nextKey}" and vented "${nextVented}" already exists`
+    );
   }
 
-  const updated = await PackageSize.findOneAndUpdate(filter, payload, {
-    new: true,
-    runValidators: true,
-    context: "query",
-  });
+  // 4) Update by _id to avoid re-matching the same doc by key
+  const updated = await PackageSize.findOneAndUpdate(
+    { _id: current._id },
+    payload,
+    {
+      new: true,
+      runValidators: true,
+      context: "query",
+    }
+  );
 
   if (!updated) throw new ApiError(404, "PackageSize not found");
   return updated;

@@ -1,4 +1,3 @@
-
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import AuthGuard from "@/guards/AuthGuard";
@@ -30,6 +29,9 @@ const ItemManager          = lazy(() => import("@/pages/ItemManager"));
 const AdminDashboard       = lazy(() => import("@/pages/AdminDashboard"));
 const JobAppReview         = lazy(() => import("@/pages/JobAppReview"));
 
+// Package Sizes (management)
+const PackageSizesPage     = lazy(() => import("@/pages/package-sizes"));
+
 export default function AppRoutes() {
   return (
     <Suspense fallback={null}>
@@ -53,6 +55,16 @@ export default function AppRoutes() {
           <Route path={PATHS.adminDashboard} element={<RoleGuard allow={['admin']}><AdminDashboard /></RoleGuard>} />
           <Route path={PATHS.JobAppReview} element={<RoleGuard allow={['admin']}><JobAppReview /></RoleGuard>} />
           <Route path={PATHS.dashboard} element={<Dashboard />} />
+
+          {/* package sizes management (admin + dManager) */}
+          <Route
+            path={PATHS.PackageSizes}
+            element={
+              <RoleGuard allow={['admin', 'dManager']}>
+                <PackageSizesPage />
+              </RoleGuard>
+            }
+          />
 
           {/* customer-only pages */}
           <Route path={PATHS.market} element={<Market />} />
@@ -80,6 +92,3 @@ export default function AppRoutes() {
     </Suspense>
   );
 }
-
-
-

@@ -21,6 +21,7 @@ export const PATHS = {
   //admin pages TEMP:- 
   adminDashboard: "/admin/dashboard",
   JobAppReview: "/admin/jobReview",
+  PackageSizes: "admin/package-sizes",
   // Driver pages
   shipments: "/shipments",
   // Public QR routes

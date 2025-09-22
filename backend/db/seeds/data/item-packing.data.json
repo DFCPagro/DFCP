@@ -23,7 +23,7 @@
       "category": "vegetable",
       "packing": {
         "bulkDensityKgPerL": 0.637,
-        "litersPerKg": 1.570,
+        "litersPerKg": 1.57,
         "fragility": "fragile",
         "allowMixing": true,
         "requiresVentedBox": true,
@@ -38,8 +38,8 @@
       "variety": "Romaine",
       "category": "vegetable",
       "packing": {
-        "bulkDensityKgPerL": 0.250,
-        "litersPerKg": 4.000,
+        "bulkDensityKgPerL": 0.25,
+        "litersPerKg": 4,
         "fragility": "very_fragile",
         "allowMixing": true,
         "requiresVentedBox": true,
@@ -54,7 +54,7 @@
       "variety": "Persian",
       "category": "vegetable",
       "packing": {
-        "bulkDensityKgPerL": 0.630,
+        "bulkDensityKgPerL": 0.63,
         "litersPerKg": 1.587,
         "fragility": "normal",
         "allowMixing": true,
@@ -84,7 +84,7 @@
       "variety": "Baby",
       "category": "vegetable",
       "packing": {
-        "bulkDensityKgPerL": 0.090,
+        "bulkDensityKgPerL": 0.09,
         "litersPerKg": 11.111,
         "fragility": "very_fragile",
         "allowMixing": true,
@@ -116,7 +116,7 @@
       "category": "fruit",
       "packing": {
         "bulkDensityKgPerL": 0.346,
-        "litersPerKg": 2.890,
+        "litersPerKg": 2.89,
         "fragility": "normal",
         "allowMixing": true,
         "requiresVentedBox": false,
@@ -130,7 +130,7 @@
       "variety": "Navel",
       "category": "fruit",
       "packing": {
-        "bulkDensityKgPerL": 0.620,
+        "bulkDensityKgPerL": 0.62,
         "litersPerKg": 1.613,
         "fragility": "normal",
         "allowMixing": true,
@@ -145,7 +145,7 @@
       "variety": "Red Globe",
       "category": "fruit",
       "packing": {
-        "bulkDensityKgPerL": 0.600,
+        "bulkDensityKgPerL": 0.6,
         "litersPerKg": 1.667,
         "fragility": "fragile",
         "allowMixing": true,

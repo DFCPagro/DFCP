@@ -1,6 +1,6 @@
 import { FilterQuery, UpdateQuery } from "mongoose";
 import ApiError from "../utils/ApiError";
-import { PackingProfile, PackingProfileDoc } from "../models/PackingProfile";
+import { ItemPacking, ItemPackingDoc } from "../models/ItemPacking";
 
 /** ---------- Types ---------- */
 export type ListParams = {
@@ -22,17 +22,17 @@ const toBool = (v?: string) =>
   typeof v === "string" ? v.toLowerCase() === "true" : undefined;
 
 /** Build Mongo filter */
-function buildFilter(q: ListParams): FilterQuery<PackingProfileDoc> {
+function buildFilter(q: ListParams): FilterQuery<ItemPackingDoc> {
   const elem: any = {};
   if (q.type) elem.type = q.type;
   if (q.variety) elem.variety = q.variety;
   if (q.category) elem.category = q.category;
-  if (q.itemId) elem.itemId = q.itemId;
+  if (q.itemId) elem.itemId = q.itemId; // string OK; Mongoose casts to ObjectId
   if (q.fragility) elem["packing.fragility"] = q.fragility;
   if (q.allowMixing !== undefined) elem["packing.allowMixing"] = toBool(q.allowMixing);
   if (q.requiresVentedBox !== undefined) elem["packing.requiresVentedBox"] = toBool(q.requiresVentedBox);
 
-  const filter: FilterQuery<PackingProfileDoc> = {};
+  const filter: FilterQuery<ItemPackingDoc> = {};
   if (Object.keys(elem).length) {
     filter.items = { $elemMatch: elem };
   }
@@ -45,20 +45,21 @@ export async function list(params: ListParams) {
   const skip = (page - 1) * limit;
 
   const filter = buildFilter(params);
-  const query = PackingProfile.find(filter);
+  const query = ItemPacking.find(filter);
 
   if (params.sort) query.sort(params.sort);
   query.skip(skip).limit(limit);
 
   if (params.populate) {
+    // CHANGED: also populate the virtual relation to PackageSize
     query
       .populate("items.itemId")
-      .populate("items.packing.minBoxType");
+      .populate({ path: "minBoxTypeDocs" }); // virtual populate
   }
 
   const [items, total] = await Promise.all([
     query.lean({ virtuals: true }),
-    PackingProfile.countDocuments(filter),
+    ItemPacking.countDocuments(filter),
   ]);
 
   return {
@@ -71,29 +72,32 @@ export async function list(params: ListParams) {
 }
 
 export async function getById(id: string, populate = false) {
-  const q = PackingProfile.findById(id);
-  if (populate) q.populate("items.itemId").populate("items.packing.minBoxType");
+  const q = ItemPacking.findById(id);
+  if (populate) {
+    // CHANGED: also include virtual populate
+    q.populate("items.itemId").populate({ path: "minBoxTypeDocs" });
+  }
   const doc = await q;
-  if (!doc) throw new ApiError(404, "PackingProfile not found");
+  if (!doc) throw new ApiError(404, "ItemPacking not found");
   return doc.toJSON();
 }
 
-export async function create(payload: Partial<PackingProfileDoc>) {
-  const doc = await PackingProfile.create(payload);
+export async function create(payload: Partial<ItemPackingDoc>) {
+  const doc = await ItemPacking.create(payload);
   return doc.toJSON();
 }
 
-export async function update(id: string, patch: UpdateQuery<PackingProfileDoc>) {
-  const doc = await PackingProfile.findByIdAndUpdate(id, patch, {
+export async function update(id: string, patch: UpdateQuery<ItemPackingDoc>) {
+  const doc = await ItemPacking.findByIdAndUpdate(id, patch, {
     new: true,
     runValidators: true,
   });
-  if (!doc) throw new ApiError(404, "PackingProfile not found");
+  if (!doc) throw new ApiError(404, "ItemPacking not found");
   return doc.toJSON();
 }
 
 export async function remove(id: string) {
-  const doc = await PackingProfile.findByIdAndDelete(id);
-  if (!doc) throw new ApiError(404, "PackingProfile not found");
+  const doc = await ItemPacking.findByIdAndDelete(id);
+  if (!doc) throw new ApiError(404, "ItemPacking not found");
   return { id: doc.id, deleted: true };
 }
