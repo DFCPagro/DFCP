@@ -86,7 +86,6 @@ export async function listUpcoming(req: Request, res: Response) {
 export async function listNextFiveWithStock(req: Request, res: Response) {
   try {
     const LCid = String(req.query.LCid || "66e007000000000000000001");
-    const LCid = String(req.query.LCid || "66e007000000000000000001");
     if (!LCid) return res.status(400).json({ error: "LCid is required" });
      const fromTs = Date.now();
     
