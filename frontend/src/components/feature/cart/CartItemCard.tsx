@@ -13,7 +13,7 @@ import {
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { useCart } from "@/store/cart";
 import { toMMSS } from "@/utils/format";
-import { releaseHoldById } from "@/api/cart";
+//import { releaseHoldById } from "@/api/cart";
 import type { CartItem } from "@/types/cart";
 
 interface Props {
@@ -61,7 +61,7 @@ export const CartItemCard: React.FC<Props> = ({ item }) => {
     (async () => {
       if ((item as any).holdId) {
         try {
-          await releaseHoldById((item as any).holdId);
+          //await releaseHoldById((item as any).holdId);
         } catch {
           /* ignore */
         }
@@ -121,7 +121,7 @@ export const CartItemCard: React.FC<Props> = ({ item }) => {
             onClick={async () => {
               if ((item as any).holdId) {
                 try {
-                  await releaseHoldById((item as any).holdId);
+                  //await releaseHoldById((item as any).holdId);
                 } catch {}
               }
               remove(item.id);

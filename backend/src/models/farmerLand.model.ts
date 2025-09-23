@@ -14,7 +14,6 @@ const AddressSubSchema = new Schema(
   { _id: false }
 );
 
-// ---------- Land schema (no generics; we infer later) ----------
 const FarmerLandSchema = new Schema(
   {
     farmer: { type: Schema.Types.ObjectId, ref: "Farmer", required: true },

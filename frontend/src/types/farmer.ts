@@ -1,21 +1,4 @@
-// --- UI tables (already used by the dashboard) ---
-export interface Shipment {
-  id: string;
-  shipmentNumber: string;
-  itemName: string;
-  amountKg: number;
-  containerCount: number;
-  pickupTimeISO: string;
-  location: string;
-}
 
-export interface ShipmentRequest {
-  id: string;
-  itemName: string;
-  requestedKg: number;
-  pickupTimeISO: string;
-  notes?: string;
-}
 
 export interface CropRow {
   land: string;             // Land name
