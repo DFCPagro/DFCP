@@ -72,6 +72,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     children: [
       { type: "link", key: "mgr-admin-items", label: "Manage Items", path: "/admin/items" },
       { type: "link", key: "mgr-admin-jobReview", label: "Job Application Review", path: "/admin/jobReview" },
+      { type: "link", key: "mgr-expected-harvest", label: "Expected Harvest", path: "/admin/crop-harvest" },
     ],
   },
 ] as const;

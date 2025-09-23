@@ -24,6 +24,7 @@ export const PATHS = {
   adminDashboard: "/admin/dashboard",
   JobAppReview: "/admin/jobReview",
   PackageSizes: "admin/package-sizes",
+  cropHarvest: "/admin/crop-harvest",
   // Driver pages
   shipments: "/shipments",
   // Public QR routes

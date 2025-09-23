@@ -33,6 +33,7 @@ const NotFound             = lazy(() => import("@/pages/NotFound"));
 const ItemManager          = lazy(() => import("@/pages/ItemManager"));
 const AdminDashboard       = lazy(() => import("@/pages/AdminDashboard"));
 const JobAppReview         = lazy(() => import("@/pages/JobAppReview"));
+const CropHarvest          = lazy(() => import("@/pages/AdminExpectedHarvest"));
 
 // Package Sizes (management)
 const PackageSizesPage     = lazy(() => import("@/pages/package-sizes"));
@@ -60,6 +61,7 @@ export default function AppRoutes() {
           <Route path={PATHS.ItemsManagment} element={<ItemManager />} />
           <Route path={PATHS.adminDashboard} element={<RoleGuard allow={['admin']}><AdminDashboard /></RoleGuard>} />
           <Route path={PATHS.JobAppReview} element={<RoleGuard allow={['admin']}><JobAppReview /></RoleGuard>} />
+          <Route path={PATHS.cropHarvest} element={<RoleGuard allow={['admin']}><CropHarvest /></RoleGuard>} />
           <Route path={PATHS.dashboard} element={<Dashboard />} />
 
           {/* package sizes management (admin + dManager) */}
