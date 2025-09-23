@@ -37,23 +37,19 @@ import {
   flattenMarketDocToItems,
 } from "@/types/market";
 import type { Address } from "@/types/address";
+import type { AxiosError } from "axios";
 
 import CartIconButton from "@/components/common/CartIconButton";
-import { useCart } from "@/store/cart";
-import { useCartItemsUnified } from "@/hooks/useCartItemsUnified";
-
-import {
-  addToCart as addToCartLS,
-  clearCart as clearCartLS,
-  setCartMeta,
-  getCartMeta,
-  onCartUpdated,
-  type CartLine,
-} from "@/utils/cart";
 
 import type { ShiftKey as CartShiftKey } from "@/types/cart";
+import {
+  getActiveCart,
+  addToCart as addToCartApi,
+  clearCart as clearCartApi,
+} from "@/api/cart";
+import type { Cart } from "@/api/cart";
 
-
+// ---------------- helpers ----------------
 function toShiftKey(code?: ShiftName | null): CartShiftKey | null {
   switch (code) {
     case "morning":
@@ -74,15 +70,17 @@ function normalizeKey(input?: unknown): CartShiftKey | null {
   return v === "morning" || v === "afternoon" || v === "evening" || v === "night" ? v : null;
 }
 
-type PendingAction =
-  | { kind: "shift"; value?: ShiftName }
-  | { kind: "locationKey"; value?: string }
-  | { kind: "mapPick"; value: { address: string; lat: number; lng: number } }
-  | null;
+// Map backend shift doc (works for both next5 and getActive)
+const mapShift = (r: any) => ({
+  date: String(r.availableDate ?? r.date).slice(0, 10),
+  shift: (r.availableShift ?? r.shift) as ShiftName,
+  marketStockId: r._id ?? r.docId,
+  slotLabel: r.deliverySlotLabel ?? "",
+});
+
+// =========================================
 
 export default function Market() {
-  const cart = useCart();
-
   // Location & LC
   const [locationKey, setLocationKey] = useState<string>();
   const [selectedAddress, setSelectedAddress] = useState<string>("");
@@ -95,56 +93,86 @@ export default function Market() {
   const [marketStockId, setMarketStockId] = useState<string>();
 
   // Items
-const [category, setCategory] = useState<CatCode>("ALL");
-const [items, setItems] = useState<MarketItem[]>([]);
+  const [category, setCategory] = useState<CatCode>("ALL");
+  const [items, setItems] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Server cart
+  const [serverCart, setServerCart] = useState<Cart | null>(null);
+
+  // wipe any legacy LS carts once
+  useEffect(() => {
+    ["cart_v1", "dfcp_cart_v1", "cart_meta_v1"].forEach((k) => localStorage.removeItem(k));
+  }, []);
 
   // Search
   const [query, setQuery] = useState("");
 
   // Guards
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [pending, setPending] = useState<PendingAction>(null);
+  const [pending, setPending] = useState<
+    | { kind: "shift"; value?: ShiftName }
+    | { kind: "locationKey"; value?: string }
+    | { kind: "mapPick"; value: { address: string; lat: number; lng: number } }
+    | null
+  >(null);
   const countries = "il";
 
-  // Items from store + LS
-  const storeItems = useCartItemsUnified();
-  const [lsItems, setLsItems] = useState<CartLine[]>([]);
-  useEffect(() => onCartUpdated(({ items }) => setLsItems(items)), []);
-  const cartNotEmpty = (storeItems?.length ?? 0) + (lsItems?.length ?? 0) > 0;
+  const cartNotEmpty = (serverCart?.items?.length ?? 0) > 0;
 
-  // setLock only on change
+  // lock placeholder (no local store anymore)
   const lastLock = useRef<{ lc: string | null; sk: CartShiftKey | null }>({ lc: null, sk: null });
+  const addingRef = useRef(false);
   const setLockSafe = (lc: string | null, sk: CartShiftKey | null) => {
     if (lastLock.current.lc !== lc || lastLock.current.sk !== sk) {
       lastLock.current = { lc, sk };
-      cart.setLock(lc, sk);
     }
   };
 
   // reserved map (by stockId)
+  const lineIdToStockId = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const it of items) m[it.lineId] = it.stockId;
+    return m;
+  }, [items]);
+
   const reservedByCart = useMemo(() => {
     const m: Record<string, number> = {};
-    const fold = (list: any[]) => {
-      for (const it of list ?? []) {
-        const id = (it as any).stockId ?? (it as any).inventoryId ?? (it as any).id;
-        const qty = Number((it as any).qtyKg ?? (it as any).qty ?? 1);
-        if (!id) continue;
-        m[id] = (m[id] ?? 0) + (isFinite(qty) ? qty : 0);
-      }
-    };
-    fold(storeItems as any[]);
-    fold(lsItems as any[]);
+    for (const ln of serverCart?.items ?? []) {
+      const stockId = lineIdToStockId[ln.availableMarketStockItemId];
+      if (!stockId) continue;
+      const qty = Number(ln.amountKg ?? 0);
+      m[stockId] = (m[stockId] ?? 0) + (isFinite(qty) ? qty : 0);
+    }
     return m;
-  }, [storeItems, lsItems]);
+  }, [serverCart, lineIdToStockId]);
 
-  const openGuard = (a: PendingAction) => setPending(a);
-  const clearCartEverywhere = () => {
-    (cart as any)?.clear?.();
-    clearCartLS();
+  const openGuard = (a: NonNullable<typeof pending>) => setPending(a);
+
+  const clearCartEverywhere = async () => {
+    if (!serverCart?._id) {
+      setServerCart(null);
+      return;
+    }
+    try {
+      await clearCartApi(serverCart._id); // 204
+    } catch (e) {
+      console.error("clearCart failed", e);
+    } finally {
+      try {
+        if (marketStockId) {
+          const fresh = await getActiveCart(marketStockId);
+          setServerCart(fresh);
+        } else {
+          setServerCart(null);
+        }
+      } catch {
+        setServerCart(null);
+      }
+    }
   };
 
-  const applyPending = async (action?: PendingAction) => {
+  const applyPending = async (action?: NonNullable<typeof pending>) => {
     const p = action ?? pending;
     setPending(null);
     if (!p) return;
@@ -206,7 +234,7 @@ const [items, setItems] = useState<MarketItem[]>([]);
     }
   };
 
-  // initial load
+  // initial load: saved addresses
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -240,19 +268,8 @@ const [items, setItems] = useState<MarketItem[]>([]);
     }
   }, [locationKey, locations]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // hydrate from cart meta once
-  useEffect(() => {
-    const meta = getCartMeta();
-    if (meta?.locationKey && meta.locationKey !== locationKey) setLocationKey(meta.locationKey);
-    const key = normalizeKey((meta as any)?.shiftKey);
-    const shiftCode = fromShiftKey(key);
-    if (shiftCode && shiftCode !== shift) setShift(shiftCode);
-    setLockSafe(meta?.logisticCenterId ?? null, key);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // fetch available shifts when LC exists
   useEffect(() => {
-    console.log("LC changed, refetch shifts", { logisticCenterId });
     if (!logisticCenterId) {
       setAvailableShifts([]);
       return;
@@ -261,19 +278,14 @@ const [items, setItems] = useState<MarketItem[]>([]);
     (async () => {
       try {
         const raw = await getAvailableShiftsByLC(logisticCenterId);
-        const normalized = raw.map((r: any) => ({
-          date: r.date,
-          shift: r.shift,
-          marketStockId: r.docId,
-          slotLabel: r.deliverySlotLabel,
-        }));
-        const parsed: AvailableShiftFlat[] = z.array(AvailableShiftFlatSchema).parse(normalized);
+        const parsed: AvailableShiftFlat[] = z
+          .array(AvailableShiftFlatSchema)
+          .parse(raw.map(mapShift));
         if (!mounted) return;
         setAvailableShifts(parsed);
         if (shift) {
           const hit = parsed.find((s) => s.shift === shift);
           setMarketStockId(hit?.marketStockId ?? undefined);
-          
         }
       } catch {
         if (mounted) {
@@ -318,11 +330,11 @@ const [items, setItems] = useState<MarketItem[]>([]);
       setLoading(true);
       try {
         const doc = await getStockByMarketStockId(marketStockId);
-       const rawItems = flattenMarketDocToItems(doc);
-const filtered =
-  category === "ALL"
-    ? rawItems
-    : rawItems.filter(i => String(i.category || "").toLowerCase() === category);
+        const rawItems = flattenMarketDocToItems(doc);
+        const filtered =
+          category === "ALL"
+            ? rawItems
+            : rawItems.filter((i) => String(i.category || "").toLowerCase() === category);
         if (mounted) setItems(filtered);
       } finally {
         if (mounted) setLoading(false);
@@ -333,15 +345,30 @@ const filtered =
     };
   }, [marketStockId, category]);
 
+  // get server cart for the current marketStockId
+  useEffect(() => {
+    if (!marketStockId) {
+      setServerCart(null);
+      return;
+    }
+    const ctl = new AbortController();
+    (async () => {
+      try {
+        const c = await getActiveCart(marketStockId, { signal: ctl.signal });
+        setServerCart(c);
+      } catch {
+        if (!ctl.signal.aborted) setServerCart(null);
+      }
+    })();
+    return () => ctl.abort();
+  }, [marketStockId]);
+
   // display list with reserved deduction
   const computedItems = useMemo(
     () =>
       items.map((it) => ({
         it,
-        displayStock: Math.max(
-          0,
-          Number(it.availableKg ?? 0) - (reservedByCart[it.stockId] ?? 0)
-        ),
+        displayStock: Math.max(0, Number(it.availableKg ?? 0) - (reservedByCart[it.stockId] ?? 0)),
       })),
     [items, reservedByCart]
   );
@@ -351,9 +378,7 @@ const filtered =
     const q = query.trim().toLowerCase();
     if (!q) return computedItems;
     return computedItems.filter(({ it }) => {
-      const hay = `${it.name} ${it.farmerName ?? ""} ${it.farmName ?? ""} ${
-        it.category ?? ""
-      }`.toLowerCase();
+      const hay = `${it.name} ${it.farmerName ?? ""} ${it.farmName ?? ""} ${it.category ?? ""}`.toLowerCase();
       return hay.includes(q);
     });
   }, [computedItems, query]);
@@ -361,8 +386,7 @@ const filtered =
   const emptyState = useMemo(() => {
     if (!locationKey) return "Pick your delivery location to continue.";
     if (!shift) return "Choose a shift to load available items.";
-    if (!loading && query && visibleItems.length === 0)
-      return "No items match your search.";
+    if (!loading && query && visibleItems.length === 0) return "No items match your search.";
     if (!loading && items.length === 0) return "No items available for this shift.";
     return null;
   }, [locationKey, shift, loading, items.length, query, visibleItems.length]);
@@ -428,43 +452,80 @@ const filtered =
     setPickerOpen(false);
   };
 
-  function handleAddToCart(stockId: string, qty: number) {
-    const product = items.find((i) => i.stockId === stockId);
-    if (!product) return;
+  async function handleAddToCart(stockId: string, qty: number) {
+    if (addingRef.current) return;
+    addingRef.current = true;
+    try {
+      const product = items.find((i) => i.stockId === stockId);
+      if (!product || !marketStockId) return;
 
-    const reserved = reservedByCart[stockId] ?? 0;
-    const baseStock = Number(product.availableKg ?? 0);
-    const available = Math.max(0, baseStock - reserved);
-    if (available <= 0) return;
+      const reserved = reservedByCart[stockId] ?? 0;
+      const available = Math.max(0, Number(product.availableKg ?? 0) - reserved);
+      if (available <= 0) return;
 
-    const clampQty = Math.max(1, Math.min(qty, available));
+      const clampQty = Math.max(1, Math.min(qty, available));
 
-    setCartMeta({ locationKey, logisticCenterId, shiftKey: toShiftKey(shift) });
+      try {
+        const updated = await addToCartApi({
+          availableMarketStockId: marketStockId,
+          amsItemId: product.lineId,
+          amountKg: clampQty,
+        });
+        setServerCart(updated);
+        return;
+      } catch (e) {
+        const err = e as AxiosError<any>;
+        const msg = String(err.response?.data?.message ?? "");
+        const m = msg.match(/Current global shift is '(\w+)'/i);
 
-    addToCartLS({
-      inventoryId: stockId,
-      name: product.name,
-      price: Number(product.pricePerUnit),
-      imageUrl: product.imageUrl,
-      farmer: { name: product.farmerName, farmName: product.farmName },
-      qty: clampQty,
-      maxQty: available,
-    });
+        if (err.response?.status === 400 && m) {
+          const target = m[1] as ShiftName;
 
-    cart.addOrInc(
-      {
-        id: stockId,
-        name: product.name,
-        imageUrl: product.imageUrl,
-        pricePerKg: Number(product.pricePerUnit),
-        farmerName: product.farmerName || product.farmName || "",
-        lcId: logisticCenterId ?? undefined,
-        shiftKey: toShiftKey(shift) ?? undefined,
-        holdId: undefined,
-        holdExpiresAt: Date.now() + 3 * 60_000,
-      },
-      clampQty
-    );
+          // ensure we have that shift; refetch if needed
+          let hit = availableShifts.find((s) => s.shift === target);
+          if (!hit && logisticCenterId) {
+            try {
+              const raw = await getAvailableShiftsByLC(logisticCenterId);
+              const parsed: AvailableShiftFlat[] = z
+                .array(AvailableShiftFlatSchema)
+                .parse(raw.map(mapShift));
+              setAvailableShifts(parsed);
+              hit = parsed.find((s) => s.shift === target);
+            } catch {
+              /* ignore */
+            }
+          }
+          if (!hit) {
+            console.error("Server shift missing after refresh:", target);
+            return;
+          }
+
+          if (cartNotEmpty && shift !== target) {
+            openGuard({ kind: "shift", value: target });
+            return;
+          }
+
+          // switch and retry once
+          setShift(target);
+          setMarketStockId(hit.marketStockId);
+          try {
+            const updated = await addToCartApi({
+              availableMarketStockId: hit.marketStockId,
+              amsItemId: product.lineId,
+              amountKg: clampQty,
+            });
+            setServerCart(updated);
+          } catch (e2) {
+            console.error("retry addToCart failed", e2);
+          }
+          return;
+        }
+
+        console.error("addToCart failed", err);
+      }
+    } finally {
+      addingRef.current = false;
+    }
   }
 
   return (
@@ -473,7 +534,7 @@ const filtered =
         <HStack gap={3} mb={4} align="center">
           <Heading size="lg">Market</Heading>
           <span style={{ flex: 1 }} />
-          <CartIconButton />
+          <CartIconButton count={serverCart?.items?.length ?? 0} />
         </HStack>
 
         <Grid templateColumns={["1fr", null, "1fr 1fr"]} gap={4} mb={3}>
@@ -527,7 +588,7 @@ const filtered =
         </Grid>
 
         <HStack mb={4} gap="3" align="center" style={{ flexWrap: "wrap" }}>
-<CategoryFilter value={category} onChange={setCategory} />
+          <CategoryFilter value={category} onChange={setCategory} />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -602,7 +663,7 @@ const filtered =
                 <Button
                   colorPalette="red"
                   onClick={async () => {
-                    clearCartEverywhere();
+                    await clearCartEverywhere();
                     await applyPending();
                   }}
                 >
