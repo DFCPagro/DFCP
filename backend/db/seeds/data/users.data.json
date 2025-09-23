@@ -164,5 +164,19 @@
       { "label": "Home", "address": "Rehovot, Israel", "lnt": 35.1, "alt": 31.9 },
       { "label": "Work", "address": "Ness Ziona, Israel", "lnt": 34.79, "alt": 31.93 }
     ]
+  },
+   {
+    "_id": "66f2aa00000000000000001a",
+    "name": "Harry Potter",
+    "email": "harrypotter@gmail.com",
+    "password": "12345678",
+    "role": "customer",
+    "activeStatus": true,
+    "uid": "USR-5",
+    "addresses": [
+      { "label": "Home", "address": "Rehovot, Israel", "lnt": 35.1, "alt": 31.9 },
+      { "label": "Work", "address": "Ness Ziona, Israel", "lnt": 34.79, "alt": 31.93 }
+    ]
   }
 ]
+

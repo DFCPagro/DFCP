@@ -81,6 +81,7 @@ export const flattenMarketDocToItems = (doc: MarketStockDoc): MarketItem[] =>
     farmerName: ln.sourceFarmerName,
     farmName: ln.sourceFarmName,
   }));
+
 export const AvailableShiftFlatSchema = z.object({
   shift: z.enum(["morning","afternoon","evening","night"]),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

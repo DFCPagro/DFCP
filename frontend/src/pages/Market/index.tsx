@@ -21,7 +21,7 @@ import AuthGuard from "@/guards/AuthGuard";
 import MapPickerDialog from "@/components/common/MapPickerDialog";
 import ShiftPicker from "@/components/ui/ShiftPicker";
 import ItemCard from "@/components/feature/market/ItemCard";
-import CategoryFilter from "@/components/feature/market/CategoryFilter";
+import CategoryFilter, { type CatCode } from "@/components/feature/market/CategoryFilter";
 import {
   getAvailableShiftsByLC,
   addCustomerAddress,
@@ -52,6 +52,8 @@ import {
 } from "@/utils/cart";
 
 import type { ShiftKey as CartShiftKey } from "@/types/cart";
+
+
 function toShiftKey(code?: ShiftName | null): CartShiftKey | null {
   switch (code) {
     case "morning":
@@ -72,7 +74,6 @@ function normalizeKey(input?: unknown): CartShiftKey | null {
   return v === "morning" || v === "afternoon" || v === "evening" || v === "night" ? v : null;
 }
 
-type CategoryCode = string | "ALL";
 type PendingAction =
   | { kind: "shift"; value?: ShiftName }
   | { kind: "locationKey"; value?: string }
@@ -94,8 +95,8 @@ export default function Market() {
   const [marketStockId, setMarketStockId] = useState<string>();
 
   // Items
-  const [category, setCategory] = useState<CategoryCode | "ALL">("ALL");
-  const [items, setItems] = useState<MarketItem[]>([]);
+const [category, setCategory] = useState<CatCode>("ALL");
+const [items, setItems] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Search
@@ -164,6 +165,7 @@ export default function Market() {
       setSelectedAddress("");
       const loc = locations.find((l) => l.address === newKey);
       const lc = (loc as any)?.logisticCenterId ?? undefined;
+
       setLogisticCenterId(lc);
       setLockSafe(lc ?? null, toShiftKey(shift));
       setAvailableShifts([]);
@@ -250,6 +252,7 @@ export default function Market() {
 
   // fetch available shifts when LC exists
   useEffect(() => {
+    console.log("LC changed, refetch shifts", { logisticCenterId });
     if (!logisticCenterId) {
       setAvailableShifts([]);
       return;
@@ -270,6 +273,7 @@ export default function Market() {
         if (shift) {
           const hit = parsed.find((s) => s.shift === shift);
           setMarketStockId(hit?.marketStockId ?? undefined);
+          
         }
       } catch {
         if (mounted) {
@@ -314,8 +318,11 @@ export default function Market() {
       setLoading(true);
       try {
         const doc = await getStockByMarketStockId(marketStockId);
-        const rawItems = flattenMarketDocToItems(doc);
-        const filtered = category === "ALL" ? rawItems : rawItems.filter((i) => i.category === category);
+       const rawItems = flattenMarketDocToItems(doc);
+const filtered =
+  category === "ALL"
+    ? rawItems
+    : rawItems.filter(i => String(i.category || "").toLowerCase() === category);
         if (mounted) setItems(filtered);
       } finally {
         if (mounted) setLoading(false);
@@ -331,7 +338,10 @@ export default function Market() {
     () =>
       items.map((it) => ({
         it,
-        displayStock: Math.max(0, Number(it.availableKg ?? 0) - (reservedByCart[it.stockId] ?? 0)),
+        displayStock: Math.max(
+          0,
+          Number(it.availableKg ?? 0) - (reservedByCart[it.stockId] ?? 0)
+        ),
       })),
     [items, reservedByCart]
   );
@@ -341,7 +351,9 @@ export default function Market() {
     const q = query.trim().toLowerCase();
     if (!q) return computedItems;
     return computedItems.filter(({ it }) => {
-      const hay = `${it.name} ${it.farmerName ?? ""} ${it.farmName ?? ""} ${it.category ?? ""}`.toLowerCase();
+      const hay = `${it.name} ${it.farmerName ?? ""} ${it.farmName ?? ""} ${
+        it.category ?? ""
+      }`.toLowerCase();
       return hay.includes(q);
     });
   }, [computedItems, query]);
@@ -349,7 +361,8 @@ export default function Market() {
   const emptyState = useMemo(() => {
     if (!locationKey) return "Pick your delivery location to continue.";
     if (!shift) return "Choose a shift to load available items.";
-    if (!loading && query && visibleItems.length === 0) return "No items match your search.";
+    if (!loading && query && visibleItems.length === 0)
+      return "No items match your search.";
     if (!loading && items.length === 0) return "No items available for this shift.";
     return null;
   }, [locationKey, shift, loading, items.length, query, visibleItems.length]);
@@ -514,7 +527,7 @@ export default function Market() {
         </Grid>
 
         <HStack mb={4} gap="3" align="center" style={{ flexWrap: "wrap" }}>
-          <CategoryFilter value={category} onChange={setCategory} />
+<CategoryFilter value={category} onChange={setCategory} />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}

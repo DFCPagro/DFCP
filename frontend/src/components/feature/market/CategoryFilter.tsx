@@ -1,36 +1,44 @@
-import { HStack, Button } from "@chakra-ui/react";
-import type { CategoryCode } from "@/types/market";
+import { HStack } from "@chakra-ui/react";
 import { StyledButton } from "@/components/ui/Button";
 
-const CATS: { value: CategoryCode | "ALL"; label: string }[] = [
-  { value: "ALL",        label: "All" },
-  { value: "VEGETABLES", label: "Vegetables" },
-  { value: "FRUITS",     label: "Fruits" },
-  { value: "EGGS",       label: "Eggs" },
-  { value: "DAIRY",      label: "Milk & Cheese" },
+
+export type CatCode = "ALL" | "fruit" | "vegetable" | "eggs" | "dairy";
+
+const CATS: { code: CatCode; label: string }[] = [
+  { code: "ALL", label: "All" },
+  { code: "vegetable", label: "Vegetables" },
+  { code: "fruit", label: "Fruits" },
+  { code: "eggs", label: "Eggs" },
+  { code: "dairy", label: "Milk & Cheese" },
 ];
 
 export default function CategoryFilter({
   value,
   onChange,
 }: {
-  value: CategoryCode | "ALL";
-  onChange: (v: CategoryCode | "ALL") => void;
+  value: CatCode;
+  onChange: (v: CatCode) => void;
 }) {
+  const selected = String(value || "ALL").toLowerCase();
   return (
     <HStack wrap="wrap" gap="2">
-      {CATS.map((c) => (
-        <StyledButton
-          key={c.value}
-          visual={"solid"}
-          size="sm"
-          variant={value === c.value ? "solid" : "outline"}
-          colorPalette="teal"
-          onClick={() => onChange(c.value)}
-        >
-          {c.label}
-        </StyledButton>
-      ))}
+      {CATS.map(({ code, label }) => {
+        const isActive =
+          selected === "all" ? code === "ALL" : selected === String(code).toLowerCase();
+        return (
+          <StyledButton
+            key={code}
+            visual="solid"
+            size="sm"
+            variant={isActive ? "solid" : "outline"}
+            colorPalette="teal"
+            onClick={() => onChange(code)}
+            aria-pressed={isActive}
+          >
+            {label}
+          </StyledButton>
+        );
+      })}
     </HStack>
   );
 }
