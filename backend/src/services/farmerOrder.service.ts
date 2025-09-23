@@ -221,7 +221,7 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
 
   // auth per your rule
   const isOwnerFarmer = user.role === "farmer" && String(order.farmerId) === String(user.id);
-  const isManagerOrAdmin = user.role === "farmerManager" || user.role === "admin";
+  const isManagerOrAdmin = user.role === "fManager" || user.role === "admin";
   if (!isOwnerFarmer && !isManagerOrAdmin) {
     const e: any = new Error("Forbidden");
     e.name = "Forbidden";

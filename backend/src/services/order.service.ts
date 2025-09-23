@@ -60,6 +60,8 @@ export const isValidStatus = (s: string): s is OrderStatus =>
 
 /** Create */
 
+
+/*
 export async function createOrder(payload: CreateOrderInput) {
   const created = await Order.create({
     customerId: payload.customerId,
@@ -68,9 +70,9 @@ export async function createOrder(payload: CreateOrderInput) {
   });
   return created;
 }
+*/
 
-/*
-HAS LINKING TO ORDER USE IT AFTER TESTING THAT CREATING AN ORDER FROM MOCK AMS WORKS
+//HAS LINKING TO ORDER USE IT AFTER TESTING THAT CREATING AN ORDER FROM MOCK AMS WORKS
 export async function createOrder(payload: CreateOrderInput) {
   const session = await mongoose.startSession();
   let createdOrder: any;
@@ -116,7 +118,7 @@ export async function createOrder(payload: CreateOrderInput) {
   }
 }
 
-*/
+
 
 /** Get by id */
 export async function getOrderById(id: string) {

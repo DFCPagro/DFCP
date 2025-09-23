@@ -22,7 +22,8 @@
     "seed:json:items": "node db/seeds/seed-from-json.js --file ./db/seeds/exports/items.json --collection items --upsert",
     "mongo:setup": "ts-node ./scripts/mongo/setup-rs.ts",
     "mongo:status": "ts-node ./scripts/mongo/status-rs.ts",
-    "mongo:stop": "ts-node ./scripts/mongo/stop-rs.ts"
+    "mongo:stop": "ts-node ./scripts/mongo/stop-rs.ts",
+    "seed:ams": "ts-node --transpile-only db/seeds/dev/seed-next-two-ams.ts"
   },
   "author": "",
   "license": "ISC",
