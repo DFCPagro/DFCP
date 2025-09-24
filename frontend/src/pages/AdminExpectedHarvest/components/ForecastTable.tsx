@@ -33,9 +33,9 @@ function ForecastTableBase({
   samplesUsedDays,
 }: ForecastTableProps) {
   return (
-    <Stack gap="3" width="full">
+    <Stack gap="3" width="full" >
       {/* Context line */}
-      <Box>
+      <Box >
         <Text fontSize="sm" color="fg.muted">
           Forecast horizon: next {rows?.length || 0} day(s)
           {typeof samplesUsedDays === "number" ? ` · window: ${samplesUsedDays} days` : ""}

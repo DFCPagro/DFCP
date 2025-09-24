@@ -7,6 +7,9 @@ import { useExpectedForecast } from "./hooks/useExpectedForecast";
 import type { ShiftFilter } from "./components/FilterBar";
 import { FilterBar } from "./components/FilterBar";
 import { ForecastTable } from "./components/ForecastTable";
+import { useFarmerBreakdown } from "./hooks/useFarmerBreakdown";
+import { FarmersBreakdown } from "./components/FarmersBreakdown";
+
 
 export default function AdminExpectedHarvestPage() {
   // --- Local state (filters) ---
@@ -25,6 +28,12 @@ export default function AdminExpectedHarvestPage() {
     itemId,
     shift,
     daysAhead: 4,
+    windowDays: 7,
+  });
+
+  const breakdown = useFarmerBreakdown({
+    itemId,
+    shift,
     windowDays: 7,
   });
 
@@ -64,6 +73,13 @@ export default function AdminExpectedHarvestPage() {
           error={forecast.error}
           shift={shift}
           samplesUsedDays={forecast.samplesUsedDays}
+        />
+      </Box>
+      <Box mt="6" borderWidth="1px" borderRadius="lg" p="4" bg="bg.surface">
+        <FarmersBreakdown
+          datesAsc={breakdown.datesAsc}
+          rows={breakdown.rows}
+          loading={breakdown.loading}
         />
       </Box>
     </Stack>

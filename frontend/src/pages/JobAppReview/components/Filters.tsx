@@ -32,8 +32,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: JobApplicationStatus }> = [
 
 export default function Filters({ value, onChange, onReset }: Props) {
   return (
-    <Stack gap="4" width="full">
-      <VStack gap="4" align="end" flexWrap="wrap">
+    <Stack gap="4" width="full" direction="row" justify="space-between">
         {/* Role */}
         <Field.Root>
           <Field.Label>Role</Field.Label>
@@ -116,7 +115,6 @@ export default function Filters({ value, onChange, onReset }: Props) {
         >
           Clear filters
         </Button>
-      </VStack>
     </Stack>
   );
 }

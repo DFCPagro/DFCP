@@ -7,41 +7,35 @@ import {
 } from "@/api/fakes/farmerSectionHarvest";
 import { useFarmerSectionHarvest } from "./useFarmerSectionHarvest";
 
-export type ShiftFilter = HarvestShift | "all";
+/** Local-only type to match your UI */
+type ShiftFilter = HarvestShift | "all";
 
 export interface UseExpectedForecastParams {
-  /** Crop/SKU to display (required for the page UX) */
   itemId: string;
-  /** "all" (default) or a single shift */
-  shift?: ShiftFilter;
-  /** Forecast horizon (default 4 days) */
-  daysAhead?: number;
-  /** Window length taken from history for the statistic (default 7 days) */
-  windowDays?: number;
+  shift?: ShiftFilter;        // "all" (default) or a single shift
+  daysAhead?: number;         // default 4
+  windowDays?: number;        // default 7
+  trendDamping?: number;      // shrink the slope for stability (default 0.6)
+  perDayChangeClamp?: number; // max % change per day (e.g., 0.35 = 35%)
 }
 
 export interface ForecastRow {
-  /** 1..daysAhead */
-  dayOffset: number;
-  /** ISO yyyy-mm-dd of the predicted day (relative; cosmetic only) */
-  date: string;
-  /** Total expected kg for this day across ALL sections matching the filters */
-  totalKg: number;
-  /** Optional breakdown per shift (only filled when shift="all") */
+  dayOffset: number;  // 1..daysAhead
+  date: string;       // ISO yyyy-mm-dd (cosmetic)
+  totalKg: number;    // rounded to 0.1
   byShift?: Partial<Record<HarvestShift, number>>;
 }
 
 export interface UseExpectedForecastResult {
   loading: boolean;
   error: Error | null;
-  rows: ForecastRow[]; // length = daysAhead
-  samplesUsedDays: number; // how many days from history contributed (per record median uses up to windowDays)
+  rows: ForecastRow[];     // length = daysAhead
+  samplesUsedDays: number; // how many distinct days were used
 }
 
 /* -------------------- helpers -------------------- */
 
 function isoTodayPlus(days: number): string {
-  // Cosmetic only; not critical to alignment since we’re using medians
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const d = new Date(now);
@@ -49,80 +43,151 @@ function isoTodayPlus(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function median(nums: number[]): number {
-  if (!nums.length) return 0;
-  const sorted = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+/** Sum kg for a single day across many records (already multiplied by area) */
+function addTo(map: Map<string, number>, date: string, kg: number) {
+  map.set(date, (map.get(date) ?? 0) + kg);
 }
 
 /**
- * Extract up to `nDays` most recent (distinct-date) values for the given shift,
- * returning an array of kg/m² values for that record.
+ * Build an aggregated daily time series (most recent first) for:
+ *  - a specific shift, or
+ *  - all shifts combined (sum of shifts)
  *
- * Assumptions:
- *  - history contains exactly one entry per (date, shift) for this record
- *  - history may not be sorted, so we sort by date desc first
+ * Returns: array of numbers ordered by date ascending (oldest → newest)
+ * and the number of distinct days included.
  */
-function lastNDaysValuesPerShift(
-  record: FarmerSectionHarvestRecord,
-  shift: HarvestShift,
-  nDays: number
-): number[] {
-  // Sort desc by date
-  const entries = [...record.history].sort((a, b) =>
-    a.date < b.date ? 1 : a.date > b.date ? -1 : 0
-  );
+function buildDailySeries(
+  records: FarmerSectionHarvestRecord[],
+  shift: ShiftFilter,
+  windowDays: number
+): { seriesAsc: number[]; usedDays: number } {
+  // date → total kg
+  const daily = new Map<string, number>();
 
-  const vals: number[] = [];
-  let seenDates = 0;
-  let currentDate: string | null = null;
+  for (const rec of records) {
+    if (!rec.history?.length || !rec.areaM2) continue;
 
-  for (const h of entries) {
-    if (h.shift !== shift) continue;
-
-    if (currentDate === null) {
-      currentDate = h.date;
-      seenDates = 1;
-      vals.push(h.harvestedKgPerM2);
-    } else if (h.date === currentDate) {
-      // already added this shift/date (there should be only one)
-      continue;
+    if (shift === "all") {
+      for (const h of rec.history) {
+        addTo(daily, h.date, h.harvestedKgPerM2 * rec.areaM2);
+      }
     } else {
-      // new date encountered
-      currentDate = h.date;
-      seenDates++;
-      vals.push(h.harvestedKgPerM2);
-      if (seenDates >= nDays) break;
+      for (const h of rec.history) {
+        if (h.shift !== shift) continue;
+        addTo(daily, h.date, h.harvestedKgPerM2 * rec.areaM2);
+      }
     }
   }
 
-  return vals;
+  // Sort dates desc (newest first), take window, then reverse to asc for regression
+  const desc = [...daily.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
+    .slice(0, windowDays);
+
+  const asc = desc.reverse();
+  const seriesAsc = asc.map(([, kg]) => kg);
+  return { seriesAsc, usedDays: seriesAsc.length };
 }
 
 /**
- * Compute a per-record median kg/m² for the given shift from the last `windowDays` days.
- * For "all" we sum medians for morning/afternoon/evening/night.
+ * Ordinary least-squares slope on equally spaced x = 0..n-1
+ * Returns slope per day. If <3 points, slope = 0.
  */
-function recordMedianKgPerM2(
-  record: FarmerSectionHarvestRecord,
-  shift: ShiftFilter,
-  windowDays: number
-): { perM2: number; perShift?: Partial<Record<HarvestShift, number>> } {
-  if (shift !== "all") {
-    const vals = lastNDaysValuesPerShift(record, shift, windowDays);
-    return { perM2: median(vals) };
+function olsSlope(yAsc: number[]): number {
+  const n = yAsc.length;
+  if (n < 3) return 0;
+  const meanX = (n - 1) / 2;
+  const meanY = yAsc.reduce((s, v) => s + v, 0) / n;
+
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = i - meanX;
+    num += dx * (yAsc[i] - meanY);
+    den += dx * dx;
+  }
+  return den === 0 ? 0 : num / den;
+}
+
+/**
+ * Forecast next H days using linear trend from last `windowDays`.
+ * - trendDamping shrinks the slope for stability (default 0.6)
+ * - perDayChangeClamp limits |Δ| per day to a fraction of last value (default 0.35)
+ * - clamps to >= 0
+ */
+function projectNextDays(
+  yAsc: number[],
+  horizon: number,
+  trendDamping = 0.6,
+  perDayChangeClamp = 0.35
+): number[] {
+  if (!yAsc.length) return Array(horizon).fill(0);
+
+  const last = yAsc[yAsc.length - 1];
+  const slope = olsSlope(yAsc) * trendDamping;
+
+  const out: number[] = [];
+  let prev = last;
+
+  for (let h = 1; h <= horizon; h++) {
+    const raw = last + slope * h;
+    // clamp the step change relative to previous value
+    const maxStep = Math.abs(prev) * perDayChangeClamp;
+    let next = raw;
+
+    if (perDayChangeClamp > 0) {
+      const delta = raw - prev;
+      if (delta > maxStep) next = prev + maxStep;
+      else if (delta < -maxStep) next = prev - maxStep;
+    }
+
+    // non-negative & round to 0.1
+    next = Math.max(0, Math.round(next * 10) / 10);
+    out.push(next);
+    prev = next;
   }
 
-  const perShift: Partial<Record<HarvestShift, number>> = {};
-  let total = 0;
+  return out;
+}
+
+/** Per-shift breakdown for shift==="all" */
+function buildByShiftBreakdown(
+  records: FarmerSectionHarvestRecord[],
+  windowDays: number,
+  daysAhead: number,
+  trendDamping: number,
+  perDayClamp: number
+): Array<Partial<Record<HarvestShift, number>>> {
+  // precompute each shift's series & forecast
+  const perShiftForecast: Record<HarvestShift, number[]> = {
+    morning: [],
+    afternoon: [],
+    evening: [],
+    night: [],
+  };
+
   for (const s of SHIFTS) {
-    const vals = lastNDaysValuesPerShift(record, s, windowDays);
-    const m = median(vals);
-    perShift[s] = m;
-    total += m;
+    const { seriesAsc } = buildDailySeries(records, s, windowDays);
+    perShiftForecast[s] = projectNextDays(
+      seriesAsc,
+      daysAhead,
+      trendDamping,
+      perDayClamp
+    );
   }
-  return { perM2: total, perShift };
+
+  // reshape into [day] -> {shift: value}
+  const rows: Array<Partial<Record<HarvestShift, number>>> = [];
+  for (let i = 0; i < daysAhead; i++) {
+    const obj: Partial<Record<HarvestShift, number>> = {};
+    for (const s of SHIFTS) {
+      const v = perShiftForecast[s][i] ?? 0;
+      // round to 0.1 for display consistency
+      obj[s] = Math.round(v * 10) / 10;
+    }
+    rows.push(obj);
+  }
+  return rows;
 }
 
 /* -------------------- main hook -------------------- */
@@ -130,7 +195,15 @@ function recordMedianKgPerM2(
 export function useExpectedForecast(
   params: UseExpectedForecastParams
 ): UseExpectedForecastResult {
-  const { itemId, shift = "all", daysAhead = 4, windowDays = 7 } = params;
+  const {
+    itemId,
+    shift = "all",
+    daysAhead = 4,
+    windowDays = 7,
+    trendDamping = 0.6,
+    perDayChangeClamp = 0.35,
+  } = params;
+
   const { data, isLoading, error } = useFarmerSectionHarvest();
 
   const result = useMemo<UseExpectedForecastResult>(() => {
@@ -143,12 +216,10 @@ export function useExpectedForecast(
       };
     }
 
-    // 1) Filter by itemId
+    // Filter by item
     const records = data.filter((r) => r.itemId === itemId);
-
-    // If nothing matches, return zeros
     if (!records.length) {
-      const rows: ForecastRow[] = Array.from({ length: daysAhead }).map((_, i) => ({
+      const rows = Array.from({ length: daysAhead }).map((_, i) => ({
         dayOffset: i + 1,
         date: isoTodayPlus(i + 1),
         totalKg: 0,
@@ -156,50 +227,65 @@ export function useExpectedForecast(
       return { loading: false, error: null, rows, samplesUsedDays: 0 };
     }
 
-    // 2) Compute per-record medians (kg/m²) then convert to kg by multiplying area
-    //    Aggregate across sections by summing.
-    let totalPerShift: Partial<Record<HarvestShift, number>> | undefined = undefined;
-    let aggregateKgPerDay = 0;
+    // Build aggregate daily series for selected shift or all shifts
+    const { seriesAsc, usedDays } = buildDailySeries(records, shift, windowDays);
 
-    for (const rec of records) {
-      const med = recordMedianKgPerM2(rec, shift, windowDays);
+    // Forecast for next N days
+    const totals = projectNextDays(
+      seriesAsc,
+      daysAhead,
+      trendDamping,
+      perDayChangeClamp
+    );
 
-      // Convert to kg for this record (per day expectation)
-      const perDayKg = med.perM2 * rec.areaM2;
-      aggregateKgPerDay += perDayKg;
+    // Optional per-shift breakdown when shift === "all"
+    const breakdown =
+      shift === "all"
+        ? buildByShiftBreakdown(
+            records,
+            windowDays,
+            daysAhead,
+            trendDamping,
+            perDayChangeClamp
+          )
+        : undefined;
 
-      // If shift="all", accumulate a breakdown for the UI (optional)
-      if (shift === "all" && med.perShift) {
-        if (!totalPerShift) totalPerShift = {};
-        for (const s of SHIFTS) {
-          const m = med.perShift[s] ?? 0;
-          totalPerShift[s] = (totalPerShift[s] ?? 0) + m * rec.areaM2;
-        }
-      }
-    }
+    // Assemble rows
+    const rows: ForecastRow[] = totals.map((v, idx) => {
+      const byShift = breakdown?.[idx];
+      // if we have a breakdown, sum it for the total to keep consistent
+      const totalKg =
+        byShift
+          ? Math.round(
+              (SHIFTS.reduce((s, sft) => s + (byShift[sft] ?? 0), 0)) * 10
+            ) / 10
+          : v;
 
-    // 3) Create rows for next N days.
-    //    For this simple demo we keep the same daily expectation for days 1..N.
-    const rows: ForecastRow[] = Array.from({ length: daysAhead }).map((_, i) => ({
-      dayOffset: i + 1,
-      date: isoTodayPlus(i + 1),
-      totalKg: Number(aggregateKgPerDay.toFixed(1)),
-      byShift:
-        shift === "all" && totalPerShift
-          ? (Object.fromEntries(
-              Object.entries(totalPerShift).map(([k, v]) => [k, Number(v.toFixed(1))])
-            ) as Partial<Record<HarvestShift, number>>)
-          : undefined,
-    }));
+      return {
+        dayOffset: idx + 1,
+        date: isoTodayPlus(idx + 1),
+        totalKg,
+        byShift,
+      };
+    });
 
     return {
       loading: false,
       error: null,
       rows,
-      // This reflects the *intended* window length; all fake records have enough data
-      samplesUsedDays: windowDays,
+      samplesUsedDays: usedDays,
     };
-  }, [data, isLoading, error, itemId, shift, daysAhead, windowDays]);
+  }, [
+    data,
+    isLoading,
+    error,
+    itemId,
+    shift,
+    daysAhead,
+    windowDays,
+    trendDamping,
+    perDayChangeClamp,
+  ]);
 
   return result;
 }

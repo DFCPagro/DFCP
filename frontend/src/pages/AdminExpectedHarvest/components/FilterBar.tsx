@@ -26,8 +26,7 @@ function FilterBarBase({
   onShiftChange,
 }: FilterBarProps) {
   return (
-    <Stack gap="4" width="full">
-      <VStack gap="4" align="start" flexWrap="wrap">
+    <Stack gap="4" width="full" direction="row">
         {/* Item selector */}
         <Field.Root>
           <Field.Label>Item</Field.Label>
@@ -71,7 +70,6 @@ function FilterBarBase({
             <NativeSelect.Indicator />
           </NativeSelect.Root>
         </Field.Root>
-      </VStack>
     </Stack>
   );
 }
