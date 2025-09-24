@@ -12,7 +12,7 @@ import mongoose from "mongoose";
 
 import packageSizesRouter from "@/routes/packageSize.route";
 import { PackageSize } from "@/models/PackageSize";
-import { seedPackageSizes } from "../../db/seeds/dev/seedPackageSizes.seeder";
+import { seedPackageSizes } from "../../db/seeds_old/dev/seedPackageSizes.seeder";
 
 // ---- Mock auth middleware exactly by module id "@/middlewares/auth" ----
 jest.mock("@/middlewares/auth", () => ({

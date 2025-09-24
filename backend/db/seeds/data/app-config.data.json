@@ -1,15 +1,18 @@
 [
   {
+    "_id": "66f32c9f5f0a4c1a8e2a9b11",
     "scope": "global",
     "inactivityMinutes": 15,
     "updatedBy": "seed"
   },
   {
+    "_id": "66f32c9f5f0a4c1a8e2a9b12",
     "scope": "LC_TEL_AVIV",
     "inactivityMinutes": 15,
     "updatedBy": "seed"
   },
   {
+    "_id": "66f32c9f5f0a4c1a8e2a9b13",
     "scope": "LC_JERUSALEM",
     "inactivityMinutes": 15,
     "updatedBy": "seed"

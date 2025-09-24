@@ -11,19 +11,17 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:clear": "jest --clearCache",
-    "db:drop": "ts-node db/seeds/seed.reset.ts",
-    "seed": "ts-node db/seeds/seed.ts",
-    "seed:dev": "npm run seed -- --env dev",
-    "seed:dev:reset": "npm run seed -- --env dev --reset",
-    "seed:orders:20": "npm run seed -- --env dev --reset --orders 20",
-    "seed:users-only": "npm run seed -- --env dev --reset --no-orders",
-    "seed:orders-only": "npm run seed -- --env dev --reset --no-users",
     "typecheck": "tsc --noEmit",
-    "seed:json:items": "node db/seeds/seed-from-json.js --file ./db/seeds/exports/items.json --collection items --upsert",
     "mongo:setup": "ts-node ./scripts/mongo/setup-rs.ts",
     "mongo:status": "ts-node ./scripts/mongo/status-rs.ts",
     "mongo:stop": "ts-node ./scripts/mongo/stop-rs.ts",
-    "seed:ams": "ts-node --transpile-only db/seeds/dev/seed-next-two-ams.ts"
+    "db:reset": "npx -y tsx db/seeds/cli.ts reset --yes",
+    "db:list": "npx -y tsx db/seeds/cli.ts list --deps --verbose",
+    "db:seed:static": "npx -y tsx db/seeds/cli.ts seed --mode static --fresh --yes",
+    "db:seed:both": "npx -y tsx db/seeds/cli.ts seed --mode both --yes",
+    "db:seed:faker": "npx -y tsx db/seeds/cli.ts seed --mode faker --count \"users=10\" --yes",
+    "db:seed:subset": "npx -y tsx db/seeds/cli.ts seed --mode static --fresh --only \"package-sizes,items,item-packing,logistics-centers,available-stock,demand-statistics,users\" --yes",
+    "db:rebuild:static": "npm run db:reset && npm run db:seed:static"
   },
   "author": "",
   "license": "ISC",
@@ -39,6 +37,7 @@
     "express-list-endpoints": "^7.1.1",
     "express-rate-limit": "^8.0.1",
     "express-validator": "^7.2.1",
+    "fast-glob": "^3.3.3",
     "get-port": "^7.1.0",
     "helmet": "^8.1.0",
     "install": "^0.13.0",
@@ -76,6 +75,7 @@
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }
 }

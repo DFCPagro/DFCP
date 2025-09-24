@@ -14,7 +14,7 @@ import itemsRouter from "@/routes/items.route";
 import ItemModel from "@/models/Item.model";
 
 // ✅ use your real seeder (no connect/disconnect inside)
-import { seedItems } from "../../db/seeds/dev/items.seeder";
+import { seedItems } from "../../db/seeds/auto/items.seeder";
 
 // ---- Mock the auth middleware exactly by module id "@/middlewares/auth" ----
 jest.mock("@/middlewares/auth", () => ({

@@ -153,3 +153,4 @@ PackageSizeSchema.set("toJSON", {
 
 export const PackageSize =
   mongoose.models.PackageSize || model<PackageSizeDoc>("PackageSize", PackageSizeSchema);
+export default PackageSize

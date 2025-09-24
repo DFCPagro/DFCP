@@ -1,5 +1,6 @@
 [
   {
+    "_id": "66f32f3a5f0a4c1a8e2a9c01",
     "monday-afternoon": {
       "items": [
         { "itemId": "db63c0177cfae45a8385313a", "itemDisplayName": "Apple Fuji", "averageDemandQuantityKg": 51.56 },
@@ -16,6 +17,7 @@
     }
   },
   {
+    "_id": "66f32f3a5f0a4c1a8e2a9c02",
     "monday-night": {
       "items": [
         { "itemId": "db63c0177cfae45a8385313a", "itemDisplayName": "Apple Fuji", "averageDemandQuantityKg": 42.18 },
@@ -32,6 +34,7 @@
     }
   },
   {
+    "_id": "66f32f3a5f0a4c1a8e2a9c03",
     "tuesday-morning": {
       "items": [
         { "itemId": "db63c0177cfae45a8385313a", "itemDisplayName": "Apple Fuji", "averageDemandQuantityKg": 36.04 },
@@ -48,6 +51,7 @@
     }
   },
   {
+    "_id": "66f32f3a5f0a4c1a8e2a9c04",
     "tuesday-afternoon": {
       "items": [
         { "itemId": "db63c0177cfae45a8385313a", "itemDisplayName": "Apple Fuji", "averageDemandQuantityKg": 33.49 },

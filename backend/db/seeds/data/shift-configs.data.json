@@ -1,5 +1,6 @@
 [
   {
+    "_id": "66f3310a5f0a4c1a8e2a9d01",
     "logisticCenterId": "LC-1",
     "name": "morning",
     "timezone": "Asia/Jerusalem",
@@ -14,6 +15,7 @@
     "slotSizeMin": 30
   },
   {
+    "_id": "66f3310a5f0a4c1a8e2a9d02",
     "logisticCenterId": "LC-1",
     "name": "afternoon",
     "timezone": "Asia/Jerusalem",
@@ -28,6 +30,7 @@
     "slotSizeMin": 30
   },
   {
+    "_id": "66f3310a5f0a4c1a8e2a9d03",
     "logisticCenterId": "LC-1",
     "name": "evening",
     "timezone": "Asia/Jerusalem",
@@ -42,6 +45,7 @@
     "slotSizeMin": 30
   },
   {
+    "_id": "66f3310a5f0a4c1a8e2a9d04",
     "logisticCenterId": "LC-1",
     "name": "night",
     "timezone": "Asia/Jerusalem",
