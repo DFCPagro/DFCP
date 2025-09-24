@@ -1,3 +1,4 @@
+import DeliveryNotePage from "@/pages/DeliveryNote";
 
 
 export const PATHS = {
@@ -14,6 +15,7 @@ export const PATHS = {
   checkout: "/checkout",
   profile: "/profile",
   orders: "/orders",
+  DeliveryNotePage: "/delivery-note/:noteId?",
   // Farmer pages
   farmerDashboard: "/FarmerDashboard",
   FarmerCropManagement: "/farmer/crops",

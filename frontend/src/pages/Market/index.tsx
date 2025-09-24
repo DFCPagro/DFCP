@@ -19,7 +19,6 @@ import { z } from "zod";
 
 import AuthGuard from "@/guards/AuthGuard";
 import MapPickerDialog from "@/components/common/MapPickerDialog";
-import ShiftPicker from "@/components/ui/ShiftPicker";
 import ItemCard from "@/components/feature/market/ItemCard";
 import CategoryFilter, { type CatCode } from "@/components/feature/market/CategoryFilter";
 import {
@@ -77,6 +76,9 @@ const mapShift = (r: any) => ({
   marketStockId: r._id ?? r.docId,
   slotLabel: r.deliverySlotLabel ?? "",
 });
+
+const shiftHuman = (s: ShiftName) =>
+  s === "morning" ? "Morning" : s === "afternoon" ? "Afternoon" : s === "evening" ? "Evening" : "Night";
 
 // =========================================
 
@@ -419,6 +421,11 @@ export default function Market() {
     }
   };
 
+  const handleSelectShift = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = (e.target.value || "") as ShiftName | "";
+    onShiftChangeGuarded(val ? val : undefined);
+  };
+
   const handleMapConfirm = (res: any) => {
     const get = (obj: any, p: string[]) => p.reduce((a, k) => (a == null ? a : a[k]), obj);
     const rawLat =
@@ -579,11 +586,37 @@ export default function Market() {
           </GridItem>
 
           <GridItem>
-            <ShiftPicker
-              value={shift}
-              available={availableShifts.map((s) => s.shift)}
-              onChange={onShiftChangeGuarded}
-            />
+            <Field.Root>
+              <Field.Label htmlFor="shift-select">Delivery shift</Field.Label>
+              <select
+                id="shift-select"
+                value={shift ?? ""}
+                onChange={handleSelectShift}
+                disabled={!availableShifts.length}
+                aria-label="Delivery shift"
+                style={{
+                  padding: "8px 10px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+                  minWidth: 240,
+                  background: "var(--chakra-colors-white, #fff)",
+                }}
+              >
+                <option value="">
+                  {!logisticCenterId
+                    ? "Pick location first"
+                    : availableShifts.length
+                    ? "Choose shift"
+                    : "No shifts available"}
+                </option>
+                {availableShifts.map((s) => (
+                  <option key={s.shift} value={s.shift}>
+                    {shiftHuman(s.shift)}{s.slotLabel ? ` • ${s.slotLabel}` : ""}{" "}
+                    {s.date ? `• ${s.date}` : ""}
+                  </option>
+                ))}
+              </select>
+            </Field.Root>
           </GridItem>
         </Grid>
 

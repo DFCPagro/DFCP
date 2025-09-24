@@ -26,6 +26,7 @@ const Cart                 = lazy(() => import("@/pages/Cart"));
 const Checkout             = lazy(() => import("@/pages/Checkout"));
 const Profile              = lazy(() => import("@/pages/profile"));
 const Orders               = lazy(() => import("@/pages/Orders"));
+const DeliveryNote         = lazy(() => import("@/pages/DeliveryNote"));
 
 
 
@@ -80,7 +81,7 @@ export default function AppRoutes() {
           <Route path={PATHS.checkout} element={<Checkout />} />
           <Route path={PATHS.profile} element={<Profile />} />
           <Route path={PATHS.orders} element={<Orders />} />
-      
+          <Route path={PATHS.DeliveryNotePage} element={<DeliveryNote />} />
 
           {/* driver-only page */}
           <Route path={PATHS.driverSchedule} element={<RoleGuard allow={['driver']}><DriverSchedule /></RoleGuard>} />
