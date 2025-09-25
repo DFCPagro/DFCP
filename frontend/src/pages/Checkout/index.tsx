@@ -36,6 +36,9 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // payment method stub (no details required now)
+  const [payMethod, setPayMethod] = useState<"cod" | "card">("cod");
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -80,7 +83,6 @@ export default function Checkout() {
     if (!cart || cartEmpty) return;
     setBusy(true);
     try {
-      // Server converts cart -> order
       await checkoutCart(cart._id);
       navigate("/orders");
     } finally {
@@ -124,13 +126,41 @@ export default function Checkout() {
           <Box borderWidth="1px" borderRadius="2xl" p={5} mb={4}>
             <Stack gap={2}>
               <Heading size="sm">Delivery</Heading>
-              <HStack gap={3} wrap="wrap">
+              <HStack gap={3} style={{ flexWrap: "wrap" }}>
                 <Badge colorPalette="purple" variant="subtle" title={addressLabel}>
                   <Text style={{ display: "block", maxWidth: "40ch" }}>{addressLabel}</Text>
                 </Badge>
                 <Badge colorPalette="blue">Shift: {cart?.availableShift ?? "?"}</Badge>
                 <Badge colorPalette="gray">LC: {cart?.LCid ?? "?"}</Badge>
               </HStack>
+            </Stack>
+          </Box>
+
+          {/* Payment (structure only) */}
+          <Box borderWidth="1px" borderRadius="2xl" p={5} mb={4}>
+            <Stack gap={3}>
+              <Heading size="sm">Payment</Heading>
+              <Text color="fg.muted" fontSize="sm">
+                Payment details not required now. Keep method selection for flow.
+              </Text>
+              <label style={{ display: "block" }}>
+                <span style={{ display: "block", marginBottom: 6 }}>Payment method</span>
+                <select
+                  value={payMethod}
+                  onChange={(e) => setPayMethod(e.target.value as "cod" | "card")}
+                  aria-label="Payment method"
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+                    background: "var(--chakra-colors-white, #fff)",
+                    minWidth: 240,
+                  }}
+                >
+                  <option value="cod">Cash on Delivery</option>
+                  <option value="card">Card (coming soon)</option>
+                </select>
+              </label>
             </Stack>
           </Box>
 
