@@ -51,8 +51,8 @@ export interface CreateFarmerOrderPayload {
   farmerName?: string;
   farmName?: string;
 
-  landId?: string;       // ObjectId string
-  sectionId?: string;
+  //landId?: string;       // ObjectId string
+  //sectionId?: string;
 
   shift?: Shift;
   pickUpDate?: string;   // "YYYY-MM-DD"
@@ -81,13 +81,13 @@ export async function createFarmerOrderService(payload: CreateFarmerOrderPayload
   if (!nonEmpty(payload.farmerId)) errors.push("farmerId is required.");
   if (!nonEmpty(payload.farmerName)) errors.push("farmerName is required.");
   if (!nonEmpty(payload.farmName)) errors.push("farmName is required.");
-  if (!nonEmpty(payload.landId)) errors.push("landId is required.");
-  if (!nonEmpty(payload.sectionId)) errors.push("sectionId is required.");
+  //if (!nonEmpty(payload.landId)) errors.push("landId is required.");
+  //if (!nonEmpty(payload.sectionId)) errors.push("sectionId is required.");
   if (!nonEmpty(payload.pickUpDate)) errors.push("pickUpDate is required.");
   if (!nonEmpty(payload.shift)) errors.push("shift is required.");
 
   if (payload.farmerId && !isObjectId(payload.farmerId)) errors.push("farmerId must be a valid ObjectId string.");
-  if (payload.landId && !isObjectId(payload.landId)) errors.push("landId must be a valid ObjectId string.");
+  //if (payload.landId && !isObjectId(payload.landId)) errors.push("landId must be a valid ObjectId string.");
   if (payload.pickUpDate && !isYMD(payload.pickUpDate)) errors.push("pickUpDate must be 'YYYY-MM-DD'.");
   if (payload.shift && !SHIFTS.includes(payload.shift as Shift)) {
     errors.push(`shift must be one of: ${SHIFTS.join(", ")}.`);
@@ -120,9 +120,6 @@ export async function createFarmerOrderService(payload: CreateFarmerOrderPayload
     farmerId: toObjectId(String(payload.farmerId)),
     farmerName: String(payload.farmerName),
     farmName: String(payload.farmName),
-
-    landId: toObjectId(String(payload.landId)),
-    sectionId: String(payload.sectionId),
 
     shift: payload.shift,
     pickUpDate: payload.pickUpDate,

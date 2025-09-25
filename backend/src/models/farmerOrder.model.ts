@@ -37,8 +37,8 @@ const FarmerOrderSchema = new Schema(
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
 
-    landId: { type: Schema.Types.ObjectId, ref: "FarmerLand", default: null },
-    sectionId: { type: String, default: "", trim: true },
+    //landId: { type: Schema.Types.ObjectId, ref: "FarmerLand", default: null },
+    //sectionId: { type: String, default: "", trim: true },
 
     // planning / logistics
     shift: { type: String, enum: SHIFTS, required: true, index: true },
