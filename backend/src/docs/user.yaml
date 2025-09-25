@@ -1,7 +1,21 @@
+openapi: 3.0.3
+info:
+  title: User API
+  version: "1.0.0"
+  description: >
+    Endpoints for user personal info and addresses.
+    Notes:
+      - All endpoints require authentication (JWT bearer).
+      - `POST /user/addresses` ignores any incoming logistic center and sets `logisticCenterId` on the server side to a default.
+      - `/user/contact` returns the caller's own contact info (bare object).
+      - `/user/contact-info` returns `{ data: ... }`. Privileged roles (`admin`, `fManager`, `tManager`) may query another user's contact info via `/user/contact-info/{id}`; others always get self.
 
 tags:
   - name: User
-    description: Customer self-service routes (require authentication)
+    description: User personal info & addresses
+
+servers:
+  - url: /api
 
 paths:
   /user/addresses:
@@ -11,30 +25,32 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
-          description: List of addresses for the authenticated user
+        "200":
+          description: Array of address subdocuments for the authenticated user
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Address'
-              example:
-                data:
-                  - lnt: 35.503
-                    alt: 33.02
-                    address: "Kiryat Shmona, Israel"
-                    logisticCenterId: "66e007000000000000000001"
-        '401':
+                type: array
+                items:
+                  $ref: "#/components/schemas/Address"
+              examples:
+                success:
+                  value:
+                    - lnt: 35.503
+                      alt: 33.02
+                      address: "Kiryat Shmona, Israel"
+                      logisticCenterId: "66e007000000000000000001"
+        "401":
           description: Unauthorized
-
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     post:
       tags: [User]
-      summary: Add a new address (pins LC to default for now)
+      summary: Add a new address to my profile
+      description: >
+        Adds a new address. The server assigns `logisticCenterId` (currently pinned to a default).
       security:
         - bearerAuth: []
       requestBody:
@@ -42,28 +58,34 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/NewAddressInput'
-            example:
-              lnt: 35.503
-              alt: 33.02
-              address: "Kiryat Shmona, Israel"
+              $ref: "#/components/schemas/NewAddressInput"
+            examples:
+              example:
+                value:
+                  lnt: 34.781768
+                  alt: 32.0853
+                  address: "Tel Aviv-Yafo, Israel"
       responses:
-        '201':
-          description: Updated list of addresses (with default LC assigned)
+        "201":
+          description: Updated array of addresses (including the newly added one)
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Address'
-        '400':
-          description: Invalid input
-        '401':
+                type: array
+                items:
+                  $ref: "#/components/schemas/Address"
+        "400":
+          description: Validation error (e.g., missing/invalid coordinates)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /user/name:
     get:
@@ -72,53 +94,65 @@ paths:
       security:
         - bearerAuth: []
       responses:
-        '200':
-          description: User name
+        "200":
+          description: Caller’s name
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: object
-                    required: [name]
-                    properties:
-                      name:
-                        type: string
-                        example: "Levy Cohen"
-        '401':
+                $ref: "#/components/schemas/NameResponse"
+              examples:
+                success:
+                  value:
+                    name: "Levy Cohen"
+        "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /user/contact:
     get:
       tags: [User]
       summary: Get my contact info
+      description: >
+        Returns caller's own contact info (bare object, **not** wrapped).
+        If the caller's role is `farmer`, `farmName` is included (if available).
       security:
         - bearerAuth: []
       responses:
-        '200':
-          description: Contact info for the authenticated user
+        "200":
+          description: Contact info (self)
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    $ref: '#/components/schemas/ContactInfo'
-              example:
-                data:
-                  name: "Levy Cohen"
-                  email: "levy.cohen@example.com"
-                  phone: "+972-52-123-4567"
-                  birthday: "1992-05-14"
-        '401':
+                $ref: "#/components/schemas/ContactInfo"
+              examples:
+                customer:
+                  value:
+                    name: "Customer User"
+                    email: "customer@gmail.com"
+                    phone: "+972-50-1234567"
+                    role: "customer"
+                farmer:
+                  value:
+                    name: "Farmer User"
+                    email: "farmer@gmail.com"
+                    phone: "+972-50-5555555"
+                    role: "farmer"
+                    farmName: "Cohen Family Farms"
+        "401":
           description: Unauthorized
-
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     patch:
       tags: [User]
-      summary: Update my email or phone
+      summary: Update my contact info (email/phone)
+      description: >
+        Updates email and/or phone. Email is normalized to lowercase.  
+        On duplicate email, returns 409.
       security:
         - bearerAuth: []
       requestBody:
@@ -126,31 +160,135 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateContactInput'
+              $ref: "#/components/schemas/UpdateContactInput"
             examples:
               updateEmail:
                 value: { email: "new.email@example.com" }
               updatePhone:
-                value: { phone: "+972-52-765-4321" }
-              both:
-                value: { email: "new.email@example.com", phone: "+972-52-765-4321" }
+                value: { phone: "+972-52-123-4567" }
+              updateBoth:
+                value: { email: "new.email@example.com", phone: "+972-52-123-4567" }
       responses:
-        '200':
-          description: Updated contact info
+        "200":
+          description: Updated contact snapshot (self)
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    $ref: '#/components/schemas/ContactInfo'
-        '400':
-          description: Invalid input
-        '401':
+                $ref: "#/components/schemas/ContactUpdateResponse"
+              examples:
+                success:
+                  value:
+                    name: "Customer User"
+                    email: "new.email@example.com"
+                    phone: "+972-52-123-4567"
+                    birthday: null
+        "400":
+          description: Bad request (invalid email/phone or no updatable fields)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
           description: Unauthorized
-        '409':
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
           description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /user/contact-info:
+    get:
+      tags: [User]
+      summary: Get contact info (self; wrapped)
+      description: >
+        Returns `{ data: ContactInfo }` for the authenticated user.
+        This variant is the non-parameterized route and never targets another user.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Wrapped contact info for self
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactInfoResponse"
+              examples:
+                success:
+                  value:
+                    data:
+                      name: "Customer User"
+                      email: "customer@gmail.com"
+                      phone: "+972-50-1234567"
+                      role: "customer"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /user/contact-info/{id}:
+    get:
+      tags: [User]
+      summary: Get contact info (self or by id; wrapped)
+      description: >
+        - If requester role is in **admin/fManager/tManager**, returns `{ data: ContactInfo }` for the **specified** `id`.  
+        - Otherwise, returns `{ data: ContactInfo }` for **self** (ignoring the path id).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Target user id (ObjectId). Ignored unless requester has privileged role.
+      responses:
+        "200":
+          description: Wrapped contact info for target or self
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContactInfoResponse"
+              examples:
+                asAdminTargetingOther:
+                  value:
+                    data:
+                      name: "Farmer User"
+                      email: "farmer@gmail.com"
+                      phone: "+972-50-5555555"
+                      role: "farmer"
+                      farmName: "Cohen Family Farms"
+                asCustomerIgnoredPathId:
+                  value:
+                    data:
+                      name: "Customer User"
+                      email: "customer@gmail.com"
+                      phone: "+972-50-1234567"
+                      role: "customer"
+        "400":
+          description: Invalid id format or other validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
 components:
   securitySchemes:
@@ -160,46 +298,143 @@ components:
       bearerFormat: JWT
 
   schemas:
+    # -- Core subdocs & DTOs --
     Address:
       type: object
-      required: [lnt, alt, address, logisticCenterId]
+      required: [lnt, alt, address]
       properties:
         lnt:
           type: number
-          description: Longitude (kept as `lnt` per schema)
-          example: 35.503
+          description: Longitude
         alt:
           type: number
-          description: Latitude (kept as `alt` per schema)
-          example: 33.02
+          description: Latitude
         address:
           type: string
-          example: "Kiryat Shmona, Israel"
         logisticCenterId:
           type: string
-          description: Temporarily pinned to default LC id by the service
-          example: "66e007000000000000000001"
+          nullable: true
+          description: Assigned by server (currently defaulted)
+      example:
+        lnt: 34.781768
+        alt: 32.0853
+        address: "Tel Aviv-Yafo, Israel"
+        logisticCenterId: "66e007000000000000000001"
 
     NewAddressInput:
       type: object
       required: [lnt, alt, address]
       properties:
-        lnt: { type: number, example: 35.503 }
-        alt: { type: number, example: 33.02 }
-        address: { type: string, example: "Kiryat Shmona, Israel" }
+        lnt:
+          type: number
+        alt:
+          type: number
+        address:
+          type: string
+      description: >
+        Client-provided fields to add a new address.  
+        `logisticCenterId` is ignored by the server and set internally.
+
+    NameResponse:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+      example:
+        name: "Levy Cohen"
+
+    Role:
+      type: string
+      enum:
+        - admin
+        - fManager
+        - tManager
+        - dManager
+        - opManager
+        - deliverer
+        - industrialDeliverer
+        - farmer
+        - customer
 
     ContactInfo:
       type: object
-      required: [name, email]
+      required: [name, email, role]
       properties:
-        name: { type: string, example: "Levy Cohen" }
-        email: { type: string, format: email, example: "levy.cohen@example.com" }
-        phone: { type: string, nullable: true, example: "+972-52-123-4567" }
-        birthday: { type: string, format: date, nullable: true, example: "1992-05-14" }
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        role:
+          $ref: "#/components/schemas/Role"
+        farmName:
+          type: string
+          nullable: true
+          description: Present only if the user's role is `farmer`
+      examples:
+        customer:
+          value:
+            name: "Customer User"
+            email: "customer@gmail.com"
+            phone: "+972-50-1234567"
+            role: "customer"
+        farmer:
+          value:
+            name: "Farmer User"
+            email: "farmer@gmail.com"
+            phone: "+972-50-5555555"
+            role: "farmer"
+            farmName: "Cohen Family Farms"
+
+    ContactInfoResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/ContactInfo"
 
     UpdateContactInput:
       type: object
-      description: Supply at least one of the fields
       properties:
-        email: { type: string, format: email, example: "new.email@example.com" }
-        phone: { type: string, example: "+972-52-765-4321" }
+        email:
+          type: string
+          format: email
+          description: New email (lowercased by server)
+        phone:
+          type: string
+          description: New phone (sanity-checked by server)
+      description: Provide at least one of `email` or `phone`.
+
+    ContactUpdateResponse:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        birthday:
+          type: string
+          format: date-time
+          nullable: true
+      example:
+        name: "Customer User"
+        email: "new.email@example.com"
+        phone: "+972-52-123-4567"
+        birthday: null
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      example:
+        error: "Unauthorized"
