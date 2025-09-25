@@ -89,7 +89,7 @@ export async function getMyName(req: Request, res: Response) {
 export async function getMyContact(req: Request, res: Response) {
   try {
     const userId = authId(req);
-    const data = await getUserContactInfo(userId);
+    const data = await getContactInfoByIdService(userId);
     res.json(data);
   } catch (e: any) {
     res

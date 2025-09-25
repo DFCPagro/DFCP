@@ -8,8 +8,8 @@
     "activeStatus": true,
     "uid": "ADM-1",
     "addresses": [
-      { "label": "Home", "address": "Tel Aviv-Yafo, Israel", "lnt": 34.781768, "alt": 32.0853 },
-      { "label": "Work", "address": "Ramat Gan, Israel", "lnt": 34.799335, "alt": 32.07225 }
+      { "lnt": 34.781768, "alt": 32.0853, "address": "Tel Aviv-Yafo, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.799335, "alt": 32.07225, "address": "Ramat Gan, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -21,8 +21,8 @@
     "activeStatus": true,
     "uid": "DLV-1",
     "addresses": [
-      { "label": "Home", "address": "Jerusalem, Israel", "lnt": 35.21371, "alt": 31.768318 },
-      { "label": "Depot", "address": "Modiin, Israel", "lnt": 35.0, "alt": 31.9 }
+      { "lnt": 35.21371, "alt": 31.768318, "address": "Jerusalem, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 35.0, "alt": 31.9, "address": "Modiin, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -34,21 +34,21 @@
     "activeStatus": true,
     "uid": "IDL-1",
     "addresses": [
-      { "label": "Home", "address": "Haifa, Israel", "lnt": 34.989571, "alt": 32.794048 },
-      { "label": "Warehouse", "address": "Kiryat Ata, Israel", "lnt": 35.106, "alt": 32.807 }
+      { "lnt": 34.989571, "alt": 32.794048, "address": "Haifa, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 35.106, "alt": 32.807, "address": "Kiryat Ata, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
     "_id": "66f2aa000000000000000004",
     "name": "Distribution Manager",
-    "email": "dmanager@gmail.com",
-    "password": "dmanager123",
-    "role": "dManager",
+    "email": "tmanager@gmail.com",
+    "password": "tmanager123",
+    "role": "tManager",
     "activeStatus": true,
     "uid": "DMG-1",
     "addresses": [
-      { "label": "Home", "address": "Ashdod, Israel", "lnt": 34.886917, "alt": 31.25181 },
-      { "label": "Office", "address": "Ashkelon, Israel", "lnt": 34.571, "alt": 31.669 }
+      { "lnt": 34.886917, "alt": 31.25181, "address": "Ashdod, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.571, "alt": 31.669, "address": "Ashkelon, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -60,8 +60,8 @@
     "activeStatus": true,
     "uid": "FMG-1",
     "addresses": [
-      { "label": "Home", "address": "Ramat Gan, Israel", "lnt": 34.799335, "alt": 32.07225 },
-      { "label": "Farm HQ", "address": "Hod HaSharon, Israel", "lnt": 34.888, "alt": 32.159 }
+      { "lnt": 34.799335, "alt": 32.07225, "address": "Ramat Gan, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.888, "alt": 32.159, "address": "Hod HaSharon, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -73,8 +73,8 @@
     "activeStatus": true,
     "uid": "OPM-1",
     "addresses": [
-      { "label": "Home", "address": "Petah Tikva, Israel", "lnt": 34.75, "alt": 32.05 },
-      { "label": "HQ", "address": "Tel Aviv-Yafo, Israel", "lnt": 34.781768, "alt": 32.0853 }
+      { "lnt": 34.75, "alt": 32.05, "address": "Petah Tikva, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.781768, "alt": 32.0853, "address": "Tel Aviv-Yafo, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -86,7 +86,7 @@
     "activeStatus": true,
     "uid": "CNS-1",
     "addresses": [
-      { "label": "Home", "address": "Netanya, Israel", "lnt": 34.959, "alt": 32.82 }
+      { "lnt": 34.959, "alt": 32.82, "address": "Netanya, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -98,8 +98,21 @@
     "activeStatus": true,
     "uid": "FMR-1",
     "addresses": [
-      { "label": "Home", "address": "Beer Sheva, Israel", "lnt": 34.7, "alt": 31.8 },
-      { "label": "Field #1", "address": "Lahavim, Israel", "lnt": 34.803, "alt": 31.386 }
+      { "lnt": 34.7, "alt": 31.8, "address": "Beer Sheva, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.803, "alt": 31.386, "address": "Lahavim, Israel", "logisticCenterId": "66e007000000000000000001" }
+    ]
+  },
+  {
+    "_id": "66f2aa00000000000000002a",
+    "name": "Farmer Shlomo",
+    "email": "farme2r@gmail.com",
+    "password": "farmer123",
+    "role": "farmer",
+    "activeStatus": true,
+    "uid": "FMR-2",
+    "addresses": [
+      { "lnt": 34.7, "alt": 31.8, "address": "Beer Sheva, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.803, "alt": 31.386, "address": "Lahavim, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -111,8 +124,8 @@
     "activeStatus": true,
     "uid": "USR-1",
     "addresses": [
-      { "label": "Home", "address": "Holon, Israel", "lnt": 34.9, "alt": 32.1 },
-      { "label": "Work", "address": "Rishon LeZion, Israel", "lnt": 34.789, "alt": 31.964 }
+      { "lnt": 34.9, "alt": 32.1, "address": "Holon, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.789, "alt": 31.964, "address": "Rishon LeZion, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -124,7 +137,7 @@
     "activeStatus": true,
     "uid": "USR-2",
     "addresses": [
-      { "label": "Home", "address": "Modiin, Israel", "lnt": 35.0, "alt": 31.9 }
+      { "lnt": 35.0, "alt": 31.9, "address": "Modiin, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -136,8 +149,8 @@
     "activeStatus": true,
     "uid": "USR-3",
     "addresses": [
-      { "label": "Home", "address": "Bat Yam, Israel", "lnt": 34.77, "alt": 32.05 },
-      { "label": "Work", "address": "Tel Aviv-Yafo, Israel", "lnt": 34.78, "alt": 32.08 }
+      { "lnt": 34.77, "alt": 32.05, "address": "Bat Yam, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.78, "alt": 32.08, "address": "Tel Aviv-Yafo, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -149,7 +162,7 @@
     "activeStatus": true,
     "uid": "USR-4",
     "addresses": [
-      { "label": "Home", "address": "Herzliya, Israel", "lnt": 34.98, "alt": 32.82 }
+      { "lnt": 34.98, "alt": 32.82, "address": "Herzliya, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
   {
@@ -161,11 +174,11 @@
     "activeStatus": true,
     "uid": "USR-5",
     "addresses": [
-      { "label": "Home", "address": "Rehovot, Israel", "lnt": 35.1, "alt": 31.9 },
-      { "label": "Work", "address": "Ness Ziona, Israel", "lnt": 34.79, "alt": 31.93 }
+      { "lnt": 35.1, "alt": 31.9, "address": "Rehovot, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.79, "alt": 31.93, "address": "Ness Ziona, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   },
-   {
+  {
     "_id": "66f2aa00000000000000001a",
     "name": "Harry Potter",
     "email": "harrypotter@gmail.com",
@@ -174,9 +187,8 @@
     "activeStatus": true,
     "uid": "USR-5",
     "addresses": [
-      { "label": "Home", "address": "Rehovot, Israel", "lnt": 35.1, "alt": 31.9 },
-      { "label": "Work", "address": "Ness Ziona, Israel", "lnt": 34.79, "alt": 31.93 }
+      { "lnt": 35.1, "alt": 31.9, "address": "Rehovot, Israel", "logisticCenterId": "66e007000000000000000001" },
+      { "lnt": 34.79, "alt": 31.93, "address": "Ness Ziona, Israel", "logisticCenterId": "66e007000000000000000001" }
     ]
   }
 ]
-
