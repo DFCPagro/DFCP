@@ -2,7 +2,7 @@
   {
     "_id": "66f32c9f5f0a4c1a8e2a9b11",
     "LCid": "LC-1",
-    "availableDate": "today",
+    "availableDate": "2025-09-25T00:00:00.000+00:00",
     "availableShift": "morning",
     "createdById": "66f32ca05f0a4c1a8e2a9b44",
     "items": [
@@ -26,7 +26,7 @@
   {
     "_id": "66f32cab5f0a4c1a8e2a9d42",
     "LCid": "LC-1",
-    "availableDate": "today",
+    "availableDate": "2025-09-25T00:00:00.000+00:00",
     "availableShift": "afternoon",
     "createdById": "66f32cac5f0a4c1a8e2a9d75",
     "items": [
@@ -50,7 +50,7 @@
   {
     "_id": "66f32cb95f0a4c1a8e2a9f99",
     "LCid": "LC-1",
-    "availableDate": "today",
+    "availableDate": "2025-09-25T00:00:00.000+00:00",
     "availableShift": "evening",
     "createdById": "66f32cb85f0a4c1a8e2a9f88",
     "items": [
@@ -74,7 +74,7 @@
   {
     "_id": "66f32cc05f0a4c1a8e2aa000",
     "LCid": "LC-1",
-    "availableDate": "today",
+    "availableDate": "2025-09-25T00:00:00.000+00:00",
     "availableShift": "night",
     "createdById": "66f32cbf5f0a4c1a8e2a9fff",
     "items": [

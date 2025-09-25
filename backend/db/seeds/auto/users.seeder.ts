@@ -1,3 +1,4 @@
+// seeds/modules/users.seeder.ts
 import path from "path";
 import type { SeederModule, SeedContext, SeederDescriptor } from "../types";
 import { loadJSON } from "../utils/io";
