@@ -543,9 +543,9 @@ export default function Market() {
   <HStack gap={3} mb={4} align="center">
   <Heading size="lg">Market</Heading>
   <span style={{ flex: 1 }} />
-  <Link to="/cart" aria-label="Open cart">
-    <CartIconButton count={serverCart?.items?.length ?? 0} />
-  </Link>
+<Link to={marketStockId ? `/cart?ams=${marketStockId}` : "/cart"} aria-label="Open cart">
+  <CartIconButton count={serverCart?.items?.length ?? 0} />
+</Link>
 </HStack>
 
 
