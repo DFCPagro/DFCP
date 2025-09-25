@@ -26,6 +26,9 @@ import {
 } from "@/api/cart";
 import { fmtILS } from "@/utils/format";
 
+import { Link as RouterLink } from "react-router-dom";
+
+
 function isoToLocal(ts?: string) {
   if (!ts) return "";
   try {
@@ -44,6 +47,7 @@ export default function Cart() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+const canCheckout = !!cart && cart.items.length > 0;
 
   async function load() {
     setLoading(true);
@@ -268,14 +272,17 @@ export default function Cart() {
                 >
                   Clear Cart
                 </Button>
-                <Button
-                  colorPalette="green"
-                  size="lg"
-                  onClick={doCheckout}
-                  disabled={busy || cartEmpty}
-                >
-                  Proceed to Checkout
-                </Button>
+{canCheckout ? (
+  <Button asChild colorPalette="green" size="lg">
+    <RouterLink to={`/checkout?cart=${cart!._id}&ams=${cart!.availableMarketStockId}`}>
+      Proceed to Checkout
+    </RouterLink>
+  </Button>
+) : (
+  <Button colorPalette="green" size="lg" disabled>
+    Proceed to Checkout
+  </Button>
+)}
               </HStack>
             </Box>
           </>
