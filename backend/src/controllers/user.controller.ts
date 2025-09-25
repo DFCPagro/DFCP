@@ -1,18 +1,45 @@
 import { Request, Response } from "express";
+import ApiError from "../utils/ApiError";
+import { Role } from "../utils/constants";
 import {
   getUserAddresses,
   addUserAddress,
   getUserName,
-  getUserContactInfo,
+ 
   updateUserContact,
+  getContactInfoByIdService,
 } from "../services/user.service";
 
+const ADMIN_ROLES: Role[] = ["admin", "fManager", "tManager"] as const;
 // Helper to extract the authenticated user id
 function authId(req: Request): string {
   const id = (req as any).user?._id;
   if (!id) throw new Error("Unauthorized");
   return String(id);
 }
+
+
+
+
+export async function getContactInfoById(req: Request, res: Response, next: NextFunction) {
+  try {
+    const requester = req.user as { _id: string; role: Role } | undefined;
+    if (!requester) throw new ApiError(401, "Unauthorized");
+
+    const isPrivileged = ADMIN_ROLES.includes(requester.role);
+    const requestedId = (req.params.id as string) || (req.query.id as string) || "";
+
+    // Privileged can target others; everyone else gets self
+    const targetUserId = isPrivileged && requestedId ? requestedId : String(requester._id);
+
+    const data = await getContactInfoByIdSevice(targetUserId);
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+
 
 export async function getMyAddresses(req: Request, res: Response) {
   try {

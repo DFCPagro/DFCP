@@ -4,6 +4,7 @@ import ApiError from "../utils/ApiError";
 import { Role, roles } from "../utils/constants";
 // Use the Address type from the model to stay in sync with the schema
 import type { Address } from "../models/user.model";
+import { Farmer } from "../models/farmer.model"; // or: import { User } from "../models/user.model";
 
 /**
  * Create a user document in the base User collection.
@@ -188,24 +189,7 @@ export async function getUserName(userId: string) {
   return { name: user.name };
 }
 
-/**
- * Fetch contact info (name, email, phone, birthday).
- */
-export async function getUserContactInfo(userId: string) {
-  const user = await User.findById(asObjectId(userId), {
-    name: 1,
-    email: 1,
-    phone: 1,
-    birthday: 1,
-  }).lean();
-  if (!user) throw new Error("User not found");
-  return {
-    name: user.name,
-    email: user.email,
-    phone: user.phone ?? null,
-    birthday: user.birthday ?? null,
-  };
-}
+
 
 /**
  * Update email and/or phone (either field is optional).
@@ -256,3 +240,44 @@ export async function updateUserContact(
   };
 }
 
+
+function assertObjectId(id: string) {
+  if (!Types.ObjectId.isValid(id)) {
+    throw new ApiError(400, "Invalid user id");
+  }
+}
+
+export type ContactInfo = {
+  name: string;
+  email: string;
+  phone: string | null;
+  role: Role | string;
+  // added only for farmer role
+  farmName?: string | "Freshy Fresh";
+};
+
+/**
+ * Fetch contact info (name, email, phone, birthday).
+ * if any type of manager or role we will get more if needeed
+ */
+export async function getContactInfoByIdService(userId: string): Promise<ContactInfo> {
+  assertObjectId(userId);
+
+  const user = await User.findById(userId, { name: 1, email: 1, phone: 1, role: 1 }).lean();
+  if (!user) throw new ApiError(404, "User not found");
+
+  const base: ContactInfo = {
+    name: user.name,
+    email: user.email,
+    phone: user.phone ?? null,
+    role: user.role,
+  };
+
+  if (String(user.role) === "farmer") {
+    // Only for farmers, enrich with farmName from Farmer collection
+    const farmer = await Farmer.findOne({ user: userId }, { farmName: 1 }).lean();
+    base.farmName = farmer?.farmName ?? "freshy fresh";
+  }
+
+  return base;
+}
