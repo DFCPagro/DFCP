@@ -10,7 +10,7 @@ const router = Router();
 // router.get("/:id", authenticateIfPresent, ctrl.getOne);
 
 // Restricted writes: only admin + transportation manager (dManager)
-const CAN_WRITE: Role[] = ["admin", "dManager"];
+const CAN_WRITE: Role[] = ["admin", "tManager"];
 
 router.post("/", authenticate, authorize(...CAN_WRITE), ctrl.create);
 // router.patch("/:id", authenticate, authorize(...CAN_WRITE), ctrl.update);

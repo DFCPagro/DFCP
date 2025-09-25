@@ -3,7 +3,7 @@ import * as ctrl from "../controllers/deliverer.controller";
 import { authenticate, authorize } from "../middlewares/auth";
 import type { Role } from "../utils/constants";
 
-const MANAGER_ROLES: Role[] = ["admin", "opManager", "dManager"];
+const MANAGER_ROLES: Role[] = ["admin", "opManager", "tManager"];
 
 const router = Router();
 

@@ -12,7 +12,7 @@ import {
 } from "../controllers/demandStatics.controller";
 import { Role } from "../utils/constants";
 
-const MUTATION_ROLES = ["dManager", "fManager", "opManager", "admin"] as const satisfies Role[];
+const MUTATION_ROLES = ["tManager", "fManager", "opManager", "admin"] as const satisfies Role[];
 
 const router = Router();
 
