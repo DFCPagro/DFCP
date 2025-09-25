@@ -203,5 +203,18 @@
       { "label": "Home", "address": "Beer Sheva, Israel", "lnt": 34.7, "alt": 31.8 },
       { "label": "Field #1", "address": "Lahavim, Israel", "lnt": 34.803, "alt": 31.386 }
     ]
+  },
+  {
+    "_id": "66f2aa00000000000000002a",
+    "name": "Farmer2 User",
+    "email": "farmer2@gmail.com",
+    "password": "farmer123",
+    "role": "farmer",
+    "activeStatus": true,
+    "uid": "FMR-2",
+    "addresses": [
+      { "label": "Home", "address": "Beer Sheva, Israel", "lnt": 34.7, "alt": 31.8 },
+      { "label": "Field #1", "address": "Lahavim, Israel", "lnt": 34.803, "alt": 31.386 }
+    ]
   }
 ]
