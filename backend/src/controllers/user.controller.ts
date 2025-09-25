@@ -21,7 +21,7 @@ function authId(req: Request): string {
 
 
 
-export async function getContactInfoById(req: Request, res: Response, next: NextFunction) {
+export async function getContactInfoById(req: Request, res: Response) {
   try {
     const requester = req.user as { _id: string; role: Role } | undefined;
     if (!requester) throw new ApiError(401, "Unauthorized");
@@ -32,10 +32,12 @@ export async function getContactInfoById(req: Request, res: Response, next: Next
     // Privileged can target others; everyone else gets self
     const targetUserId = isPrivileged && requestedId ? requestedId : String(requester._id);
 
-    const data = await getContactInfoByIdSevice(targetUserId);
+    const data = await getContactInfoByIdService(targetUserId);
     res.json({ data });
-  } catch (err) {
-    next(err);
+  } catch (e: any) {
+    res
+    .status(e.message === "Unauthorized" ? 401 : 400)
+     .json({ error: e.message || "Failed to get addresses" });
   }
 }
 
