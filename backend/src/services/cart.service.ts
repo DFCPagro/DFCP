@@ -2,11 +2,12 @@ import mongoose, { Types, FilterQuery, ClientSession } from "mongoose";
 import ApiError from "@/utils/ApiError";
 import Cart, { computeNewExpiry } from "@/models/cart.model";
 import { getInactivityMinutes } from "./config.service";
-import { AvailableMarketStockModel,  AvailableMarketStock} from "@/models/availableMarketStock.model";
 import {
-  adjustAvailableQtyAtomic,
-} from "@/services/availableMarketStock.service";
-import { getCurrentShift  } from "@/services/shiftConfig.service"; // assuming you already have it
+  AvailableMarketStockModel,
+  AvailableMarketStock,
+} from "@/models/availableMarketStock.model";
+import { adjustAvailableQtyAtomic } from "@/services/availableMarketStock.service";
+import { getCurrentShift } from "@/services/shiftConfig.service"; // assuming you already have it
 import logger from "@/config/logger";
 
 type CartLean = {
@@ -35,19 +36,23 @@ type CartLean = {
   expiresAt?: Date | null;
 };
 
-
 // ---- small helpers ----
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000;
 }
 
-function attachSession<T extends mongoose.Query<any, any>>(q: T, session: ClientSession | null): T {
+function attachSession<T extends mongoose.Query<any, any>>(
+  q: T,
+  session: ClientSession | null
+): T {
   if (session) q.session(session);
   return q;
 }
 
 /** Run with a real transaction unless NODE_ENV === "test". */
-async function withOptionalTxn<T>(fn: (session: ClientSession | null) => Promise<T>): Promise<T> {
+async function withOptionalTxn<T>(
+  fn: (session: ClientSession | null) => Promise<T>
+): Promise<T> {
   const useTxn = process.env.NODE_ENV !== "test";
   const session = useTxn ? await mongoose.startSession() : null;
   if (session) session.startTransaction();
@@ -108,6 +113,20 @@ type AmsOneLine = {
   }>;
 };
 
+const SHIFT_ORDER = ["morning", "afternoon", "evening", "night"] as const;
+type ShiftName = (typeof SHIFT_ORDER)[number];
+
+function prevShiftOf(s: ShiftName): ShiftName {
+  const idx = SHIFT_ORDER.indexOf(s);
+  return SHIFT_ORDER[(idx + SHIFT_ORDER.length - 1) % SHIFT_ORDER.length];
+}
+
+function serviceDayUtc(d: Date): Date {
+  const x = new Date(d);
+  x.setUTCHours(0, 0, 0, 0);
+  return x;
+}
+
 async function getAmsLineSnapshot(
   amsId: Types.ObjectId,
   amsItemId: Types.ObjectId,
@@ -141,30 +160,50 @@ export async function addItemToCart(input: AddItemInput) {
   return withOptionalTxn(async (session) => {
     // 0) Read AMS once and validate shift BEFORE reserving
     type AmsLean = {
-  _id: Types.ObjectId;
-  LCid: Types.ObjectId;
-  availableDate: Date;
-  availableShift: "morning" | "afternoon" | "evening" | "night";
-};
+      _id: Types.ObjectId;
+      LCid: Types.ObjectId;
+      availableDate: Date;
+      availableShift: "morning" | "afternoon" | "evening" | "night";
+    };
 
-const amsDoc = await AvailableMarketStockModel
-  .findById(
-    availableMarketStockId,
-    { LCid: 1, availableDate: 1, availableShift: 1 } // <- projection avoids weird unions
-  )
-  .lean<AmsLean>()
-  .exec();
+    const amsDoc = await AvailableMarketStockModel.findById(
+      availableMarketStockId,
+      { LCid: 1, availableDate: 1, availableShift: 1 } // <- projection avoids weird unions
+    )
+      .lean<AmsLean>()
+      .exec();
 
-if (!amsDoc) throw new ApiError(404, "AvailableMarketStock not found");
+    if (!amsDoc) throw new ApiError(404, "AvailableMarketStock not found");
 
+    const currentShift = await getCurrentShift(); // "morning" | "afternoon" | "evening" | "night"
 
-    const currentShift = await getCurrentShift();
-    if (amsDoc.availableShift !== currentShift) {
-      throw new ApiError(
-        400,
-        `Cannot add items for shift '${amsDoc.availableShift}'. Current global shift is '${currentShift}'.`
-      );
-    }
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+const todayServiceDay = serviceDayUtc(new Date());
+const amsServiceDay   = serviceDayUtc(amsDoc.availableDate);
+
+const diffDays = Math.round((amsServiceDay.getTime() - todayServiceDay.getTime()) / msPerDay);
+// diffDays > 0 => future day
+// diffDays = 0 => same day
+// diffDays < 0 => past day (disallow)
+
+const amsShift  = amsDoc.availableShift as ShiftName;
+const currShift = (await getCurrentShift()) as ShiftName; // you already fetched above; reuse if stored
+
+const idx = (s: ShiftName) => SHIFT_ORDER.indexOf(s);
+
+if (diffDays > 0) {
+  // ✅ any future service day is allowed
+} else if (diffDays === 0) {
+  // same calendar day: allow current or later, disallow earlier
+  if (idx(amsShift) < idx(currShift)) {
+    throw new ApiError(400, `Cannot add items for past shifts. Requested: '${amsShift}', current: '${currShift}'.`);
+  }
+  // else: ✅ current or future shift today
+} else {
+  // diffDays < 0
+  throw new ApiError(400, "Cannot add items for past shifts.");
+}
 
     // 1) Reserve stock (-amount)
     await adjustAvailableQtyAtomic({
@@ -176,12 +215,21 @@ if (!amsDoc) throw new ApiError(404, "AvailableMarketStock not found");
     });
 
     // 2) Snapshot + rest of your code exactly as you have it now...
-    const snap = await getAmsLineSnapshot(availableMarketStockId, amsItemId, session);
+    const snap = await getAmsLineSnapshot(
+      availableMarketStockId,
+      amsItemId,
+      session
+    );
     const line = snap.items[0];
     if (line.status !== "active") throw new ApiError(409, "Item is not active");
 
     const inactivityMinutes = await getInactivityMinutes(snap.LCid);
-    const expiresAt = await computeNewExpiry(snap.LCid, snap.availableDate, snap.availableShift, inactivityMinutes);
+    const expiresAt = await computeNewExpiry(
+      snap.LCid,
+      snap.availableDate,
+      snap.availableShift,
+      inactivityMinutes
+    );
 
     const upsertQ = Cart.findOneAndUpdate(
       {
@@ -211,7 +259,8 @@ if (!amsDoc) throw new ApiError(404, "AvailableMarketStock not found");
     if (!cart) throw new ApiError(500, "Failed to upsert cart");
 
     const existing = (cart as any).items.find(
-      (x: any) => x.availableMarketStockItemId.toString() === amsItemId.toString()
+      (x: any) =>
+        x.availableMarketStockItemId.toString() === amsItemId.toString()
     );
     if (existing) {
       existing.amountKg = roundKg(existing.amountKg + amountKg);
@@ -232,29 +281,35 @@ if (!amsDoc) throw new ApiError(404, "AvailableMarketStock not found");
 
     cart.lastActivityAt = new Date();
     cart.expiresAt = await computeNewExpiry(
-      amsDoc.LCid, amsDoc.availableDate, amsDoc.availableShift, inactivityMinutes
+      amsDoc.LCid,
+      amsDoc.availableDate,
+      amsDoc.availableShift,
+      inactivityMinutes
     );
     await (session ? cart.save({ session }) : cart.save());
 
     const persisted = await (session
-  ? Cart.findById(cart._id).session(session).lean<CartLean>().exec()
-  : Cart.findById(cart._id).lean<CartLean>().exec());
+      ? Cart.findById(cart._id).session(session).lean<CartLean>().exec()
+      : Cart.findById(cart._id).lean<CartLean>().exec());
 
-if (!persisted) throw new ApiError(500, "Failed to persist cart");
-
+    if (!persisted) throw new ApiError(500, "Failed to persist cart");
 
     logger.info(
-  `[cart] upsert user=${String(userId)} ams=${String(availableMarketStockId)} ` +
-  `lc=${String(amsDoc.LCid)} date=${amsDoc.availableDate.toISOString().slice(0,10)} ` +
-  `shift=${amsDoc.availableShift} inactivityMin=${inactivityMinutes} ` +
-  `expiresAt=${persisted.expiresAt ? persisted.expiresAt.toISOString() : "null"}`
-);
-
+      `[cart] upsert user=${String(userId)} ams=${String(
+        availableMarketStockId
+      )} ` +
+        `lc=${String(amsDoc.LCid)} date=${amsDoc.availableDate
+          .toISOString()
+          .slice(0, 10)} ` +
+        `shift=${amsDoc.availableShift} inactivityMin=${inactivityMinutes} ` +
+        `expiresAt=${
+          persisted.expiresAt ? persisted.expiresAt.toISOString() : "null"
+        }`
+    );
 
     return persisted;
   });
 }
-
 
 // -----------------------------------------------------------------------------
 // Remove (or decrease) a cart line, and release AMS qty.
@@ -382,11 +437,18 @@ export async function getActiveCartForContext(
   userId: Types.ObjectId,
   availableMarketStockId: Types.ObjectId
 ) {
-  const cart = await Cart.findOne({ userId, availableMarketStockId, status: "active" });
+  const cart = await Cart.findOne({
+    userId,
+    availableMarketStockId,
+    status: "active",
+  });
   return cart?.toJSON() ?? null;
 }
 
-export async function getCartById(cartId: Types.ObjectId, userId: Types.ObjectId) {
+export async function getCartById(
+  cartId: Types.ObjectId,
+  userId: Types.ObjectId
+) {
   const cart = await Cart.findOne({ _id: cartId, userId });
   if (!cart) throw new ApiError(404, "Cart not found");
   return cart.toJSON();
@@ -401,13 +463,20 @@ export async function wipeCartsForShift(params: {
   const { availableDate, shiftName, hardDelete } = params;
 
   await Cart.updateMany(
-    { availableDate, availableShift: shiftName, status: "active" } as FilterQuery<any>,
+    {
+      availableDate,
+      availableShift: shiftName,
+      status: "active",
+    } as FilterQuery<any>,
     { $set: { items: [], status: "expired", lastActivityAt: new Date() } }
   );
 
   if (hardDelete) {
-    await Cart.deleteMany(
-      { availableDate, availableShift: shiftName, status: "expired", items: { $size: 0 } } as FilterQuery<any>
-    );
+    await Cart.deleteMany({
+      availableDate,
+      availableShift: shiftName,
+      status: "expired",
+      items: { $size: 0 },
+    } as FilterQuery<any>);
   }
 }
