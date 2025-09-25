@@ -1,5 +1,7 @@
 // src/pages/Market.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+
 import {
   Container,
   Heading,
@@ -538,11 +540,14 @@ export default function Market() {
   return (
     <AuthGuard>
       <Container maxW="6xl" py={6}>
-        <HStack gap={3} mb={4} align="center">
-          <Heading size="lg">Market</Heading>
-          <span style={{ flex: 1 }} />
-          <CartIconButton count={serverCart?.items?.length ?? 0} />
-        </HStack>
+  <HStack gap={3} mb={4} align="center">
+  <Heading size="lg">Market</Heading>
+  <span style={{ flex: 1 }} />
+  <Link to="/cart" aria-label="Open cart">
+    <CartIconButton count={serverCart?.items?.length ?? 0} />
+  </Link>
+</HStack>
+
 
         <Grid templateColumns={["1fr", null, "1fr 1fr"]} gap={4} mb={3}>
           <GridItem>
