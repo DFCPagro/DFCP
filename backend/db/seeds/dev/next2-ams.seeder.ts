@@ -1,8 +1,9 @@
 /**
- * Seed: next TWO AMS docs (empty), then create 2×5 farmer orders per shift
- * and immediately:
- *   - set farmerStatus="ok"
- *   - add line into that shift's AMS via addItemToAvailableMarketStock
+ * Seed: next TWO AMS docs (empty), then for each shift:
+ *   - pick 5 items
+ *   - create 5 orders for Farmer 1 (one per item) AND the same 5 orders for Farmer 2
+ *   - random qty per order
+ *   - set farmerStatus="ok" and add to AMS
  *
  * Run (PowerShell):
  *   $env:MONGO_URI="mongodb+srv://user:pass@cluster/mydb"
@@ -42,7 +43,6 @@ const SHIFT_CONFIG = [
 ];
 
 const ITEMS_PER_SHIFT = 5;
-const FARMERS_TO_USE = 2;
 
 // -----------------------------
 // Utilities
@@ -51,42 +51,30 @@ function fmtYMD(date: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
   return fmt.format(date); // "YYYY-MM-DD"
 }
-
-function getLocalHM(date: Date, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number } {
+function getLocalHM(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(date);
-  const get = (type: string) => Number(parts.find(p => p.type === type)?.value);
+  const get = (t: string) => Number(parts.find(p => p.type === t)?.value);
   return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
 }
-
-function minuteOfDay(date: Date, timeZone: string): { ymd: string; minute: number } {
+function minuteOfDay(date: Date, timeZone: string) {
   const { year, month, day, hour, minute } = getLocalHM(date, timeZone);
   const d = new Date(Date.UTC(year, month - 1, day));
   const ymd = fmtYMD(d, "UTC");
   return { ymd, minute: hour * 60 + minute };
 }
-
 function nextTwoShifts(now = new Date()) {
-  const { ymd: _today, minute } = minuteOfDay(now, TZ);
-  function enumerateNext(n: number): Array<{ ymd: string; name: "morning" | "afternoon" | "evening" | "night" }> {
+  const { minute } = minuteOfDay(now, TZ);
+  function enumerateNext(n: number) {
     const out: Array<{ ymd: string; name: "morning" | "afternoon" | "evening" | "night" }> = [];
     const { year, month, day } = getLocalHM(now, TZ);
     const todayUTC = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
-
     const candidates: Array<{ dayOffset: number; name: typeof SHIFT_CONFIG[number]["name"]; startMin: number }> = [];
     for (let d = 0; d < 3; d++) for (const s of SHIFT_CONFIG) candidates.push({ dayOffset: d, name: s.name, startMin: s.startMin });
-
     const filtered = candidates
       .filter(c => (c.dayOffset > 0 ? true : c.startMin > minute))
       .sort((a, b) => (a.dayOffset - b.dayOffset) || (a.startMin - b.startMin));
-
     for (let i = 0; i < Math.min(n, filtered.length); i++) {
       const c = filtered[i];
       const dateLocal = new Date(todayUTC + c.dayOffset * 24 * 60 * 60 * 1000);
@@ -96,9 +84,7 @@ function nextTwoShifts(now = new Date()) {
   }
   return enumerateNext(2);
 }
-
 function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
-
 function isEggs(item: any): boolean {
   const t = String(item?.type || "").toLowerCase();
   const v = String(item?.variety || "").toLowerCase();
@@ -121,13 +107,10 @@ async function ensureEmptyAMS(LCid: string, dateYMD: string, shift: "morning" | 
     return doc._id.toString();
   }
   const updated = await AvailableMarketStockModel.findByIdAndUpdate(
-    doc._id,
-    { $set: { items: [] } },
-    { new: true }
+    doc._id, { $set: { items: [] } }, { new: true }
   );
   return updated!._id.toString();
 }
-
 async function ensureAMSId(LCid: string, dateYMD: string, shift: "morning" | "afternoon" | "evening" | "night") {
   const existing = await getAvailableMarketStockByKey({ LCid, date: dateYMD, shift });
   if (existing) return String(existing._id);
@@ -168,6 +151,7 @@ async function seed() {
     const f1 = await getContactInfoByIdService(Farmer1_ID);
     const f2 = await getContactInfoByIdService(Farmer2_ID);
 
+    // For FarmerOrder.farmerId we assume Farmer _id == User _id; adjust if different.
     const FARMERS = [
       { farmerUserId: Farmer1_ID, farmerId: new Types.ObjectId(Farmer1_ID), farmerName: f1.name, farmName: f1.farmName || "freshy fresh" },
       { farmerUserId: Farmer2_ID, farmerId: new Types.ObjectId(Farmer2_ID), farmerName: f2.name, farmName: f2.farmName || "freshy fresh" },
@@ -186,77 +170,76 @@ async function seed() {
     const items = await pickRandomItems(ITEMS_PER_SHIFT);
     console.log("[Items] Selected:", items.map((it: any) => ({ id: String(it._id), type: it.type, variety: it.variety })));
 
-    // 4) Build orders per shift (2 farmers × 5 items), set status OK, add to AMS
+    // 4) For each shift: for each item, create an order for Farmer1 AND an order for Farmer2
     for (const s of next2) {
       const key = `${s.ymd} ${s.name}`;
       console.log(`[Shift] ${key}: creating orders…`);
 
       const amsId = await ensureAMSId(STATIC_LC_ID, s.ymd, s.name);
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        const farmer = FARMERS[i % FARMERS_TO_USE];
-        const originalKg = isEggs(item) ? 80 : randInt(50, 80);
+      for (const item of items) {
+        // both farmers get this item (2 orders per item)
+        for (const farmer of FARMERS) {
+          const originalKg = isEggs(item) ? 80 : randInt(50, 80);
 
-        // Create order directly with model (no land/section), set farmerStatus="ok"
-        const created = await FarmerOrder.create({
-          createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
-          updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
+          const created = await FarmerOrder.create({
+            createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
+            updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
 
-          itemId: String(item._id),
-          type: String(item.type || "Unknown"),
-          variety: String(item.variety || ""),
-          pictureUrl: String(item.imageUrl || "https://example.com/placeholder.jpg"),
+            itemId: String(item._id),
+            type: String(item.type || "Unknown"),
+            variety: String(item.variety || ""),
+            pictureUrl: String(item.imageUrl || "https://example.com/placeholder.jpg"),
 
-          // farmer info from contact service
-          farmerId: farmer.farmerId,           // NOTE: assumes Farmer _id == User _id; adjust if different
-          farmerName: farmer.farmerName,
-          farmName: farmer.farmName,
+            farmerId: farmer.farmerId,
+            farmerName: farmer.farmerName,
+            farmName: farmer.farmName,
 
-          shift: s.name,
-          pickUpDate: s.ymd,
-          logisticCenterId: STATIC_LC_ID,
+            shift: s.name,
+            pickUpDate: s.ymd,
+            logisticCenterId: STATIC_LC_ID,
 
-          farmerStatus: "ok",
+            farmerStatus: "ok",
 
-          sumOrderedQuantityKg: 0,
-          forcastedQuantityKg: originalKg,
-          finalQuantityKg: null,
+            sumOrderedQuantityKg: 0,
+            forcastedQuantityKg: originalKg,
+            finalQuantityKg: null,
 
-          orders: [],
-          containers: [],
-          historyAuditTrail: [],
-        });
+            orders: [],
+            containers: [],
+            historyAuditTrail: [],
+          });
 
-        const orderIdStr = String(created._id);
+          const orderIdStr = String(created._id);
 
-        // Enrich from Item collection for AMS line
-        const itemDoc = await Item.findById(item._id).lean();
-        const displayName =
-          (itemDoc?.type && itemDoc?.variety)
-            ? `${itemDoc.type} ${itemDoc.variety}`
-            : (itemDoc?.type ?? itemDoc?.variety ?? `${created.type} ${created.variety}`.trim());
+          // Enrich from Item collection for AMS line
+          const itemDoc = await Item.findById(item._id).lean();
+          const displayName =
+            (itemDoc?.type && itemDoc?.variety)
+              ? `${itemDoc.type} ${itemDoc.variety}`
+              : (itemDoc?.type ?? itemDoc?.variety ?? `${created.type} ${created.variety}`.trim());
 
-        await addItemToAvailableMarketStock({
-          docId: amsId,
-          item: {
-            itemId: String(created.itemId),
-            displayName,
-            imageUrl: (itemDoc?.imageUrl ?? created.pictureUrl) || null,
-            category: itemDoc?.category ?? "unknown",
-            // pricePerUnit: (omit -> computePriceFromItem)
-            originalCommittedQuantityKg: Number(created.forcastedQuantityKg) || 0,
-            currentAvailableQuantityKg: Number(created.forcastedQuantityKg) || 0,
-            farmerOrderId: orderIdStr,
-            farmerID: String(created.farmerId),
-            farmerName: created.farmerName,
-            farmName: created.farmName,
-            status: "active",
-          },
-        });
+          await addItemToAvailableMarketStock({
+            docId: amsId,
+            item: {
+              itemId: String(created.itemId),
+              displayName,
+              imageUrl: (itemDoc?.imageUrl ?? created.pictureUrl) || null,
+              category: itemDoc?.category ?? "unknown",
+              // pricePerUnit: (omit -> computePriceFromItem)
+              originalCommittedQuantityKg: Number(created.forcastedQuantityKg) || 0,
+              currentAvailableQuantityKg: Number(created.forcastedQuantityKg) || 0,
+              farmerOrderId: orderIdStr,
+              farmerID: String(created.farmerId),
+              farmerName: created.farmerName,
+              farmName: created.farmName,
+              status: "active",
+            },
+          });
+        }
       }
 
-      // Verify AMS items count
+      // Verify AMS items count (should be 10 per shift: 5 items × 2 farmers)
       const d = await getAvailableMarketStockByKey({ LCid: STATIC_LC_ID, date: s.ymd, shift: s.name });
       console.log(`[VERIFY] ${key}: AMS ${d?._id?.toString()} items=${d?.items?.length ?? 0}`);
     }
