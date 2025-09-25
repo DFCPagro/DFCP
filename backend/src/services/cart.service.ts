@@ -6,6 +6,8 @@ import {
   AvailableMarketStockModel,
   AvailableMarketStock,
 } from "@/models/availableMarketStock.model";
+import ShiftConfig from "@/models/shiftConfig.model";
+import { calcShiftCutoffForServiceDayUTC } from "@/helpers/time/shiftCutoff";
 import { adjustAvailableQtyAtomic } from "@/services/availableMarketStock.service";
 import { getCurrentShift } from "@/services/shiftConfig.service"; // assuming you already have it
 import logger from "@/config/logger";
@@ -193,15 +195,37 @@ const currShift = (await getCurrentShift()) as ShiftName; // you already fetched
 const idx = (s: ShiftName) => SHIFT_ORDER.indexOf(s);
 
 if (diffDays > 0) {
-  // ✅ any future service day is allowed
+  // future day -> allowed
 } else if (diffDays === 0) {
-  // same calendar day: allow current or later, disallow earlier
   if (idx(amsShift) < idx(currShift)) {
     throw new ApiError(400, `Cannot add items for past shifts. Requested: '${amsShift}', current: '${currShift}'.`);
   }
-  // else: ✅ current or future shift today
+
+  // ⛔ Same-day + same (current) shift → enforce cut-off
+  if (amsShift === currShift) {
+    const cfg = await ShiftConfig.findOne(
+      { name: amsShift },
+      { timezone: 1, generalStartMin: 1, generalEndMin: 1 }
+    ).lean<{ timezone?: string; generalStartMin: number; generalEndMin: number }>();
+
+    if (!cfg) throw new ApiError(500, "Shift configuration missing");
+
+    // service day is *today* (00:00 UTC), already normalized by serviceDayUtc(...)
+    const { cutoffUTC } = calcShiftCutoffForServiceDayUTC({
+      tz: cfg.timezone,
+      serviceDayUTC: todayServiceDay,
+      startMin: cfg.generalStartMin,
+      endMin: cfg.generalEndMin,
+      cutoffMin: 15, // <-- your 15 minutes rule
+    });
+
+    if (new Date() >= cutoffUTC) {
+      // Optional: produce a friendly local-time reason message
+      const cutoffLocal = new Date(cutoffUTC).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: cfg.timezone || "Asia/Jerusalem" });
+      throw new ApiError(403, `Ordering for '${amsShift}' closed at ${cutoffLocal}.`);
+    }
+  }
 } else {
-  // diffDays < 0
   throw new ApiError(400, "Cannot add items for past shifts.");
 }
 
