@@ -1,7 +1,6 @@
-// services/jobApplication.service.ts
 import mongoose, { FilterQuery } from "mongoose";
-import ApiError from "../utils/ApiError";
-import logger from "../config/logger";
+import ApiError from "@/utils/ApiError";
+import logger from "@/config/logger";
 import {
   jobApplicationStatuses,
   jobApplicationRoles,
@@ -22,7 +21,7 @@ import {
   provisionDeliverer,
   provisionIndustrialDeliverer,
   promoteUserRole,
-} from "./jobApplication.helpers";
+} from "../helpers/jobApplication.helpers";
 
 
 /** =========================

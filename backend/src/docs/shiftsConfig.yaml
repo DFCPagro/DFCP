@@ -1,0 +1,280 @@
+openapi: 3.0.3
+info:
+  title: Shift Config API
+  version: "1.0.0"
+  description: >
+    Endpoints for reading shift windows and the next available shifts per Logistics Center (LC).
+    Notes:
+      - All endpoints require authentication (JWT bearer).
+      - For backward compatibility, queries accept **either** `lc` **or** `logisticCenterId`. At least one is required.
+      - Shift names are one of: `morning`, `afternoon`, `evening`, `night`.
+
+tags:
+  - name: Shift
+    description: Shift windows & availability
+
+servers:
+  - url: /api
+
+paths:
+  /shift/windows:
+    get:
+      tags: [Shift]
+      summary: Get shift windows for a specific LC & shift name
+      description: >
+        Returns normalized time windows for the given `name` at the specified LC.
+        Accepts `lc` (preferred) or `logisticCenterId` as the LC identifier.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: lc
+          required: false
+          schema: { type: string }
+          description: "LogisticsCenter _id as hex string (preferred). At least one of `lc` or `logisticCenterId` is required."
+        - in: query
+          name: logisticCenterId
+          required: false
+          schema: { type: string }
+          description: "Alias for `lc`. At least one of `lc` or `logisticCenterId` is required."
+        - in: query
+          name: name
+          required: true
+          schema:
+            $ref: '#/components/schemas/ShiftName'
+          description: "Shift name"
+      responses:
+        "200":
+          description: Shift windows for the requested shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftWindow'
+              examples:
+                morning:
+                  value:
+                    name: "morning"
+                    timezone: "Asia/Jerusalem"
+                    general: { startMin: 420, endMin: 720, start: "07:00", end: "12:00" }
+                    industrialDeliverer: { startMin: 420, endMin: 720, start: "07:00", end: "12:00" }
+                    deliverer: { startMin: 450, endMin: 690, start: "07:30", end: "11:30" }
+                    deliverySlot: { startMin: 450, endMin: 690, start: "07:30", end: "11:30", slotSizeMin: 30 }
+        "400":
+          description: Missing lc/name or validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                missing:
+                  value: { error: "Missing lc/name" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "404":
+          description: ShiftConfig not found for given LC/name
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /shift/windows/all:
+    get:
+      tags: [Shift]
+      summary: List all shift windows for an LC
+      description: >
+        Returns windows for all configured shifts at the specified LC.
+        Accepts `lc` (preferred) or `logisticCenterId` as the LC identifier.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: lc
+          required: false
+          schema: { type: string }
+          description: "LogisticsCenter _id as hex string (preferred). At least one of `lc` or `logisticCenterId` is required."
+        - in: query
+          name: logisticCenterId
+          required: false
+          schema: { type: string }
+          description: "Alias for `lc`. At least one of `lc` or `logisticCenterId` is required."
+      responses:
+        "200":
+          description: Array of shift windows for the LC
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShiftWindow'
+              examples:
+                sample:
+                  value:
+                    - name: "morning"
+                      timezone: "Asia/Jerusalem"
+                      general: { startMin: 420, endMin: 720, start: "07:00", end: "12:00" }
+                      industrialDeliverer: { startMin: 420, endMin: 720, start: "07:00", end: "12:00" }
+                      deliverer: { startMin: 450, endMin: 690, start: "07:30", end: "11:30" }
+                      deliverySlot: { startMin: 450, endMin: 690, start: "07:30", end: "11:30", slotSizeMin: 30 }
+                    - name: "afternoon"
+                      timezone: "Asia/Jerusalem"
+                      general: { startMin: 780, endMin: 1020, start: "13:00", end: "17:00" }
+                      industrialDeliverer: { startMin: 780, endMin: 1020, start: "13:00", end: "17:00" }
+                      deliverer: { startMin: 810, endMin: 990, start: "13:30", end: "16:30" }
+                      deliverySlot: { startMin: 810, endMin: 990, start: "13:30", end: "16:30", slotSizeMin: 30 }
+        "400":
+          description: Missing lc
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                missing:
+                  value: { error: "Missing lc" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /shift/next:
+    get:
+      tags: [Shift]
+      summary: Get the next available shifts for an LC
+      description: >
+        Returns a sequence of upcoming shifts (date + name), starting from "now" in the LC timezone.
+        Accepts an optional `count` (1–20, default 5).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: lc
+          required: false
+          schema: { type: string }
+          description: "LogisticsCenter _id as hex string (preferred). At least one of `lc` or `logisticCenterId` is required."
+        - in: query
+          name: logisticCenterId
+          required: false
+          schema: { type: string }
+          description: "Alias for `lc`. At least one of `lc` or `logisticCenterId` is required."
+        - in: query
+          name: count
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+          description: "Number of upcoming shifts to return (1–20)."
+      responses:
+        "200":
+          description: Upcoming shifts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UpcomingShift'
+              examples:
+                default5:
+                  value:
+                    - { date: "2025-09-26", name: "afternoon" }
+                    - { date: "2025-09-26", name: "evening" }
+                    - { date: "2025-09-27", name: "morning" }
+                    - { date: "2025-09-27", name: "afternoon" }
+                    - { date: "2025-09-27", name: "evening" }
+        "400":
+          description: Missing required query param
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                missing:
+                  value: { error: "Missing required query param: lc" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "404":
+          description: No ShiftConfig found for LC
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ShiftName:
+      type: string
+      enum: [morning, afternoon, evening, night]
+
+    Window:
+      type: object
+      required: [startMin, endMin, start, end]
+      properties:
+        startMin:
+          type: integer
+          description: "Start minutes since midnight (local LC timezone)"
+        endMin:
+          type: integer
+          description: "End minutes since midnight (local LC timezone). If less than start, window wraps past midnight."
+        start:
+          type: string
+          description: "HH:mm presentation (local LC timezone)"
+          pattern: "^[0-2][0-9]:[0-5][0-9]$"
+        end:
+          type: string
+          description: "HH:mm presentation (local LC timezone)"
+          pattern: "^[0-2][0-9]:[0-5][0-9]$"
+
+    DeliverySlotWindow:
+      allOf:
+        - $ref: '#/components/schemas/Window'
+        - type: object
+          properties:
+            slotSizeMin:
+              type: integer
+              description: "Delivery slot size in minutes (default 30 if not configured)"
+              minimum: 1
+
+    ShiftWindow:
+      type: object
+      required: [name, timezone, general, industrialDeliverer, deliverer, deliverySlot]
+      properties:
+        name:
+          $ref: '#/components/schemas/ShiftName'
+        timezone:
+          type: string
+          description: IANA timezone for the LC (e.g., "Asia/Jerusalem")
+        general:
+          $ref: '#/components/schemas/Window'
+        industrialDeliverer:
+          $ref: '#/components/schemas/Window'
+        deliverer:
+          $ref: '#/components/schemas/Window'
+        deliverySlot:
+          $ref: '#/components/schemas/DeliverySlotWindow'
+
+    UpcomingShift:
+      type: object
+      required: [date, name]
+      properties:
+        date:
+          type: string
+          format: date
+          description: "Local LC date for the shift (yyyy-MM-dd)"
+        name:
+          $ref: '#/components/schemas/ShiftName'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      example:
+        error: "Unauthorized"

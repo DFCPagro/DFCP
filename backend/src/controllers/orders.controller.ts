@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import { Types } from "mongoose";
 import ApiError from "../utils/ApiError";
 import {
@@ -12,18 +12,16 @@ import {
   cancelOrder,
   isValidStatus,
 } from "../services/order.service";
+import { getCurrentShiftIsoWindow } from "../services/shiftConfig.service";
 import { Role } from "../utils/constants";
 
-// Role buckets from your set:
-// ['customer','farmer','deliverer','industrialDeliverer','dManager','fManager','opManager','admin']
-const STAFF_ROLES: Role[] = ["opManager", "dManager", "fManager", "admin"] as any;
+// -------------------- role buckets --------------------
+const STAFF_ROLES: Role[] = ["opManager", "tManager", "fManager", "admin"] as any;
+const ADMIN_SHIFT_ROLES: Role[] = ["admin", "tManager"] as any; // full visibility for currentShift
 const COURIER_ROLES: Role[] = ["deliverer", "industrialDeliverer"] as any;
 const CUSTOMER_ROLE: Role = "customer" as any;
 
-const asyncHandler =
-  (fn: any) => (req: Request, res: Response, next: NextFunction) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
-
+// -------------------- utils --------------------
 function ensureOwnerOrStaff(req: Request, orderCustomerId: Types.ObjectId) {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId; role: Role };
@@ -33,8 +31,37 @@ function ensureOwnerOrStaff(req: Request, orderCustomerId: Types.ObjectId) {
   if (!(isOwner || isStaff || isCourier)) throw new ApiError(403, "Forbidden");
 }
 
+const num = (v: any) => (v !== undefined && v !== null && v !== "" ? Number(v) : undefined);
+const str = (v: any) => (typeof v === "string" ? v : undefined);
+const bool = (v: any) => {
+  if (Array.isArray(v)) v = v[0];
+  if (typeof v !== "string") return false;
+  return ["1", "true", "yes"].includes(v.toLowerCase());
+};
+
+// optional convenience for explicit shift name/date (kept for backwards compatibility)
+function deriveShiftWindow(
+  shift: string,
+  date?: string
+): { start: Date; end: Date } | null {
+  const base = date ? new Date(`${date}T00:00:00`) : new Date(); // midnight (server TZ)
+  const start = new Date(base);
+  const end = new Date(base);
+  const setHM = (d: Date, h: number, m = 0) => d.setHours(h, m, 0, 0);
+  switch (shift) {
+    case "morning": setHM(start, 6, 0); setHM(end, 12, 0); break;
+    case "afternoon": setHM(start, 12, 0); setHM(end, 18, 0); break;
+    case "evening": setHM(start, 18, 0); setHM(end, 23, 0); break;
+    case "night": setHM(start, 23, 0); end.setDate(end.getDate() + 1); setHM(end, 6, 0); break;
+    default: return null;
+  }
+  return { start, end };
+}
+
+// -------------------- controllers --------------------
+
 /** Create (customer) */
-export const create = asyncHandler(async (req: Request, res: Response) => {
+export const create = async (req: Request, res: Response) => {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId };
   const { deliveryAddress, items } = req.body || {};
@@ -43,17 +70,17 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
   }
   const order = await createOrder({ customerId: user._id, deliveryAddress, items });
   res.status(201).json({ data: order });
-});
+};
 
 /** Get one */
-export const getOne = asyncHandler(async (req: Request, res: Response) => {
+export const getOne = async (req: Request, res: Response) => {
   const order = await getOrderById(req.params.id);
   ensureOwnerOrStaff(req, order.customerId as Types.ObjectId);
   res.json({ data: order });
-});
+};
 
-/** List (filters + shifts) */
-export const list = asyncHandler(async (req: Request, res: Response) => {
+/** List (supports currentShift gating + filters + pagination) */
+export const list = async (req: Request, res: Response) => {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId; role: Role };
   const q = req.query;
@@ -67,25 +94,26 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
 
   const filter: any = {
     // ids
-    assignedDelivererId: typeof q.assignedDelivererId === "string" ? q.assignedDelivererId : undefined,
-    customerId: typeof q.customerId === "string" ? q.customerId : undefined,
+    assignedDelivererId: str(q.assignedDelivererId),
+    customerId: str(q.customerId),
+    logisticsCenterId: str(q.logisticsCenterId), // optional LC scope
 
     // time
-    from: typeof q.from === "string" ? q.from : undefined,
-    to: typeof q.to === "string" ? q.to : undefined,
+    from: str(q.from),
+    to: str(q.to),
 
     // item-level
-    itemId: typeof q.itemId === "string" ? q.itemId : undefined,
-    farmerOrderId: typeof q.farmerOrderId === "string" ? q.farmerOrderId : undefined,
-    category: typeof q.category === "string" ? q.category : undefined,
-    sourceFarmName: typeof q.sourceFarmName === "string" ? q.sourceFarmName : undefined,
-    sourceFarmerName: typeof q.sourceFarmerName === "string" ? q.sourceFarmerName : undefined,
+    itemId: str(q.itemId),
+    farmerOrderId: str(q.farmerOrderId),
+    category: str(q.category),
+    sourceFarmName: str(q.sourceFarmName),
+    sourceFarmerName: str(q.sourceFarmerName),
 
     // numeric ranges
-    minTotal: q.minTotal ? Number(q.minTotal) : undefined,
-    maxTotal: q.maxTotal ? Number(q.maxTotal) : undefined,
-    minWeight: q.minWeight ? Number(q.minWeight) : undefined,
-    maxWeight: q.maxWeight ? Number(q.maxWeight) : undefined,
+    minTotal: num(q.minTotal),
+    maxTotal: num(q.maxTotal),
+    minWeight: num(q.minWeight),
+    maxWeight: num(q.maxWeight),
   };
 
   if (statusList.length) {
@@ -94,23 +122,45 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     filter.status = valid;
   }
 
-  // Customers only see their own
+  // base role scoping (applies when NOT in currentShift mode, and also acts as a floor in currentShift)
   if (user.role === CUSTOMER_ROLE) {
-    filter.customerId = user._id.toString();
+    filter.customerId = user._id.toString(); // customers: only own
+  } else if (COURIER_ROLES.includes(user.role) && !filter.assignedDelivererId) {
+    filter.assignedDelivererId = user._id.toString(); // couriers: default own unless overridden (except in currentShift we force it)
   }
 
-  // SHIFTS:
-  // Option A: ?shiftStart=ISO&shiftEnd=ISO   (overrides from/to)
-  // Option B: ?date=YYYY-MM-DD&shift=morning|afternoon|evening|night
-  if (typeof q.shiftStart === "string") filter.shiftStart = q.shiftStart;
-  if (typeof q.shiftEnd === "string") filter.shiftEnd = q.shiftEnd;
+  // ----- current shift feature & gating -----
+  const currentShiftFlag = bool(q.currentShift);
+  if (currentShiftFlag) {
+    const { startISO, endISO } = await getCurrentShiftIsoWindow(filter.logisticsCenterId);
+    filter.shiftStart = startISO;
+    filter.shiftEnd = endISO;
 
-  if (!filter.shiftStart && !filter.shiftEnd && typeof q.shift === "string") {
-    const date = typeof q.date === "string" ? q.date : undefined; // YYYY-MM-DD
-    const range = deriveShiftWindow(q.shift, date);
-    if (range) {
-      filter.shiftStart = range.start.toISOString();
-      filter.shiftEnd = range.end.toISOString();
+    if (ADMIN_SHIFT_ROLES.includes(user.role)) {
+      // admin & tManager: can view everyone's orders for the active shift (no extra scoping)
+    } else if (user.role === CUSTOMER_ROLE) {
+      // customers: force own orders within the shift
+      filter.customerId = user._id.toString();
+    } else if (COURIER_ROLES.includes(user.role)) {
+      // couriers: force assigned-to-self within the shift
+      filter.assignedDelivererId = user._id.toString();
+    } else {
+      // other staff (e.g., opManager, fManager) cannot list *all* orders for the shift
+      // (they can still list without currentShift, based on your broader rules)
+      throw new ApiError(403, "Only admin or tManager may list all orders for the current shift");
+    }
+  } else {
+    // optional explicit shift params still supported
+    if (typeof q.shiftStart === "string") filter.shiftStart = q.shiftStart;
+    if (typeof q.shiftEnd === "string") filter.shiftEnd = q.shiftEnd;
+
+    if (!filter.shiftStart && !filter.shiftEnd && typeof q.shift === "string") {
+      const date = typeof q.date === "string" ? q.date : undefined; // YYYY-MM-DD
+      const range = deriveShiftWindow(String(q.shift), date);
+      if (range) {
+        filter.shiftStart = range.start.toISOString();
+        filter.shiftEnd = range.end.toISOString();
+      }
     }
   }
 
@@ -121,25 +171,21 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.json({ data });
-});
+};
 
 /** Convenience: list my orders (customer) */
-export const listMine = asyncHandler(async (req: Request, res: Response) => {
+export const listMine = async (req: Request, res: Response) => {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId };
   const data = await listOrders(
     { customerId: user._id.toString() },
-    {
-      page: Number(req.query.page) || 1,
-      limit: Number(req.query.limit) || 20,
-      sort: "-createdAt",
-    }
+    { page: Number(req.query.page) || 1, limit: Number(req.query.limit) || 20, sort: "-createdAt" }
   );
   res.json({ data });
-});
+};
 
 /** Update general fields (owner while early, or staff) */
-export const updateGeneral = asyncHandler(async (req: Request, res: Response) => {
+export const updateGeneral = async (req: Request, res: Response) => {
   const order = await getOrderById(req.params.id);
   ensureOwnerOrStaff(req, order.customerId as Types.ObjectId);
 
@@ -149,16 +195,16 @@ export const updateGeneral = asyncHandler(async (req: Request, res: Response) =>
     throw new ApiError(400, "Customer cannot modify the order after it is being prepared");
   }
 
-  const allowedFields = ["deliveryAddress", "items", "assignedDelivererId", "customerDeliveryId"];
+  const allowedFields = ["deliveryAddress", "items", "assignedDelivererId", "customerDeliveryId"] as const;
   const updates: any = {};
-  for (const k of allowedFields) if (k in req.body) updates[k] = req.body[k];
+  for (const k of allowedFields) if (k in req.body) updates[k] = (req.body as any)[k];
 
   const saved = await updateOrder(req.params.id, updates, user._id);
   res.json({ data: saved });
-});
+};
 
 /** Update status (deliverers limited, staff unrestricted) */
-export const setStatus = asyncHandler(async (req: Request, res: Response) => {
+export const setStatus = async (req: Request, res: Response) => {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId; role: Role };
   const { status } = req.body || {};
@@ -177,10 +223,10 @@ export const setStatus = asyncHandler(async (req: Request, res: Response) => {
 
   const saved = await updateStatus(req.params.id, status, user._id);
   res.json({ data: saved });
-});
+};
 
 /** Assign / unassign deliverer (staff) */
-export const setDeliverer = asyncHandler(async (req: Request, res: Response) => {
+export const setDeliverer = async (req: Request, res: Response) => {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId; role: Role };
   if (!STAFF_ROLES.includes(user.role)) throw new ApiError(403, "Forbidden");
@@ -190,64 +236,24 @@ export const setDeliverer = asyncHandler(async (req: Request, res: Response) => 
 
   const saved = await assignDeliverer(req.params.id, id, user._id);
   res.json({ data: saved });
-});
+};
 
 /** Add audit entry (any actor) */
-export const addAudit = asyncHandler(async (req: Request, res: Response) => {
+export const addAudit = async (req: Request, res: Response) => {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId };
   const { action, note, meta } = req.body || {};
   if (!action) throw new ApiError(400, "action is required");
   const saved = await addAuditEntry(req.params.id, user._id, action, note, meta);
   res.json({ data: saved });
-});
+};
 
 /** Cancel (owner or staff; ownership checked) */
-export const cancel = asyncHandler(async (req: Request, res: Response) => {
+export const cancel = async (req: Request, res: Response) => {
   // @ts-ignore
   const user = req.user as { _id: Types.ObjectId; role: Role };
   const order = await getOrderById(req.params.id);
   ensureOwnerOrStaff(req, order.customerId as Types.ObjectId);
   const saved = await cancelOrder(order.id, user._id);
   res.json({ data: saved });
-});
-
-/** Basic shift parser
- * morning: 06:00–12:00, afternoon: 12:00–18:00, evening: 18:00–23:00, night: 23:00–06:00 (next day)
- * If no date is given, uses today's date (server timezone).
- */
-function deriveShiftWindow(
-  shift: string,
-  date?: string
-): { start: Date; end: Date } | null {
-  const base = date ? new Date(`${date}T00:00:00`) : new Date(); // midnight (server TZ)
-  const start = new Date(base);
-  const end = new Date(base);
-
-  const setHM = (d: Date, h: number, m = 0) => {
-    d.setHours(h, m, 0, 0);
-  };
-
-  switch (shift) {
-    case "morning":
-      setHM(start, 6, 0);
-      setHM(end, 12, 0);
-      break;
-    case "afternoon":
-      setHM(start, 12, 0);
-      setHM(end, 18, 0);
-      break;
-    case "evening":
-      setHM(start, 18, 0);
-      setHM(end, 23, 0);
-      break;
-    case "night":
-      setHM(start, 23, 0);
-      end.setDate(end.getDate() + 1);
-      setHM(end, 6, 0);
-      break;
-    default:
-      return null;
-  }
-  return { start, end };
-}
+};

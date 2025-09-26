@@ -1,0 +1,562 @@
+openapi: 3.0.3
+info:
+  title: Logistics Centers API
+  version: "1.0.0"
+  description: >
+    CRUD, querying, and associations for Logistics Centers (LC).  
+    Notes:
+      - All endpoints require authentication (JWT bearer).
+      - Role-based access:
+        - **Read** (`GET /centers`, `GET /centers/{id}`): any authenticated user.
+        - **Create/Update**: `tManager`, `opManager`, `admin`.
+        - **Delete**: `opManager`, `admin`.
+        - **Delivery history**: `tManager`, `opManager`, `admin`.
+        - **Deliverer associations**: `tManager`, `opManager`, `admin`.
+      - `location.geo` (if provided) must be a valid GeoJSON **Point**: `{ type: "Point", coordinates: [lng, lat] }`.
+
+servers:
+  - url: /api
+
+tags:
+  - name: Logistics Centers
+    description: Manage logistics centers and their associations
+
+paths:
+  /centers:
+    get:
+      tags: [Logistics Centers]
+      summary: List / query logistics centers
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: 1-based page number
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+          description: Page size (max 200)
+        - in: query
+          name: sort
+          schema: { type: string, default: "-createdAt" }
+          description: >
+            Space-delimited sort keys (prefix with `-` for desc), e.g. `-createdAt logisticName`
+        - in: query
+          name: select
+          schema: { type: string }
+          description: Space-delimited projection (e.g., `"logisticName location.name"`)
+        - in: query
+          name: populate
+          schema: { type: string, enum: ["true","false"], default: "false" }
+          description: Populate refs/virtuals (e.g., `activeOrders`, `employeeIds`)
+        - in: query
+          name: search
+          schema: { type: string }
+          description: Case-insensitive match on `logisticName` or `location.name`
+        - in: query
+          name: employeeId
+          schema: { type: string }
+          description: Filter centers that include this employee id
+        - in: query
+          name: active
+          schema: { type: boolean }
+          description: >
+            Filter by whether the center has any *active* orders
+            (`confirmed`, `packing`, `ready_for_pickup`, `in-transit`, `out_for_delivery`)
+        - in: query
+          name: nearLng
+          schema: { type: number, format: double }
+          description: Longitude for geo query
+        - in: query
+          name: nearLat
+          schema: { type: number, format: double }
+          description: Latitude for geo query
+        - in: query
+          name: maxMeters
+          schema: { type: number, format: double }
+          description: Max distance (meters) for geo query (default 10,000)
+      responses:
+        "200":
+          description: Paged results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedCenters"
+              examples:
+                page1:
+                  value:
+                    results:
+                      - _id: "671234abcd00000000000001"
+                        logisticName: "Kiryat Shmona LC"
+                        location:
+                          name: "Kiryat Shmona"
+                          geo: { type: "Point", coordinates: [35.571, 33.207] }
+                        employeeIds: ["66e007000000000000000111","66e007000000000000000112"]
+                        deliveryHistory:
+                          - message: "Went live"
+                            at: "2025-08-01T07:30:00.000Z"
+                            by: "66e007000000000000000999"
+                        createdAt: "2025-07-28T09:00:00.000Z"
+                        updatedAt: "2025-09-18T10:00:00.000Z"
+                    page: 1
+                    limit: 20
+                    total: 1
+                    totalPages: 1
+        "401": { description: Unauthorized }
+    post:
+      tags: [Logistics Centers]
+      summary: Create a logistics center
+      description: Managers/admin only.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCenterInput"
+            examples:
+              create:
+                value:
+                  logisticName: "Tel Aviv LC"
+                  location:
+                    name: "Tel Aviv-Yafo"
+                    geo: { type: "Point", coordinates: [34.781768, 32.0853] }
+                  employeeIds: ["66e007000000000000000201"]
+                  deliveryHistory:
+                    - message: "Opening day"
+                      by: "66e007000000000000000201"
+      responses:
+        "201":
+          description: Created center
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsCenter" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+              examples:
+                missing:
+                  value: { message: "logisticName and location.name are required" }
+                badGeo:
+                  value: { message: "location.geo must be { type:\"Point\", coordinates:[lng,lat] }" }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+
+  /centers/{id}:
+    get:
+      tags: [Logistics Centers]
+      summary: Get center by id
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - in: query
+          name: populate
+          schema: { type: string, enum: ["true","false"], default: "false" }
+        - in: query
+          name: select
+          schema: { type: string }
+      responses:
+        "200":
+          description: Center document
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsCenter" }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+              examples: { bad: { value: { message: "Invalid id" } } }
+        "401": { description: Unauthorized }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+              examples: { nf: { value: { message: "Not found" } } }
+    patch:
+      tags: [Logistics Centers]
+      summary: Update center by id
+      description: Managers/admin only.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - in: query
+          name: populate
+          schema: { type: string, enum: ["true","false"], default: "false" }
+        - in: query
+          name: select
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateCenterInput" }
+            examples:
+              rename:
+                value:
+                  logisticName: "TA LC — Central"
+              fixGeo:
+                value:
+                  location:
+                    geo: { type: "Point", coordinates: [34.8, 32.09] }
+      responses:
+        "200":
+          description: Updated document
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsCenter" }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+              examples:
+                badId: { value: { message: "Invalid id" } }
+                badGeo: { value: { message: "location.geo must be { type:\"Point\", coordinates:[lng,lat] }" } }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+              examples: { nf: { value: { message: "Not found" } } }
+    delete:
+      tags: [Logistics Centers]
+      summary: Delete center by id
+      description: opManager/admin only.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "204": { description: Deleted (no content) }
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+
+  /centers/{id}/delivery-history:
+    post:
+      tags: [Logistics Centers]
+      summary: Append a delivery-history entry
+      description: Managers/admin only.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entry]
+              properties:
+                entry: { type: string, description: "Message to append" }
+                by:
+                  type: string
+                  nullable: true
+                  description: "User ObjectId of the author (optional)"
+            examples:
+              add:
+                value: { entry: "Dock maintenance completed", by: "66e007000000000000000201" }
+      responses:
+        "200":
+          description: Updated center
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LogisticsCenter" }
+        "400":
+          description: Invalid id or payload
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+              examples:
+                badId: { value: { message: "Invalid id" } }
+                missing: { value: { message: "entry is required" } }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+
+  /centers/{id}/deliverers:
+    get:
+      tags: [Logistics Centers]
+      summary: List deliverers assigned to this center
+      description: Managers/admin only.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sort
+          schema: { type: string, default: "-createdAt" }
+      responses:
+        "200":
+          description: Paged list of deliverers for the center
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PagedDeliverers" }
+              examples:
+                ok:
+                  value:
+                    items:
+                      - _id: "6722aaabbb00000000000001"
+                        user: "66e007000000000000000301"
+                        logisticCenterIds: ["671234abcd00000000000001"]
+                        name: "Noa Levi"
+                        phone: "+972-50-111-2222"
+                      - _id: "6722aaabbb00000000000002"
+                        user: "66e007000000000000000302"
+                        logisticCenterIds: ["671234abcd00000000000001"]
+                        name: "Avi Cohen"
+                        phone: "+972-50-333-4444"
+                    page: 1
+                    limit: 20
+                    total: 2
+                    pages: 1
+        "400":
+          description: Invalid id
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+
+  /centers/{id}/deliverers/{delivererId}:
+    post:
+      tags: [Logistics Centers]
+      summary: Assign a deliverer to this center
+      description: Managers/admin only.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - in: path
+          name: delivererId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Assignment result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssignResult" }
+        "400":
+          description: Invalid id(s)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+              examples: { bad: { value: { message: "Invalid id(s)" } } }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404":
+          description: Deliverer or center not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+    delete:
+      tags: [Logistics Centers]
+      summary: Unassign a deliverer from this center
+      description: Managers/admin only.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+        - in: path
+          name: delivererId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Unassignment result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssignResult" }
+        "400":
+          description: Invalid id(s)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+        "404":
+          description: Deliverer or center not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MessageError" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      in: path
+      name: id
+      required: true
+      schema: { type: string }
+      description: Logistics Center ObjectId
+
+  schemas:
+    # ---- Core domain ----
+    GeoPoint:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Point]
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { type: number }
+          description: "[lng, lat]"
+    Location:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        geo:
+          $ref: "#/components/schemas/GeoPoint"
+    DeliveryHistoryEntry:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        at:
+          type: string
+          format: date-time
+          description: "Server-set when appended (defaults to now)"
+        by:
+          type: string
+          nullable: true
+          description: "User id who added the entry"
+    LogisticsCenter:
+      type: object
+      required: [ _id, logisticName, location ]
+      properties:
+        _id: { type: string }
+        logisticName: { type: string }
+        location: { $ref: "#/components/schemas/Location" }
+        employeeIds:
+          type: array
+          items: { type: string }
+        deliveryHistory:
+          type: array
+          items: { $ref: "#/components/schemas/DeliveryHistoryEntry" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      example:
+        _id: "671234abcd00000000000001"
+        logisticName: "Tel Aviv LC"
+        location:
+          name: "Tel Aviv-Yafo"
+          geo: { type: "Point", coordinates: [34.781768, 32.0853] }
+        employeeIds: ["66e007000000000000000201"]
+        deliveryHistory:
+          - message: "Opening day"
+            at: "2025-08-01T07:30:00.000Z"
+            by: "66e007000000000000000201"
+        createdAt: "2025-08-01T07:00:00.000Z"
+        updatedAt: "2025-09-18T09:15:00.000Z"
+
+    # ---- Inputs ----
+    CreateCenterInput:
+      type: object
+      required: [logisticName, location]
+      properties:
+        logisticName: { type: string }
+        location:
+          type: object
+          required: [name]
+          properties:
+            name: { type: string }
+            geo: { $ref: "#/components/schemas/GeoPoint" }
+        employeeIds:
+          type: array
+          items: { type: string }
+        deliveryHistory:
+          type: array
+          items:
+            type: object
+            properties:
+              message: { type: string }
+              at: { type: string, format: date-time }
+              by: { type: string, nullable: true }
+      description: >
+        `location.geo` (if present) must be `{ type:"Point", coordinates:[lng,lat] }`.
+    UpdateCenterInput:
+      allOf:
+        - $ref: "#/components/schemas/CreateCenterInput"
+
+    # ---- Pagination wrappers ----
+    PagedCenters:
+      type: object
+      required: [results, page, limit, total, totalPages]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/LogisticsCenter" }
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1, maximum: 200 }
+        total: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 1 }
+
+    Deliverer:
+      type: object
+      description: >
+        Deliverer document (shape may vary). Unknown properties are allowed.
+      additionalProperties: true
+      properties:
+        _id: { type: string }
+        user: { type: string, description: "User id reference" }
+        logisticCenterIds:
+          type: array
+          items: { type: string }
+      example:
+        _id: "6722aaabbb00000000000001"
+        user: "66e007000000000000000301"
+        logisticCenterIds: ["671234abcd00000000000001"]
+        name: "Noa Levi"
+        phone: "+972-50-111-2222"
+
+    PagedDeliverers:
+      type: object
+      required: [items, page, limit, total, pages]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Deliverer" }
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1, maximum: 200 }
+        total: { type: integer, minimum: 0 }
+        pages: { type: integer, minimum: 1 }
+
+    AssignResult:
+      type: object
+      required: [deliverer, center]
+      properties:
+        deliverer: { $ref: "#/components/schemas/Deliverer" }
+        center: { $ref: "#/components/schemas/LogisticsCenter" }
+
+    MessageError:
+      type: object
+      properties:
+        message: { type: string }
+      example: { message: "Not found" }

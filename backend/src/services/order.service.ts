@@ -3,6 +3,7 @@ import { Order, OrderDoc, OrderStatus, ORDER_STATUSES } from "../models/order.mo
 import ApiError from "../utils/ApiError";
 import { addOrderIdToFarmerOrder } from "./farmerOrder.service";
 import LogisticsCenter from '../models/logisticsCenter.model';
+import { getCurrentShift, getShiftWindows } from "./shiftConfig.service"; // ⬅️ add
 const STATIC_LC_ID = "66e007000000000000000001";
 
 
@@ -47,6 +48,7 @@ export interface ListOrdersFilter {
   maxTotal?: number;                              // totalPrice <=
   minWeight?: number;                             // totalOrderWeightKg >=
   maxWeight?: number;                             // totalOrderWeightKg <=
+  logisticsCenterId?: string;
 }
 
 export interface ListOrdersOptions {
@@ -131,7 +133,12 @@ export async function getOrderById(id: string) {
 export async function listOrders(filter: ListOrdersFilter = {}, opts: ListOrdersOptions = {}) {
   const q: FilterQuery<OrderDoc> = {};
 
-  // status (single or array)
+  // LC filter
+  if (filter.logisticsCenterId) {
+    q.LogisticsCenterId = new Types.ObjectId(filter.logisticsCenterId);
+  }
+
+  // status
   if (filter.status) {
     const arr = Array.isArray(filter.status) ? filter.status : [filter.status];
     const valid = arr.filter((s) => isValidStatus(String(s))) as OrderStatus[];
@@ -140,14 +147,11 @@ export async function listOrders(filter: ListOrdersFilter = {}, opts: ListOrders
 
   // ids
   if (typeof filter.assignedDelivererId !== "undefined") {
-    q.assignedDelivererId =
-      filter.assignedDelivererId === null
-        ? null
-        : new Types.ObjectId(filter.assignedDelivererId);
+    q.assignedDelivererId = filter.assignedDelivererId === null ? null : new Types.ObjectId(filter.assignedDelivererId);
   }
   if (filter.customerId) q.customerId = new Types.ObjectId(filter.customerId);
 
-  // time windows (createdAt)
+  // time window (createdAt)
   const timeFrom = filter.shiftStart || filter.from;
   const timeTo = filter.shiftEnd || filter.to;
   if (timeFrom || timeTo) {
@@ -168,18 +172,13 @@ export async function listOrders(filter: ListOrdersFilter = {}, opts: ListOrders
     if (typeof filter.maxWeight === "number") q.totalOrderWeightKg.$lte = filter.maxWeight;
   }
 
-  // item-level filters (dot queries)
+  // item-level
   const and: any[] = [];
   if (filter.itemId) and.push({ "items.itemId": filter.itemId });
   if (filter.farmerOrderId) and.push({ "items.farmerOrderId": new Types.ObjectId(filter.farmerOrderId) });
   if (filter.category) and.push({ "items.category": filter.category });
-
-  // partial/case-insensitive farm/farmer names
-  if (filter.sourceFarmName)
-    and.push({ "items.sourceFarmName": { $regex: escapeRegex(filter.sourceFarmName), $options: "i" } });
-  if (filter.sourceFarmerName)
-    and.push({ "items.sourceFarmerName": { $regex: escapeRegex(filter.sourceFarmerName), $options: "i" } });
-
+  if (filter.sourceFarmName) and.push({ "items.sourceFarmName": { $regex: escapeRegex(filter.sourceFarmName), $options: "i" } });
+  if (filter.sourceFarmerName) and.push({ "items.sourceFarmerName": { $regex: escapeRegex(filter.sourceFarmerName), $options: "i" } });
   if (and.length) q.$and = and;
 
   const page = Math.max(1, Number(opts.page) || 1);
