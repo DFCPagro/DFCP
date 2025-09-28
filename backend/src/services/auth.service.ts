@@ -38,7 +38,7 @@ export async function register(input: {
     address: address.address,
     // If your createUser typing requires a string, satisfy it here.
     // (If you later widen createUser to accept null/undefined, change this to `?? null`.)
-    logisticCenterId: address.logisticCenterId ?? "",
+    logisticCenterId: address.logisticCenterId ?? "66e007000000000000000001",
   };
 
   // 3) Create user (force role = 'customer' for self-registration)

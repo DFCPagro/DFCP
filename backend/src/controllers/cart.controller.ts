@@ -13,6 +13,7 @@ import {
   abandonCartAndDelete,
   expireCartAndDelete,
   reclaimCartWithoutDelete,
+  wipeUserCartsForShift
 } from "@/services/cart.service";
 
 /* ------------------------------ helpers ------------------------------ */
@@ -35,6 +36,13 @@ function parsePositiveNumber(n: any, name: string): number {
   if (!Number.isFinite(num) || num <= 0)
     throw new ApiError(400, `${name} must be a positive number`);
   return num;
+}
+
+function normalizeServiceDayUTC(input: string | Date): Date {
+  const d = new Date(input);
+  if (isNaN(d.getTime())) throw new ApiError(400, "availableDate must be an ISO date");
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
 }
 
 /* ------------------------------ controllers ------------------------------ */
@@ -218,6 +226,32 @@ export async function reclaimOne(req: Request, res: Response, next: NextFunction
     const cartId = toObjectId(req.params.cartId, "cartId");
     const out = await reclaimCartWithoutDelete(cartId);
     return res.status(200).json({ ...out, cartId: String(out.cartId) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+
+export async function wipeUserShift(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { userId, availableDate, shiftName, hardDelete } = req.body ?? {};
+    if (!userId) throw new ApiError(400, "userId is required");
+    if (!availableDate) throw new ApiError(400, "availableDate is required");
+    if (!["morning", "afternoon", "evening", "night"].includes(String(shiftName))) {
+      throw new ApiError(400, "Invalid shiftName");
+    }
+
+    const uid = toObjectId(userId, "userId");
+    const d = normalizeServiceDayUTC(availableDate);
+
+    await wipeUserCartsForShift({
+      userId: uid,
+      availableDate: d,
+      shiftName,
+      hardDelete: Boolean(hardDelete),
+    });
+
+    return res.status(204).send();
   } catch (err) {
     next(err);
   }

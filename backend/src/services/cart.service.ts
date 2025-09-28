@@ -579,3 +579,27 @@ export async function reclaimCartWithoutDelete(cartId: Types.ObjectId) {
     return { reclaimed: true, cartId: cart._id };
   });
 }
+
+export async function wipeUserCartsForShift(params: {
+  userId: Types.ObjectId;
+  availableDate: Date; // 00:00 UTC
+  shiftName: "morning" | "afternoon" | "evening" | "night";
+  hardDelete?: boolean;
+}) {
+  const { userId, availableDate, shiftName, hardDelete } = params;
+
+  await Cart.updateMany(
+    { userId, availableDate, availableShift: shiftName, status: "active" },
+    { $set: { items: [], status: "expired", lastActivityAt: new Date() } }
+  );
+
+  if (hardDelete) {
+    await Cart.deleteMany({
+      userId,
+      availableDate,
+      availableShift: shiftName,
+      status: "expired",
+      items: { $size: 0 },
+    });
+  }
+}
