@@ -203,7 +203,7 @@ const canCheckout = !!cart && cart.items.length > 0;
                     <HStack gap={2} wrap="wrap">
                       <Badge>{it.category}</Badge>
                       {it.imageUrl ? <Badge>image</Badge> : null}
-                      <Badge>₪ {it.pricePerUnit}/kg</Badge>
+                      <Badge>$ {it.pricePerUnit}/kg</Badge>
                     </HStack>
                     <Text color="fg.muted" fontSize="sm">
                       Added: {isoToLocal(it.addedAt)} • Updated: {isoToLocal(it.updatedAt)}

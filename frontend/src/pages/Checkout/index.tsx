@@ -1,4 +1,3 @@
-// src/pages/Checkout.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Container,
@@ -11,6 +10,9 @@ import {
   Badge,
   Alert,
   Spinner,
+  Field,
+  Fieldset,
+  Input,
 } from "@chakra-ui/react";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -23,6 +25,7 @@ import { getCustomerAddresses } from "@/api/market";
 import { createOrder } from "@/api/orders";
 import type { Address } from "@/types/address";
 import { fmtILS } from "@/utils/format";
+import ItemList, { type ItemRow as UIItemRow } from "@/components/common/ItemList";
 
 export default function Checkout() {
   const [sp] = useSearchParams();
@@ -36,8 +39,8 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // payment stub
-  const [payMethod, setPayMethod] = useState<"cod" | "card">("cod");
+  // payment: only card for now
+  const payMethod: "card" = "card";
 
   useEffect(() => {
     let alive = true;
@@ -79,13 +82,26 @@ export default function Checkout() {
   const addressLabel = addr?.address || "No saved address";
   const cartEmpty = !cart || cart.items.length === 0;
 
+  const itemRows = useMemo<UIItemRow[]>(() => {
+    if (!cart) return [];
+    return cart.items.map((it) => ({
+      id: String(it._id ?? it.itemId ?? Math.random()),
+      name: it.displayName,
+      farmer: "",
+      qty: Number(it.amountKg || 0),
+      unitLabel: "unit", // replaced "kg" with "unit"
+      unitPrice: Number(it.pricePerUnit || 0),
+      currency: "$",
+    }));
+  }, [cart]);
+
   async function placeOrder() {
     if (!cart || cartEmpty) return;
     setBusy(true);
     try {
       // map address -> API shape
       const deliveryAddress = {
-        line1: "",            // optional now
+        line1: "",
         line2: "",
         city: "",
         district: "",
@@ -105,7 +121,7 @@ export default function Checkout() {
         quantityKg: Number(it.amountKg),
         pricePerKg: Number(it.pricePerUnit),
         category: it.category,
-        amsItemId: it.availableMarketStockItemId,        // helpful for backend linkage
+        amsItemId: it.availableMarketStockItemId,
         availableMarketStockId: cart.availableMarketStockId,
       }));
 
@@ -145,7 +161,9 @@ export default function Checkout() {
       )}
 
       {loading ? (
-        <HStack justifyContent="center" py={12}><Spinner /></HStack>
+        <HStack justifyContent="center" py={12}>
+          <Spinner />
+        </HStack>
       ) : (
         <>
           {/* Delivery */}
@@ -157,42 +175,51 @@ export default function Checkout() {
                   <Text style={{ display: "block", maxWidth: "40ch" }}>{addressLabel}</Text>
                 </Badge>
                 <Badge colorPalette="blue">Shift: {cart?.availableShift ?? "?"}</Badge>
-                <Badge colorPalette="gray">LC: {cart?.LCid ?? "?"}</Badge>
               </HStack>
             </Stack>
           </Box>
 
-          {/* Payment (structure only) */}
+          {/* Payment */}
           <Box borderWidth="1px" borderRadius="2xl" p={5} mb={4}>
             <Stack gap={3}>
               <Heading size="sm">Payment</Heading>
               <Text color="fg.muted" fontSize="sm">
-                Payment details not required now.
+                Only cards are supported. Card fields are optional for now.
               </Text>
-              <label style={{ display: "block" }}>
-                <span style={{ display: "block", marginBottom: 6 }}>Payment method</span>
-                <select
-                  value={payMethod}
-                  onChange={(e) => setPayMethod(e.target.value as "cod" | "card")}
-                  aria-label="Payment method"
-                  style={{
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
-                    background: "var(--chakra-colors-white, #fff)",
-                    minWidth: 240,
-                  }}
-                >
-                  <option value="cod">Cash on Delivery</option>
-                  <option value="card">Card (coming soon)</option>
-                </select>
-              </label>
+
+              <Fieldset.Root>
+                <Fieldset.Legend>Card details</Fieldset.Legend>
+                <Fieldset.Content>
+                  <Field.Root>
+                    <Field.Label>Name on card</Field.Label>
+                    <Input name="cardName" placeholder="Full name" autoComplete="cc-name" />
+                  </Field.Root>
+
+                  <Field.Root>
+                    <Field.Label>Card number</Field.Label>
+                    <Input name="cardNumber" placeholder="1234 5678 9012 3456" inputMode="numeric" autoComplete="cc-number" />
+                  </Field.Root>
+
+                  <HStack gap="3">
+                    <Field.Root>
+                      <Field.Label>Expiry</Field.Label>
+                      <Input name="cardExpiry" placeholder="MM/YY" autoComplete="cc-exp" />
+                    </Field.Root>
+                    <Field.Root>
+                      <Field.Label>CVC</Field.Label>
+                      <Input name="cardCvc" placeholder="CVC" inputMode="numeric" autoComplete="cc-csc" />
+                    </Field.Root>
+                  </HStack>
+                </Fieldset.Content>
+              </Fieldset.Root>
             </Stack>
           </Box>
 
           {/* Items */}
           <Box borderWidth="1px" borderRadius="2xl" p={5}>
-            <Heading size="sm" mb={3}>Order Summary</Heading>
+            <Heading size="sm" mb={3}>
+              Order Summary
+            </Heading>
 
             {cartEmpty ? (
               <Alert.Root status="info" borderRadius="md">
@@ -203,30 +230,21 @@ export default function Checkout() {
               </Alert.Root>
             ) : (
               <Stack gap={3}>
-                {cart!.items.map((it) => {
-                  const sub = Number(it.amountKg || 0) * Number(it.pricePerUnit || 0);
-                  return (
-                    <Box key={it._id} borderWidth="1px" borderRadius="xl" p={4}>
-                      <HStack gap={3} justifyContent="space-between" align="start">
-                        <Stack gap={1}>
-                          <Text fontWeight={600}>{it.displayName}</Text>
-                          <Text fontSize="sm" color="fg.muted">
-                            {it.amountKg.toFixed(2)} kg × {fmtILS(it.pricePerUnit)}
-                          </Text>
-                        </Stack>
-                        <Text fontWeight={700}>{fmtILS(sub)}</Text>
-                      </HStack>
-                    </Box>
-                  );
-                })}
+                <ItemList items={itemRows} currency="$" showDividers />
 
                 <HStack justifyContent="space-between">
                   <Text>Subtotal</Text>
-                  <Text fontWeight={700}>{fmtILS(totals.subtotal)}</Text>
+                  <Text fontWeight={700}>{totals.subtotal} $</Text>
                 </HStack>
+                {/* delivery fee */}
+                <HStack justifyContent="space-between">
+                  <Text>Delivery fee</Text>
+                  <Text fontWeight={700}>15 $</Text>
+                </HStack>
+                {/* total */}
                 <HStack justifyContent="space-between">
                   <Text fontWeight={800}>Total</Text>
-                  <Text fontWeight={800}>{fmtILS(totals.grand)}</Text>
+                  <Text fontWeight={800}>{totals.grand+15} $</Text>
                 </HStack>
 
                 <Button
