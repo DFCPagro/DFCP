@@ -16,11 +16,11 @@ import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-d
 import {
   getCart,
   getActiveCart,
-  checkoutCart,
   refreshCartExpiry,
   type Cart as ApiCart,
 } from "@/api/cart";
 import { getCustomerAddresses } from "@/api/market";
+import { createOrder } from "@/api/orders";
 import type { Address } from "@/types/address";
 import { fmtILS } from "@/utils/format";
 
@@ -36,7 +36,7 @@ export default function Checkout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // payment method stub (no details required now)
+  // payment stub
   const [payMethod, setPayMethod] = useState<"cod" | "card">("cod");
 
   useEffect(() => {
@@ -75,16 +75,42 @@ export default function Checkout() {
     return { subtotal, grand: subtotal };
   }, [cart]);
 
-  const addressLabel =
-    addresses.length ? (addresses[0]?.address || "") : "No saved address";
+  const addr = addresses[0];
+  const addressLabel = addr?.address || "No saved address";
   const cartEmpty = !cart || cart.items.length === 0;
 
   async function placeOrder() {
     if (!cart || cartEmpty) return;
     setBusy(true);
     try {
-      await checkoutCart(cart._id);
-      navigate("/orders");
+      // map address -> API shape
+      const deliveryAddress = {
+        line1: "",            // optional now
+        line2: "",
+        city: "",
+        district: "",
+        state: "",
+        postalCode: "",
+        country: "",
+        lat: Number((addr as any)?.lnt ?? (addr as any)?.lat ?? 0),
+        lng: Number((addr as any)?.alt ?? (addr as any)?.lng ?? 0),
+        label: addressLabel,
+        logisticCenterId: cart.LCid ?? (addr as any)?.logisticCenterId ?? "",
+      };
+
+      // map cart items -> API shape
+      const items = cart.items.map((it) => ({
+        itemId: it.itemId,
+        name: it.displayName,
+        quantityKg: Number(it.amountKg),
+        pricePerKg: Number(it.pricePerUnit),
+        category: it.category,
+        amsItemId: it.availableMarketStockItemId,        // helpful for backend linkage
+        availableMarketStockId: cart.availableMarketStockId,
+      }));
+
+      const res = await createOrder({ deliveryAddress, items, payMethod });
+      navigate(`/orders/${res.orderId || "success"}`);
     } finally {
       setBusy(false);
     }
@@ -141,7 +167,7 @@ export default function Checkout() {
             <Stack gap={3}>
               <Heading size="sm">Payment</Heading>
               <Text color="fg.muted" fontSize="sm">
-                Payment details not required now. Keep method selection for flow.
+                Payment details not required now.
               </Text>
               <label style={{ display: "block" }}>
                 <span style={{ display: "block", marginBottom: 6 }}>Payment method</span>

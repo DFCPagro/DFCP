@@ -115,7 +115,7 @@ export async function confirmOrderByCustomerToken(
 export async function createOrder(payload: any): Promise<{ orderId: string }> {
   if (USE_MOCK) return Promise.resolve({ orderId: Math.random().toString(36).slice(2, 10) });
   // real call when ready
-  // const { data } = await api.post('/orders', payload);
-  // return data;
+   const { data } = await api.post('/orders', payload);
+  return data;
   return Promise.resolve({ orderId: Math.random().toString(36).slice(2, 10) });
 }
