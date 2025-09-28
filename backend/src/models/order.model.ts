@@ -3,13 +3,16 @@ import toJSON from "../utils/toJSON";
 import { AddressSchema } from "./shared/address.schema";
 import { AuditEntrySchema } from "./shared/audit.schema";
 import LogisticsCenter from './logisticsCenter.model';
+import { required } from "zod/v4/core/util.cjs";
 
 // ------ statuses ------
 export const ORDER_STATUSES = [
   "pending",
   "confirmed",
-  "preparing",
-  "ready",
+  "farmer",
+  "in-transit",
+  "packing",
+  "ready for pickUp",
   "out_for_delivery",
   "delivered",
   "canceled",
@@ -43,7 +46,10 @@ const OrderSchema = new Schema(
   {
     customerId: { type: Types.ObjectId, ref: "User", required: true, index: true },
     deliveryAddress: { type: AddressSchema, required: true },
+    deliveryDate:{type: Date, required: true},
+    shiftName: {type: String, required:true},
     LogisticsCenterId: { type: Types.ObjectId, ref: "LogisticsCenter", required: true, index: true },
+    amsId:{type: Types.ObjectId, ref: "availableMarketStock",required: true},
     items: {
       type: [OrderItemSchema],
       default: [],

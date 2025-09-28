@@ -311,7 +311,7 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
 type StageAction = "setCurrent" | "ok" | "done" | "problem";
 
 interface UpdateStageArgs {
-  orderId: string;
+  farmerOrderId: string;
   key: string;        // FarmerOrderStageKey (validated at runtime)
   action: StageAction;
   note?: string;
@@ -325,9 +325,9 @@ interface UpdateStageArgs {
  * - Uses model instance methods for 'current'/'ok'/'done'. For 'problem' we set the stage status directly.
  */
 export async function updateStageStatusService(args: UpdateStageArgs) {
-  const { orderId, key, action, note, user } = args;
+  const { farmerOrderId, key, action, note, user } = args;
 
-  if (!mongoose.isValidObjectId(orderId)) {
+  if (!mongoose.isValidObjectId(farmerOrderId)) {
     const e: any = new Error("BadRequest");
     e.name = "BadRequest";
     e.details = ["Invalid farmer order id"];
@@ -340,7 +340,7 @@ export async function updateStageStatusService(args: UpdateStageArgs) {
     throw e;
   }
 
-  const order = await FarmerOrder.findById(orderId);
+  const order = await FarmerOrder.findById(farmerOrderId);
   if (!order) {
     const e: any = new Error("NotFound");
     e.name = "NotFound";

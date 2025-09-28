@@ -10,14 +10,9 @@ const router = Router();
 
 router.use(authenticate);
 
-router.post("/", authorize("customer"), ctrl.create);
-router.get("/", authorize(...STAFF, "customer", ...COURIERS, "farmer"), ctrl.list);
-router.get("/my", authorize(...STAFF, "customer", ...COURIERS, "farmer"), ctrl.listMine);
-router.get("/:id", authorize(...STAFF, "customer", ...COURIERS, "farmer"), ctrl.getOne);
-router.patch("/:id", authorize(...STAFF, "customer"), ctrl.updateGeneral);
-router.patch("/:id/status", authorize(...STAFF, ...COURIERS), ctrl.setStatus);
-router.patch("/:id/assign-deliverer", authorize("opManager", "tManager", "admin"), ctrl.setDeliverer);
-router.post("/:id/audit", authorize(...STAFF, "customer", ...COURIERS, "farmer"), ctrl.addAudit);
-router.post("/:id/cancel", authorize(...STAFF, "customer"), ctrl.cancel);
+router.post("/",ctrl.postCreateOrder);
+// GET /api/orders/my?limit=15
+router.get("/my", authenticate, ctrl.getMyOrders);
+
 
 export default router;
