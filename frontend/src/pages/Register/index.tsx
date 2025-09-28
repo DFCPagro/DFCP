@@ -159,6 +159,25 @@ export default function Register() {
     clearErrorIfValid("phone", !!next.e164);
   };
 
+  // LIVE email check (debounced client-side format validation)
+  useEffect(() => {
+    const email = form.email.trim();
+    // if empty, don't nag; clear error
+    if (!email) {
+      clearErrorIfValid("email", true);
+      return;
+    }
+    const id = setTimeout(() => {
+      if (!isValidEmail(email)) {
+        setErrors((p) => ({ ...p, email: "Enter a valid email" }));
+      } else {
+        clearErrorIfValid("email", true);
+      }
+    }, 300);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.email]);
+
   // geolocate
   const useMyLocation = async () => {
     if (!navigator.geolocation) {
@@ -309,7 +328,13 @@ export default function Register() {
             placeholder="you@example.com"
             autoComplete="email"
             inputMode="email"
+            aria-invalid={!!errors.email}
           />
+          {errors.email ? (
+            <Field.ErrorText>{errors.email}</Field.ErrorText>
+          ) : (
+            <Field.HelperText>We’ll send a confirmation email.</Field.HelperText>
+          )}
         </Field.Root>
 
         <Field.Root invalid={!!errors.password} required>
