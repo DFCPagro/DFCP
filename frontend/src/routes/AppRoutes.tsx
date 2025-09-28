@@ -13,12 +13,10 @@ const Dashboard            = lazy(() => import("@/pages/Dashboard"));
 const DriverSchedule       = lazy(() => import("@/pages/DriverSchedule"));
 const JobApplication       = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs       = lazy(() => import("@/pages/AvailableJobs"));
-const ContainersPage       = lazy(() => import("@/pages/Containers"));
 
 const OpsOrderPage         = lazy(() => import("@/pages/OpsOrder"));
 const CustomerConfirmPage  = lazy(() => import("@/pages/CustomerConfirm"));
 const ArrivalConfirmPage   = lazy(() => import("@/pages/ArrivalConfirm"));
-const ContainerViewPage    = lazy(() => import("@/pages/ContainerView"));
 const FarmerDashboard      = lazy(() => import("@/pages/FarmerDashboard")); // NOTE: PascalCase
 const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
 const Market               = lazy(() => import("@/pages/Market"));
@@ -53,7 +51,6 @@ export default function AppRoutes() {
         <Route path={PATHS.ops} element={<OpsOrderPage />} />
         <Route path={PATHS.customerConfirm} element={<CustomerConfirmPage />} />
         <Route path={PATHS.arrivalConfirm} element={<ArrivalConfirmPage />} />
-        <Route path={PATHS.containerView} element={<ContainerViewPage />} />
 
 
         {/* Authenticated routes */}

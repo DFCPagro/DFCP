@@ -1,6 +1,3 @@
-import DeliveryNotePage from "@/pages/DeliveryNote";
-
-
 export const PATHS = {
   home: "/",
   login: "/login",
@@ -19,7 +16,6 @@ export const PATHS = {
   // Farmer pages
   farmerDashboard: "/FarmerDashboard",
   FarmerCropManagement: "/farmer/crops",
-  containers: "/containers",
   // Item manager
   ItemsManagment: "/admin/items",
   //admin pages TEMP:- 
