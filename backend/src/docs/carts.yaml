@@ -159,6 +159,8 @@ paths:
           schema: { type: string }
       responses:
         '204': { description: Emptied }
+        '401': { description: Unauthorized }
+        '404': { description: Not found }
 
   /carts/{cartId}/checkout:
     post:
@@ -201,6 +203,98 @@ paths:
                 $ref: '#/components/schemas/Cart'
         '401': { description: Unauthorized }
         '404': { description: Not found or not active }
+
+  /carts/{cartId}/abandon:
+    post:
+      tags: [Carts]
+      summary: Abandon the cart (release stock and delete the cart)
+      description: >
+        User-scoped action. Releases all reserved quantities back to AvailableMarketStock,
+        sets status to "abandoned", then deletes the cart document.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cartId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Result of abandon operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbandonResult'
+              examples:
+                ok:
+                  value: { deleted: true, cartId: "6711d5b34fd2bc001234abcd" }
+        '401': { description: Unauthorized }
+        '404': { description: Cart not found (or not owned by user) }
+
+  /carts/{cartId}/expire:
+    post:
+      tags: [Carts, Admin]
+      summary: Admin — force expire a cart (release stock and delete)
+      description: >
+        Admin-only. Releases reserved quantities to AvailableMarketStock,
+        marks the cart as "expired", then deletes it. Optional reason field for auditing.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cartId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpireCartInput'
+            examples:
+              cutoff:
+                value: { reason: "cutoff" }
+      responses:
+        '200':
+          description: Result of forced expiration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpireResult'
+              examples:
+                ok:
+                  value: { deleted: true, cartId: "6711d5b34fd2bc001234abcd" }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Cart not found }
+
+  /carts/{cartId}/reclaim:
+    post:
+      tags: [Carts, Admin]
+      summary: Admin — reclaim inventory but keep cart document (mark as expired)
+      description: >
+        Admin-only. Returns reserved quantities to AvailableMarketStock and marks the cart as "expired",
+        but does not delete the cart document.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: cartId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Result of reclaim operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReclaimResult'
+              examples:
+                ok:
+                  value: { reclaimed: true, cartId: "6711d5b34fd2bc001234abcd" }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Cart not found }
 
   /carts/wipe-shift:
     post:
@@ -326,3 +420,32 @@ components:
         hardDelete:
           type: boolean
           default: false
+
+    ExpireCartInput:
+      type: object
+      properties:
+        reason:
+          type: string
+          enum: [expired, cutoff, manual]
+          default: manual
+
+    AbandonResult:
+      type: object
+      required: [deleted, cartId]
+      properties:
+        deleted: { type: boolean }
+        cartId: { type: string }
+
+    ExpireResult:
+      type: object
+      required: [deleted, cartId]
+      properties:
+        deleted: { type: boolean }
+        cartId: { type: string }
+
+    ReclaimResult:
+      type: object
+      required: [reclaimed, cartId]
+      properties:
+        reclaimed: { type: boolean }
+        cartId: { type: string }
