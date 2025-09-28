@@ -9,36 +9,63 @@ import {
 import ShiftConfig from "@/models/shiftConfig.model";
 import { calcShiftCutoffForServiceDayUTC } from "@/helpers/time/shiftCutoff";
 import { adjustAvailableQtyAtomic } from "@/services/availableMarketStock.service";
-import { getCurrentShift } from "@/services/shiftConfig.service"; // assuming you already have it
+import { getCurrentShift } from "@/services/shiftConfig.service";
 import logger from "@/config/logger";
 
-type CartLean = {
-  _id: Types.ObjectId;
+/* =============================================================================
+ * Types
+ * ========================================================================== */
+
+export type AddItemInput = {
   userId: Types.ObjectId;
+  availableMarketStockId: Types.ObjectId;
+  amsItemId: Types.ObjectId; // AvailableMarketStock.items._id
+  amountKg: number;
+  inactivityMinutesOverride?: number;
+};
+
+export type RemoveItemInput = {
+  userId: Types.ObjectId;
+  cartId: Types.ObjectId;
+  cartItemId: Types.ObjectId;
+  amountKg?: number;
+};
+
+export type ClearCartInput = {
+  userId: Types.ObjectId;
+  cartId: Types.ObjectId;
+};
+
+export type CheckoutInput = {
+  userId: Types.ObjectId;
+  cartId: Types.ObjectId;
+};
+
+type AmsOneLine = {
+  _id: Types.ObjectId;
   LCid: Types.ObjectId;
   availableDate: Date;
   availableShift: "morning" | "afternoon" | "evening" | "night";
-  availableMarketStockId: Types.ObjectId;
-  status: "active" | "checkedout" | "abandoned" | "expired";
   items: Array<{
     _id: Types.ObjectId;
-    availableMarketStockItemId: Types.ObjectId;
     itemId: Types.ObjectId;
     displayName: string;
     category: string;
     imageUrl: string | null;
     pricePerUnit: number;
-    amountKg: number;
-    addedAt: Date;
-    updatedAt: Date;
+    currentAvailableQuantityKg: number;
+    originalCommittedQuantityKg: number;
+    status: "active" | "soldout" | "removed";
   }>;
-  createdAt: Date;
-  updatedAt: Date;
-  lastActivityAt: Date;
-  expiresAt?: Date | null;
 };
 
-// ---- small helpers ----
+const SHIFT_ORDER = ["morning", "afternoon", "evening", "night"] as const;
+type ShiftName = (typeof SHIFT_ORDER)[number];
+
+/* =============================================================================
+ * Small helpers
+ * ========================================================================== */
+
 function roundKg(n: number) {
   return Math.round(n * 1000) / 1000;
 }
@@ -70,63 +97,14 @@ async function withOptionalTxn<T>(
   }
 }
 
-// ---- types ----
-export type AddItemInput = {
-  userId: Types.ObjectId;
-  availableMarketStockId: Types.ObjectId;
-  amsItemId: Types.ObjectId; // AvailableMarketStock.items._id
-  amountKg: number;
-  inactivityMinutesOverride?: number;
-};
-
-export type RemoveItemInput = {
-  userId: Types.ObjectId;
-  cartId: Types.ObjectId;
-  cartItemId: Types.ObjectId;
-  amountKg?: number;
-};
-
-export type ClearCartInput = {
-  userId: Types.ObjectId;
-  cartId: Types.ObjectId;
-};
-
-export type CheckoutInput = {
-  userId: Types.ObjectId;
-  cartId: Types.ObjectId;
-};
-
-// ---- internal: fetch 1 AMS line snapshot we need for the cart merge ----
-type AmsOneLine = {
-  _id: Types.ObjectId;
-  LCid: Types.ObjectId;
-  availableDate: Date;
-  availableShift: "morning" | "afternoon" | "evening" | "night";
-  items: Array<{
-    _id: Types.ObjectId;
-    itemId: Types.ObjectId;
-    displayName: string;
-    category: string;
-    imageUrl: string | null;
-    pricePerUnit: number;
-    currentAvailableQuantityKg: number;
-    originalCommittedQuantityKg: number;
-    status: "active" | "soldout" | "removed";
-  }>;
-};
-
-const SHIFT_ORDER = ["morning", "afternoon", "evening", "night"] as const;
-type ShiftName = (typeof SHIFT_ORDER)[number];
-
-function prevShiftOf(s: ShiftName): ShiftName {
-  const idx = SHIFT_ORDER.indexOf(s);
-  return SHIFT_ORDER[(idx + SHIFT_ORDER.length - 1) % SHIFT_ORDER.length];
-}
-
 function serviceDayUtc(d: Date): Date {
   const x = new Date(d);
   x.setUTCHours(0, 0, 0, 0);
   return x;
+}
+
+function idxOfShift(s: ShiftName) {
+  return SHIFT_ORDER.indexOf(s);
 }
 
 async function getAmsLineSnapshot(
@@ -151,6 +129,28 @@ async function getAmsLineSnapshot(
   return doc;
 }
 
+/** Release every line in a cart back to AMS (atomic, inside txn). */
+async function releaseAllCartLinesToAMS(
+  cart: any,
+  session: ClientSession | null
+) {
+  if (!cart?.items?.length) return;
+
+  for (const line of cart.items) {
+    await adjustAvailableQtyAtomic({
+      docId: String(cart.availableMarketStockId),
+      lineId: String(line.availableMarketStockItemId),
+      deltaKg: roundKg(line.amountKg), // release
+      enforceEnoughForReserve: false,
+      session,
+    });
+  }
+}
+
+/* =============================================================================
+ * Public API
+ * ========================================================================== */
+
 // -----------------------------------------------------------------------------
 // Add (or increase) a line in the user's active cart for the AMS doc.
 // Reserves AMS quantity atomically. If cart missing => it’s created.
@@ -170,64 +170,65 @@ export async function addItemToCart(input: AddItemInput) {
 
     const amsDoc = await AvailableMarketStockModel.findById(
       availableMarketStockId,
-      { LCid: 1, availableDate: 1, availableShift: 1 } // <- projection avoids weird unions
+      { LCid: 1, availableDate: 1, availableShift: 1 }
     )
       .lean<AmsLean>()
       .exec();
 
     if (!amsDoc) throw new ApiError(404, "AvailableMarketStock not found");
 
-    const currentShift = await getCurrentShift(); // "morning" | "afternoon" | "evening" | "night"
-
     const msPerDay = 24 * 60 * 60 * 1000;
+    const todayServiceDay = serviceDayUtc(new Date());
+    const amsServiceDay = serviceDayUtc(amsDoc.availableDate);
+    const diffDays = Math.round(
+      (amsServiceDay.getTime() - todayServiceDay.getTime()) / msPerDay
+    );
 
-const todayServiceDay = serviceDayUtc(new Date());
-const amsServiceDay   = serviceDayUtc(amsDoc.availableDate);
+    const amsShift = amsDoc.availableShift as ShiftName;
+    const currShift = (await getCurrentShift()) as ShiftName;
 
-const diffDays = Math.round((amsServiceDay.getTime() - todayServiceDay.getTime()) / msPerDay);
-// diffDays > 0 => future day
-// diffDays = 0 => same day
-// diffDays < 0 => past day (disallow)
+    if (diffDays > 0) {
+      // future day -> allowed
+    } else if (diffDays === 0) {
+      if (idxOfShift(amsShift) < idxOfShift(currShift)) {
+        throw new ApiError(
+          400,
+          `Cannot add items for past shifts. Requested: '${amsShift}', current: '${currShift}'.`
+        );
+      }
 
-const amsShift  = amsDoc.availableShift as ShiftName;
-const currShift = (await getCurrentShift()) as ShiftName; // you already fetched above; reuse if stored
+      // Same-day + same (current) shift → enforce cut-off
+      if (amsShift === currShift) {
+        const cfg = await ShiftConfig.findOne(
+          { name: amsShift },
+          { timezone: 1, generalStartMin: 1, generalEndMin: 1 }
+        ).lean<{ timezone?: string; generalStartMin: number; generalEndMin: number }>();
 
-const idx = (s: ShiftName) => SHIFT_ORDER.indexOf(s);
+        if (!cfg) throw new ApiError(500, "Shift configuration missing");
 
-if (diffDays > 0) {
-  // future day -> allowed
-} else if (diffDays === 0) {
-  if (idx(amsShift) < idx(currShift)) {
-    throw new ApiError(400, `Cannot add items for past shifts. Requested: '${amsShift}', current: '${currShift}'.`);
-  }
+        const { cutoffUTC } = calcShiftCutoffForServiceDayUTC({
+          tz: cfg.timezone,
+          serviceDayUTC: todayServiceDay,
+          startMin: cfg.generalStartMin,
+          endMin: cfg.generalEndMin,
+          cutoffMin: 15, // 15-minute rule
+        });
 
-  // ⛔ Same-day + same (current) shift → enforce cut-off
-  if (amsShift === currShift) {
-    const cfg = await ShiftConfig.findOne(
-      { name: amsShift },
-      { timezone: 1, generalStartMin: 1, generalEndMin: 1 }
-    ).lean<{ timezone?: string; generalStartMin: number; generalEndMin: number }>();
-
-    if (!cfg) throw new ApiError(500, "Shift configuration missing");
-
-    // service day is *today* (00:00 UTC), already normalized by serviceDayUtc(...)
-    const { cutoffUTC } = calcShiftCutoffForServiceDayUTC({
-      tz: cfg.timezone,
-      serviceDayUTC: todayServiceDay,
-      startMin: cfg.generalStartMin,
-      endMin: cfg.generalEndMin,
-      cutoffMin: 15, // <-- your 15 minutes rule
-    });
-
-    if (new Date() >= cutoffUTC) {
-      // Optional: produce a friendly local-time reason message
-      const cutoffLocal = new Date(cutoffUTC).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: cfg.timezone || "Asia/Jerusalem" });
-      throw new ApiError(403, `Ordering for '${amsShift}' closed at ${cutoffLocal}.`);
+        if (new Date() >= cutoffUTC) {
+          const cutoffLocal = new Date(cutoffUTC).toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: cfg.timezone || "Asia/Jerusalem",
+          });
+          throw new ApiError(
+            403,
+            `Ordering for '${amsShift}' closed at ${cutoffLocal}.`
+          );
+        }
+      }
+    } else {
+      throw new ApiError(400, "Cannot add items for past shifts.");
     }
-  }
-} else {
-  throw new ApiError(400, "Cannot add items for past shifts.");
-}
 
     // 1) Reserve stock (-amount)
     await adjustAvailableQtyAtomic({
@@ -238,16 +239,15 @@ if (diffDays > 0) {
       session,
     });
 
-    // 2) Snapshot + rest of your code exactly as you have it now...
-    const snap = await getAmsLineSnapshot(
-      availableMarketStockId,
-      amsItemId,
-      session
-    );
+    // 2) Snapshot & upsert cart
+    const snap = await getAmsLineSnapshot(availableMarketStockId, amsItemId, session);
     const line = snap.items[0];
     if (line.status !== "active") throw new ApiError(409, "Item is not active");
 
-    const inactivityMinutes = await getInactivityMinutes(snap.LCid);
+    const inactivityMinutes =
+      input.inactivityMinutesOverride ??
+      (await getInactivityMinutes(snap.LCid));
+
     const expiresAt = await computeNewExpiry(
       snap.LCid,
       snap.availableDate,
@@ -305,30 +305,26 @@ if (diffDays > 0) {
 
     cart.lastActivityAt = new Date();
     cart.expiresAt = await computeNewExpiry(
-      amsDoc.LCid,
-      amsDoc.availableDate,
-      amsDoc.availableShift,
+      snap.LCid,
+      snap.availableDate,
+      snap.availableShift,
       inactivityMinutes
     );
     await (session ? cart.save({ session }) : cart.save());
 
     const persisted = await (session
-      ? Cart.findById(cart._id).session(session).lean<CartLean>().exec()
-      : Cart.findById(cart._id).lean<CartLean>().exec());
+      ? Cart.findById(cart._id).session(session).lean().exec()
+      : Cart.findById(cart._id).lean().exec());
 
     if (!persisted) throw new ApiError(500, "Failed to persist cart");
 
     logger.info(
       `[cart] upsert user=${String(userId)} ams=${String(
         availableMarketStockId
-      )} ` +
-        `lc=${String(amsDoc.LCid)} date=${amsDoc.availableDate
-          .toISOString()
-          .slice(0, 10)} ` +
-        `shift=${amsDoc.availableShift} inactivityMin=${inactivityMinutes} ` +
-        `expiresAt=${
-          persisted.expiresAt ? persisted.expiresAt.toISOString() : "null"
-        }`
+      )} lc=${String(snap.LCid)} date=${snap.availableDate
+        .toISOString()
+        .slice(0, 10)} shift=${snap.availableShift} inactivityMin=${inactivityMinutes} ` +
+        `expiresAt=${persisted.expiresAt ? new Date(persisted.expiresAt).toISOString() : "null"}`
     );
 
     return persisted;
@@ -394,15 +390,7 @@ export async function clearCart(input: ClearCartInput) {
     const cart = await cartQ.exec();
     if (!cart) return;
 
-    for (const line of (cart as any).items) {
-      await adjustAvailableQtyAtomic({
-        docId: String(cart.availableMarketStockId),
-        lineId: String(line.availableMarketStockItemId),
-        deltaKg: roundKg(line.amountKg), // release
-        enforceEnoughForReserve: false,
-        session,
-      });
-    }
+    await releaseAllCartLinesToAMS(cart, session);
 
     (cart as any).items.splice(0, (cart as any).items.length);
     (cart as any).status = "abandoned";
@@ -503,4 +491,91 @@ export async function wipeCartsForShift(params: {
       items: { $size: 0 },
     } as FilterQuery<any>);
   }
+}
+
+/* =============================================================================
+ * Centralized reclaim/abandon helpers (used by jobs & controllers)
+ * ========================================================================== */
+
+/**
+ * Abandon a cart (owner-scoped): releases all items back to AMS,
+ * sets status "abandoned", then deletes the empty cart document.
+ * Throws 404 if not found or not owned by user.
+ */
+export async function abandonCartAndDelete(input: {
+  cartId: Types.ObjectId;
+  userId: Types.ObjectId;
+}) {
+  const { cartId, userId } = input;
+
+  return withOptionalTxn(async (session) => {
+    const cart = await Cart.findOne({ _id: cartId, userId }).session(session);
+    if (!cart) throw new ApiError(404, "Cart not found");
+
+    await releaseAllCartLinesToAMS(cart as any, session);
+
+    cart.set("items", []);
+    (cart as any).status = "abandoned";
+    (cart as any).lastActivityAt = new Date();
+    await cart.save({ session });
+
+    const del = await Cart.deleteOne({ _id: cart._id, status: "abandoned" }).session(session);
+    logger.info(
+      `[cart] abandoned & deleted cart=${String(cart._id)} owner=${String(userId)} deleted=${del.deletedCount}`
+    );
+
+    return { deleted: del.deletedCount > 0, cartId: cart._id };
+  });
+}
+
+/**
+ * Force-expire & delete a cart (admin/jobs). Releases items to AMS,
+ * sets status to "expired", deletes the doc. Returns deletion result.
+ * If the cart is already empty, still enforces the status->delete flow.
+ */
+export async function expireCartAndDelete(input: {
+  cartId: Types.ObjectId;
+  reason?: "expired" | "cutoff" | "manual";
+}) {
+  const { cartId, reason = "manual" } = input;
+
+  return withOptionalTxn(async (session) => {
+    const cart = await Cart.findOne({ _id: cartId }).session(session);
+    if (!cart) return { deleted: false, cartId };
+
+    await releaseAllCartLinesToAMS(cart as any, session);
+
+    cart.set("items", []);
+    (cart as any).status = "expired";
+    (cart as any).lastActivityAt = new Date();
+    await cart.save({ session });
+
+    const del = await Cart.deleteOne({ _id: cart._id, status: "expired" }).session(session);
+    logger.info(
+      `[cart] expired & deleted cart=${String(cart._id)} reason=${reason} deleted=${del.deletedCount}`
+    );
+
+    return { deleted: del.deletedCount > 0, cartId: cart._id };
+  });
+}
+
+/**
+ * Generic helper for jobs that need to reclaim many carts:
+ * release lines & mark expired (keeps the doc; no delete).
+ */
+export async function reclaimCartWithoutDelete(cartId: Types.ObjectId) {
+  return withOptionalTxn(async (session) => {
+    const cart = await Cart.findOne({ _id: cartId, status: "active" }).session(session);
+    if (!cart) return { reclaimed: false, cartId };
+
+    await releaseAllCartLinesToAMS(cart as any, session);
+
+    (cart as any).status = "expired";
+    cart.set("items", []);
+    (cart as any).lastActivityAt = new Date();
+    await cart.save({ session });
+
+    logger.info(`[cart] reclaimed (no delete) cart=${String(cart._id)}`);
+    return { reclaimed: true, cartId: cart._id };
+  });
 }

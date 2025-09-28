@@ -10,6 +10,9 @@ import {
   getActiveCartForContext,
   getCartById,
   wipeCartsForShift,
+  abandonCartAndDelete,
+  expireCartAndDelete,
+  reclaimCartWithoutDelete,
 } from "@/services/cart.service";
 
 /* ------------------------------ helpers ------------------------------ */
@@ -29,7 +32,8 @@ function requireUserId(req: Request): Types.ObjectId {
 
 function parsePositiveNumber(n: any, name: string): number {
   const num = Number(n);
-  if (!Number.isFinite(num) || num <= 0) throw new ApiError(400, `${name} must be a positive number`);
+  if (!Number.isFinite(num) || num <= 0)
+    throw new ApiError(400, `${name} must be a positive number`);
   return num;
 }
 
@@ -64,7 +68,10 @@ export async function addItem(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = requireUserId(req);
 
-    const availableMarketStockId = toObjectId(req.body.availableMarketStockId, "availableMarketStockId");
+    const availableMarketStockId = toObjectId(
+      req.body.availableMarketStockId,
+      "availableMarketStockId"
+    );
     const amsItemId = toObjectId(req.body.amsItemId, "amsItemId");
     const amountKg = parsePositiveNumber(req.body.amountKg, "amountKg");
 
@@ -162,6 +169,55 @@ export async function wipeShift(req: Request, res: Response, next: NextFunction)
     d.setUTCHours(0, 0, 0, 0);
     await wipeCartsForShift({ availableDate: d, shiftName, hardDelete: Boolean(hardDelete) });
     return res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ------------------------------ NEW endpoints ------------------------------ */
+
+/**
+ * POST /carts/:cartId/abandon
+ * Auth user abandons their cart: releases all items back to stock and deletes the cart.
+ * Response: { deleted: boolean, cartId: string }
+ */
+export async function abandon(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = requireUserId(req);
+    const cartId = toObjectId(req.params.cartId, "cartId");
+    const out = await abandonCartAndDelete({ cartId, userId });
+    return res.status(200).json({ ...out, cartId: String(out.cartId) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /carts/:cartId/expire  (admin)
+ * Admin force-expires a cart: releases stock and deletes the cart doc.
+ * Body optional: { reason?: "expired" | "cutoff" | "manual" }
+ */
+export async function expireOne(req: Request, res: Response, next: NextFunction) {
+  try {
+    const cartId = toObjectId(req.params.cartId, "cartId");
+    const reason = (req.body?.reason ?? "manual") as "expired" | "cutoff" | "manual";
+    const out = await expireCartAndDelete({ cartId, reason });
+    return res.status(200).json({ ...out, cartId: String(out.cartId) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /carts/:cartId/reclaim   (admin)
+ * Admin reclaims a cart's inventory back to AMS and marks it expired, but does NOT delete the doc.
+ * Response: { reclaimed: boolean, cartId: string }
+ */
+export async function reclaimOne(req: Request, res: Response, next: NextFunction) {
+  try {
+    const cartId = toObjectId(req.params.cartId, "cartId");
+    const out = await reclaimCartWithoutDelete(cartId);
+    return res.status(200).json({ ...out, cartId: String(out.cartId) });
   } catch (err) {
     next(err);
   }

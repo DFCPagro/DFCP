@@ -1,24 +1,15 @@
-// src/jobs/cart.reclaimer.ts
 import mongoose from "mongoose";
 import Cart from "@/models/cart.model";
-import { AvailableMarketStockModel } from "@/models/availableMarketStock.model";
 import ShiftConfig from "@/models/shiftConfig.model";
 import { calcShiftCutoffUTC } from "@/helpers/time/shiftCutoff";
+import {
+  expireCartAndDelete,
+  reclaimCartWithoutDelete,
+} from "@/services/cart.service";
 
-/** Put all reserved quantities back to AMS for a single cart (inside a txn). */
-async function returnAllLines(cart: any, session: mongoose.ClientSession) {
-  if (!cart?.items?.length) return;
-
-  for (const line of cart.items) {
-    await AvailableMarketStockModel.updateOne(
-      { _id: cart.availableMarketStockId, "items._id": line.availableMarketStockItemId },
-      { $inc: { "items.$.currentAvailableQuantityKg": line.amountKg } },
-      { session }
-    );
-  }
-}
-
-/** Mid-shift: carts whose expiresAt passed — return stock then delete. */
+/**
+ * Mid-shift: carts whose expiresAt passed — return stock then delete.
+ */
 export async function reclaimExpiredCarts(
   batch = 200,
   log: (m: string) => void = () => {}
@@ -29,49 +20,28 @@ export async function reclaimExpiredCarts(
     .cursor();
 
   for await (const stale of cursor) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
     try {
-      const cart = await Cart.findOne({
+      const fresh = await Cart.findOne({
         _id: stale._id,
         status: "active",
         expiresAt: { $lte: new Date() },
-      }).session(session);
+      });
 
-      if (!cart) {
-        await session.abortTransaction();
-        session.endSession();
-        continue;
-      }
+      if (!fresh) continue;
 
       log(
-        `[cart-reclaimer] expiring cart=${cart._id} now=${new Date().toISOString()} ` +
-          `expiresAt=${cart.expiresAt?.toISOString()} Δms=${Date.now() - (cart.expiresAt?.getTime() ?? Date.now())}`
+        `[cart-reclaimer] expiring cart=${fresh._id} now=${new Date().toISOString()} ` +
+          `expiresAt=${fresh.expiresAt?.toISOString()} Δms=${
+            Date.now() - (fresh.expiresAt?.getTime() ?? Date.now())
+          }`
       );
 
-      await returnAllLines(cart as any, session);
-
-      cart.status = "expired";
-      // IMPORTANT: don't assign [] directly (TS type mismatch). Use set().
-      cart.set("items", []); // clears DocumentArray in a type-safe way
-      cart.lastActivityAt = new Date();
-      await cart.save({ session });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      const result = await Cart.deleteOne({ _id: cart._id, status: "expired" });
-      if (result.deletedCount > 0) {
-        log(
-          `[cart-reclaimer] Deleted expired cart ${cart._id} (post-expiresAt) `
-          + `(had returned items)`
-        );
-      }
+      await expireCartAndDelete({ cartId: fresh._id, reason: "expired" });
     } catch (e: any) {
-      await session.abortTransaction();
-      session.endSession();
       log(
-        `[cart-reclaimer] reclaimExpiredCarts failed for ${stale._id}: ${e?.message || e}`
+        `[cart-reclaimer] reclaimExpiredCarts failed for ${stale._id}: ${
+          e?.message || e
+        }`
       );
     }
   }
@@ -106,47 +76,31 @@ export async function cutoffShiftReclaim(log: (m: string) => void = () => {}) {
       }).cursor();
 
       for await (const cart of cursor) {
-        const session = await mongoose.startSession();
-        session.startTransaction();
         try {
           const fresh = await Cart.findOne({
             _id: cart._id,
             availableDate: serviceDayUTC,
             availableShift: cfg.name,
             status: "active",
-          }).session(session);
+          });
 
-          if (!fresh) {
-            await session.abortTransaction();
-            session.endSession();
-            continue;
-          }
+          if (!fresh) continue;
 
-          await returnAllLines(fresh as any, session);
-
-          fresh.status = "expired";
-          // IMPORTANT: clear via set() to avoid TS 2740
-          fresh.set("items", []);
-          fresh.lastActivityAt = new Date();
-          await fresh.save({ session });
-
-          await session.commitTransaction();
-          session.endSession();
-
-          const del = await Cart.deleteOne({
-            _id: fresh._id,
-            status: "expired",
+          await expireCartAndDelete({
+            cartId: fresh._id,
+            reason: "cutoff",
           });
 
           log(
-            `[cart-reclaimer] Cutoff reclaim '${cfg.name}' ${serviceDayUTC.toISOString().slice(0, 10)} `
-              + `— reclaimed & deleted cart=${fresh._id}, deleted=${del.deletedCount}`
+            `[cart-reclaimer] Cutoff reclaim '${cfg.name}' ${serviceDayUTC
+              .toISOString()
+              .slice(0, 10)} — reclaimed & deleted cart=${fresh._id}`
           );
         } catch (e: any) {
-          await session.abortTransaction();
-          session.endSession();
           log(
-            `[cart-reclaimer] cutoffShiftReclaim failed for ${cart._id}: ${e?.message || e}`
+            `[cart-reclaimer] cutoffShiftReclaim failed for ${cart._id}: ${
+              e?.message || e
+            }`
           );
         }
       }
@@ -175,27 +129,38 @@ export async function endShiftReclaim(log: (m: string) => void = () => {}) {
     });
 
     if (now >= endUTC) {
-      const u = await Cart.updateMany(
-        {
-          availableDate: serviceDayUTC,
-          availableShift: cfg.name,
-          status: "active",
-        },
-        { $set: { items: [], status: "expired", lastActivityAt: new Date() } }
-      );
-
-      const d = await Cart.deleteMany({
+      const cursor = Cart.find({
         availableDate: serviceDayUTC,
         availableShift: cfg.name,
-        status: "expired",
-        items: { $size: 0 },
-      });
+        status: "active",
+      }).cursor();
 
-      log(
-        `[cart-reclaimer] End-shift reclaim '${cfg.name}' ${serviceDayUTC
-          .toISOString()
-          .slice(0, 10)} — expired ${u.modifiedCount}, deleted ${d.deletedCount}`
-      );
+      for await (const cart of cursor) {
+        try {
+          const fresh = await Cart.findOne({
+            _id: cart._id,
+            availableDate: serviceDayUTC,
+            availableShift: cfg.name,
+            status: "active",
+          });
+
+          if (!fresh) continue;
+
+          await reclaimCartWithoutDelete(fresh._id);
+
+          log(
+            `[cart-reclaimer] End-shift reclaim '${cfg.name}' ${serviceDayUTC
+              .toISOString()
+              .slice(0, 10)} — expired cart=${fresh._id}`
+          );
+        } catch (e: any) {
+          log(
+            `[cart-reclaimer] endShiftReclaim failed for ${cart._id}: ${
+              e?.message || e
+            }`
+          );
+        }
+      }
     }
   }
 }

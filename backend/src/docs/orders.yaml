@@ -1,8 +1,39 @@
+openapi: 3.0.3
+info:
+  title: Orders API
+  version: "1.0.0"
+  description: >
+    Endpoints for creating and managing customer orders.
+
+    Notes:
+      - All endpoints require authentication (JWT bearer).
+      - `logisticsCenterId` is **server-assigned** (derived from tenant/config or address)
+        and is exposed in responses as `logisticsCenterId` (read-only).
+      - `GET /orders?currentShift=1` is gated:
+          * `admin`/`tManager` can view all orders in the active shift.
+          * `deliverer`/`industrialDeliverer` are forced to their own assignments for the active shift.
+          * `customer` is forced to their own orders for the active shift.
+          * Other staff (e.g. `opManager`, `fManager`) receive **403** when using `currentShift`.
+      - Deliverer status transitions allowed:
+          * `ready → out_for_delivery | problem`
+          * `out_for_delivery → delivered | problem`
+
+tags:
+  - name: Orders
+    description: Customer orders
+
+servers:
+  - url: /api
+
 paths:
   /orders:
     post:
       tags: [Orders]
       summary: Create a new order (customers only)
+      description: >
+        Creates an order for the authenticated customer.
+        The server calculates `itemsSubtotal`, sets a fixed `deliveryFee`, calculates `totalPrice`
+        and `totalOrderWeightKg`, and assigns `logisticsCenterId`.
       security:
         - bearerAuth: []
       requestBody:
@@ -11,6 +42,21 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateOrderInput'
+            examples:
+              simple:
+                value:
+                  deliveryAddress:
+                    line1: "123 Market St"
+                    city: "Haifa"
+                    country: "IL"
+                  items:
+                    - itemId: "apple-1"
+                      name: "Apples"
+                      pricePerUnit: 3.5
+                      quantity: 2
+                      sourceFarmerName: "Levi"
+                      sourceFarmName: "Green Valley"
+                      farmerOrderId: "66ef1fa65d8f7a0012ab35fe"
       responses:
         '201':
           description: Created
@@ -30,6 +76,7 @@ paths:
                     line1: "123 Market St"
                     city: "Haifa"
                     country: "IL"
+                  logisticsCenterId: "66e007000000000000000001"
                   items:
                     - itemId: "apple-1"
                       name: "Apples"
@@ -37,7 +84,7 @@ paths:
                       quantity: 2
                       sourceFarmerName: "Levi"
                       sourceFarmName: "Green Valley"
-                      farmerOrderId: 66ef1fa65d8f7a0012ab35fe
+                      farmerOrderId: "66ef1fa65d8f7a0012ab35fe"
                   itemsSubtotal: 7
                   deliveryFee: 15
                   totalPrice: 22
@@ -48,13 +95,22 @@ paths:
                   createdAt: "2025-09-14T10:00:00.000Z"
                   updatedAt: "2025-09-14T10:00:00.000Z"
         '400':
-          description: Bad request
+          description: Bad request (e.g., missing deliveryAddress or empty items[])
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden (role not allowed)
 
     get:
       tags: [Orders]
       summary: List orders with rich filters (staff can see all; customers see their own)
+      description: >
+        Supports pagination, sorting, item-level filters, numeric ranges, and shift scoping.
+
+        Special behavior:
+          - If `currentShift=1`, role-based gating is enforced (see top-level Notes).
+          - Without `currentShift`, couriers default to their own `assignedDelivererId` unless overridden.
+          - Customers are always scoped to their own orders.
       security:
         - bearerAuth: []
       parameters:
@@ -65,16 +121,24 @@ paths:
         - in: query
           name: customerId
           schema: { type: string }
-          description: "Staff only; customers are forced to their ID"
+          description: "Staff only; customers are forced to their own ID"
         - in: query
           name: assignedDelivererId
           schema: { type: string, nullable: true }
+        - in: query
+          name: logisticsCenterId
+          schema: { type: string }
+          description: "Optional LC scope; also used when `currentShift=1` to find the active shift window"
         - in: query
           name: from
           schema: { type: string, format: date-time }
         - in: query
           name: to
           schema: { type: string, format: date-time }
+        - in: query
+          name: currentShift
+          schema: { type: boolean }
+          description: "Use active shift window (role-gated; may return 403 for some staff)"
         - in: query
           name: shiftStart
           schema: { type: string, format: date-time }
@@ -84,10 +148,11 @@ paths:
         - in: query
           name: date
           schema: { type: string }
-          description: "YYYY-MM-DD; used with 'shift'"
+          description: "YYYY-MM-DD; used with 'shift' convenience"
         - in: query
           name: shift
           schema: { type: string, enum: [morning, afternoon, evening, night] }
+          description: "Convenience; used with 'date' when shiftStart/shiftEnd not provided"
         - in: query
           name: itemId
           schema: { type: string }
@@ -135,35 +200,12 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/PaginatedOrders'
-              example:
-                data:
-                  items:
-                    - _id: 66ef1f2e5d8f7a0012ab34cd
-                      customerId: 66ef1e7c5d8f7a0012ab3400
-                      deliveryAddress: { line1: "123 Market St", city: "Haifa", country: "IL" }
-                      items:
-                        - itemId: "apple-1"
-                          name: "Apples"
-                          pricePerUnit: 3.5
-                          quantity: 2
-                          sourceFarmerName: "Levi"
-                          sourceFarmName: "Green Valley"
-                          farmerOrderId: 66ef1fa65d8f7a0012ab35fe
-                      itemsSubtotal: 7
-                      deliveryFee: 15
-                      totalPrice: 22
-                      totalOrderWeightKg: 2
-                      status: "pending"
-                      assignedDelivererId: null
-                      historyAuditTrail: []
-                      createdAt: "2025-09-14T10:00:00.000Z"
-                      updatedAt: "2025-09-14T10:00:00.000Z"
-                  page: 1
-                  limit: 20
-                  total: 1
-                  pages: 1
+        '400':
+          description: Invalid status filter
         '401':
           description: Unauthorized
+        '403':
+          description: Forbidden when using currentShift without required role
 
   /orders/my:
     get:
@@ -189,6 +231,8 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/PaginatedOrders'
+        '401':
+          description: Unauthorized
 
   /orders/{id}:
     get:
@@ -212,12 +256,20 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Order'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not owner/staff/courier)
         '404':
           description: Not found
 
     patch:
       tags: [Orders]
       summary: Update general fields (owner early-stage or staff)
+      description: >
+        Allowed fields: `deliveryAddress`, `items`, `assignedDelivererId`, `customerDeliveryId`.
+
+        Customers can only modify while order status is **pending** or **confirmed**.
       security:
         - bearerAuth: []
       parameters:
@@ -241,6 +293,12 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Order'
+        '400':
+          description: Customer cannot modify after preparation
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not owner/staff)
 
   /orders/{id}/status:
     patch:
@@ -272,11 +330,15 @@ paths:
                     $ref: '#/components/schemas/Order'
         '400':
           description: Invalid transition or status
+        '401':
+          description: Unauthorized
+        '403':
+          description: Not allowed for deliverer (violates allowed transition)
 
   /orders/{id}/assign-deliverer:
     patch:
       tags: [Orders]
-      summary: Assign or unassign a deliverer (staff only)
+      summary: Assign or unassign a deliverer (opManager/tManager/admin)
       security:
         - bearerAuth: []
       parameters:
@@ -301,8 +363,10 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Order'
+        '401':
+          description: Unauthorized
         '403':
-          description: Forbidden
+          description: Forbidden (role not allowed)
 
   /orders/{id}/audit:
     post:
@@ -339,6 +403,12 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Order'
+        '400':
+          description: action is required
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not owner/staff/courier/farmer)
 
   /orders/{id}/cancel:
     post:
@@ -364,6 +434,10 @@ paths:
                     $ref: '#/components/schemas/Order'
         '400':
           description: Cannot cancel terminal order
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not owner/staff)
 
 components:
   securitySchemes:
@@ -408,20 +482,25 @@ components:
 
     Order:
       type: object
-      required: [customerId, deliveryAddress, items, itemsSubtotal, deliveryFee, totalPrice, totalOrderWeightKg, status]
+      required:
+        [customerId, deliveryAddress, items, itemsSubtotal, deliveryFee, totalPrice, totalOrderWeightKg, status, logisticsCenterId]
       properties:
         _id: { type: string }
         customerId: { type: string }
         deliveryAddress:
           $ref: '#/components/schemas/Address'
+        logisticsCenterId:
+          type: string
+          description: "Server-assigned; exposed in API as lowerCamelCase"
+          readOnly: true
         items:
           type: array
           items:
             $ref: '#/components/schemas/OrderItem'
-        itemsSubtotal: { type: number }
-        deliveryFee: { type: number }
-        totalPrice: { type: number }
-        totalOrderWeightKg: { type: number }
+        itemsSubtotal: { type: number, readOnly: true }
+        deliveryFee: { type: number, readOnly: true, description: "Fixed at 15" }
+        totalPrice: { type: number, readOnly: true }
+        totalOrderWeightKg: { type: number, readOnly: true }
         status:
           type: string
           enum: [pending, confirmed, preparing, ready, out_for_delivery, delivered, canceled, problem]
@@ -458,6 +537,8 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/OrderItem'
+      description: >
+        `logisticsCenterId` is ignored if provided and set on the server.
 
     UpdateOrderInput:
       type: object
