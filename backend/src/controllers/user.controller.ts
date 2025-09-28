@@ -5,7 +5,7 @@ import {
   getUserAddresses,
   addUserAddress,
   getUserName,
- 
+ removeAddress,
   updateUserContact,
   getContactInfoByIdService,
 } from "../services/user.service";
@@ -113,5 +113,19 @@ export async function patchMyContact(req: Request, res: Response) {
         ? "Email already in use"
         : e.message || "Failed to update contact info",
     });
+  }
+}
+
+export async function deleteMyAddress(req: Request, res: Response) {
+  try {
+    const userId = authId(req);
+    const { lnt, alt, address } = req.body ?? {};
+    const data = await removeAddress(userId, { lnt, alt, address });
+    res.json(data);
+  } catch (e: any) {
+    const status =
+      e.message === "Unauthorized" ? 401 :
+      /not found/i.test(e.message) ? 404 : 400;
+    res.status(status).json({ error: e.message || "Failed to remove address" });
   }
 }

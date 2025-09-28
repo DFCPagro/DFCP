@@ -7,6 +7,7 @@ import {
   getMyContact,
   patchMyContact,
   getContactInfoById,
+  deleteMyAddress,
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -18,5 +19,7 @@ router.get("/contact", authenticate, getMyContact);
 router.patch("/contact", authenticate, patchMyContact);
 
 router.get("/contact-info/:id", authenticate, getContactInfoById);
+// routes/user.routes.ts
+router.delete("/addresses", authenticate, deleteMyAddress);
 
 export default router;

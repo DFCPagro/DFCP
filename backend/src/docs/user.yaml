@@ -87,6 +87,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+    delete:
+      tags: [User]
+      summary: Remove one of my addresses
+      description: >
+        Removes a specific address from the authenticated user's addresses array.
+        Matching is done by exact field match on **lnt**, **alt**, and **address**.
+        `logisticCenterId` is ignored during matching.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemoveAddressInput"
+            examples:
+              example:
+                value:
+                  lnt: 34.781768
+                  alt: 32.0853
+                  address: "Tel Aviv-Yafo, Israel"
+      responses:
+        "200":
+          description: Updated array of addresses after removal
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Address"
+        "400":
+          description: Validation error (missing/invalid fields)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Address not found on user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  
+  
+  
+  
   /user/name:
     get:
       tags: [User]
@@ -299,6 +351,22 @@ components:
 
   schemas:
     # -- Core subdocs & DTOs --
+    RemoveAddressInput:
+      type: object
+      required: [lnt, alt, address]
+      properties:
+        lnt:
+          type: number
+          description: Longitude
+        alt:
+          type: number
+          description: Latitude
+        address:
+          type: string
+          description: Human-readable address text
+      description: >
+        Fields used to identify which address to remove. `logisticCenterId` is not required and is ignored when matching.
+    
     Address:
       type: object
       required: [lnt, alt, address]

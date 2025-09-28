@@ -281,3 +281,47 @@ export async function getContactInfoByIdService(userId: string): Promise<Contact
 
   return base;
 }
+
+export async function removeAddress(
+  userId: string,
+  addr: Pick<Address, "lnt" | "alt" | "address">
+) {
+  if (typeof addr?.lnt !== "number" || !isFinite(addr.lnt)) {
+    throw new Error("lnt (longitude) must be a finite number");
+  }
+  if (typeof addr?.alt !== "number" || !isFinite(addr.alt)) {
+    throw new Error("alt (latitude) must be a finite number");
+  }
+  if (typeof addr?.address !== "string" || !addr.address.trim()) {
+    throw new Error("address is required");
+  }
+
+  // Fetch current addresses to detect if anything was actually removed
+  const existing = await User.findById(asObjectId(userId), { addresses: 1 }).lean();
+  if (!existing) throw new Error("User not found");
+
+  const beforeLen = Array.isArray(existing.addresses) ? existing.addresses.length : 0;
+
+  const criteria = {
+    lnt: addr.lnt,
+    alt: addr.alt,
+    address: addr.address.trim(),
+    // NOTE: Do NOT include logisticCenterId in the match so it still removes
+    // even if LC changed or is null/omitted in the payload.
+  };
+
+  const updated = await User.findByIdAndUpdate(
+    asObjectId(userId),
+    { $pull: { addresses: criteria } },
+    { new: true, projection: { addresses: 1 } }
+  ).lean();
+
+  if (!updated) throw new Error("User not found");
+
+  const afterLen = Array.isArray(updated.addresses) ? updated.addresses.length : 0;
+  if (afterLen === beforeLen) {
+    throw new ApiError(404, "Address not found");
+  }
+
+  return updated.addresses ?? [];
+}
