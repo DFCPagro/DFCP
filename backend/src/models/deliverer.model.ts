@@ -62,7 +62,7 @@ const DelivererSchema = new Schema(
           }),
           required: true,
         },
-    speedKmH: { type: Number, default: null, min: 0 },
+    //speedKmH: { type: Number, default: null, min: 0 },
 
     // pay defaults
     payFixedPerShift: { type: Number, default: 25, min: 0 },
