@@ -24,7 +24,7 @@ import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
 import { LocateFixed, Eye, EyeOff } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 import PhoneFieldControl, { type PhoneValue } from "./components/PhoneFieldControl";
-import { isAtLeast16, isValidEmail, isValidName } from "@/utils/validators";
+import { isAtLeast16, isValidEmail, isValidName } from "@/validations/registration.validation";
 
 type FormWithoutAddress = Omit<RegisterPayload, "address">;
 

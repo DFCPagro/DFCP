@@ -1,8 +1,10 @@
-import { useMemo, useState, useEffect, useCallback } from "react"
+import { useMemo, useState, forwardRef, useImperativeHandle } from "react"
 import {
   Box,
   Card,
   Field,
+  Float,
+  Heading,
   Icon,
   IconButton,
   Input,
@@ -12,7 +14,7 @@ import {
   VisuallyHidden,
   createListCollection,
 } from "@chakra-ui/react"
-import { Trash2 } from "lucide-react"
+import { Plus, Square, Trash2 } from "lucide-react"
 import MapPickerDialog from "@/components/common/MapPickerDialog"
 import type { LandInput } from "@/types/availableJobs"
 import { LandMeasurementsEditor } from "./LandMeasurementsEditor"
@@ -20,14 +22,20 @@ import { LandMeasurementsEditor } from "./LandMeasurementsEditor"
 type Props = {
   value: LandInput[]
   onChange: (next: LandInput[]) => void
-  /** Optional: a button ref whose click will trigger addLand() */
-  addButtonRef?: React.RefObject<HTMLElement | null>
 }
 
-export function LandList({ value, onChange, addButtonRef }: Props) {
+/** Exposes imperative actions so a parent can trigger "Add land" via ref. */
+export type LandListHandle = {
+  addLand: () => void
+}
+
+export const LandList = forwardRef<LandListHandle, Props>(function LandList(
+  { value, onChange }: Props,
+  ref
+) {
   const [picker, setPicker] = useState<null | { i: number; field: "pickup" | "loc" }>(null)
 
-  const addLand = useCallback(() => {
+  const addLand = () =>
     onChange([
       ...value,
       {
@@ -36,19 +44,8 @@ export function LandList({ value, onChange, addButtonRef }: Props) {
         measurements: { abM: 50, bcM: 40, cdM: 50, daM: 40, rotationDeg: 0 },
       } as LandInput,
     ])
-  }, [value, onChange])
 
-  // If a button ref is provided, clicking it will add a land
-  useEffect(() => {
-    const el = addButtonRef?.current ?? null
-    if (!el) return
-    const handler = (e: Event) => {
-      e.preventDefault()
-      addLand()
-    }
-    el.addEventListener("click", handler)
-    return () => el.removeEventListener("click", handler)
-  }, [addButtonRef, addLand])
+  useImperativeHandle(ref, () => ({ addLand }), [value, onChange])
 
   const removeLand = (idx: number) => onChange(value.filter((_, i) => i !== idx))
   const upd = (idx: number, patch: Partial<LandInput>) =>
@@ -69,6 +66,13 @@ export function LandList({ value, onChange, addButtonRef }: Props) {
 
   return (
     <Stack gap={5}>
+      {/* Button removed from here. Control via ref: ref.current?.addLand() */}
+      {/* Example (outside this component):
+          const landRef = useRef<LandListHandle>(null)
+          <StyledIconButton onClick={() => landRef.current?.addLand()}>Add land</StyledIconButton>
+          <LandList ref={landRef} ... />
+      */}
+
       {value.length === 0 && (
         <Box borderWidth="1px" borderRadius="xl" p="4" textAlign="center" color="fg.muted">
           No lands yet. Click “Add land” to define your first plot.
@@ -120,11 +124,13 @@ export function LandList({ value, onChange, addButtonRef }: Props) {
               </Box>
             </SimpleGrid>
 
+            {/* Measurements via inputs + visual preview with active-side highlight */}
             <LandMeasurementsEditor
               value={land.measurements ?? undefined}
               onChange={(next) => updMeas(i, next)}
             />
 
+            {/* Map pickers */}
             <SimpleGrid columns={{ base: 1, md: 2 }} gap="3">
               <Field.Root>
                 <Field.Label>Pickup address</Field.Label>
@@ -178,4 +184,4 @@ export function LandList({ value, onChange, addButtonRef }: Props) {
       />
     </Stack>
   )
-}
+})

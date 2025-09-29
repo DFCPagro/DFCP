@@ -1,10 +1,13 @@
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
 import {
+  Alert,
   Box,
   Card,
   Checkbox,
   Field,
+  HStack,
   Heading,
+  Icon,
   Input,
   Select,
   SimpleGrid,
@@ -12,10 +15,13 @@ import {
   Text,
   createListCollection,
 } from "@chakra-ui/react";
+import { Info, Plus } from "lucide-react";
 import type { RoleDef, RoleField } from "@/data/roles";
-import type { LandInput } from "@/api/jobApplications";
+import type { LandInput } from "@/types/availableJobs";
 import { ScheduleGrid } from "./ScheduleGrid";
 import { LandList } from "./LandList";
+import StyledButton from "@/components/ui/Button";
+import StyledIconButton from "@/components/ui/IconButton";
 
 type GridCols = { base?: number; md?: number; lg?: number };
 
@@ -146,7 +152,12 @@ function DimensionsInput({
               onKeyDown={(e) => {
                 if (e.key === "-" || e.key === "+") e.preventDefault();
               }}
-              onChange={(e) => onChange({ ...v, [k]: e.target.value === "" ? undefined : Number(e.target.value) })}
+              onChange={(e) =>
+                onChange({
+                  ...v,
+                  [k]: e.target.value === "" ? undefined : Number(e.target.value),
+                })
+              }
             />
           </Field.Root>
         ))}
@@ -209,7 +220,7 @@ function RenderField({
   const isCheckbox = f.type === "checkbox";
   const error = errors?.[name];
 
-    // Hide Agreement Percentage for farmer and set a default so it still submits
+  // Hide Agreement Percentage for farmer and set a default so it still submits
   if (name === "agreementPercentage") {
     if (values[name] == null) onChange(name, 60);
     return null; // don't render the input
@@ -225,7 +236,7 @@ function RenderField({
     const unitOptions = createListCollection({
       items: [
         { label: "kg", value: "kg" },
-        { label: "t",  value: "t"  },
+        { label: "t", value: "t" },
       ],
     });
     const u = (values[name] ?? "kg") as "kg" | "t";
@@ -245,7 +256,9 @@ function RenderField({
               // recompute derived kg using current numeric value
               const val = values["vehicleCapacityValue"];
               const kg =
-                typeof val === "number" ? val * (nextUnit === "t" ? 1000 : 1) : undefined;
+                typeof val === "number"
+                  ? val * (nextUnit === "t" ? 1000 : 1)
+                  : undefined;
               onChange("vehicleCapacityKg", kg);
             }}
           >
@@ -280,7 +293,6 @@ function RenderField({
     );
   }
 
-  
   if (f.type === "dimensions") {
     return (
       <Box gridColumn={spanToGrid(f.colSpan)}>
@@ -335,17 +347,23 @@ function RenderField({
               const raw = e.target.value;
               const next =
                 f.type === "number"
-                  ? (raw === "" ? undefined : Number(raw))
+                  ? raw === ""
+                    ? undefined
+                    : Number(raw)
                   : raw;
               onChange(name, next);
 
               if (name === "vehicleCapacityValue") {
-                const unit = (values["vehicleCapacityUnit"] ?? "kg") as "kg" | "t";
-                const kg = typeof next === "number" ? next * (unit === "t" ? 1000 : 1) : undefined;
+                const unit = (values["vehicleCapacityUnit"] ?? "kg") as
+                  | "kg"
+                  | "t";
+                const kg =
+                  typeof next === "number"
+                    ? next * (unit === "t" ? 1000 : 1)
+                    : undefined;
                 onChange("vehicleCapacityKg", kg);
               }
             }}
-
           />
         )}
 
@@ -386,6 +404,7 @@ export function RoleForm({
   errors,
 }: Props) {
   const sections = useSections(role);
+  const addBtnRef = useRef<HTMLButtonElement>(null)
 
   return (
     <Stack gap={8}>
@@ -422,6 +441,27 @@ export function RoleForm({
             <Heading size="sm" mb={3}>
               Availability
             </Heading>
+
+            {/* Informational note for users (read-only) */}
+            <Alert.Root
+              variant="subtle"
+              colorPalette="blue"
+              borderRadius="lg"
+              mb={4}
+            >
+              <Alert.Indicator>
+                <Icon as={Info} />
+              </Alert.Indicator>
+              <Alert.Content>
+                <Alert.Title>Note</Alert.Title>
+                <Alert.Description fontSize="sm">
+                  note: this will not be the final schedule only to see if your
+                  availability is fit with our needs for deliverers during the
+                  shifts you are available.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert.Root>
+
             <ScheduleGrid value={scheduleMask} onChange={onScheduleChange!} />
           </Card.Body>
         </Card.Root>
@@ -431,13 +471,25 @@ export function RoleForm({
         <Card.Root>
           <Card.Body>
             <Heading size="sm" mb={3}>
-              Lands
+              <HStack justifyContent={"space-between"}>
+              <Text>Lands</Text>
+                 {/* <StyledIconButton onClick={addLand} colorPalette="green" borderRadius="xl" size="sm">
+          <Icon as={Plus} /> Add land
+        </StyledIconButton> */}
+         <StyledButton ref={addBtnRef} visual={"ghost"} colorPalette="green" width={"fit-content"} p={1}>
+          <Icon as={Plus} /> Add land
+        </StyledButton>
+              </HStack>
+              
             </Heading>
-            <LandList value={(lands ?? []) as LandInput[]} onChange={onLandsChange!} />
+            <LandList
+              value={(lands ?? []) as LandInput[]}
+              onChange={onLandsChange!}
+              addButtonRef={addBtnRef}
+            />
           </Card.Body>
         </Card.Root>
       )}
-
     </Stack>
   );
 }

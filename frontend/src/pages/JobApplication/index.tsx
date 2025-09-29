@@ -1,380 +1,140 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Box,
-  Button,
-  Card,
-  Checkbox,
+  Breadcrumb,
   Heading,
-  Stack,
+  Image,
+  Card,
   Text,
+  Button,
+  SimpleGrid,
+  Stack,
 } from "@chakra-ui/react";
-import { RolesTable, type RoleDef } from "@/data/roles";
+import { useEmploymentApplication } from "@/hooks/useEmploymentApplication";
+import { RoleOverviewCard } from "./components/RoleOverviewCard";
+import { ApplicationFormCard } from "./components/ApplicationFormCard";
 import { RoleHeader } from "./components/RoleHeader";
-import { RoleForm } from "./components/RoleForm";
-import { createJobApplication } from "@/api/jobApplications";
-import type {
-  JobApplicationCreateInput,
-  JobApplicationDTO,
-} from "@/types/jobApplications";
 
-// (keep LandInput if you use it for the lands UI)
-import type { LandInput } from "@/api/jobApplications";
-import { meApi } from "@/api/auth";
-import { toaster } from "@/components/ui/toaster";
-import {
-  buildSchema,
-  extractErrors,
-} from "./components/validation";
-
-const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-
-function asWeeklySchedule(mask?: number[]): number[] | undefined {
-  if (!mask) return undefined;
-  // Ensure: length 7, integers, non-negative
-  const seven = mask.slice(0, 7).map((v) => Math.max(0, Number.isFinite(v) ? Math.trunc(v) : 0));
-  // If shorter than 7, pad with zeros
-  while (seven.length < 7) seven.push(0);
-  return seven;
-}
-
-function normalizeWeekly(mask?: number[]): number[] {
-  const base = Array(7).fill(0);
-  if (!Array.isArray(mask)) return base;
-  return base.map((_, i) => {
-    const v = mask[i] ?? 0;
-    const n = (v as number) | 0;           // coerce to int
-    return Math.max(0, Math.min(15, n));   // clamp to 4-bit (Morning=1, Afternoon=2, Evening=4, Night=8)
-  });
-}
-
-
-
+/**
+ * Page shell that composes split components + hook.
+ */
 export default function EmploymentApplication() {
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
-
-  const roleName = (params.get("role") || "").toLowerCase();
-  const role: RoleDef | undefined = useMemo(
-    () => RolesTable.find((r) => r.name.toLowerCase() === roleName),
-    [roleName]
-  );
-
-  const { data: me, isLoading: loadingMe } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: meApi,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  useEffect(() => {
-    if (!loadingMe && !me) {
-      toaster.create({
-        type: "warning",
-        title: "Please log in",
-        description: "You must be logged in to apply.",
-      });
-      navigate("/login");
-    }
-  }, [loadingMe, me, navigate]);
-
-  const [fields, setFields] = useState<Record<string, any>>({});
-  const [agree, setAgree] = useState(false);
-  const [scheduleMask, setScheduleMask] = useState<number[] | undefined>(
-    undefined
-  );
-  const [lands, setLands] = useState<LandInput[]>([]);
-  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
-
-  const schema = useMemo(() => (role ? buildSchema(role) : null), [role]);
-
-  const validateAll = (data: Record<string, any>) => {
-    if (!schema) return {};
-
-    // Shape UI into backend form before validating
-    const shaped: Record<string, any> = { ...data };
-
-    if (role?.includeLand) {
-      shaped.lands = (data.lands ?? []).map(mapLand);
-    }
-    if (role?.includeSchedule) {
-      shaped.weeklySchedule = normalizeWeekly(data.weeklySchedule);
-    }
-
-    const parsed = schema.safeParse(shaped);
-    return extractErrors(parsed);
-  };
-
-
-  const updateField = (n: string, v: any) => {
-    setFields((prev) => {
-      const next = { ...prev, [n]: v };
-      const errs = validateAll({
-        ...next,
-        weeklySchedule: scheduleMask,
-        lands,
-      });
-      setErrors(errs);
-      return next;
-    });
-  };
-
-  const updateSchedule = (m?: number[]) => {
-    setScheduleMask(m);
-    setErrors(validateAll({ ...fields, weeklySchedule: m, lands }));
-  };
-
-  const updateLands = (ls: LandInput[]) => {
-    console.log("[updateLands]", ls);
-    setLands(ls);
-    setErrors(validateAll({ ...fields, lands: ls }));
-  };
-
-
-  const { mutateAsync, isPending } = useMutation({
-  mutationFn: (payload: JobApplicationCreateInput) => createJobApplication(payload),
-  onSuccess: (app: JobApplicationDTO) => {
-    toaster.create({
-      type: "success",
-      title: "Application submitted",
-      description: "We’ll be in touch soon.",
-    });
-    // If you already have an application details route, this is ideal:
-    navigate(`/applications/${app.id}`);
-
-    // If not yet available, swap to your previous destination:
-    // navigate("/dashboard");
-  },
-  onError: (err: any) => {
-    toaster.create({
-      type: "error",
-      title: "Submission failed",
-      description:
-        err?.response?.data?.message ?? err?.message ?? "Unknown error",
-    });
-  },
-});
-
+  const {
+    role,
+    roleName,
+    loadingMe,
+    coverSrc,
+    cap,
+    navigate,
+    // form bits
+    fields,
+    errors,
+    scheduleMask,
+    lands,
+    agree,
+    isPending,
+    isFormValid,
+    updateField,
+    updateSchedule,
+    updateLands,
+    handleSubmit,
+  } = useEmploymentApplication();
 
   if (!role) {
-    {console.log("role: ", role)}
+    // invalid role fallback with compact centered card
     return (
-      <Box p={6}>
-        <Heading size="md">Invalid role</Heading>
-        <Text mt={2}>No role called “{roleName}”.</Text>
-        <Button mt={4} onClick={() => navigate("/jobs")}>
-          Back to roles
-        </Button>
+      <Box bg="bg" minH="100dvh">
+        <Box
+          maxW="3xl"
+          mx="auto"
+          px={{ base: 4, md: 8 }}
+          py={{ base: 8, md: 12 }}
+        >
+          <Card.Root variant="subtle">
+            <Card.Body gap="4" alignItems="center" textAlign="center">
+              <Image
+                src="https://source.unsplash.com/featured/640x360?search"
+                alt="Jobs"
+                width="100%"
+                height="200px"
+                objectFit="cover"
+                borderRadius="lg"
+              />
+              <Heading size="lg">Invalid role</Heading>
+              <Text>No role called “{roleName}”.</Text>
+              <Button mt="2" onClick={() => navigate("/jobs")}>
+                Back to roles
+              </Button>
+            </Card.Body>
+          </Card.Root>
+        </Box>
       </Box>
     );
   }
 
-  const isFormValid = useMemo(
-    () => Object.keys(errors).length === 0 && agree,
-    [errors, agree]
-  );
-
-  // --- helpers to normalize farmer lands -> backend shape ---
-  const num = (v: any, d: number = 0) =>
-    v === "" || v == null || Number.isNaN(Number(v)) ? d : Number(v);
-
-  const mapAddress = (a: any) => {
-    if (!a) return null;
-    // Accept either {lat,lng,formattedAddress} or {alt,lnt,address}
-    const alt = a.alt != null ? Number(a.alt) : num(a.lat, undefined as any);
-    const lnt = a.lnt != null ? Number(a.lnt) : num(a.lng, undefined as any);
-    const address = a.address ?? a.formattedAddress ?? "";
-    if (alt == null || lnt == null || !address) return null;
-    return { alt, lnt, address };
-  };
-
-  const mapMeasurements = (m: any) => {
-    // Allow UIs that capture length/width (rect) or abM/bcM/cdM/daM
-    const abM = num(m?.abM ?? m?.length);
-    const bcM = num(m?.bcM ?? m?.width);
-    // For rectangles, mirror opposite sides if not provided
-    const cdM = num(m?.cdM ?? m?.length ?? abM);
-    const daM = num(m?.daM ?? m?.width ?? bcM);
-    const rotationDeg =
-      m?.rotationDeg == null ? 0 : num(m.rotationDeg);
-    return { abM, bcM, cdM, daM, rotationDeg };
-  };
-
-  // place this in JobApplication/index.tsx, near the other helpers (above handleSubmit)
-const mapLand = (land: any) => {
-  // Build backend-ready addresses from the UI fields
-  // Prefer structured objects if present; fall back to old string+lat/lng fields
-  const address = mapAddress(
-    land?.addressObj ?? {
-      address: land?.location,
-      alt: land?.locLat,
-      lnt: land?.locLng,
-    }
-  );
-
-  const pickupAddress =
-    land?.pickupAddressObj != null
-      ? mapAddress(land.pickupAddressObj)
-      : land?.pickupAddress
-      ? mapAddress({
-          address: land.pickupAddress,
-          alt: land.pickupLat,
-          lnt: land.pickupLng,
-        })
-      : null;
-
-  // Prefer the new nested measurements; fall back to acres logic
-  const measurements =
-    land?.measurements
-      ? mapMeasurements(land.measurements)
-      : land?.acres
-      ? (() => {
-          const m2 = land.acres * 4046.8564224;
-          const side = Math.sqrt(m2);
-          return { abM: side, bcM: side, cdM: side, daM: side, rotationDeg: 0 };
-        })()
-      : mapMeasurements({ length: undefined, width: undefined });
-
-  return {
-    name: land?.landName ?? "",
-    ownership: String(land?.ownership ?? "Owned").toLowerCase() as "owned" | "rented",
-    address,        // required
-    pickupAddress,  // nullable
-    measurements,   // required
-  };
-};
-
-
- const handleSubmit = async () => {
-  const full = { ...fields, weeklySchedule: scheduleMask, lands };
-  const errs = validateAll(full);
-  if (Object.keys(errs).length > 0 || !agree) {
-    setErrors(errs);
-    if (!agree) {
-      toaster.create({ type: "warning", title: "Please certify the information" });
-    } else {
-      toaster.create({ type: "warning", title: "Please fix the highlighted fields" });
-    }
-    return;
-  }
-
-  const applicationData: Record<string, unknown> = { ...fields };
-
-if (role.includeSchedule) {
-  const weekly = normalizeWeekly(scheduleMask);
-  if (!weekly) {
-    toaster.create({ type: "warning", title: "Please select your weekly schedule" });
-    return;
-  }
-  // Backend requires this exact field name:
-  applicationData.weeklySchedule = weekly;
-  // If you previously had scheduleBitmask in the form state, make sure it doesn’t ride along:
-  delete (applicationData as any).scheduleBitmask;
-}
-
-  if (role.includeLand) {
-    // Map UI lands -> backend shape
-    const mapped = (lands ?? []).map(mapLand);
-
-    // Basic client-side guardrails (avoid 400s)
-    const invalid = mapped.find(
-      (l: any) => !l.name || !l.address || !l.address.address || l.address.alt == null || l.address.lnt == null
-    );
-    if (invalid) {
-      toaster.create({
-        type: "warning",
-        title: "Please complete all land fields",
-        description: "Each land needs a name, full address (coords + text), and measurements.",
-      });
-      return;
-    }
-
-    (applicationData as any).lands = mapped;
-    if ((applicationData as any).agreementPercentage == null) {
-      (applicationData as any).agreementPercentage = 60; // hidden default
-    }
-  }
-
-// Derive canonical capacity (kg) for deliverer roles and strip UI-only fields
-if (role.name.toLowerCase() === "deliverer" || role.name.toLowerCase() === "industrialDeliverer") {
-  const val = (fields as any)?.vehicleCapacityValue;
-  const unit = (fields as any)?.vehicleCapacityUnit ?? "kg";
-  if (typeof val === "number") {
-    (applicationData as any).vehicleCapacityKg = val * (unit === "t" ? 1000 : 1);
-  }
-  delete (applicationData as any).vehicleCapacityValue;
-  delete (applicationData as any).vehicleCapacityUnit;
-}
-
-// Strip any UI-only weekday keys
-["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
-  .forEach((d) => delete (applicationData as any)[d]);
-
-
-  // Map to the new backend contract
-  const payload: JobApplicationCreateInput = {
-    appliedRole: role.name.toLowerCase() as JobApplicationCreateInput["appliedRole"],
-    logisticCenterId: null,                                    // set if you collect it
-    contactEmail: (me as any)?.email ?? null,                  // or from your form if present
-    contactPhone: (fields as any)?.contactPhone ?? null,       // include if you have it
-    notes: (fields as any)?.notes || undefined,                // include if you have it
-    applicationData,                                           // everything role-specific
-  };
-
-  await mutateAsync(payload);
-};
-
-
   return (
-    <Box p={{ base: 4, md: 8 }}>
-      <RoleHeader roleName={cap(role.name)} description={role.description} />
-
-      {/* single-page form */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSubmit();
-        }}
+    <Box bg="bg" minH="100dvh">
+      <Box
+        maxW="6xl"
+        mx="auto"
+        px={{ base: 4, md: 6 }}
+        py={{ base: 6, md: 10 }}
       >
-        <Card.Root border={"none"}>
-          <Card.Body>
-            <Stack gap={6}>
-              <RoleForm
-                role={role}
-                values={fields}
-                onChange={updateField}
-                columns={{ base: 1, md: 2 }}
-                scheduleMask={scheduleMask}
-                onScheduleChange={updateSchedule}
-                lands={lands}
-                onLandsChange={updateLands}
-                errors={errors}
-              />
+        <Stack>
+          <Breadcrumb.Root>
+            <Breadcrumb.List>
+              <Breadcrumb.Item>
+                <Breadcrumb.Link onClick={() => navigate("/")}>
+                  Home
+                </Breadcrumb.Link>
+              </Breadcrumb.Item>
+              <Breadcrumb.Separator />
+              <Breadcrumb.Item>
+                <Breadcrumb.Link onClick={() => navigate("/jobs")}>
+                  Jobs
+                </Breadcrumb.Link>
+              </Breadcrumb.Item>
+              <Breadcrumb.Separator />
+              <Breadcrumb.Item>
+                <Breadcrumb.Link>{cap(role.name)}</Breadcrumb.Link>
+              </Breadcrumb.Item>
+            </Breadcrumb.List>
+          </Breadcrumb.Root>
+        </Stack>
 
-              {/* Agreement */}
-              <Checkbox.Root>
-                <Checkbox.HiddenInput
-                  checked={agree}
-                  onChange={(e) => setAgree(e.currentTarget.checked)}
-                />
-                <Checkbox.Control />
-                <Checkbox.Label>
-                  I certify that all information is accurate.
-                </Checkbox.Label>
-              </Checkbox.Root>
+        {/* Page header */}
+        <Stack gap={{ base: "3", md: "4" }} mb={{ base: 5, md: 8 }}>
+          <RoleHeader
+            roleName={cap(role.name)}
+            description={role.description}
+          />
+        </Stack>
 
-              <Button
-                type="submit"
-                loading={isPending}
-                colorPalette="green"
-                disabled={!isFormValid}
-              >
-                Submit Application
-              </Button>
-            </Stack>
-          </Card.Body>
-        </Card.Root>
-      </form>
+        {/* Two-column responsive layout */}
+        <SimpleGrid columns={{ base: 1, lg: 3 }} gap={{ base: 5, md: 8 }}>
+          <RoleOverviewCard
+            role={role}
+            isLoading={loadingMe}
+            coverSrc={coverSrc}
+          />
+          <Box gridColumn={{ lg: "span 2" }}>
+            <ApplicationFormCard
+              role={role}
+              fields={fields}
+              errors={errors}
+              scheduleMask={scheduleMask}
+              lands={lands}
+              agree={agree}
+              isPending={isPending}
+              isFormValid={isFormValid}
+              onChangeField={updateField}
+              onScheduleChange={updateSchedule}
+              onLandsChange={updateLands}
+              onCancel={() => navigate("/jobs")}
+              onSubmit={handleSubmit}
+            />
+          </Box>
+        </SimpleGrid>
+      </Box>
     </Box>
   );
 }

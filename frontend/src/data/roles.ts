@@ -87,11 +87,6 @@ export const RolesTable: readonly RoleDef[] = [
       // hidden computed (still hidden)
       { label: "Capacity (kg, computed)", name: "vehicleCapacityKg", type: "number", step: "vehicle", colSpan: { base: 0 } },
 
-      // line 3 (full width)
-      { label: "Max Speed (km/h)", name: "speedKmH", type: "number", step: "vehicle", min: "0", colSpan: { base: 1, md: 2 } },
-
-
-
       // Driver
       { label: "License Type",           type: "text", step: "driver" },
       { label: "Driver License Number",  type: "text", step: "driver" },
@@ -139,10 +134,6 @@ export const RolesTable: readonly RoleDef[] = [
 
       // hidden computed (still hidden)
       { label: "Capacity (kg, computed)", name: "vehicleCapacityKg", type: "number", step: "vehicle", colSpan: { base: 0 } },
-
-      // line 3 (full width)
-      { label: "Max Speed (km/h)", name: "speedKmH", type: "number", step: "vehicle", min: "0", colSpan: { base: 1, md: 2 } },
-
 
       { label: "License Type", type: "text", step: "driver" },
       { label: "Driver License Number", type: "text", step: "driver" },
