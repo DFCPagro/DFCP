@@ -32,7 +32,7 @@ export type ItemsGridProps = {
   totalPages: number // >= 1
   totalItems?: number // optional for small summary
   onPageChange: (p: number) => void
-
+  onAdd?: (payload: { item: MarketItem }) => void;
   /** Layout */
   minCardHeight?: string // for consistent skeleton sizing; default "280px"
   columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number } // responsive columns
@@ -51,6 +51,7 @@ function ItemsGridBase({
   totalPages,
   totalItems,
   onPageChange,
+  onAdd,
   minCardHeight = "280px",
   columns = { base: 2, md: 3, lg: 4 },
   gutter = "4",
@@ -98,10 +99,10 @@ function ItemsGridBase({
               </GridItem>
             ))
           : items.map((it) => (
-              <GridItem key={itemKey(it)}>
-                <MarketItemCard item={it} />
-              </GridItem>
-            ))}
+            <GridItem key={itemKey(it)}>
+              <MarketItemCard item={it} onAdd={onAdd} />
+            </GridItem>
+          ))}
       </Grid>
 
       {/* Empty state */}
