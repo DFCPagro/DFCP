@@ -61,8 +61,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     label: "Logistics-WIP",
     children: [
       { type: "link", key: "mgr-containers", label: "Containers", path: "/manager/containers" },
-      { type: "link", key: "mgr-shipments", label: "Shipments", path: "/manager/shipments" },
-      { type: "link", key: "mgr-aggregations", label: "Aggregations", path: "/manager/aggregations" },
+      
     ],
   },
   {
@@ -73,6 +72,30 @@ const workAdmin: ReadonlyArray<MenuItem> = [
       { type: "link", key: "mgr-admin-items", label: "Manage Items", path: "/admin/items" },
       { type: "link", key: "mgr-admin-jobReview", label: "Job Application Review", path: "/admin/jobReview" },
       { type: "link", key: "mgr-expected-harvest", label: "Expected Harvest", path: "/admin/crop-harvest" },
+    ],
+  },
+
+   {
+    type: "group",
+    key: "fManager",
+    label: "FManager pages",
+    children: [
+      { type: "link", key: "mgr-farmer-orders", label: "farmer orders", path: "#" },
+      { type: "link", key: "mgr-faramer", label: "manage farmers", path: "#" },
+      { type: "link", key: "mgr-ams", label: "stcok", path: "#" },
+      { type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
+    
+    ],
+  },
+
+    {
+    type: "group",
+    key: "tManager",
+    label: "TManager pages",
+    children: [
+      { type: "link", key: "mgr-packages", label: "pacakages", path: "#" },
+      { type: "link", key: "mgr-deliverers", label: "deliverers", path: "#" },
+      { type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
     ],
   },
 ] as const;
