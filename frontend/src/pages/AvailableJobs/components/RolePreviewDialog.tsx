@@ -1,5 +1,6 @@
-"use client"
+"use client";
 
+import StyledIconButton from "@/components/ui/IconButton";
 import {
   Badge,
   Box,
@@ -11,43 +12,48 @@ import {
   Stack,
   Text,
   VisuallyHidden,
-} from "@chakra-ui/react"
-import { Sparkles } from "lucide-react"
+} from "@chakra-ui/react";
+import { Sparkles, X } from "lucide-react";
 
 export type RoleDetails = {
-  name: string
-  description: string
-  coverSrc?: string
-  category?: string
-  location?: string
-  shift?: string
-  currency?: string
-  payMin?: number
-  payMax?: number
-  highlights?: string[]
-  requirements?: string[]
-  responsibilities?: string[]
-  faq?: Array<{ q: string; a: string }>
-}
+  name: string;
+  description: string;
+  coverSrc?: string;
+  category?: string;
+  location?: string;
+  shift?: string;
+  currency?: string;
+  payMin?: number;
+  payMax?: number;
+  highlights?: string[];
+  requirements?: string[];
+  responsibilities?: string[];
+  faq?: Array<{ q: string; a: string }>;
+};
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  details: RoleDetails | null
-  onConfirm: () => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  details: RoleDetails | null;
+  onConfirm: () => void;
+};
 
 /**
  * A dynamic, rich dialog that renders role-specific details.
  * Pass a RoleDetails object for each role (from JSON / API).
  */
-export function RolePreviewDialog({ open, onOpenChange, details, onConfirm }: Props) {
-  if (!details) return null
+export function RolePreviewDialog({
+  open,
+  onOpenChange,
+  details,
+  onConfirm,
+}: Props) {
+  if (!details) return null;
 
   const payText =
     details.payMin != null && details.payMax != null
       ? `${details.currency ?? "$"}${details.payMin}–${details.payMax} / hr`
-      : "Pay scale varies by shift & location"
+      : "Pay scale varies by shift & location";
 
   return (
     <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)}>
@@ -70,26 +76,38 @@ export function RolePreviewDialog({ open, onOpenChange, details, onConfirm }: Pr
                 </Dialog.Title>
               </HStack>
               <Dialog.CloseTrigger asChild>
-                <Button size="sm" variant="subtle" borderRadius="lg">
-                  Close
-                </Button>
+                <StyledIconButton size="sm" variant="subtle" borderRadius="lg">
+                  <X />
+                </StyledIconButton>
               </Dialog.CloseTrigger>
             </HStack>
 
             {/* Chips */}
             <HStack mt="3" wrap="wrap" gap="2">
               {details.category && (
-                <Badge variant="subtle" colorPalette="green" borderRadius="full">
+                <Badge
+                  variant="subtle"
+                  colorPalette="green"
+                  borderRadius="full"
+                >
                   {details.category}
                 </Badge>
               )}
               {details.location && (
-                <Badge variant="outline" colorPalette="gray" borderRadius="full">
+                <Badge
+                  variant="outline"
+                  colorPalette="gray"
+                  borderRadius="full"
+                >
                   {details.location}
                 </Badge>
               )}
               {details.shift && (
-                <Badge variant="outline" colorPalette="gray" borderRadius="full">
+                <Badge
+                  variant="outline"
+                  colorPalette="gray"
+                  borderRadius="full"
+                >
                   {details.shift}
                 </Badge>
               )}
@@ -103,7 +121,12 @@ export function RolePreviewDialog({ open, onOpenChange, details, onConfirm }: Pr
           <Separator />
 
           {/* Scrollable body */}
-          <Box maxH="60vh" overflowY="auto" px={{ base: 4, md: 5 }} py={{ base: 4, md: 5 }}>
+          <Box
+            maxH="60vh"
+            overflowY="auto"
+            px={{ base: 4, md: 5 }}
+            py={{ base: 4, md: 5 }}
+          >
             <Stack gap="5">
               {/* Overview */}
               <Box>
@@ -130,26 +153,28 @@ export function RolePreviewDialog({ open, onOpenChange, details, onConfirm }: Pr
               )}
 
               {/* Responsibilities / Requirements in two columns (stack on mobile) */}
-              {(details.responsibilities?.length || details.requirements?.length) && (
+              {(details.responsibilities?.length ||
+                details.requirements?.length) && (
                 <Stack
                   direction={{ base: "column", md: "row" }}
                   gap={{ base: 4, md: 6 }}
                   align="start"
                 >
-                  {details.responsibilities && details.responsibilities.length > 0 && (
-                    <Box flex="1">
-                      <Text fontWeight="semibold" mb="2">
-                        Responsibilities
-                      </Text>
-                      <Stack as="ul" gap="2" pl="5">
-                        {details.responsibilities.map((r, i) => (
-                          <Text as="li" key={i}>
-                            {r}
-                          </Text>
-                        ))}
-                      </Stack>
-                    </Box>
-                  )}
+                  {details.responsibilities &&
+                    details.responsibilities.length > 0 && (
+                      <Box flex="1">
+                        <Text fontWeight="semibold" mb="2">
+                          Responsibilities
+                        </Text>
+                        <Stack as="ul" gap="2" pl="5">
+                          {details.responsibilities.map((r, i) => (
+                            <Text as="li" key={i}>
+                              {r}
+                            </Text>
+                          ))}
+                        </Stack>
+                      </Box>
+                    )}
                   {details.requirements && details.requirements.length > 0 && (
                     <Box flex="1">
                       <Text fontWeight="semibold" mb="2">
@@ -175,7 +200,13 @@ export function RolePreviewDialog({ open, onOpenChange, details, onConfirm }: Pr
                   </Text>
                   <Stack gap="3">
                     {details.faq.map((f, i) => (
-                      <Box key={i} borderWidth="1px" rounded="lg" p="3" bg="bg.subtle">
+                      <Box
+                        key={i}
+                        borderWidth="1px"
+                        rounded="lg"
+                        p="3"
+                        bg="bg.subtle"
+                      >
                         <Text fontWeight="medium" mb="1">
                           {f.q}
                         </Text>
@@ -193,11 +224,6 @@ export function RolePreviewDialog({ open, onOpenChange, details, onConfirm }: Pr
           {/* Footer actions */}
           <Box p={{ base: 4, md: 5 }} pt="0">
             <HStack justify="end" gap="2">
-              <Dialog.CloseTrigger asChild>
-                <Button variant="outline" borderRadius="xl">
-                  Not now
-                </Button>
-              </Dialog.CloseTrigger>
               <Button colorPalette="blue" borderRadius="xl" onClick={onConfirm}>
                 Continue to application
               </Button>
@@ -206,5 +232,5 @@ export function RolePreviewDialog({ open, onOpenChange, details, onConfirm }: Pr
         </Dialog.Content>
       </Dialog.Positioner>
     </Dialog.Root>
-  )
+  );
 }

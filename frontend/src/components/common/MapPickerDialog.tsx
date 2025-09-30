@@ -1,8 +1,18 @@
-// src/components/common/MapPickerDialog.tsx
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Button, CloseButton, Flex, HStack, Spinner, Text, Field } from "@chakra-ui/react";
+import {
+  Box,
+  Button,
+  Dialog,
+  Field,
+  Flex,
+  HStack,
+  IconButton,
+  Spinner,
+  Text,
+} from "@chakra-ui/react";
+import { X as CloseIcon } from "lucide-react";
 import AddressAutocomplete from "@/components/common/AddressAutocomplete";
 import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
 
@@ -16,7 +26,13 @@ type Props = {
   countries?: string;
 };
 
-export default function MapPickerDialog({ open, onClose, onConfirm, initial, countries }: Props) {
+export default function MapPickerDialog({
+  open,
+  onClose,
+  onConfirm,
+  initial,
+  countries,
+}: Props) {
   const boxRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
@@ -33,7 +49,11 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
   const ensureMarker = useCallback((g: typeof google, pos: google.maps.LatLngLiteral) => {
     if (!mapRef.current) return;
     if (!markerRef.current) {
-      markerRef.current = new g.maps.Marker({ position: pos, map: mapRef.current, draggable: true });
+      markerRef.current = new g.maps.Marker({
+        position: pos,
+        map: mapRef.current,
+        draggable: true,
+      });
       markerRef.current.addListener("dragend", async () => {
         const p = markerRef.current!.getPosition();
         if (!p) return;
@@ -55,35 +75,36 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
 
   const forwardGeocode = useCallback(
     async (addr: string) => {
-      if (!addr?.trim()) return;
+      const query = addr?.trim();
+      if (!query) return;
       const g = await loadGoogleMaps();
       const geocoder = new g.maps.Geocoder();
 
       let componentRestrictions: any;
       if (countries) {
-        const list = countries.split(",").map(s => s.trim()).filter(Boolean);
+        const list = countries.split(",").map((s) => s.trim()).filter(Boolean);
         componentRestrictions = { country: list.length <= 1 ? list[0] : list };
       }
 
       setBusy(true);
       try {
-        const resp = await geocoder.geocode({ address: addr, componentRestrictions });
+        const resp = await geocoder.geocode({ address: query, componentRestrictions });
         const result = resp.results?.[0];
         if (!result) return;
         const loc = result.geometry.location;
         const next = { lat: loc.lat(), lng: loc.lng() };
         setLat(next.lat);
         setLng(next.lng);
-        setAddress(result.formatted_address || addr);
+        setAddress(result.formatted_address || query);
         ensureMarker(g, next);
       } finally {
         setBusy(false);
       }
     },
-    [countries, ensureMarker]
+    [countries, ensureMarker],
   );
 
-  // אתחל מפה בפעם הראשונה שהמודאל נפתח
+  // init map on first open (after Dialog mounts)
   useEffect(() => {
     if (!open) return;
     if (mapRef.current || !boxRef.current) return;
@@ -105,7 +126,10 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
 
         await new Promise<void>((resolve) => {
           const once = g.maps.event.addListenerOnce(mapRef.current!, "idle", () => resolve());
-          setTimeout(() => { g.maps.event.removeListener(once); resolve(); }, 3000);
+          setTimeout(() => {
+            g.maps.event.removeListener(once);
+            resolve();
+          }, 3000);
         });
 
         mapRef.current.addListener("click", async (e: google.maps.MapMouseEvent) => {
@@ -115,8 +139,11 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
           setLng(pos.lng);
           ensureMarker(g, pos);
           setBusy(true);
-          try { setAddress((await reverseGeocode(pos.lat, pos.lng)) || ""); }
-          finally { setBusy(false); }
+          try {
+            setAddress((await reverseGeocode(pos.lat, pos.lng)) || "");
+          } finally {
+            setBusy(false);
+          }
         });
 
         ensureMarker(g, { lat, lng });
@@ -125,10 +152,12 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
       }
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [open, lat, lng, ensureMarker]);
 
-  // בכל פתיחה מחדש – טריגר resize + recenter (לא מפרקים/בונים DOM)
+  // when dialog re-opens, force maps resize + recenter
   useEffect(() => {
     if (!open || !mapRef.current) return;
     (async () => {
@@ -140,6 +169,7 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
     })();
   }, [open, lat, lng]);
 
+  // debounce text geocoding
   useEffect(() => {
     if (!open || !address?.trim() || pickedRef.current) return;
     const t = setTimeout(() => forwardGeocode(address), 600);
@@ -149,7 +179,10 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
   const onAddressPicked = (p: { address: string; lat?: number; lng?: number }) => {
     pickedRef.current = true;
     setAddress(p.address);
-    if (p.lat != null && p.lng != null) { setLat(p.lat); setLng(p.lng); }
+    if (p.lat != null && p.lng != null) {
+      setLat(p.lat);
+      setLng(p.lng);
+    }
     setTimeout(() => (pickedRef.current = false), 250);
   };
 
@@ -158,47 +191,57 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
     try {
       setBusy(true);
       const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        }),
       );
       const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      setLat(next.lat); setLng(next.lng);
+      setLat(next.lat);
+      setLng(next.lng);
       setAddress((await reverseGeocode(next.lat, next.lng)) || "");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleConfirm = () => {
-    if (!address || lat == null || lng == null) return;
-    onConfirm({ address, lat, lng });
+    if (!address?.trim() || lat == null || lng == null) return;
+    onConfirm({ address: address.trim(), lat, lng });
     onClose();
   };
 
   return (
-    // Overlay “פשוט” – תמיד קיים ב-DOM; רק מציג/מסתיר
-    <Box
-      // כשסגור: לא נראה ולא תופס אינטראקציות, אבל נשאר ב-DOM
-      style={{ display: open ? "block" : "none" }}
-      position="fixed"
-      inset="0"
-      zIndex={1000}
-    >
-      {/* רקע כהה */}
-      <Box position="absolute" inset="0" bg="blackAlpha.500" onClick={onClose} />
-
-      {/* תוכן המודאל */}
-      <Flex
-        position="absolute"
-        inset="0"
-        align="center"
-        justify="center"
-        p="4"
-      >
-        <Box bg="white" rounded="lg" shadow="lg" w="min(960px, 96vw)">
-          <Flex align="center" justify="space-between" p="4" borderBottomWidth="1px">
-            <Text fontWeight="semibold">Pick a location</Text>
-            <CloseButton onClick={onClose} />
+    <Dialog.Root size={"lg"} open={open} onOpenChange={(e) => (!e.open ? onClose() : undefined)}>
+      <Dialog.Backdrop />
+      <Dialog.Positioner>
+        <Dialog.Content
+          borderRadius="2xl"
+          overflow="hidden"
+          shadow="lg"
+          borderWidth="1px"
+          display="flex"
+          flexDirection="column"
+        >
+          {/* Header */}
+          <Flex
+            align="center"
+            justify="space-between"
+            p={{ base: 3, sm: 4 }}
+            borderBottomWidth="1px"
+          >
+            <Dialog.Title fontSize="lg" fontWeight="semibold">
+              Pick a location
+            </Dialog.Title>
+            <Dialog.CloseTrigger asChild>
+              <IconButton aria-label="Close" size="sm" variant="ghost" borderRadius="lg">
+                <CloseIcon size={16} />
+              </IconButton>
+            </Dialog.CloseTrigger>
           </Flex>
 
-          <Box p="4">
+          {/* Body (scrollable) */}
+          <Box p={{ base: 3, sm: 4 }} flex="1" overflowY="auto" minH={{ base: "260px", sm: "320px" }}>
             <Flex direction="column" gap="3">
               <Field.Root>
                 <Field.Label>Search</Field.Label>
@@ -211,50 +254,62 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
                 />
               </Field.Root>
 
+              {/* Map */}
               <Box
                 ref={boxRef}
                 w="100%"
-                h="360px"
-                minH="360px"
+                h={{ base: "42vh", sm: "48vh", md: "52vh" }}
+                minH="240px"
+                maxH="62vh"
                 rounded="md"
                 borderWidth="1px"
                 borderColor="gray.200"
+                _dark={{ borderColor: "whiteAlpha.300", bg: "gray.900" }}
                 overflow="hidden"
                 position="relative"
                 bg="gray.50"
               >
                 {(loadingMap || busy) && (
                   <Flex position="absolute" inset={0} align="center" justify="center" bg="blackAlpha.200" zIndex={1}>
-                    <HStack><Spinner size="sm" /><Text fontSize="sm">{loadingMap ? "Loading map..." : "Loading..."}</Text></HStack>
+                    <HStack>
+                      <Spinner size="sm" />
+                      <Text fontSize="sm">{loadingMap ? "Loading map..." : "Loading..."}</Text>
+                    </HStack>
                   </Flex>
                 )}
               </Box>
 
+              {/* Coordinates & quick action */}
               <Flex gap="6" wrap="wrap">
                 <Box>
                   <Text fontWeight="medium">Latitude</Text>
-                  <Text fontSize="sm" color="gray.600">{lat != null ? lat.toFixed(6) : "Not set"}</Text>
+                  <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>
+                    {lat != null ? lat.toFixed(6) : "Not set"}
+                  </Text>
                 </Box>
                 <Box>
                   <Text fontWeight="medium">Longitude</Text>
-                  <Text fontSize="sm" color="gray.600">{lng != null ? lng.toFixed(6) : "Not set"}</Text>
+                  <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>
+                    {lng != null ? lng.toFixed(6) : "Not set"}
+                  </Text>
                 </Box>
               </Flex>
 
-              <Button onClick={useMyLocation} variant="subtle" alignSelf="flex-start">
+              <Button onClick={useMyLocation} variant="subtle" alignSelf={{ base: "stretch", sm: "flex-start" }}>
                 Use my current location
               </Button>
             </Flex>
           </Box>
 
-          <Flex p="4" gap="2" justify="flex-end" borderTopWidth="1px">
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button colorPalette="primary" onClick={handleConfirm} disabled={!address}>
+          {/* Footer */}
+          <Flex p={{ base: 3, sm: 4 }} borderTopWidth="1px" bg="bg" justify="flex-end" gap="2">
+            <Dialog.CloseTrigger/>
+            <Button borderRadius="xl" colorPalette="blue" onClick={handleConfirm} disabled={!address?.trim()}>
               Use this location
             </Button>
           </Flex>
-        </Box>
-      </Flex>
-    </Box>
+        </Dialog.Content>
+      </Dialog.Positioner>
+    </Dialog.Root>
   );
 }
