@@ -30,7 +30,7 @@ import ItemList, { type ItemRow } from "@/components/common/ItemList";
 
 // map libs
 import "leaflet/dist/leaflet.css";
-import { MapContainer, TileLayer, CircleMarker, Polyline } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker } from "react-leaflet";
 
 // ---------- types / status ----------
 type UIStatus =
@@ -47,14 +47,7 @@ type UIStatus =
 
 type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
 type LatLng = { lat: number; lng: number };
-type OrderRowLoose = OrderRowAPI & Record<string, unknown>;
 
-// one LC for all orders
-const LOGISTIC_CENTER: LatLng = { lat: 32.733459, lng: 35.218805 };
-function isOldStatus(s: any) {
-  const ui = normalizeStatus(String(s));
-  return ui === "delivered" || ui === "confirm_receiving";
-}
 const STATUS_LABEL: Record<UIStatus, string> = {
   pending: "pending",
   accepted: "accepted",
@@ -213,7 +206,6 @@ function toEndOfDay(d: Date) {
   return e;
 }
 
-
 // ---------- reported ----------
 function isReported(o: any) {
   return Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue);
@@ -239,74 +231,14 @@ function pickCurrency(items: any[]): string | undefined {
 }
 
 // ---------- delivery-only coords ----------
-function asNum(n: any) {
-  const v = Number(n);
-  return Number.isFinite(v) ? v : undefined;
-}
-
-
-
-function arrToLatLng(a: any): LatLng | null {
-  if (!Array.isArray(a) || a.length < 2) return null;
-  const a0 = Number(a[0]), a1 = Number(a[1]);
-  if (!Number.isFinite(a0) || !Number.isFinite(a1)) return null;
-
-  // detect [lat, lng] vs [lng, lat]
-  const looksLatLng = Math.abs(a0) <= 90 && Math.abs(a1) <= 180;
-  const lat = looksLatLng ? a0 : a1;
-  const lng = looksLatLng ? a1 : a0;
-  return { lat, lng };
-}
-
-function pick(obj: any, ...paths: string[]) {
-  for (const p of paths) {
-    const v = p.split(".").reduce((x, k) => x?.[k], obj);
-    if (v != null) return v;
-  }
-  return undefined;
-}
-
 function getDeliveryCoord(o: any): LatLng | null {
-  const c =
-    pick(
-      o,
-      "delivery",
-      "delivery.location",
-      "delivery.geo",
-      "shippingAddress",
-      "shippingAddress.location",
-      "shippingAddress.geo",
-      "customer.location",
-      "customer.address.geo",
-      "location",
-      "geo"
-    ) ?? null;
-
-  // array forms (GeoJSON)
-  const fromArr =
-    arrToLatLng((c as any)?.coordinates) ??
-    arrToLatLng((c as any)?.coords) ??
-    arrToLatLng(c);
-  if (fromArr) return fromArr;
-
-  // object with lat/lng fields
-  const lat = asNum((c as any)?.lat ?? (c as any)?.latitude ?? (c as any)?.y);
-  const lng = asNum(
-    (c as any)?.lng ??
-      (c as any)?.lon ??
-      (c as any)?.long ??
-      (c as any)?.longitude ??
-      (c as any)?.x
-  );
-  if (lat != null && lng != null) return { lat, lng };
-
-  // flat fallbacks
-  const lat2 = asNum(o?.destLat);
-  const lng2 = asNum(o?.destLng);
-  return lat2 != null && lng2 != null ? { lat: lat2, lng: lng2 } : null;
+  const to =
+    o.delivery ??
+    o.shippingAddress ??
+    o.customer?.location ??
+    (o.destLat && o.destLng ? { lat: o.destLat, lng: o.destLng } : null);
+  return to && to.lat && to.lng ? to : null;
 }
-
-
 
 // ---------- page ----------
 export default function OrdersPage() {
@@ -331,7 +263,6 @@ export default function OrdersPage() {
   const [showAllActive, setShowAllActive] = useState(false);
   const [showAllOld, setShowAllOld] = useState(false);
   const [showAllReported, setShowAllReported] = useState(false);
-const [onlyDelivery, setOnlyDelivery] = useState(false);
 
   const expandedOrder = useMemo(
     () => (orders ?? []).find((o) => o.id === expandedId) ?? null,
@@ -355,97 +286,54 @@ const [onlyDelivery, setOnlyDelivery] = useState(false);
         setHasMore(curPage * pageSize < total);
       } catch {
         if (!mounted) return;
-
-        // smaller mock set (allows extra fields)
-        const mock: OrderRowLoose[] = [
-          // ACTIVE
+        const mock: OrderRowAPI[] = [
           {
-            id: "o-20001",
-            orderId: "ORD-20001",
-            status: "accepted" as any,
-            acceptedAt: "2025-09-29",
-            acceptedWindowStart: "19:00",
-            acceptedWindowEnd: "20:00",
-            createdAt: "2025-09-28T09:40:00Z",
-            delivery: { lat: 32.0853, lng: 34.7818 },
+            id: "m1",
+            orderId: "ORD-1001",
+            status: "out_for_delivery" as any,
+            deliverySlot: "evening (18:00–19:00)",
+            createdAt: new Date().toISOString(),
             items: [
               {
-                productId: "CMB-01",
-                name: "Cucumber Beit Alpha",
-                quantity: 6,
-                unit: "unit",
-                unitPrice: 0.7,
-                currency: "$",
-              } as any,
-            ],
-          },
-          {
-            id: "o-20002",
-            orderId: "ORD-20002",
-            status: "from_the_logistic_to_the_customer" as any, // -> lc_to_customer
-            acceptedAt: "2025-10-02",
-            acceptedWindowStart: "18:00",
-            acceptedWindowEnd: "19:00",
-            createdAt: "2025-10-02T14:50:00Z",
-            delivery: { lat: 32.066, lng: 34.777 },
-            items: [
-              {
-                productId: "LETT-ROM",
-                name: "Lettuce Romaine",
-                quantity: 2,
-                unit: "unit",
-                unitPrice: 1.2,
-                currency: "$",
-              } as any,
-            ],
-          },
-
-          // OLD
-          {
-            id: "o-20003",
-            orderId: "ORD-20003",
-            status: "delivered" as any,
-            acceptedAt: "2025-09-27",
-            acceptedWindowStart: "09:00",
-            acceptedWindowEnd: "10:00",
-            createdAt: "2025-09-26T08:30:00Z",
-            delivery: { lat: 31.611, lng: 34.764 },
-            items: [
-              {
-                productId: "BAN-CA",
-                name: "Banana Cavendish",
-                quantity: 6,
-                unit: "unit",
-                unitPrice: 0.5,
-                currency: "$",
-              } as any,
-            ],
-          },
-
-          // REPORTED
-          {
-            id: "o-20004",
-            orderId: "ORD-20004",
-            status: "packed" as any,
-            reported: true,
-            acceptedAt: "2025-10-01",
-            acceptedWindowStart: "11:00",
-            acceptedWindowEnd: "12:00",
-            createdAt: "2025-09-30T16:15:00Z",
-            delivery: { lat: 31.995, lng: 35.011 },
-            items: [
-              {
-                productId: "PEPPER-R",
-                name: "Red Pepper",
+                productId: "STRAWB-ALB",
                 quantity: 2,
                 unit: "kg",
-                unitPrice: 3.0,
-                currency: "$",
+                unitPrice: 6.9,
+                name: "Strawberry Albion",
+                farmerName: "Levi Cohen",
               } as any,
             ],
-          },
+            delivery: { lat: 31.7683, lng: 35.2137 },
+          } as any,
+          {
+            id: "m2",
+            orderId: "ORD-1002",
+            status: "packed" as any,
+            deliverySlot: "afternoon (14:00–15:00)",
+            createdAt: new Date().toISOString(),
+            items: [],
+            ...( { reported: true } as any),
+            delivery: { lat: 32.794, lng: 34.9896 },
+          } as any,
+          {
+            id: "m3",
+            orderId: "ORD-1003",
+            status: "delivered" as any,
+            deliverySlot: "morning (09:00–10:00)",
+            createdAt: new Date().toISOString(),
+            items: [],
+            delivery: { lat: 31.0461, lng: 34.8516 },
+          } as any,
+          {
+            id: "m4",
+            orderId: "ORD-1004",
+            status: "created" as any,
+            deliverySlot: "night (20:00–21:00)",
+            createdAt: new Date().toISOString(),
+            items: [],
+            delivery: { lat: 32.1093, lng: 34.8555 },
+          } as any,
         ];
-
         setOrders(mock);
         setHasMore(false);
       } finally {
@@ -554,37 +442,31 @@ const [onlyDelivery, setOnlyDelivery] = useState(false);
           </GridItem>
 
           {/* center: status + map icon */}
-        {/* center: status + map icon */}
-{/* center: status + map icon */}
-<GridItem justifySelf="center" zIndex={10}>
-  <HStack gap={3}>
-    <HStack gap={2}>
-      <Text fontWeight="bold">Status:</Text>
-      <Text>{statusLabel}</Text>
-      <Text as="span" fontSize="xl">{emoji}</Text>
-    </HStack>
-
-<IconButton
-  aria-label="Open delivery map"
-  size="sm"
-  variant="solid"
-  type="button"
-  onClick={(e) => {
-    e.stopPropagation();
-    setOnlyDelivery(isOldStatus((o as any).status));
-    setMapPoint(getDeliveryCoord(o as any) ?? null);
-    setMapOpen(true);
-  }}
->
-  <MapPin size={16} />
-</IconButton>
-
-
-
-  </HStack>
-</GridItem>
-
-
+          <GridItem justifySelf="center">
+            <HStack gap={3}>
+              <HStack gap={2}>
+                <Text fontWeight="bold">Status:</Text>
+                <Text>{statusLabel}</Text>
+                <Text as="span" fontSize="xl">
+                  {emoji}
+                </Text>
+              </HStack>
+              <IconButton
+                aria-label="Map"
+                variant="solid"
+                size="sm"
+                onClick={() => {
+                  if (point) {
+                    setMapPoint(point);
+                    setMapOpen(true);
+                  }
+                }}
+                disabled={!point}
+              >
+                <MapPin size={16} />
+              </IconButton>
+            </HStack>
+          </GridItem>
 
           {/* right: actions */}
           <GridItem justifySelf="end">
@@ -827,13 +709,11 @@ const [onlyDelivery, setOnlyDelivery] = useState(false);
         </Dialog.Root>
 
         {/* Map modal */}
-      <LocationMapModal
-  open={mapOpen}
-  onClose={() => setMapOpen(false)}
-  point={mapPoint ?? undefined}
-  onlyDelivery={onlyDelivery}
-/>
-
+        <LocationMapModal
+          open={mapOpen}
+          onClose={() => setMapOpen(false)}
+          point={mapPoint ?? undefined}
+        />
       </Container>
     </AuthGuard>
   );
@@ -889,12 +769,10 @@ function LocationMapModal({
   open,
   onClose,
   point,
-  onlyDelivery = false,
 }: {
   open: boolean;
   onClose: () => void;
   point?: LatLng;
-  onlyDelivery?: boolean;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={(e) => !e.open && onClose()}>
@@ -904,67 +782,33 @@ function LocationMapModal({
           <Dialog.Header>
             <Dialog.Title>Delivery location</Dialog.Title>
           </Dialog.Header>
-       <Dialog.Body>
-  {point || !onlyDelivery ? (
-    <Box h="420px" w="100%" borderRadius="md" overflow="hidden">
-<MapContainer
-  {...({
-    center: [(point ?? LOGISTIC_CENTER).lat, (point ?? LOGISTIC_CENTER).lng],
-    zoom: 13,
-    ...(point && !onlyDelivery
-      ? {
-          bounds: [
-            [LOGISTIC_CENTER.lat, LOGISTIC_CENTER.lng],
-            [point.lat, point.lng],
-          ],
-        }
-      : {}),
-  } as any)}
-  style={{ height: "100%", width: "100%" }}
-  key={`${point?.lat ?? LOGISTIC_CENTER.lat},${point?.lng ?? LOGISTIC_CENTER.lng}-${onlyDelivery}`}
-  whenCreated={(m) => setTimeout(() => m.invalidateSize(), 0)}
->
-
-        <TileLayer
-          {...({
-            attribution: "© OpenStreetMap contributors",
-            url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          } as any)}
-        />
-
-        {/* delivery marker when available */}
-        {point && (
-          <CircleMarker
-            {...({ center: [point.lat, point.lng], radius: 9, pathOptions: { color: "#16a34a" } } as any)}
-          />
-        )}
-
-        {/* LC + route for active orders */}
-        {!onlyDelivery && (
-          <>
-            <CircleMarker
-              {...({ center: [LOGISTIC_CENTER.lat, LOGISTIC_CENTER.lng], radius: 9, pathOptions: { color: "#2563eb" } } as any)}
-            />
-            {point && (
-              <Polyline
-                {...({
-                  positions: [
-                    [LOGISTIC_CENTER.lat, LOGISTIC_CENTER.lng],
-                    [point.lat, point.lng],
-                  ],
-                  pathOptions: { color: "#0ea5e9", weight: 4, dashArray: "6 6" },
-                } as any)}
-              />
+          <Dialog.Body>
+            {point ? (
+              <Box h="420px" w="100%" borderRadius="md" overflow="hidden">
+                <MapContainer
+                  {...({ center: [point.lat, point.lng], zoom: 13 } as any)}
+                  style={{ height: "100%", width: "100%" }}
+                  key={`${point.lat},${point.lng}`}
+                >
+                  <TileLayer
+                    {...({
+                      attribution: "© OpenStreetMap contributors",
+                      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                    } as any)}
+                  />
+                  <CircleMarker
+                    {...({
+                      center: [point.lat, point.lng],
+                      radius: 9,
+                      pathOptions: { color: "#16a34a" },
+                    } as any)}
+                  />
+                </MapContainer>
+              </Box>
+            ) : (
+              <Text>No delivery location available for this order.</Text>
             )}
-          </>
-        )}
-      </MapContainer>
-    </Box>
-  ) : (
-    <Text>No delivery location available for this order.</Text>
-  )}
-</Dialog.Body>
-
+          </Dialog.Body>
           <Dialog.Footer>
             <Button onClick={onClose}>Close</Button>
           </Dialog.Footer>
