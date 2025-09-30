@@ -1,0 +1,20 @@
+[
+  {
+    "user": "66f2aa000000000000000008",
+    "farmName": "Negev Sunrise Farm",
+    "agriculturalInsurance": true,
+    "agreementPercentage": 65,
+    "farmLogo": "https://picsum.photos/seed/negev-sunrise/512/512",
+    "farmerInfo": "Family-run operation in the northern Negev focusing on water-efficient vegetables and herbs. Drip irrigation, cover crops, and minimal till protect the soil.",
+    "lands": ["66f2aa00000000000000ab01"]
+  },
+  {
+    "user": "66f2aa00000000000000002a",
+    "farmName": "Lahavim Valley Organics",
+    "agriculturalInsurance": false,
+    "agreementPercentage": 60,
+    "farmLogo": "https://picsum.photos/seed/lahavim-organics/512/512",
+    "farmerInfo": "Small-batch organic orchards and seasonal open-field produce. We prioritize biodiversity corridors and beneficial insects over broad-spectrum sprays.",
+    "lands": ["66f2aa00000000000000ab02"]
+  }
+]

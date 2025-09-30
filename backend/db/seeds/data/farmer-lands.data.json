@@ -1,0 +1,51 @@
+[
+  {
+    "_id": "66f2aa00000000000000ab01",
+    "user": "66f2aa000000000000000008",
+    "name": "Negev Plot A",
+    "ownership": "owned",
+    "areaM2": 12500,
+    "address": {
+      "lnt": 34.7,
+      "alt": 31.8,
+      "address": "Beer Sheva, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "pickupAddress": {
+      "lnt": 34.803,
+      "alt": 31.386,
+      "address": "Lahavim, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "measurements": {
+      "abM": 100,
+      "bcM": 125,
+      "cdM": 100,
+      "daM": 125,
+      "rotationDeg": 10
+    },
+    "sections": []
+  },
+  {
+    "_id": "66f2aa00000000000000ab02",
+    "user": "66f2aa00000000000000002a",
+    "name": "Lahavim Orchard",
+    "ownership": "rented",
+    "areaM2": 20000,
+    "address": {
+      "lnt": 34.803,
+      "alt": 31.386,
+      "address": "Lahavim, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "pickupAddress": null,
+    "measurements": {
+      "abM": 140,
+      "bcM": 143,
+      "cdM": 140,
+      "daM": 143,
+      "rotationDeg": 0
+    },
+    "sections": []
+  }
+]
