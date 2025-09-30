@@ -1,5 +1,5 @@
 // src/components/layout/NavBar.tsx
-import { Box, Flex, Link as CLink } from "@chakra-ui/react";
+import { Box, Flex, Link as CLink, Image as CImage } from "@chakra-ui/react";
 import {StyledIconButton} from "@/components/ui/IconButton";
 import { FiMenu } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
@@ -15,6 +15,8 @@ import AccountMenu from "./AccountMenu";
 
 // ✅ use your custom color-mode utilities (next-themes + Chakra)
 import { useColorModeValue, ColorModeButton } from "@/components/ui/color-mode";
+import logo from "/DFCPlogo.png";
+
 
 export default function NavBar() {
   // use your hook instead of Chakra's
@@ -47,8 +49,10 @@ export default function NavBar() {
           )}
           
         {/* Brand */}
-        <CLink asChild fontWeight="bold" _hover={{ textDecoration: "none" }}>
-          <RouterLink to="/">Simple Market</RouterLink>
+        <CLink asChild  _hover={{ textDecoration: "none" }}>
+          <RouterLink to="/">
+          <CImage src={logo} alt="Simple Market" height="8" objectFit="contain"/>
+          </RouterLink>
         </CLink>
 
 
