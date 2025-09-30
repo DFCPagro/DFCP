@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getStockByMarketStockId } from "@/api/market";
-import type { MarketItem } from "@/types/market";
 import type { SortKey } from "./useMarketFilters";
+import { flattenMarketDocToItems, type MarketItem } from "@/types/market";
 
 export type UseMarketItemsOptions = {
   /** When null, fetching is disabled (inactive market) */
@@ -120,9 +120,11 @@ export function useMarketItems({
       if (reqId !== reqIdRef.current) return;
 
       // Expect an array of MarketItem
-      const arr = Array.isArray(data) ? (data as MarketItem[]) : [];
+      // data is a MarketStockDoc; flatten to MarketItem[]
+      const arr = flattenMarketDocToItems(data);
       setAllItems(arr);
       onFetched?.(arr);
+
     } catch (e: any) {
       if (reqId !== reqIdRef.current) return;
       setError(e?.message ?? "Failed to load market items");

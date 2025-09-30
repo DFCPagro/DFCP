@@ -461,19 +461,27 @@ useEffect(() => {
 /* --------------------------------- Bits ---------------------------------- */
 
 function formatShift(s: AvailableShift | null | undefined): string | undefined {
-  if (!s) return undefined
-  // AvailableShift: { key, date, window, marketStockId }
-  // Example: "2025-09-28 • Morning"
-  const date = s.date ?? ""
-  const win = s.window ?? ""
-  return `${date}${date && win ? " • " : ""}${win}`
+  if (!s) return undefined;
+  const date = s.date ?? "";
+  const key = s.key ? s.key[0].toUpperCase() + s.key.slice(1) : "";
+  // if you want to show the first slot time window, format it safely:
+  const firstSlot = Array.isArray(s.window) && s.window.length > 0 ? s.window[0] : null;
+  const slotLabel = firstSlot ? `${firstSlot.start}–${firstSlot.end}` : "";
+
+  // Examples:
+  // "2025-09-28 • Morning"
+  // or "2025-09-28 • Morning (08:00–10:00)" if you prefer the slot too
+  const base = `${date}${date && key ? " • " : ""}${key}`;
+  // If you want the time range appended, uncomment the next line:
+  // return slotLabel ? `${base} (${slotLabel})` : base;
+  return base;
 }
 
 function formatCoords(a: Address): string {
-  const lat = a.alt ?? NaN
-  const lng = a.lnt ?? NaN
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return ""
-  return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+  const lat = (a as any).lat ?? (a as any).alt ?? NaN;
+  const lng = (a as any).lng ?? (a as any).lnt ?? NaN;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+  return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
 }
 
 function RadioCard(props: { value: string; title?: string; subtitle?: string }) {

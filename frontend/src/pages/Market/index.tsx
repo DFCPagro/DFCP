@@ -223,7 +223,7 @@ export default function MarketPage() {
 
             {/* Grid */}
             <ItemsGrid
-              items={visiblePageItems}
+              items={pageItems}
               isLoading={itemsLoading}
               isFetching={itemsFetching}
               error={itemsError}

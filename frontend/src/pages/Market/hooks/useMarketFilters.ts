@@ -81,23 +81,49 @@ export function useMarketFilters({
   // --- initialize from URL (if enabled) ---
   const urlInit = useRef<boolean>(false);
   const readURL = useCallback(() => {
-    if (!syncToURL) return {
-      category: initialCategory,
-      search: initialSearch,
-      sort: initialSort as SortKey,
-      page: initialPage,
-    };
-    const cat = searchParams.get("cat");
+    if (!syncToURL) {
+      // normalize initialCategory too: "" or "all" -> null, else lowercase
+      const normInitCat =
+        initialCategory == null
+          ? null
+          : (initialCategory.trim().toLowerCase() || null) === "all"
+          ? null
+          : initialCategory.trim().toLowerCase();
+
+      return {
+        category: normInitCat,
+        search: initialSearch,
+        sort: initialSort as SortKey,
+        page: initialPage,
+      };
+    }
+
+    const rawCat = searchParams.get("cat");
     const q = searchParams.get("q");
     const sortParam = (searchParams.get("sort") as SortKey | null) ?? undefined;
     const pageParam = parseInt(searchParams.get("page") ?? "", 10);
+
+    // normalize cat from URL: "" or "all" -> null, else lowercase
+    const category =
+      rawCat == null
+        ? (initialCategory == null
+            ? null
+            : (initialCategory.trim().toLowerCase() || null) === "all"
+            ? null
+            : initialCategory.trim().toLowerCase())
+        : (() => {
+            const lc = rawCat.trim().toLowerCase();
+            return lc === "" || lc === "all" ? null : lc;
+          })();
+
     return {
-      category: (cat ?? initialCategory) || null,
+      category,
       search: q ?? initialSearch,
       sort: (sortParam && isValidSort(sortParam) ? sortParam : initialSort) as SortKey,
       page: Number.isFinite(pageParam) && pageParam > 0 ? pageParam : initialPage,
     };
   }, [initialCategory, initialPage, initialSearch, initialSort, searchParams, syncToURL]);
+
 
   const [{ category, search, sort, page }, setState] = useState(() => readURL());
   const pageSize = pageSizeOpt;
@@ -115,8 +141,16 @@ export function useMarketFilters({
 
   // --- setters (reset page to 1 on most filter changes) ---
   const setCategory = useCallback((cat: string | null) => {
-    setState((s) => ({ ...s, category: cat, page: 1 }));
+    const next =
+      cat == null
+        ? null
+        : (() => {
+            const lc = cat.trim().toLowerCase();
+            return lc === "" || lc === "all" ? null : lc;
+          })();
+    setState((s) => ({ ...s, category: next, page: 1 }));
   }, []);
+
 
   const setSearchImmediate = useCallback((text: string) => {
     setState((s) => ({ ...s, search: text, page: 1 }));
@@ -136,13 +170,21 @@ export function useMarketFilters({
   }, []);
 
   const resetFilters = useCallback(() => {
+    const normInitCat =
+      initialCategory == null
+        ? null
+        : (() => {
+            const lc = initialCategory.trim().toLowerCase();
+            return lc === "" || lc === "all" ? null : lc;
+          })();
     setState({
-      category: initialCategory,
+      category: normInitCat,
       search: initialSearch,
       sort: initialSort,
       page: 1,
     });
   }, [initialCategory, initialSearch, initialSort]);
+
 
   // --- write changes to URL (if enabled) ---
   useEffect(() => {

@@ -1,3 +1,4 @@
+// src/api/market.ts
 import { api } from "./config";
 import { z } from "zod";
 
@@ -7,6 +8,8 @@ import {
   type AvailableShift,
   type MarketStockDoc,
 } from "@/types/market";
+
+/* ----------------------------- Raw payloads ----------------------------- */
 
 const ItemRaw = z.object({
   _id: z.string(),
@@ -26,70 +29,85 @@ const ItemRaw = z.object({
 const DocRaw = z.object({
   _id: z.string(),
   LCid: z.string(),
-  availableDate: z.string(),                        // "2025-09-23T00:00:00.000Z"
-  availableShift: z.enum(["morning","afternoon","evening","night"]),
+  // can be ISO or yyyy-mm-dd; we will normalize to yyyy-mm-dd
+  availableDate: z.string(),
+  // be tolerant to backend casing and then enforce enum
+  availableShift: z
+    .string()
+    .transform((s) => s.toLowerCase())
+    .pipe(z.enum(["morning", "afternoon", "evening", "night"])),
   items: z.array(ItemRaw).default([]),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
-const ymd = (s: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : new Date(s).toISOString().slice(0,10);
 
-/** 1) Get customer addresses (list only) */
+const ymd = (s: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : new Date(s).toISOString().slice(0, 10);
+
+/* ------------------------------- Addresses ------------------------------ */
+
 export async function getCustomerAddresses(): Promise<Address[]> {
   const { data } = await api.get("/users/addresses");
+  // backend may wrap in { data }; accept both
   return AddressSchema.array().parse(data?.data ?? data);
 }
 
 type AddressInput = Omit<Address, "logisticCenterId">;
 
 export async function addCustomerAddress(input: AddressInput): Promise<Address[]> {
-  const { data } = await api.post("/users/addresses", input);   // <-- flat body
-  return AddressListSchema.parse(data?.data ?? data);           // <-- parse array
+  // flat body expected by your backend
+  const { data } = await api.post("/users/addresses", input);
+  return AddressListSchema.parse(data?.data ?? data);
 }
 
-/** 2) After user selects an address, fetch shifts by LC of that address */
-// Upcoming (today and forward) for LC
+/* -------------------------------- Shifts -------------------------------- */
+
 export async function getAvailableShiftsByLC(LCid: string): Promise<AvailableShift[]> {
   const { data } = await api.get("/market/available-stock/next5", {
-    params: { LCid },
+    params: { LCid }, // ensure param name matches backend exactly
   });
   return Array.isArray(data?.data) ? data.data : data;
 }
 
-/** 3) Based on selected shift (with marketStockId), fetch the stock doc */
-// export async function getStockByMarketStockId(marketStockId: string): Promise<MarketStockDoc> {
-//   const { data } = await api.get(
-//     `/market/available-stock/${encodeURIComponent(marketStockId)}`
-//   );
-//   return MarketStockDocSchema.parse(data?.data ?? data);
-// }
+/* --------------------------------- Stock -------------------------------- */
+
 export async function getStockByMarketStockId(marketStockId: string): Promise<MarketStockDoc> {
   const { data } = await api.get(`/market/available-stock/${encodeURIComponent(marketStockId)}`);
   const raw = DocRaw.parse(data?.data ?? data);
 
-  const normalized = {
+  const normalized: MarketStockDoc = {
     _id: raw._id,
     date: ymd(raw.availableDate),
-    shift: raw.availableShift,
+    shift: raw.availableShift, // guaranteed lowercase by DocRaw
     logisticCenterId: raw.LCid,
     lines: raw.items.map((x) => ({
       lineId: x._id,
       stockId: `${x.itemId}_${x.farmerID ?? "unknown"}`,
       itemId: x.itemId,
-      itemDisplayName: x.displayName,
-      itemImageUrl: x.imageUrl,
-      category: String(x.category ?? "").toLowerCase(),
-      pricePerUnit: Number(x.pricePerUnit ?? 0),
+
+      // ✅ canonical keys that grid/cards & flatteners usually expect
+      displayName: x.displayName,
+      imageUrl: x.imageUrl,
+
+      // safe category (avoid empty string so filters don't exclude)
+      category: (x.category ?? "misc").toString().toLowerCase(),
+
+      // don’t auto-zero; preserve "unknown" as undefined
+      pricePerUnit: x.pricePerUnit == null ? undefined : Number(x.pricePerUnit),
+      originalCommittedQuantityKg:
+        x.originalCommittedQuantityKg == null ? undefined : Number(x.originalCommittedQuantityKg),
+      currentAvailableQuantityKg:
+        x.currentAvailableQuantityKg == null ? undefined : Number(x.currentAvailableQuantityKg),
+
+      // provenance
       sourceFarmerId: x.farmerID ?? "",
       sourceFarmerName: x.farmerName ?? "",
       sourceFarmName: x.farmName,
-      originalCommittedQuantityKg: Number(x.originalCommittedQuantityKg ?? 0),
-      currentAvailableQuantityKg: Number(x.currentAvailableQuantityKg ?? 0),
     })),
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
 
+  // validate against your frontend schema
   return MarketStockDocSchema.parse(normalized);
 }

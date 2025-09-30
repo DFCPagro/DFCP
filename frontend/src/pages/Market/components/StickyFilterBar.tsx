@@ -82,6 +82,7 @@ function StickyFilterBarBase({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter" && suggestions[0]) {
+        onSearchChange(suggestions[0].label)
         onPickSuggestion(suggestions[0])
         setOpen(false)
       } else if (e.key === "Escape") {
@@ -135,12 +136,12 @@ function StickyFilterBarBase({
                 placeholder="Search items or farmers…"
                 value={search}
                 onClick={() => setOpen(true)}
+                onFocus={() => setOpen(true)}
                 onChange={(e) => {
                   onSearchChange(e.target.value)
                   if (!open) setOpen(true)
                 }}
                 onKeyDown={handleKeyDown}
-                variant="subtle"
               />
               <Show when={showHint}>
                 <HStack gap="1" color="fg.muted">
@@ -176,6 +177,7 @@ function StickyFilterBarBase({
                     _hover={{ bg: "bg.subtle" }}
                     onMouseDown={(e) => e.preventDefault()} // keep focus
                     onClick={() => {
+                      onSearchChange(s.label)
                       onPickSuggestion(s)
                       setOpen(false)
                     }}

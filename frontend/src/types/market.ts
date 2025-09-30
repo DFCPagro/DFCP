@@ -17,19 +17,24 @@ export const AvailableShiftSchema = z.object({
 });
 export type AvailableShift = z.infer<typeof AvailableShiftSchema>;
 
+/**
+ * Canonical normalized line as produced by src/api/market.ts:getStockByMarketStockId
+ * - displayName/imageUrl are the canonical keys (not itemDisplayName/itemImageUrl).
+ * - price/qty fields may be undefined if the backend omitted them.
+ */
 export const MarketStockLineSchema = z.object({
   lineId: z.string(),
   stockId: z.string(),             // "<itemId>_<farmerId>"
   itemId: z.string(),
-  itemDisplayName: z.string(),
-  itemImageUrl: z.string().url().optional(),
-  category: z.string(),
-  pricePerUnit: z.number().nonnegative(),
+  displayName: z.string(),
+  imageUrl: z.string().url().optional(),
+  category: z.string(),            // API falls back to "misc"
+  pricePerUnit: z.number().nonnegative().optional(),
   sourceFarmerId: z.string(),
   sourceFarmerName: z.string(),
   sourceFarmName: z.string().optional(),
-  originalCommittedQuantityKg: z.number().nonnegative(),
-  currentAvailableQuantityKg: z.number().nonnegative(),
+  originalCommittedQuantityKg: z.number().nonnegative().optional(),
+  currentAvailableQuantityKg: z.number().nonnegative().optional(),
 });
 export type MarketStockLine = z.infer<typeof MarketStockLineSchema>;
 
@@ -44,6 +49,10 @@ export const MarketStockDocSchema = z.object({
 });
 export type MarketStockDoc = z.infer<typeof MarketStockDocSchema>;
 
+/**
+ * Flattened item used by grid/cards/search.
+ * - pricePerUnit/availableKg are optional to reflect source truth.
+ */
 export const MarketItemSchema = z.object({
   docId: z.string(),
   lineId: z.string(),
@@ -55,14 +64,18 @@ export const MarketItemSchema = z.object({
   name: z.string(),
   imageUrl: z.string().url().optional(),
   category: z.string(),
-  pricePerUnit: z.number().nonnegative(),
-  availableKg: z.number().nonnegative(),
+  pricePerUnit: z.number().nonnegative().optional(),
+  availableKg: z.number().nonnegative().optional(),
   farmerId: z.string(),
   farmerName: z.string(),
   farmName: z.string().optional(),
 });
 export type MarketItem = z.infer<typeof MarketItemSchema>;
 
+/**
+ * Map a normalized stock doc into the flat item list the UI consumes.
+ * Aligns with canonical keys from the API normalization.
+ */
 export const flattenMarketDocToItems = (doc: MarketStockDoc): MarketItem[] =>
   (doc?.lines ?? []).map((ln) => ({
     docId: doc._id,
@@ -72,11 +85,11 @@ export const flattenMarketDocToItems = (doc: MarketStockDoc): MarketItem[] =>
     shift: doc.shift,
     logisticCenterId: doc.logisticCenterId,
     itemId: ln.itemId,
-    name: ln.itemDisplayName,
-    imageUrl: ln.itemImageUrl,
+    name: ln.displayName,
+    imageUrl: ln.imageUrl,
     category: ln.category,
-    pricePerUnit: ln.pricePerUnit,
-    availableKg: ln.currentAvailableQuantityKg,
+    pricePerUnit: ln.pricePerUnit,                         // may be undefined
+    availableKg: ln.currentAvailableQuantityKg,            // may be undefined
     farmerId: ln.sourceFarmerId,
     farmerName: ln.sourceFarmerName,
     farmName: ln.sourceFarmName,

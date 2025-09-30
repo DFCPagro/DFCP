@@ -118,7 +118,7 @@ export function useMarketSearchIndex({
             kind: "item",
             key: rec.label, // use human label to keep uniqueness by name
             label: rec.label,
-            secondary: rec.category,
+            secondary: rec.category || undefined,
             itemIds: rec.itemIds,
           },
           rank: r,
@@ -133,9 +133,9 @@ export function useMarketSearchIndex({
         pool.push({
           s: {
             kind: "farmer",
-            key: rec.label, // label is unique enough; if not, we could use rec.farmerIds[0]
+            key: rec.farmerIds[0] ?? rec.label,
             label: rec.label,
-            secondary: rec.farmName,
+            secondary: rec.farmName || undefined,
             farmerIds: rec.farmerIds,
           },
           rank: r,

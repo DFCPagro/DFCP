@@ -150,13 +150,13 @@ function ItemsGridBase({
 
 /** Defensive unique key for a MarketItem */
 function itemKey(it: MarketItem): string {
-  // Prefer stable ids; fall back to compound key (name + farmer + variety)
-  const anyIt = it as any
+  const anyIt = it as any;
   return (
+    anyIt.lineId ??
     anyIt.id ??
     anyIt.itemId ??
     `${anyIt.name ?? "item"}|${anyIt.farmerId ?? anyIt.farmerName ?? "farmer"}|${anyIt.variety ?? ""}`
-  )
+  );
 }
 
 export const ItemsGrid = memo(ItemsGridBase)
