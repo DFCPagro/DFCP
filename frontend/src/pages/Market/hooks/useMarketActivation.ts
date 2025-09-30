@@ -6,6 +6,7 @@ import type { AvailableShift } from "@/types/market";
 /** LocalStorage key for persisted selection */
 const LS_KEY = "market.selection.v2";
 
+
 /**
  * We persist the full address snapshot (since your Address type has no `id`)
  * and the selected shift's `marketStockId`.
@@ -18,6 +19,12 @@ export type MarketSelection = {
 export type UseMarketActivationOptions = {
   /** If true, we'll keep selection in LS even if it becomes invalid (default false = clear). */
   keepInvalidInStorage?: boolean;
+
+  /** Auto-pick first address + first valid upcoming shift on mount if none exists (default: true). */
+  autoActivateOnMount?: boolean;
+
+  /** If provided, use this to decide which shift is "first upcoming". (default: first in array) */
+  pickFirstUpcomingShift?: (shifts: AvailableShift[]) => AvailableShift | null;
 };
 
 export type UseMarketActivation = {
@@ -45,6 +52,8 @@ export type UseMarketActivation = {
 
   /** Re-run server validation for the current selection */
   revalidate: () => Promise<void>;
+
+  autoActivate: () => Promise<boolean>;
 };
 
 /* ---------------------------- Storage helpers ---------------------------- */
@@ -91,6 +100,11 @@ function sameAddress(a: Address, b: Address): boolean {
 }
 
 /* ------------------------------ Validation ------------------------------- */
+function defaultPickFirstUpcoming(shifts: AvailableShift[]): AvailableShift | null {
+  // If your API already returns only future shifts sorted ascending, the first is enough.
+  return shifts?.length ? shifts[0] : null;
+}
+
 
 async function validateSelection(
   selection: MarketSelection | null,
@@ -126,8 +140,17 @@ async function validateSelection(
 export function useMarketActivation(
   options: UseMarketActivationOptions = {}
 ): UseMarketActivation {
-  const optsRef = useRef(options);
-  optsRef.current = options;
+  const optsRef = useRef<Required<UseMarketActivationOptions>>({
+    keepInvalidInStorage: options.keepInvalidInStorage ?? false,
+    autoActivateOnMount: options.autoActivateOnMount ?? true,
+    pickFirstUpcomingShift: options.pickFirstUpcomingShift ?? defaultPickFirstUpcoming,
+  });
+  optsRef.current = {
+    keepInvalidInStorage: options.keepInvalidInStorage ?? false,
+    autoActivateOnMount: options.autoActivateOnMount ?? true,
+    pickFirstUpcomingShift: options.pickFirstUpcomingShift ?? defaultPickFirstUpcoming,
+  };
+
 
   const [selection, setSelectionState] = useState<MarketSelection | null>(() => readSelection());
   const [address, setAddress] = useState<Address | null>(null);
@@ -181,16 +204,68 @@ export function useMarketActivation(
     await runValidation(selection);
   }, [runValidation, selection]);
 
+  const didAutoActivateRef = useRef<boolean>(false);
+
+  const autoActivate = useCallback(async () => {
+    if (didAutoActivateRef.current) return false;
+    didAutoActivateRef.current = true;
+
+    // 1) Fetch addresses
+    const addresses = await getCustomerAddresses();
+    const addr = addresses[0];
+    if (!addr) {
+      // No addresses => remain inactive; drawer can ask user to add one
+      return false;
+    }
+
+    // 2) Fetch shifts for this address’s LC
+    const lcId = addr.logisticCenterId;
+    if (!lcId) return false;
+
+    const shifts = await getAvailableShiftsByLC(lcId);
+    const picker = optsRef.current.pickFirstUpcomingShift ?? defaultPickFirstUpcoming;
+    const first = picker(shifts);
+    if (!first) return false;
+
+    // 3) Persist + validate
+    await setSelection({ address: addr, marketStockId: first.marketStockId });
+    return true;
+  }, [setSelection]);
   // Validate on first mount based on storage
   useEffect(() => {
-    if (!selection) {
-      clearSelection();
-      return;
-    }
-    runValidation(selection);
+    (async () => {
+      if (!selection) {
+        // No saved selection → try auto-activation if enabled.
+        if (optsRef.current.autoActivateOnMount) {
+          try {
+            const ok = await autoActivate();
+            if (ok) return; // setSelection already triggers validation
+          } catch {
+            // ignore; will fall through to clear
+          }
+        }
+        // Either disabled or failed to auto-activate: clear state to a clean slate
+        clearSelection();
+        return;
+      }
+      // We had a selection in LS → validate it
+      runValidation(selection);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // NEW: If validation cleared an invalid saved selection, try auto-activate once.
+  useEffect(() => {
+    if (!optsRef.current.autoActivateOnMount) return;
+    if (isActive) return;                     // already active, nothing to do
+    if (selection !== null) return;           // still have a saved selection, don't auto-pick yet
+    // selection is null AND we're inactive -> try once
+    void autoActivate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection, isActive]);
+
+  
+ 
   return {
     isActive,
     address,
@@ -201,5 +276,6 @@ export function useMarketActivation(
     setSelection,
     clearSelection,
     revalidate,
+    autoActivate,
   };
 }

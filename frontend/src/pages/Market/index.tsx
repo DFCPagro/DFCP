@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Stack, Heading, Separator } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 import { toaster } from "@/components/ui/toaster";
@@ -37,26 +37,54 @@ function mkLineFromItem(item: any): CartLine {
   };
 }
 
+function formatAddressShort(a: any): string {
+  if (!a) return "—";
+  // prefer the plain text address; fall back to coords
+  const txt = (a.address ?? "").trim();
+  if (txt) return txt;
+  const lat = Number(a.alt), lng = Number(a.lnt);
+  return (Number.isFinite(lat) && Number.isFinite(lng)) ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : "—";
+}
+
+function formatShiftLabel(s: any): string {
+  if (!s) return "—";
+  const date = s.date ?? "";
+  const win  = s.window ?? s.shiftName ?? "";
+  return `${date}${date && win ? " • " : ""}${win}`;
+}
+
+
 // ------------------------------- Component --------------------------------
 
 export default function MarketPage() {
   const navigate = useNavigate();
 
-  // ---- Activation (Address + Shift) ----
   const {
-    isActive,
-    address,
-    shift,
-    isLoading: activationLoading,
-    error: activationError,
-    setSelection,
-    clearSelection,
-    revalidate,
-  } = useMarketActivation();
+    isActive, address, shift, isLoading: activationLoading, error: activationError,
+    setSelection, clearSelection, revalidate,
+  } = useMarketActivation({ autoActivateOnMount: true, keepInvalidInStorage: false });
 
   // ---- Local UI drawers ----
   const [pinOpen, setPinOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+
+  // track first transition to active to fire a toast once
+  const wasActiveRef = useRef<boolean>(false);
+  useEffect(() => {
+    const was = wasActiveRef.current;
+    if (!was && isActive) {
+      wasActiveRef.current = true;
+      setPinOpen(false);
+      toaster.create({
+        title: "Market activated",
+        description: `Deliver to ${formatAddressShort(address)} · ${formatShiftLabel(shift)}`,
+        type: "success",
+        duration: 5000,
+      });
+    }
+    if (!isActive) wasActiveRef.current = false;
+  }, [isActive, address, shift]);
+
 
   // ---- Filters ----
   const {

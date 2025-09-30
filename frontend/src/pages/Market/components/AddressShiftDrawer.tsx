@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState ,useRef} from "react"
 import {
   Box,
   Button,
@@ -19,7 +19,6 @@ import {
 import { FiMapPin, FiRefreshCw, FiPlus, FiCheck, FiTrash2 } from "react-icons/fi"
 import { toaster } from "@/components/ui/toaster"
 import MapPickerDialog from "@/components/common/MapPickerDialog"
-
 import {
   addCustomerAddress,
   getAvailableShiftsByLC,
@@ -75,12 +74,13 @@ export default function AddressShiftDrawer({
   const [shifts, setShifts] = useState<AvailableShift[]>([])
   const [shiftsLoading, setShiftsLoading] = useState(false)
   const [shiftsError, setShiftsError] = useState<string | null>(null)
-  const [selectedShiftKey, setSelectedShiftKey] = useState<string>("")
+  const [selectedMarketStockId, setSelectedMarketStockId] = useState<string>("")
 
   const selectedShift: AvailableShift | null = useMemo(() => {
-    if (!selectedShiftKey) return null
-    return shifts.find((s) => s.key === selectedShiftKey) ?? null
-  }, [selectedShiftKey, shifts])
+    if (!selectedMarketStockId) return null
+    return shifts.find((s) => s.marketStockId === selectedMarketStockId) ?? null
+  }, [selectedMarketStockId, shifts])
+
 
   // Confirm dialog for [Change]
   const {
@@ -107,23 +107,23 @@ export default function AddressShiftDrawer({
       setAddresses(list ?? [])
       if ((list?.length ?? 0) === 0) {
         setSelectedAddressIdx("")
-      } else if (!selectedAddress) {
-        // preselect first on load
-        setSelectedAddressIdx("0")
+      }   else {
+        setSelectedAddressIdx((prev) => (prev === "" ? "0" : prev));
       }
+
     } catch (e: any) {
       setAddrError(e?.message ?? "Failed to load addresses")
       setAddresses([])
     } finally {
       setAddrLoading(false)
     }
-  }, [selectedAddress])
+  }, [])
 
   const loadShiftsForAddress = useCallback(
     async (addr: Address | null) => {
       if (!addr?.logisticCenterId) {
         setShifts([])
-        setSelectedShiftKey("")
+        setSelectedMarketStockId("")
         return
       }
       try {
@@ -132,40 +132,49 @@ export default function AddressShiftDrawer({
         const list = await getAvailableShiftsByLC(addr.logisticCenterId)
         setShifts(list ?? [])
         // reset previous selection if not in the new list
-        if (!list?.some((s) => s.key === selectedShiftKey)) {
-          setSelectedShiftKey("")
+        // reset previous selection if not in the new list
+        if (!list?.some((s) => s.marketStockId === selectedMarketStockId)) {
+          setSelectedMarketStockId("")
         }
+
       } catch (e: any) {
         setShiftsError(e?.message ?? "Failed to load shifts")
         setShifts([])
-        setSelectedShiftKey("")
+        setSelectedMarketStockId("")
       } finally {
         setShiftsLoading(false)
       }
     },
-    [selectedShiftKey],
+    [selectedMarketStockId],
   )
 
   /* ----------------------------- Effects & init ---------------------------- */
 
+  // When drawer opens in picker mode, load address list once
+const didInitThisOpenRef = useRef(false); // <-- import/useRef at top
+
+useEffect(() => {
+  if (!isOpen) { didInitThisOpenRef.current = false; return; }
+  if (active) return;
+  if (didInitThisOpenRef.current) return;
+  didInitThisOpenRef.current = true;
+  loadAddresses();
+}, [isOpen, active, loadAddresses]);
+
+
   // When drawer opens in picker mode, load addresses (and shifts for first addr)
   useEffect(() => {
-    if (!isOpen) return
-    if (active) return
-    loadAddresses()
-  }, [isOpen, active, loadAddresses])
-
-  // When selected address changes, fetch shifts for that LC
-  useEffect(() => {
     if (!isOpen || active) return
-    loadShiftsForAddress(selectedAddress)
-  }, [isOpen, active, selectedAddress, loadShiftsForAddress])
+    const idx = Number.isFinite(+selectedAddressIdx) ? parseInt(selectedAddressIdx, 10) : -1
+    const addr = idx >= 0 && idx < addresses.length ? addresses[idx] : null
+    loadShiftsForAddress(addr)
+  }, [isOpen, active, selectedAddressIdx, addresses, loadShiftsForAddress])
 
   // Reset local picker state when closing
   useEffect(() => {
     if (isOpen) return
     setSelectedAddressIdx("")
-    setSelectedShiftKey("")
+    setSelectedMarketStockId("")
     setShifts([])
     setAddresses([])
     setAddrError(null)
@@ -244,7 +253,7 @@ export default function AddressShiftDrawer({
 
   /* --------------------------------- Render -------------------------------- */
 
-  const canSave = !!selectedAddress && !!selectedShift
+  const canSave = !!selectedAddress && !!selectedShift && !shiftsLoading && !addrLoading
 
   return (
     <>
@@ -328,7 +337,7 @@ export default function AddressShiftDrawer({
                               <RadioCard
                                 key={`${a.address}-${idx}`}
                                 value={String(idx)}
-                                title={a.address}
+                                title={a.address || "—"}
                                 subtitle={formatCoords(a)}
                               />
                             ))}
@@ -362,14 +371,14 @@ export default function AddressShiftDrawer({
                         <Text color="fg.muted">No shifts available for this address.</Text>
                       ) : (
                         <RadioGroup.Root
-                          value={selectedShiftKey}
-                          onValueChange={(e) => setSelectedShiftKey(e.value ?? "")}
+                          value={selectedMarketStockId}
+                          onValueChange={(e) => setSelectedMarketStockId(e.value ?? "")}
                         >
                           <Stack gap="2">
                             {shifts.map((s) => (
                               <RadioCard
-                                key={s.key}
-                                value={s.key}
+                                key={s.marketStockId}
+                                value={s.marketStockId}
                                 title={formatShift(s)}
                                 subtitle={`Stock: ${s.marketStockId}`}
                               />
