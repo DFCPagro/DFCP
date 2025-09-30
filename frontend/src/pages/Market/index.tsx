@@ -60,7 +60,7 @@ export default function MarketPage() {
   const navigate = useNavigate();
 
   const {
-    isActive, address, shift, isLoading: activationLoading, error: activationError,
+    isActive, address, shift, selection, isLoading: activationLoading, error: activationError,
     setSelection, clearSelection, revalidate,
   } = useMarketActivation({ autoActivateOnMount: true, keepInvalidInStorage: false });
 
@@ -93,19 +93,25 @@ export default function MarketPage() {
   } = useMarketFilters({ pageSize: 16 });
 
   // ---- Items (stock) ----
-  const marketStockId = shift?.marketStockId ?? null;
+  const marketStockId = selection?.marketStockId ?? shift?.marketStockId ?? null;
   const {
     allItems, pageItems, isLoading: itemsLoading, isFetching: itemsFetching,
     error: itemsError, totalItems, totalPages, setPage: setLocalPage,
   } = useMarketItems({
     marketStockId,
-    enabled: isActive,
+    enabled: !!marketStockId,
     category,
     debouncedSearch,
     sort,
     page,
     pageSize,
   });
+
+  console.log("selection.marketStockId", selection?.marketStockId);
+  console.log("marketStockId derived", marketStockId);
+
+  console.log("marketStockId", marketStockId, "isActive", isActive);
+  console.log("pageItems (from hook)", pageItems.length);
 
   // ---- Search suggestions (items + farmers) ----
   const { suggestions, matchFilter } = useMarketSearchIndex({

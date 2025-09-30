@@ -25,7 +25,7 @@ import {
   getCustomerAddresses,
 } from "@/api/market"
 import type { Address } from "@/types/address"
-import type { AvailableShift } from "@/types/market"
+import type { AvailableShiftFlat  } from "@/types/market"
 
 /* ---------------------------------- Types --------------------------------- */
 
@@ -40,13 +40,13 @@ export type AddressShiftDrawerProps = {
 
   /** Current, validated selection (active mode only) */
   currentAddress: Address | null
-  currentShift: AvailableShift | null
+  currentShift: AvailableShiftFlat  | null
 
   /** Called after user confirms "Change" (parent clears cart + selection + sets inactive) */
   onConfirmChange: () => Promise<void> | void
 
   /** Called when user picks a new address+shift (in picker mode). Parent should call setSelection() */
-  onPick: (payload: { address: Address; shift: AvailableShift }) => Promise<void> | void
+  onPick: (payload: { address: Address; shift: AvailableShiftFlat }) => Promise<void> | void
 }
 
 /* ------------------------------- Component -------------------------------- */
@@ -71,13 +71,13 @@ export default function AddressShiftDrawer({
     return idx >= 0 && idx < addresses.length ? addresses[idx] : null
   }, [selectedAddressIdx, addresses])
 
-  const [shifts, setShifts] = useState<AvailableShift[]>([])
+    const [shifts, setShifts] = useState<AvailableShiftFlat[]>([])
   const [shiftsLoading, setShiftsLoading] = useState(false)
   const [shiftsError, setShiftsError] = useState<string | null>(null)
   const [selectedMarketStockId, setSelectedMarketStockId] = useState<string>("")
 
-  const selectedShift: AvailableShift | null = useMemo(() => {
-    if (!selectedMarketStockId) return null
+  const selectedShift: AvailableShiftFlat | null = useMemo(() => {
+        if (!selectedMarketStockId) return null
     return shifts.find((s) => s.marketStockId === selectedMarketStockId) ?? null
   }, [selectedMarketStockId, shifts])
 
@@ -129,13 +129,40 @@ export default function AddressShiftDrawer({
       try {
         setShiftsError(null)
         setShiftsLoading(true)
-        const list = await getAvailableShiftsByLC(addr.logisticCenterId)
-        setShifts(list ?? [])
-        // reset previous selection if not in the new list
-        // reset previous selection if not in the new list
-        if (!list?.some((s) => s.marketStockId === selectedMarketStockId)) {
-          setSelectedMarketStockId("")
-        }
+        const raw = await getAvailableShiftsByLC(addr.logisticCenterId)
+
+          const mapped = (raw ?? [])
+            .map((row: any) => {
+              const k = String(row.shift ?? row.key ?? "").toLowerCase();
+              const isShift =
+                k === "morning" || k === "afternoon" || k === "evening" || k === "night";
+              if (!isShift) return null;
+
+              const d = String(row.date ?? row.availableDate ?? "").slice(0, 10);
+              const id = String(row.docId ?? row.marketStockId ?? row._id ?? "");
+              if (!d || !id) return null;
+
+              return {
+                shift: k as AvailableShiftFlat["shift"],           // <- cast after guard
+                date: d,
+                marketStockId: id,
+                slotLabel: row.deliverySlotLabel
+                  ? String(row.deliverySlotLabel)
+                  : row.slotLabel
+                  ? String(row.slotLabel)
+                  : undefined,
+              } as AvailableShiftFlat;
+            })
+            .filter((x): x is AvailableShiftFlat => x !== null);
+
+          setShifts(mapped);
+
+
+          // reset previous selection if not in the new list
+          if (!mapped.some((s) => s.marketStockId === selectedMarketStockId)) {
+            setSelectedMarketStockId("")
+          }
+
 
       } catch (e: any) {
         setShiftsError(e?.message ?? "Failed to load shifts")
@@ -460,22 +487,16 @@ useEffect(() => {
 
 /* --------------------------------- Bits ---------------------------------- */
 
-function formatShift(s: AvailableShift | null | undefined): string | undefined {
+function formatShift(s: AvailableShiftFlat | null | undefined): string | undefined {
   if (!s) return undefined;
   const date = s.date ?? "";
-  const key = s.key ? s.key[0].toUpperCase() + s.key.slice(1) : "";
-  // if you want to show the first slot time window, format it safely:
-  const firstSlot = Array.isArray(s.window) && s.window.length > 0 ? s.window[0] : null;
-  const slotLabel = firstSlot ? `${firstSlot.start}–${firstSlot.end}` : "";
-
-  // Examples:
-  // "2025-09-28 • Morning"
-  // or "2025-09-28 • Morning (08:00–10:00)" if you prefer the slot too
-  const base = `${date}${date && key ? " • " : ""}${key}`;
-  // If you want the time range appended, uncomment the next line:
-  // return slotLabel ? `${base} (${slotLabel})` : base;
-  return base;
+  const key = s.shift ? s.shift[0].toUpperCase() + s.shift.slice(1) : "";
+  // If you want to append the slot label, uncomment:
+  // const base = `${date}${date && key ? " • " : ""}${key}`;
+  // return s.slotLabel ? `${base} (${s.slotLabel})` : base;
+  return `${date}${date && key ? " • " : ""}${key}`;
 }
+
 
 function formatCoords(a: Address): string {
   const lat = (a as any).lat ?? (a as any).alt ?? NaN;

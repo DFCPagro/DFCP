@@ -3,17 +3,31 @@ import { z } from "zod";
 export const ShiftNameSchema = z.enum(["morning", "afternoon", "evening", "night"]);
 export type ShiftName = z.infer<typeof ShiftNameSchema>;
 
+/** Backend shape returned by GET /market/available-stock/next5 */
+export const BackendShiftRowSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  shift: ShiftNameSchema,               // backend already sends lowercase per your logs
+  docId: z.string(),                    // the stock document id you must use next
+  deliverySlotLabel: z.string().optional(),
+});
+export type BackendShiftRow = z.infer<typeof BackendShiftRowSchema>;
+
+
 export const DeliverySlotSchema = z.object({
   start: z.string(), // "HH:mm" or ISO
   end: z.string(),
 });
 export type DeliverySlot = z.infer<typeof DeliverySlotSchema>;
 
+/** Legacy/alternate shape not used by the Market page flows.
+ *  The backend does NOT return `window[]`. For Market use:
+ *  BackendShiftRow -> map to AvailableShiftFlat.
+ */
 export const AvailableShiftSchema = z.object({
-  key: ShiftNameSchema,                                    // shift name
+  key: ShiftNameSchema,
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   window: z.array(DeliverySlotSchema).min(1),
-  marketStockId: z.string(),                               // use this to fetch stock
+  marketStockId: z.string(),
 });
 export type AvailableShift = z.infer<typeof AvailableShiftSchema>;
 
@@ -96,9 +110,9 @@ export const flattenMarketDocToItems = (doc: MarketStockDoc): MarketItem[] =>
   }));
 
 export const AvailableShiftFlatSchema = z.object({
-  shift: z.enum(["morning","afternoon","evening","night"]),
+  shift: ShiftNameSchema,
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  slotLabel: z.string(),
-  marketStockId: z.string(),
+  marketStockId: z.string(),      // mapped from BackendShiftRow.docId
+  slotLabel: z.string().optional(), // mapped from BackendShiftRow.deliverySlotLabel
 });
 export type AvailableShiftFlat = z.infer<typeof AvailableShiftFlatSchema>;

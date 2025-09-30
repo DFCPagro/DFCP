@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCustomerAddresses, getAvailableShiftsByLC } from "@/api/market";
 import type { Address } from "@/types/address";
-import type { AvailableShift } from "@/types/market";
+import type { AvailableShiftFlat, BackendShiftRow } from "@/types/market";
 
 /** LocalStorage key for persisted selection */
 const LS_KEY = "market.selection.v2";
@@ -24,7 +24,7 @@ export type UseMarketActivationOptions = {
   autoActivateOnMount?: boolean;
 
   /** If provided, use this to decide which shift is "first upcoming". (default: first in array) */
-  pickFirstUpcomingShift?: (shifts: AvailableShift[]) => AvailableShift | null;
+  pickFirstUpcomingShift?: (shifts: AvailableShiftFlat[]) => AvailableShiftFlat | null;
 };
 
 export type UseMarketActivation = {
@@ -35,7 +35,7 @@ export type UseMarketActivation = {
   address: Address | null;
 
   /** Validated shift (matched by marketStockId) or null */
-  shift: AvailableShift | null;
+  shift: AvailableShiftFlat  | null;
 
   /** Raw persisted selection (if any) */
   selection: MarketSelection | null;
@@ -100,7 +100,7 @@ function sameAddress(a: Address, b: Address): boolean {
 }
 
 /* ------------------------------ Validation ------------------------------- */
-function defaultPickFirstUpcoming(shifts: AvailableShift[]): AvailableShift | null {
+function defaultPickFirstUpcoming(shifts: AvailableShiftFlat[]): AvailableShiftFlat | null {
   // If your API already returns only future shifts sorted ascending, the first is enough.
   return shifts?.length ? shifts[0] : null;
 }
@@ -109,7 +109,7 @@ function defaultPickFirstUpcoming(shifts: AvailableShift[]): AvailableShift | nu
 async function validateSelection(
   selection: MarketSelection | null,
   opts: UseMarketActivationOptions
-): Promise<{ address: Address | null; shift: AvailableShift | null }> {
+): Promise<{ address: Address | null; shift: AvailableShiftFlat | null }> {
   if (!selection) return { address: null, shift: null };
 
   // 1) Validate address exists in the user's list (match by value, not id)
@@ -129,10 +129,28 @@ async function validateSelection(
   }
 
   // 3) Validate shift by marketStockId for that LC
-  const shifts: AvailableShift[] = await getAvailableShiftsByLC(lcId);
-  const found = shifts.find((s) => s.marketStockId === selection.marketStockId) ?? null;
+  const rows: BackendShiftRow[] = await getAvailableShiftsByLC(lcId) as any;
 
+  // Map backend rows ({ date, shift, docId, deliverySlotLabel }) -> AvailableShiftFlat
+  const mapped: AvailableShiftFlat[] = (rows ?? [])
+    .map((row) => {
+      const k = String(row.shift ?? "").toLowerCase();
+      if (k !== "morning" && k !== "afternoon" && k !== "evening" && k !== "night") return null;
+      const d = String(row.date ?? "").slice(0, 10);
+      const id = String((row as any).docId ?? "");
+      if (!d || !id) return null;
+      return {
+        shift: k as AvailableShiftFlat["shift"],
+        date: d,
+        marketStockId: id,
+        slotLabel: (row as any).deliverySlotLabel || undefined,
+      } as AvailableShiftFlat;
+    })
+    .filter((x): x is AvailableShiftFlat => x !== null);
+
+  const found = mapped.find((s) => s.marketStockId === selection.marketStockId) ?? null;
   return { address: addr, shift: found };
+
 }
 
 /* ------------------------------- The hook -------------------------------- */
@@ -154,7 +172,7 @@ export function useMarketActivation(
 
   const [selection, setSelectionState] = useState<MarketSelection | null>(() => readSelection());
   const [address, setAddress] = useState<Address | null>(null);
-  const [shift, setShift] = useState<AvailableShift | null>(null);
+  const [shift, setShift] = useState<AvailableShiftFlat | null>(null);
   const [isLoading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -222,13 +240,29 @@ export function useMarketActivation(
     const lcId = addr.logisticCenterId;
     if (!lcId) return false;
 
-    const shifts = await getAvailableShiftsByLC(lcId);
+    const rows: BackendShiftRow[] = await getAvailableShiftsByLC(lcId) as any;
+    const mapped: AvailableShiftFlat[] = (rows ?? [])
+      .map((row) => {
+        const k = String(row.shift ?? "").toLowerCase();
+        if (k !== "morning" && k !== "afternoon" && k !== "evening" && k !== "night") return null;
+        const d = String(row.date ?? "").slice(0, 10);
+        const id = String((row as any).docId ?? "");
+        if (!d || !id) return null;
+        return {
+          shift: k as AvailableShiftFlat["shift"],
+          date: d,
+          marketStockId: id,
+          slotLabel: (row as any).deliverySlotLabel || undefined,
+        } as AvailableShiftFlat;
+      })
+      .filter((x): x is AvailableShiftFlat => x !== null);
+
     const picker = optsRef.current.pickFirstUpcomingShift ?? defaultPickFirstUpcoming;
-    const first = picker(shifts);
+    const first = picker(mapped);
     if (!first) return false;
 
-    // 3) Persist + validate
     await setSelection({ address: addr, marketStockId: first.marketStockId });
+
     return true;
   }, [setSelection]);
   // Validate on first mount based on storage
