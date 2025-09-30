@@ -1,3 +1,4 @@
+// src/pages/profile.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Badge,
@@ -23,12 +24,12 @@ import {
   updateUserContact,
   getUserAddresses,
   createUserAddress,
+  deleteUserAddress,
 } from "@/api/user";
 
 import type { Address } from "@/types/address";
 import type { Contact } from "@/api/user";
 
-// do not depend on dialog’s exact prop types here
 const MPD: any = MapPickerDialog;
 
 export default function Profile() {
@@ -72,7 +73,6 @@ function Label({ children }: { children: React.ReactNode }) {
 function ProfileContent() {
   const [loadingPage, setLoadingPage] = useState(true);
 
-  // only editable fields
   const [contact, setContact] = useState<Contact>({ email: "", phone: "" });
   const originalRef = useRef<Contact>({ email: "", phone: "" });
 
@@ -82,6 +82,7 @@ function ProfileContent() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [addrPickerOpen, setAddrPickerOpen] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   function formatBirthday(b?: string): string {
     if (!b) return "";
@@ -100,8 +101,16 @@ function ProfileContent() {
       try {
         const [c, addr] = await Promise.all([getUserContact(), getUserAddresses()]);
         if (!alive) return;
-        // keep only editable fields in local state
-        setContact({ email: c.email ?? "", phone: c.phone ?? "", name: c.name, birthday: c.birthday } as Contact);
+
+        // Preserve all known fields. If backend ever sends birthDate, map it here defensively.
+        const birthday = (c as any).birthday ?? (c as any).birthDate ?? undefined;
+
+        setContact({
+          email: c.email ?? "",
+          phone: c.phone ?? "",
+          name: c.name,
+          birthday,
+        } as Contact);
         originalRef.current = { email: c.email ?? "", phone: c.phone ?? "" } as Contact;
         setAddresses(addr);
       } catch {
@@ -117,7 +126,6 @@ function ProfileContent() {
 
   const setEmailField = (val: string) => {
     setEmailError(null);
-    // normalize to lowercase immediately; also trim leading/trailing spaces
     const normalized = val.trim().toLowerCase();
     setContact((prev) => ({ ...prev, email: normalized }));
   };
@@ -135,17 +143,11 @@ function ProfileContent() {
     setEmailError(null);
     try {
       setSavingContact(true);
-
-      // send only normalized editable fields
       const email = (contact.email ?? "").trim().toLowerCase();
       const phone = (contact.phone ?? "").trim();
-
       const updated = await updateUserContact({ email, phone });
-
-      // reflect server truth
       setContact((prev) => ({ ...prev, email: updated.email, phone: updated.phone }));
       originalRef.current = { email: updated.email, phone: updated.phone } as Contact;
-
       setBanner("Contact updated");
     } catch (e: any) {
       if (e?.response?.status === 409) {
@@ -162,12 +164,11 @@ function ProfileContent() {
 
   async function onAddAddress(pick: { lat: number; lng: number; addressLine: string }) {
     try {
-      await createUserAddress({
+      const list = await createUserAddress({
         lnt: pick.lat,
         alt: pick.lng,
         address: pick.addressLine,
       });
-      const list = await getUserAddresses();
       setAddresses(list);
       setBanner("Address added");
     } catch {
@@ -177,11 +178,30 @@ function ProfileContent() {
     }
   }
 
+  async function onDeleteAddress(a: Address) {
+    try {
+      const key = `${a.lnt},${a.alt},${a.address}`;
+      setDeletingKey(key);
+      const updated = await deleteUserAddress({
+        lnt: a.lnt,
+        alt: a.alt,
+        address: a.address,
+      });
+      setAddresses(updated);
+      setBanner("Address removed");
+    } catch {
+      setBanner("Delete failed");
+    } finally {
+      setDeletingKey(null);
+      setTimeout(() => setBanner(null), 2500);
+    }
+  }
+
   if (loadingPage) return <Spinner size="sm" />;
 
   return (
     <Grid templateColumns={{ base: "1fr", md: "320px 1fr" }} gap={3} alignItems="start">
-      {/* Left rail: compact contact card */}
+      {/* Left rail: contact card */}
       <Card.Root variant="outline" size="sm" asChild>
         <Box position="sticky" top="12px">
           <Card.Header py={2} px={3}>
@@ -237,7 +257,7 @@ function ProfileContent() {
         </Box>
       </Card.Root>
 
-      {/* Right: address list with dense rows */}
+      {/* Right: address list */}
       <Stack gap={3}>
         {banner && (
           <Card.Root variant="subtle" size="sm">
@@ -264,19 +284,33 @@ function ProfileContent() {
               </Box>
             ) : (
               <Stack gap={0}>
-                {addresses.map((a, i) => (
-                  <Box key={`${a.address}-${i}`}>
-                    <HStack align="start" p={3} gap={2}>
-                      <Box mt="1">
-                        <MapPin size={14} />
-                      </Box>
-                      <Box flex="1">
-                        <Text fontWeight="semibold">{a.address}</Text>
-                      </Box>
-                    </HStack>
-                    {i < addresses.length - 1 ? <Separator /> : null}
-                  </Box>
-                ))}
+                {addresses.map((a, i) => {
+                  const key = `${a.lnt},${a.alt},${i}`;
+                  return (
+                    <Box key={key} borderWidth="1px" borderRadius="md" p={3}>
+                      <HStack justify="space-between" align="start">
+                        <Box>
+                          <HStack gap={2}>
+                            <MapPin size={16} />
+                            <Text fontWeight="semibold">{a.address}</Text>
+                            {a.logisticCenterId ? <Badge>LC: {a.logisticCenterId}</Badge> : null}
+                          </HStack>
+                          <Text fontSize="sm" color="fg.muted">
+                            lat {a.lnt}, lng {a.alt}
+                          </Text>
+                        </Box>
+                        <Button
+                          size="sm"
+                          colorPalette="red"
+                          loading={deletingKey === `${a.lnt},${a.alt},${a.address}`}
+                          onClick={() => onDeleteAddress(a)}
+                        >
+                          Delete
+                        </Button>
+                      </HStack>
+                    </Box>
+                  );
+                })}
               </Stack>
             )}
           </Card.Body>

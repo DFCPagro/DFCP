@@ -1,4 +1,4 @@
-import { api } from "./config"; // reuse the same axios instance as auth.ts
+import { api } from "./config";
 import { z } from "zod";
 import { AddressListSchema, type Address } from "@/types/address";
 
@@ -13,7 +13,10 @@ export type Contact = z.infer<typeof ContactSchema>;
 
 export async function getUserContact(): Promise<Contact> {
   const { data } = await api.get("/users/contact");
-  return ContactSchema.parse(data?.data ?? data);
+  const raw = (data?.data ?? data) as any;
+  // normalize alternate keys
+  if (raw?.birthDate && !raw?.birthday) raw.birthday = raw.birthDate;
+  return ContactSchema.parse(raw);
 }
 
 export async function updateUserContact(
@@ -29,7 +32,7 @@ export async function getUserAddresses(): Promise<Address[]> {
   return AddressListSchema.parse(data?.data ?? data);
 }
 
-/** POST /user/addresses → returns UPDATED LIST */
+/** POST /users/addresses → returns UPDATED LIST */
 export async function createUserAddress(
   addr: Pick<Address, "lnt" | "alt" | "address">
 ): Promise<Address[]> {
@@ -37,11 +40,15 @@ export async function createUserAddress(
   return AddressListSchema.parse(data?.data ?? data);
 }
 
-/* ready for when backend lands */
-/*export async function deleteUserAddress(id: string): Promise<Address[]> {
-  const { data } = await api.delete(`/user/addresses/${id}`);
+/** DELETE /users/addresses with body { lnt, alt, address } → UPDATED LIST */
+export async function deleteUserAddress(
+  addr: Pick<Address, "lnt" | "alt" | "address">
+): Promise<Address[]> {
+  const { data } = await api.delete("/users/addresses", { data: addr });
   return AddressListSchema.parse(data?.data ?? data);
-}*/
+}
+
+/* Optional future PATCH-by-id */
 export async function updateUserAddress(
   id: string,
   patch: Partial<Pick<Address, "lnt" | "alt" | "address" | "logisticCenterId">>
