@@ -226,7 +226,7 @@ export function LandShapeMapper({
               {/* AB */}
               <Stack gap="1">
                 <Text fontSize="sm" color="fg.muted">
-                  Top (AB) m
+                  Bottom (AB) m
                 </Text>
                 <Input
                   value={abText}
@@ -264,7 +264,7 @@ export function LandShapeMapper({
               {/* CD */}
               <Stack gap="1">
                 <Text fontSize="sm" color="fg.muted">
-                  Bottom (CD) m
+                  Top (CD) m
                 </Text>
                 <Input
                   value={cdText}
