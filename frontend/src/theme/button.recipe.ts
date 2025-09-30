@@ -1,3 +1,4 @@
+// src/theme/button.recipe.ts
 import { defineRecipe } from "@chakra-ui/react";
 
 export const buttonRecipe = defineRecipe({
@@ -13,45 +14,34 @@ export const buttonRecipe = defineRecipe({
       solid: {
         bg: { base: "brand.500", _dark: "brand.300" },
         color: { base: "white", _dark: "gray.900" },
-        _hover: {
-          bg: { base: "brand.600", _dark: "brand.400" },
-        },
+        _hover: { bg: { base: "brand.600", _dark: "brand.400" } },
+        // stays semibold via base
       },
       outline: {
         color: { base: "brand.500", _dark: "brand.300" },
-        bg: { base: "transparent", _dark: "transparent" },
+        bg: "transparent",
         border: "1px solid",
         borderColor: { base: "brand.500", _dark: "brand.300" },
-        _hover: {
-          bg: { base: "brand.50", _dark: "brand.900" },
-        },
+        _hover: { bg: { base: "brand.50", _dark: "brand.900" } },
+        fontWeight: "normal",                // ✅ not bold
       },
       ghost: {
-        bg: { base: "transparent", _dark: "transparent" },
+        bg: "transparent",
         color: { base: "brand.500", _dark: "brand.300" },
-        _hover: {
-          bg: { base: "brand.100", _dark: "brand.800" },
-        },
+        _hover: { bg: { base: "brand.100", _dark: "brand.800" } },
+        fontWeight: "normal",                // ✅ not bold
       },
       info: {
         bg: { base: "blue.700", _dark: "blue.300" },
         color: { base: "white", _dark: "gray.900" },
-        _hover: {
-          bg: { base: "blue.600", _dark: "blue.400" },
-        },
-        _active: {
-          bg: { base: "blue.800", _dark: "blue.500" },
-        },
+        _hover: { bg: { base: "blue.600", _dark: "blue.400" } },
+        _active: { bg: { base: "blue.800", _dark: "blue.500" } },
       },
       mint: {
         bg: { base: "teal.500", _dark: "teal.300" },
         color: { base: "white", _dark: "gray.900" },
-        _hover: {
-          bg: { base: "teal.400", _dark: "teal.200" },
-        },
-        _active: {
-          bg: { base: "teal.600", _dark: "teal.400" },
-        },
+        _hover: { bg: { base: "teal.400", _dark: "teal.200" } },
+        _active: { bg: { base: "teal.600", _dark: "teal.400" } },
       },
     },
   },
