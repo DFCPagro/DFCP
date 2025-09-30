@@ -30,6 +30,17 @@ const FarmerSchema = new Schema(
       index: true,
     },
 
+    farmLogo:{
+      type: String,
+      required: false,
+    },
+    
+    farmerInfo: {
+      type: String,
+      required: false,//the farmers story/infomertial
+      trim: true,
+      
+    },
     agreementPercentage: {
       type: Number,
       min: 0,
