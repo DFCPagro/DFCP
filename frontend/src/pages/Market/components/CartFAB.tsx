@@ -82,6 +82,8 @@ function CartFABBase({
           border="2px solid"
           borderColor="bg.canvas"
           pointerEvents="none"
+          aria-live="polite"
+          title={`${badgeText} items in cart`}
         >
           {badgeText}
         </Box>

@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useCallback } from "react";
 import {
   AspectRatio,
   Avatar,
@@ -16,8 +16,12 @@ import type { MarketItem } from "@/types/market";
 export type MarketItemCardProps = {
   item: MarketItem;
   onClick?: (item: MarketItem) => void;
-  onAdd?: (payload: { item: MarketItem }) => void;
+  onAdd?: (payload: { item: MarketItem; qty: number }) => void;
   adding?: boolean;
+
+  /** Optional qty bounds; default 1..20 */
+  minQty?: number;
+  maxQty?: number;
 };
 
 /* ------------------------------ helpers ------------------------------ */
@@ -59,7 +63,15 @@ function getAvailableUnits(it: MarketItem): number {
 
 /* --------------------------------- UI --------------------------------- */
 
-function MarketItemCardBase({ item, onClick, onAdd, adding }: MarketItemCardProps) {
+function MarketItemCardBase({
+  item,
+  onClick,
+  onAdd,
+  adding,
+  minQty = 1,
+  maxQty = 20,
+}: MarketItemCardProps) {
+  const [qty, setQty] = useState<number>(1);
   const img = getImageUrl(item);
   const farmerIcon = getFarmerIconUrl(item);
   const farmerName = (item as any).farmerName as string | undefined;
@@ -72,6 +84,20 @@ function MarketItemCardBase({ item, onClick, onAdd, adding }: MarketItemCardProp
   const priceLabel = useMemo(() => {
     return `$${(Number.isFinite(price) ? price : 0).toFixed(2)}/unit`;
   }, [price]);
+
+  const dec = useCallback(() => {
+    setQty((q) => Math.max(minQty, Math.min(maxQty, q - 1)));
+  }, [minQty, maxQty]);
+
+  const inc = useCallback(() => {
+    setQty((q) => Math.max(minQty, Math.min(maxQty, q + 1)));
+  }, [minQty, maxQty]);
+
+  const handleAdd = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const q = Math.max(minQty, Math.min(maxQty, qty));
+    if (q > 0) onAdd?.({ item, qty: q });
+  }, [onAdd, item, qty, minQty, maxQty]);
 
   return (
     <Card.Root
@@ -129,6 +155,39 @@ function MarketItemCardBase({ item, onClick, onAdd, adding }: MarketItemCardProp
               {availableUnits} units available
             </Text>
           </HStack>
+
+          {/* Qty control */}
+          <HStack justify="space-between" align="center">
+            <Text fontSize="sm" color="fg.muted">Quantity</Text>
+            <HStack>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dec();
+                }}
+                disabled={adding || qty <= minQty}
+              >
+                –
+              </Button>
+              <Box minW="32px" textAlign="center" fontWeight="semibold" aria-live="polite">
+                {qty}
+              </Box>
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  inc();
+                }}
+                disabled={adding || qty >= maxQty}
+              >
+                +
+              </Button>
+            </HStack>
+          </HStack>
+
         </Stack>
       </Card.Body>
 
@@ -138,11 +197,9 @@ function MarketItemCardBase({ item, onClick, onAdd, adding }: MarketItemCardProp
           <Button
             size="sm"
             colorPalette="teal"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdd?.({ item });
-            }}
+            onClick={handleAdd}
             loading={!!adding}
+            disabled={qty < minQty || qty > maxQty}
           >
             <FiShoppingCart />
             <Box as="span" ms="2">

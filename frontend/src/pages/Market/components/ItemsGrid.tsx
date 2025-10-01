@@ -32,7 +32,7 @@ export type ItemsGridProps = {
   totalPages: number // >= 1
   totalItems?: number // optional for small summary
   onPageChange: (p: number) => void
-  onAdd?: (payload: { item: MarketItem }) => void;
+  onAdd?: (payload: { item: MarketItem; qty: number }) => void;
   /** Layout */
   minCardHeight?: string // for consistent skeleton sizing; default "280px"
   columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number } // responsive columns
@@ -53,7 +53,7 @@ function ItemsGridBase({
   onPageChange,
   onAdd,
   minCardHeight = "280px",
-  columns = { base: 2, md: 3, lg: 4 },
+  columns = { base: 2, md: 3, lg: 5 },
   gutter = "4",
 }: ItemsGridProps) {
   const renderSkeletons = isLoading
@@ -89,7 +89,7 @@ function ItemsGridBase({
           ? Array.from({ length: (columns.lg ?? 4) * 2 }).map((_, i) => (
               <GridItem key={`s-${i}`}>
                 <Box borderWidth="1px" borderRadius="lg" overflow="hidden" minH={minCardHeight} p="0">
-                  <Skeleton height="140px" />
+                  <Skeleton height="80px" />
                   <Stack gap="2" p="3">
                     <Skeleton height="18px" />
                     <Skeleton height="14px" />
@@ -153,6 +153,7 @@ function ItemsGridBase({
 function itemKey(it: MarketItem): string {
   const anyIt = it as any;
   return (
+    anyIt.stockId ??                // prefer stockId: "<itemId>_<farmerId>"
     anyIt.lineId ??
     anyIt.id ??
     anyIt.itemId ??
