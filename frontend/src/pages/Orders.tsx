@@ -29,7 +29,6 @@ import type { OrderRowAPI } from "@/types/orders";
 import ItemList, { type ItemRow } from "@/components/common/ItemList";
 
 // map libs
-import "leaflet/dist/leaflet.css";
 import { MapContainer, TileLayer, CircleMarker, Polyline } from "react-leaflet";
 
 // ---------- types / status ----------
