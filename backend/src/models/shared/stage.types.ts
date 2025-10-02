@@ -14,7 +14,7 @@ export const FARMER_ORDER_STAGES = [
   { key: "farmerQSrep",    label: "Quality Check" },       // stage 2
   { key: "loadedToTruck",  label: "Loaded to Truck" },     // stage 3
   { key: "inTransit",      label: "In-Transit" },          // stage 4
-  { key: "received",        label: "Received in LC" },      // stage 5 (spelling per your note)
+  { key: "recieved",        label: "Received in LC" },      // stage 5 (spelling per your note)
   { key: "inspection",     label: "Inspection" },          // stage 6
   { key: "sorting",        label: "Sorting" },             // stage 7
   { key: "atWarehouse",    label: "Warehouse" },           // stage 8
@@ -30,10 +30,10 @@ export const FARMER_ORDER_STAGE_LABELS: Record<FarmerOrderStageKey, string> =
 // -------- Role-based visibility groupings (for UI) --------
 // admin: farm (stages 1-3), in-transit (4), received (5), inspection (6), warehouse (8)
 export const FARMER_ORDER_STAGES_ADMIN: FarmerOrderStageKey[] = [
-  "farmerAck", "farmerQSrep", "loadedToTruck", "inTransit", "received", "inspection", "atWarehouse",
+  "farmerAck", "farmerQSrep", "loadedToTruck", "inTransit", "recieved", "inspection", "atWarehouse",
 ];
 
 // opManager: arrived(received), inspection, sorting, warehouse
 export const FARMER_ORDER_STAGES_OPM: FarmerOrderStageKey[] = [
-  "received", "inspection", "sorting", "atWarehouse",
+  "recieved", "inspection", "sorting", "atWarehouse",
 ];
