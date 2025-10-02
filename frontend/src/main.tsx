@@ -6,7 +6,6 @@ import { BrowserRouter } from "react-router-dom";
 import { queryClient } from "./providers/queryClient";
 import App from "./App";
 import { Toaster } from "@/components/ui/toaster";
-import "leaflet/dist/leaflet.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

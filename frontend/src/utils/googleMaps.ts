@@ -1,17 +1,22 @@
+// src/utils/googleMaps.ts
 import { Loader } from "@googlemaps/js-api-loader";
-import { GOOGLE_MAPS_API_KEY } from "../helpers/env";
+import { GOOGLE_MAPS_API_KEY } from "@/helpers/env";
+
 let mapsPromise: Promise<typeof google> | null = null;
 
-export function loadGoogleMaps() {
+export function loadGoogleMaps(): Promise<typeof google> {
   if (!mapsPromise) {
-    const apiKey = GOOGLE_MAPS_API_KEY
-    if (!apiKey) throw new Error("VITE_GOOGLE_MAPS_API_KEY is missing");
+    if (!GOOGLE_MAPS_API_KEY) throw new Error("VITE_GOOGLE_MAPS_API_KEY is missing");
+
     const loader = new Loader({
-      apiKey,
+      apiKey: GOOGLE_MAPS_API_KEY,
       version: "weekly",
-      libraries: ["places"],
+      libraries: ["places"], // base Maps is implicit
+      language: "en",
+      region: "US",
     });
-    mapsPromise = loader.load();
+
+    mapsPromise = loader.load(); // returns the google namespace
   }
   return mapsPromise;
 }
