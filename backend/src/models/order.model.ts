@@ -15,6 +15,7 @@ export const ORDER_STATUSES = [
   "ready for pickUp",
   "out_for_delivery",
   "delivered",
+  "received",
   "canceled",
   "problem",
 ] as const;
