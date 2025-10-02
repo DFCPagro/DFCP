@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { registerApi } from "@/api/auth";
-import { type RegisterPayload, type RegisterResponse } from "@/types/auth";
+import type { RegisterPayload, RegisterResponse } from "@/types/auth";
+
 import {
   Box,
   Button,
@@ -20,21 +21,26 @@ import {
 import { toaster } from "@/components/ui/toaster";
 import AddressAutocomplete from "@/components/common/AddressAutocomplete";
 import MapPickerDialog from "@/components/common/MapPickerDialog";
-import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
+import { reverseGeocode } from "@/utils/googleMaps";
 import { LocateFixed, Eye, EyeOff } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
-import PhoneFieldControl, { type PhoneValue } from "./components/PhoneFieldControl";
-import { isAtLeast16, isValidEmail, isValidName } from "@/validations/registration.validation";
+import PhoneFieldControl, {
+  type PhoneValue,
+} from "./components/PhoneFieldControl";
+import {
+  isAtLeast16,
+  isValidEmail,
+  isValidName,
+} from "@/validations/registration.validation";
 
 type FormWithoutAddress = Omit<RegisterPayload, "address">;
 
 export default function Register() {
   const navigate = useNavigate();
 
-  // maps + picker
-  const [mapsReady, setMapsReady] = useState(false);
+  // picker dialog + country restriction
   const [pickerOpen, setPickerOpen] = useState(false);
-  const countries = "IL"; // restrict autocomplete to Israel
+  const countries = "IL";
 
   // form (without address object)
   const [form, setForm] = useState<FormWithoutAddress>({
@@ -45,12 +51,12 @@ export default function Register() {
     birthday: "",
   });
 
-  // local-only UI state
+  // local UI state
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // address UI state → we’ll build the backend object from these three
+  // address state → backend `address` object will be built from these
   const [addressText, setAddressText] = useState("");
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
@@ -62,26 +68,25 @@ export default function Register() {
   });
 
   const [errors, setErrors] = useState<
-    Partial<Record<keyof RegisterPayload | "phone" | "address" | "confirmPassword", string>>
+    Partial<
+      Record<
+        keyof RegisterPayload | "phone" | "address" | "confirmPassword",
+        string
+      >
+    >
   >({});
 
-  // load Google Maps once
-  useEffect(() => {
-    loadGoogleMaps()
-      .then(() => setMapsReady(true))
-      .catch((e) =>
-        toaster.create({
-          type: "error",
-          title: "Google Maps failed",
-          description: e?.message || String(e),
-        })
-      );
-  }, []);
-
-  const { mutate, isPending } = useMutation<RegisterResponse, any, RegisterPayload>({
+  const { mutate, isPending } = useMutation<
+    RegisterResponse,
+    any,
+    RegisterPayload
+  >({
     mutationFn: (payload) => registerApi(payload),
     onSuccess: () => {
-      toaster.create({ title: "Account created! Please login.", type: "success" });
+      toaster.create({
+        title: "Account created! Please login.",
+        type: "success",
+      });
       navigate("/login", { replace: true });
     },
     onError: (err: any) => {
@@ -109,28 +114,36 @@ export default function Register() {
     if (key === "email") clearErrorIfValid("email", isValidEmail(value));
     if (key === "password") {
       clearErrorIfValid("password", value.length >= 8);
-      // keep confirm in sync validation
-      clearErrorIfValid("confirmPassword", !!confirmPassword && confirmPassword === value);
+      clearErrorIfValid(
+        "confirmPassword",
+        !!confirmPassword && confirmPassword === value
+      );
     }
-    if (key === "birthday") clearErrorIfValid("birthday", !!value && isAtLeast16(value));
+    if (key === "birthday")
+      clearErrorIfValid("birthday", !!value && isAtLeast16(value));
   };
 
   const handleBlur = (key: keyof FormWithoutAddress | "confirmPassword") => {
-    // validate on blur for better UX
     if (key === "name") {
-      if (!form.name.trim()) setErrors((p) => ({ ...p, name: "Name is required" }));
+      if (!form.name.trim())
+        setErrors((p) => ({ ...p, name: "Name is required" }));
       else if (!isValidName(form.name))
-        setErrors((p) => ({ ...p, name: "Only letters and single spaces are allowed" }));
+        setErrors((p) => ({
+          ...p,
+          name: "Only letters and single spaces are allowed",
+        }));
     }
     if (key === "email") {
-      if (!form.email.trim()) setErrors((p) => ({ ...p, email: "Email is required" }));
-      else if (!isValidEmail(form.email)) setErrors((p) => ({ ...p, email: "Enter a valid email" }));
+      if (!form.email.trim())
+        setErrors((p) => ({ ...p, email: "Email is required" }));
+      else if (!isValidEmail(form.email))
+        setErrors((p) => ({ ...p, email: "Enter a valid email" }));
     }
     if (key === "password") {
-      if (!form.password) setErrors((p) => ({ ...p, password: "Password is required" }));
+      if (!form.password)
+        setErrors((p) => ({ ...p, password: "Password is required" }));
       else if (form.password.length < 8)
         setErrors((p) => ({ ...p, password: "Use at least 8 characters" }));
-      // also ensure confirm matches if present
       if (confirmPassword && confirmPassword !== form.password) {
         setErrors((p) => ({ ...p, confirmPassword: "Passwords do not match" }));
       } else {
@@ -138,12 +151,17 @@ export default function Register() {
       }
     }
     if (key === "birthday") {
-      if (!form.birthday) setErrors((p) => ({ ...p, birthday: "Birthday is required" }));
+      if (!form.birthday)
+        setErrors((p) => ({ ...p, birthday: "Birthday is required" }));
       else if (!isAtLeast16(form.birthday))
-        setErrors((p) => ({ ...p, birthday: "You must be at least 16 years old" }));
+        setErrors((p) => ({
+          ...p,
+          birthday: "You must be at least 16 years old",
+        }));
     }
     if (key === "confirmPassword") {
-      if (!confirmPassword) setErrors((p) => ({ ...p, confirmPassword: "Confirm your password" }));
+      if (!confirmPassword)
+        setErrors((p) => ({ ...p, confirmPassword: "Confirm your password" }));
       else if (confirmPassword !== form.password)
         setErrors((p) => ({ ...p, confirmPassword: "Passwords do not match" }));
     }
@@ -158,25 +176,6 @@ export default function Register() {
     setPhoneState(next);
     clearErrorIfValid("phone", !!next.e164);
   };
-
-  // LIVE email check (debounced client-side format validation)
-  useEffect(() => {
-    const email = form.email.trim();
-    // if empty, don't nag; clear error
-    if (!email) {
-      clearErrorIfValid("email", true);
-      return;
-    }
-    const id = setTimeout(() => {
-      if (!isValidEmail(email)) {
-        setErrors((p) => ({ ...p, email: "Enter a valid email" }));
-      } else {
-        clearErrorIfValid("email", true);
-      }
-    }, 300);
-    return () => clearTimeout(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.email]);
 
   // geolocate
   const useMyLocation = async () => {
@@ -204,11 +203,7 @@ export default function Register() {
       setLongitude(lng);
 
       try {
-        if (!mapsReady) {
-          await loadGoogleMaps();
-          setMapsReady(true);
-        }
-        const addr = await reverseGeocode(lat, lng);
+        const addr = await reverseGeocode(lat, lng); // reverseGeocode loads maps internally
         if (addr) setAddressText(addr);
       } catch {
         /* ignore reverse geocode failure */
@@ -227,10 +222,12 @@ export default function Register() {
   };
 
   // computed validity
-  const isAddressValid = !!addressText.trim() && latitude != null && longitude != null;
+  const isAddressValid =
+    !!addressText.trim() && latitude != null && longitude != null;
   const isPhoneValid = !!phoneState.e164;
   const isBirthdayValid = !!form.birthday && isAtLeast16(form.birthday);
   const isConfirmValid = !!confirmPassword && confirmPassword === form.password;
+
   const isFormValid = useMemo(
     () =>
       isValidName(form.name) &&
@@ -249,25 +246,31 @@ export default function Register() {
 
     const newErrors: typeof errors = {};
     if (!form.name?.trim()) newErrors.name = "Name is required";
-    else if (!isValidName(form.name)) newErrors.name = "Only letters and single spaces are allowed";
+    else if (!isValidName(form.name))
+      newErrors.name = "Only letters and single spaces are allowed";
 
     if (!form.email?.trim()) newErrors.email = "Email is required";
     else if (!isValidEmail(form.email)) newErrors.email = "Enter a valid email";
 
     if (!form.password) newErrors.password = "Password is required";
-    else if (form.password.length < 8) newErrors.password = "Use at least 8 characters";
+    else if (form.password.length < 8)
+      newErrors.password = "Use at least 8 characters";
 
     if (!confirmPassword) newErrors.confirmPassword = "Confirm your password";
-    else if (confirmPassword !== form.password) newErrors.confirmPassword = "Passwords do not match";
+    else if (confirmPassword !== form.password)
+      newErrors.confirmPassword = "Passwords do not match";
 
     if (!isBirthdayValid) {
-      newErrors.birthday = form.birthday ? "You must be at least 16 years old" : "Birthday is required";
+      newErrors.birthday = form.birthday
+        ? "You must be at least 16 years old"
+        : "Birthday is required";
     }
 
     if (!isPhoneValid) newErrors.phone = "Phone number is required";
 
     if (!addressText?.trim()) newErrors.address = "Address is required";
-    if (latitude == null || longitude == null) newErrors.address = "Please select a point on the map";
+    if (latitude == null || longitude == null)
+      newErrors.address = "Please select a point on the map";
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
@@ -276,7 +279,6 @@ export default function Register() {
 
     setErrors({});
 
-    // Do NOT send confirmPassword to backend
     const payload: RegisterPayload = {
       ...form,
       phone: phoneState.e164 || undefined,
@@ -333,7 +335,9 @@ export default function Register() {
           {errors.email ? (
             <Field.ErrorText>{errors.email}</Field.ErrorText>
           ) : (
-            <Field.HelperText>We’ll send a confirmation email.</Field.HelperText>
+            <Field.HelperText>
+              We’ll send a confirmation email.
+            </Field.HelperText>
           )}
         </Field.Root>
 
@@ -368,7 +372,9 @@ export default function Register() {
           {errors.password ? (
             <Field.ErrorText>{errors.password}</Field.ErrorText>
           ) : (
-            <Field.HelperText>Use a strong password you don’t reuse elsewhere.</Field.HelperText>
+            <Field.HelperText>
+              Use a strong password you don’t reuse elsewhere.
+            </Field.HelperText>
           )}
         </Field.Root>
 
@@ -431,7 +437,9 @@ export default function Register() {
           {errors.birthday ? (
             <Field.ErrorText>{errors.birthday}</Field.ErrorText>
           ) : (
-            <Field.HelperText>You must be at least 16 years old.</Field.HelperText>
+            <Field.HelperText>
+              You must be at least 16 years old.
+            </Field.HelperText>
           )}
         </Field.Root>
 
@@ -443,19 +451,26 @@ export default function Register() {
             value={addressText}
             onChange={(v) => {
               setAddressText(v);
-              clearErrorIfValid("address", !!v.trim() && latitude != null && longitude != null);
+              clearErrorIfValid(
+                "address",
+                !!v.trim() && latitude != null && longitude != null
+              );
             }}
             onPlaceSelected={({ address, lat, lng }) => {
               setAddressText(address);
               if (lat != null) setLatitude(lat);
               if (lng != null) setLongitude(lng);
-              clearErrorIfValid("address", !!address && lat != null && lng != null);
+              clearErrorIfValid(
+                "address",
+                !!address && lat != null && lng != null
+              );
             }}
             countries={countries}
-            disabled={!mapsReady}
             placeholder="Search and pick an address"
           />
-          {errors.address && <Field.ErrorText>{errors.address}</Field.ErrorText>}
+          {errors.address && (
+            <Field.ErrorText>{errors.address}</Field.ErrorText>
+          )}
         </Field.Root>
 
         <Flex gap={3} align="center" w="full">
@@ -463,7 +478,12 @@ export default function Register() {
             Pick on map
           </Button>
           <Tooltip content="Use my current location" openDelay={0}>
-            <IconButton size="xs" variant="ghost" onClick={useMyLocation} aria-label="Use my location">
+            <IconButton
+              size="xs"
+              variant="ghost"
+              onClick={useMyLocation}
+              aria-label="Use my location"
+            >
               <LocateFixed size={14} />
             </IconButton>
           </Tooltip>
@@ -474,7 +494,12 @@ export default function Register() {
           )}
         </Flex>
 
-        <Button type="submit" loading={isPending} width="full" disabled={!isFormValid || isPending}>
+        <Button
+          type="submit"
+          loading={isPending}
+          width="full"
+          disabled={!isFormValid || isPending}
+        >
           Create account
         </Button>
 
@@ -495,14 +520,13 @@ export default function Register() {
           setLatitude(v.lat);
           setLongitude(v.lng);
           setPickerOpen(false);
-          clearErrorIfValid("address", !!v.address && v.lat != null && v.lng != null);
+          clearErrorIfValid(
+            "address",
+            !!v.address && v.lat != null && v.lng != null
+          );
         }}
-        initial={
-          latitude != null && longitude != null
-            ? { lat: latitude, lng: longitude, address: addressText }
-            : undefined
-        }
-        countries={countries}
+          initial={latitude != null && longitude != null ? { lat: latitude, lng: longitude, address: addressText } : undefined}
+  countries="IL"
       />
     </Box>
   );

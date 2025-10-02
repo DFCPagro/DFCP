@@ -1,27 +1,41 @@
-import { Loader } from "@googlemaps/js-api-loader";
+// src/utils/googleMaps.ts
+import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { GOOGLE_MAPS_API_KEY } from "../helpers/env";
 
-let mapsPromise: Promise<typeof google> | null = null;
+let optionsSet = false;
+let ready: Promise<typeof google> | null = null;
 
-export function loadGoogleMaps(): Promise<typeof google> {
-  if (!mapsPromise) {
-    if (!GOOGLE_MAPS_API_KEY) throw new Error("VITE_GOOGLE_MAPS_API_KEY is missing");
-
-    const loader = new Loader({
-      apiKey: GOOGLE_MAPS_API_KEY,
-      version: "weekly",
-      language: "en",
-      region: "US",
-    });
-
-    mapsPromise = (async () => {
-      await loader.importLibrary("maps");
-      // load Places if other parts need it; ignore if not installed
-      try { await loader.importLibrary("places"); } catch {}
-      return (window as any).google as typeof google;
-    })();
+function ensureOptions() {
+  if (optionsSet) return;
+  if (!GOOGLE_MAPS_API_KEY) {
+    throw new Error("GOOGLE_MAPS_API_KEY is missing (check env)");
   }
-  return mapsPromise;
+  setOptions({
+    key: GOOGLE_MAPS_API_KEY, // v2: "key" (not "apiKey")
+    v: "weekly",
+    language: "en",
+    region: "US",
+  });
+  optionsSet = true;
+}
+
+/** Load Maps + Places and return the global `google` (typed). */
+export function loadGoogleMaps(): Promise<typeof google> {
+  if (ready) return ready;
+  ensureOptions();
+  ready = Promise.all([
+    importLibrary("maps"),
+    importLibrary("places").catch(() => undefined), // safe if Places not enabled
+  ]).then(() => (window as any).google as typeof google);
+  return ready;
+}
+
+export async function createMap(
+  el: HTMLElement,
+  opts: google.maps.MapOptions
+): Promise<google.maps.Map> {
+  const g = await loadGoogleMaps();
+  return new g.maps.Map(el, opts);
 }
 
 export async function reverseGeocode(lat: number, lng: number) {

@@ -1,23 +1,13 @@
+// src/components/common/MapPickerDialog.tsx
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Box,
-  Button,
-  Dialog,
-  Field,
-  Flex,
-  HStack,
-  IconButton,
-  Spinner,
-  Text,
-} from "@chakra-ui/react";
+import { Box, Button, Dialog, Field, Flex, HStack, IconButton, Spinner, Text } from "@chakra-ui/react";
 import { X as CloseIcon } from "lucide-react";
 import AddressAutocomplete from "@/components/common/AddressAutocomplete";
 import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
 
 type MapPickerValue = { address: string; lat: number; lng: number };
-
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -26,16 +16,11 @@ type Props = {
   countries?: string;
 };
 
-export default function MapPickerDialog({
-  open,
-  onClose,
-  onConfirm,
-  initial,
-  countries,
-}: Props) {
-  const boxRef = useRef<HTMLDivElement | null>(null);
+export default function MapPickerDialog({ open, onClose, onConfirm, initial, countries }: Props) {
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
+  const listenersRef = useRef<google.maps.MapsEventListener[]>([]);
 
   const [loadingMap, setLoadingMap] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -44,109 +29,126 @@ export default function MapPickerDialog({
   const [lng, setLng] = useState<number>(initial?.lng ?? 35.217018);
   const [address, setAddress] = useState<string>(initial?.address ?? "");
 
-  const pickedRef = useRef(false);
+  const cleanupMap = useCallback(() => {
+    try {
+      listenersRef.current.forEach((l) => l.remove());
+      listenersRef.current = [];
+      markerRef.current?.setMap(null);
+      markerRef.current = null;
+      mapRef.current = null;
+      // IMPORTANT: clear host so we don’t reuse stale children
+      if (hostRef.current) hostRef.current.innerHTML = "";
+    } catch {}
+  }, []);
 
-  const ensureMarker = useCallback((g: typeof google, pos: google.maps.LatLngLiteral) => {
+  const waitForSize = useCallback(async () => {
+    const el = hostRef.current;
+    if (!el) return;
+    const ready = () => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+    if (ready()) return;
+
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const ro =
+        typeof ResizeObserver !== "undefined"
+          ? new ResizeObserver(() => {
+              if (!done && ready()) {
+                done = true;
+                ro.disconnect();
+                resolve();
+              }
+            })
+          : null;
+
+      if (ro) ro.observe(el);
+
+      const tick = () => {
+        if (!done && ready()) {
+          done = true;
+          ro?.disconnect();
+          resolve();
+        } else {
+          requestAnimationFrame(tick);
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+  }, []);
+
+  const setMarker = useCallback((g: typeof google, pos: google.maps.LatLngLiteral) => {
     if (!mapRef.current) return;
     if (!markerRef.current) {
-      markerRef.current = new g.maps.Marker({
-        position: pos,
-        map: mapRef.current,
-        draggable: true,
-      });
-      markerRef.current.addListener("dragend", async () => {
-        const p = markerRef.current!.getPosition();
-        if (!p) return;
-        const next = { lat: p.lat(), lng: p.lng() };
-        setLat(next.lat);
-        setLng(next.lng);
-        setBusy(true);
-        try {
-          setAddress((await reverseGeocode(next.lat, next.lng)) || "");
-        } finally {
-          setBusy(false);
-        }
-      });
+      markerRef.current = new g.maps.Marker({ position: pos, map: mapRef.current, draggable: true });
+      listenersRef.current.push(
+        markerRef.current.addListener("dragend", async () => {
+          const p = markerRef.current!.getPosition();
+          if (!p) return;
+          const next = { lat: p.lat(), lng: p.lng() };
+          setLat(next.lat);
+          setLng(next.lng);
+          setBusy(true);
+          try {
+            setAddress((await reverseGeocode(next.lat, next.lng)) || "");
+          } finally {
+            setBusy(false);
+          }
+        })
+      );
     } else {
       markerRef.current.setPosition(pos);
     }
     mapRef.current.setCenter(pos);
   }, []);
 
-  const forwardGeocode = useCallback(
-    async (addr: string) => {
-      const query = addr?.trim();
-      if (!query) return;
-      const g = await loadGoogleMaps();
-      const geocoder = new g.maps.Geocoder();
-
-      let componentRestrictions: any;
-      if (countries) {
-        const list = countries.split(",").map((s) => s.trim()).filter(Boolean);
-        componentRestrictions = { country: list.length <= 1 ? list[0] : list };
-      }
-
-      setBusy(true);
-      try {
-        const resp = await geocoder.geocode({ address: query, componentRestrictions });
-        const result = resp.results?.[0];
-        if (!result) return;
-        const loc = result.geometry.location;
-        const next = { lat: loc.lat(), lng: loc.lng() };
-        setLat(next.lat);
-        setLng(next.lng);
-        setAddress(result.formatted_address || query);
-        ensureMarker(g, next);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [countries, ensureMarker],
-  );
-
-  // init map on first open (after Dialog mounts)
+  // Create a brand new map each OPEN
   useEffect(() => {
     if (!open) return;
-    if (mapRef.current || !boxRef.current) return;
 
     let cancelled = false;
     (async () => {
       setLoadingMap(true);
       try {
-        const g = await loadGoogleMaps();
-        if (cancelled || !boxRef.current) return;
+        await loadGoogleMaps();
+        await waitForSize();
+        if (cancelled || !hostRef.current) return;
 
-        mapRef.current = new g.maps.Map(boxRef.current, {
+        const g = (window as any).google as typeof google;
+        // fresh map each time
+        mapRef.current = new g.maps.Map(hostRef.current, {
           center: { lat, lng },
           zoom: 14,
-          mapTypeControl: false,
+          gestureHandling: "greedy",
           streetViewControl: false,
           fullscreenControl: false,
+          mapTypeControl: false,
         });
 
-        await new Promise<void>((resolve) => {
-          const once = g.maps.event.addListenerOnce(mapRef.current!, "idle", () => resolve());
-          setTimeout(() => {
-            g.maps.event.removeListener(once);
-            resolve();
-          }, 3000);
-        });
+        listenersRef.current.push(
+          mapRef.current.addListener("click", async (e: google.maps.MapMouseEvent) => {
+            if (!e.latLng) return;
+            const pos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+            setLat(pos.lat);
+            setLng(pos.lng);
+            setMarker(g, pos);
+            setBusy(true);
+            try {
+              setAddress((await reverseGeocode(pos.lat, pos.lng)) || "");
+            } finally {
+              setBusy(false);
+            }
+          })
+        );
 
-        mapRef.current.addListener("click", async (e: google.maps.MapMouseEvent) => {
-          if (!e.latLng) return;
-          const pos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-          setLat(pos.lat);
-          setLng(pos.lng);
-          ensureMarker(g, pos);
-          setBusy(true);
-          try {
-            setAddress((await reverseGeocode(pos.lat, pos.lng)) || "");
-          } finally {
-            setBusy(false);
-          }
-        });
+        setMarker(g, { lat, lng });
 
-        ensureMarker(g, { lat, lng });
+        requestAnimationFrame(() => {
+          if (!mapRef.current) return;
+          g.maps.event.trigger(mapRef.current, "resize");
+          mapRef.current.setCenter({ lat, lng });
+        });
       } finally {
         setLoadingMap(false);
       }
@@ -155,35 +157,28 @@ export default function MapPickerDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, lat, lng, ensureMarker]);
-
-  // when dialog re-opens, force maps resize + recenter
-  useEffect(() => {
-    if (!open || !mapRef.current) return;
-    (async () => {
-      const g = await loadGoogleMaps();
-      requestAnimationFrame(() => {
-        g.maps.event.trigger(mapRef.current!, "resize");
-        mapRef.current!.setCenter({ lat, lng });
-      });
-    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, lat, lng]);
 
-  // debounce text geocoding
+  // HARD dispose when it closes (no key required)
   useEffect(() => {
-    if (!open || !address?.trim() || pickedRef.current) return;
-    const t = setTimeout(() => forwardGeocode(address), 600);
-    return () => clearTimeout(t);
-  }, [open, address, forwardGeocode]);
+    if (open) return;
+    cleanupMap();
+  }, [open, cleanupMap]);
 
-  const onAddressPicked = (p: { address: string; lat?: number; lng?: number }) => {
-    pickedRef.current = true;
+  // safety on unmount
+  useEffect(() => cleanupMap, [cleanupMap]);
+
+  const onPickedFromSearch = (p: { address: string; lat?: number; lng?: number }) => {
     setAddress(p.address);
     if (p.lat != null && p.lng != null) {
       setLat(p.lat);
       setLng(p.lng);
+      if (mapRef.current) {
+        const g = (window as any).google as typeof google;
+        setMarker(g, { lat: p.lat, lng: p.lng });
+      }
     }
-    setTimeout(() => (pickedRef.current = false), 250);
   };
 
   const useMyLocation = async () => {
@@ -194,25 +189,28 @@ export default function MapPickerDialog({
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 10000,
-        }),
+        })
       );
       const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       setLat(next.lat);
       setLng(next.lng);
       setAddress((await reverseGeocode(next.lat, next.lng)) || "");
+      if (mapRef.current) {
+        const g = (window as any).google as typeof google;
+        setMarker(g, next);
+      }
     } finally {
       setBusy(false);
     }
   };
 
-  const handleConfirm = () => {
+  const confirm = () => {
     if (!address?.trim() || lat == null || lng == null) return;
     onConfirm({ address: address.trim(), lat, lng });
-    onClose();
   };
 
   return (
-    <Dialog.Root size={"lg"} open={open} onOpenChange={(e) => (!e.open ? onClose() : undefined)}>
+    <Dialog.Root open={open} onOpenChange={(e) => !e.open && onClose()} size="lg">
       <Dialog.Backdrop />
       <Dialog.Positioner>
         <Dialog.Content
@@ -223,16 +221,8 @@ export default function MapPickerDialog({
           display="flex"
           flexDirection="column"
         >
-          {/* Header */}
-          <Flex
-            align="center"
-            justify="space-between"
-            p={{ base: 3, sm: 4 }}
-            borderBottomWidth="1px"
-          >
-            <Dialog.Title fontSize="lg" fontWeight="semibold">
-              Pick a location
-            </Dialog.Title>
+          <Flex align="center" justify="space-between" p={{ base: 3, sm: 4 }} borderBottomWidth="1px">
+            <Dialog.Title fontSize="lg" fontWeight="semibold">Pick a location</Dialog.Title>
             <Dialog.CloseTrigger asChild>
               <IconButton aria-label="Close" size="sm" variant="ghost" borderRadius="lg">
                 <CloseIcon size={16} />
@@ -240,7 +230,6 @@ export default function MapPickerDialog({
             </Dialog.CloseTrigger>
           </Flex>
 
-          {/* Body (scrollable) */}
           <Box p={{ base: 3, sm: 4 }} flex="1" overflowY="auto" minH={{ base: "260px", sm: "320px" }}>
             <Flex direction="column" gap="3">
               <Field.Root>
@@ -248,15 +237,13 @@ export default function MapPickerDialog({
                 <AddressAutocomplete
                   value={address}
                   onChange={setAddress}
-                  onPlaceSelected={onAddressPicked}
+                  onPlaceSelected={onPickedFromSearch}
                   countries={countries}
                   placeholder="Search for an address"
                 />
               </Field.Root>
 
-              {/* Map */}
               <Box
-                ref={boxRef}
                 w="100%"
                 h={{ base: "42vh", sm: "48vh", md: "52vh" }}
                 minH="240px"
@@ -277,9 +264,9 @@ export default function MapPickerDialog({
                     </HStack>
                   </Flex>
                 )}
+                <div ref={hostRef} style={{ width: "100%", height: "100%" }} />
               </Box>
 
-              {/* Coordinates & quick action */}
               <Flex gap="6" wrap="wrap">
                 <Box>
                   <Text fontWeight="medium">Latitude</Text>
@@ -301,10 +288,9 @@ export default function MapPickerDialog({
             </Flex>
           </Box>
 
-          {/* Footer */}
           <Flex p={{ base: 3, sm: 4 }} borderTopWidth="1px" bg="bg" justify="flex-end" gap="2">
-            <Dialog.CloseTrigger/>
-            <Button borderRadius="xl" colorPalette="blue" onClick={handleConfirm} disabled={!address?.trim()}>
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button borderRadius="xl" colorPalette="blue" onClick={confirm} disabled={!address?.trim()}>
               Use this location
             </Button>
           </Flex>

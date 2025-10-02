@@ -2,28 +2,55 @@ import { api } from "./config";
 import { z } from "zod";
 import { AddressListSchema, type Address } from "@/types/address";
 
+/* ---------- Zod helpers (null/undefined → safe types) ---------- */
+
+// required string: null/undefined -> "", everything -> String(v)
+const zRequiredString = z.preprocess(
+  (v) => (v == null ? "" : String(v)),
+  z.string()
+);
+
+// email that allows empty string when server sends null/empty
+const zEmailString = z.preprocess(
+  (v) => (v == null ? "" : String(v)),
+  z.string().email().or(z.literal(""))
+);
+
+// optional string: null/undefined -> undefined, else String(v)
+const zOptionalString = z.preprocess(
+  (v) => (v == null ? undefined : String(v)),
+  z.string().optional()
+);
+
 /* -------- Contact -------- */
 export const ContactSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().email(),
-  phone: z.string(),
-  birthday: z.string().optional(),
+  name: zOptionalString,
+  email: zEmailString,        // <- tolerant to null → ""
+  phone: zRequiredString,     // <- tolerant to null → ""
+  birthday: zOptionalString,
 });
 export type Contact = z.infer<typeof ContactSchema>;
 
+function normalizeContact(raw: any): Contact {
+  // normalize alternate keys first
+  if (raw?.birthDate && !raw?.birthday) raw.birthday = raw.birthDate;
+  // Zod will now coerce nulls safely
+  return ContactSchema.parse(raw ?? {});
+}
+
 export async function getUserContact(): Promise<Contact> {
   const { data } = await api.get("/users/contact");
-  const raw = (data?.data ?? data) as any;
-  // normalize alternate keys
-  if (raw?.birthDate && !raw?.birthday) raw.birthday = raw.birthDate;
-  return ContactSchema.parse(raw);
+  const raw = data?.data ?? data;
+  return normalizeContact(raw);
 }
 
 export async function updateUserContact(
   p: Partial<Pick<Contact, "email" | "phone">>
 ): Promise<Contact> {
+  // send through as-is (server decides), parse response defensively
   const { data } = await api.patch("/users/contact", p);
-  return ContactSchema.parse(data?.data ?? data);
+  const raw = data?.data ?? data;
+  return normalizeContact(raw);
 }
 
 /* -------- Addresses -------- */
