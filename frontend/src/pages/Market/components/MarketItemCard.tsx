@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useCallback } from "react";
+import { memo, useMemo, useState, useCallback ,useRef} from "react";
 import {
   AspectRatio,
   Avatar,
@@ -9,9 +9,12 @@ import {
   Image,
   Stack,
   Text,
+  Dialog,
+  Portal,
 } from "@chakra-ui/react";
 import { FiShoppingCart } from "react-icons/fi";
 import type { MarketItem } from "@/types/market";
+import { MarketItemPage } from "./MarketItemPage"; 
 
 export type MarketItemCardProps = {
   item: MarketItem;
@@ -72,7 +75,18 @@ function MarketItemCardBase({
   maxQty = 20,
 }: MarketItemCardProps) {
   const [qty, setQty] = useState<number>(1);
+  const [isOpen, setIsOpen] = useState(false);                 // + add
+  const triggerRef = useRef<HTMLButtonElement | null>(null);   // + add
+
+  const openQuickView = useCallback(() => setIsOpen(true), []);         // + add
+  const closeQuickView = useCallback(() => {
+    setIsOpen(false);
+    // restore focus to the trigger for a11y (safe-guard)
+    triggerRef.current?.focus?.();
+  }, []);                                                               // + add
+
   const img = getImageUrl(item);
+
   const farmerIcon = getFarmerIconUrl(item);
   const farmerName = (item as any).farmerName as string | undefined;
   const name = (item as any).name as string | undefined;
@@ -111,12 +125,30 @@ function MarketItemCardBase({
       <AspectRatio ratio={4 / 3}>
         <Box bg="bg.muted">
           {img ? (
-            <Image src={img} alt={name ?? "item"} objectFit="cover" w="100%" h="100%" />
+            <button
+              type="button"
+              ref={triggerRef}
+              onClick={(e) => {
+                e.stopPropagation(); // prevent bubbling to Card onClick if used later
+                openQuickView();
+              }}
+              style={{ display: "block", width: "100%", height: "100%", padding: 0, background: "transparent", border: "none", cursor: "pointer" }}
+              aria-label="Open item preview"
+            >
+              <Image
+                src={img}
+                alt={name ?? "item"}
+                objectFit="cover"
+                w="100%"
+                h="100%"
+              />
+            </button>
           ) : (
             <Box w="100%" h="100%" />
           )}
         </Box>
       </AspectRatio>
+
 
       {/* Body */}
       <Card.Body>
@@ -207,7 +239,26 @@ function MarketItemCardBase({
             </Box>
           </Button>
         </HStack>
-      </Card.Footer>
+       </Card.Footer>
+
+      {/* Quick View Dialog */}
+      <Dialog.Root
+        open={isOpen}
+        onOpenChange={(e) => setIsOpen(e.open)}
+        role="dialog"
+      >
+        <Portal>
+          <Dialog.Backdrop />
+          <Dialog.Positioner>
+            <Dialog.Content>
+              <MarketItemPage
+                item={item}
+                onClose={closeQuickView}
+              />
+            </Dialog.Content>
+          </Dialog.Positioner>
+        </Portal>
+      </Dialog.Root>
     </Card.Root>
   );
 }

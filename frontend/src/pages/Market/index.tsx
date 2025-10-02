@@ -127,11 +127,11 @@ export default function MarketPage() {
     pageSize,
   });
 
-  console.log("selection.marketStockId", selection?.marketStockId);
-  console.log("marketStockId derived", marketStockId);
+  // console.log("selection.marketStockId", selection?.marketStockId);
+  // console.log("marketStockId derived", marketStockId);
 
-  console.log("marketStockId", marketStockId, "isActive", isActive);
-  console.log("pageItems (from hook)", pageItems.length);
+  // console.log("marketStockId", marketStockId, "isActive", isActive);
+  // console.log("pageItems (from hook)", pageItems.length);
 
   // ---- Search suggestions (items + farmers) ----
   const { suggestions, matchFilter } = useMarketSearchIndex({
