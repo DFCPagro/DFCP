@@ -20,22 +20,42 @@ import CartDrawer from "./components/CartDrawer";
 // (kept inside this file as requested; swap to your real cart store later)
 
 type CartLine = Record<string, any>;
-function mkLineFromItem(item: any): CartLine {
-  // Derive a consistent line shape
-  const id = item?.id ?? item?.itemId ?? `${item?.name ?? "item"}|${item?.farmerId ?? item?.farmerName ?? "farmer"}`;
+function mkLineFromItem(item: any, qty: number = 1): CartLine {
+  // Prefer canonical stock identity: "<itemId>_<farmerId>"
+  const id =
+    item?.stockId ??
+    item?.lineId ??
+    item?.id ??
+    item?.itemId ??
+    `${item?.name ?? "item"}|${item?.farmerId ?? item?.farmerName ?? "farmer"}`;
+
   return {
+    // identity & references
     id,
+    stockId: item?.stockId,
     itemId: item?.itemId ?? item?.id,
+    farmerId: item?.farmerId,
+
+    // display
     name: item?.name ?? "Item",
     farmerName: item?.farmerName,
     imageUrl: item?.imageUrl ?? item?.img ?? item?.photo ?? item?.picture,
-    // Spec: cart shows qty in kg; default to 1 kg per add for now.
-    qtyKg: 1,
-    // Price in $ (we normalize a few known fields)
-    priceUsd:
-      Number(item?.priceUsd ?? item?.usd ?? item?.price ?? item?.unitPrice ?? item?.pricePerUnit ?? 0) || 0,
+
+    // qty (follow current logic: use kg slot)
+    qtyKg: Number.isFinite(qty) && qty > 0 ? qty : 1,
+
+    // price (prefer normalized pricePerUnit)
+    priceUsd: Number(
+      item?.pricePerUnit ?? item?.priceUsd ?? item?.usd ?? item?.price ?? item?.unitPrice ?? 0
+    ) || 0,
+
+    // optional context (kept if present; harmless)
+    date: item?.date,
+    shift: item?.shift,
+    logisticCenterId: item?.logisticCenterId,
   };
 }
+
 
 function formatAddressShort(a: any): string {
   if (!a) return "—";
@@ -107,11 +127,11 @@ export default function MarketPage() {
     pageSize,
   });
 
-  console.log("selection.marketStockId", selection?.marketStockId);
-  console.log("marketStockId derived", marketStockId);
+  // console.log("selection.marketStockId", selection?.marketStockId);
+  // console.log("marketStockId derived", marketStockId);
 
-  console.log("marketStockId", marketStockId, "isActive", isActive);
-  console.log("pageItems (from hook)", pageItems.length);
+  // console.log("marketStockId", marketStockId, "isActive", isActive);
+  // console.log("pageItems (from hook)", pageItems.length);
 
   // ---- Search suggestions (items + farmers) ----
   const { suggestions, matchFilter } = useMarketSearchIndex({
@@ -121,27 +141,46 @@ export default function MarketPage() {
 
   // ---- Cart (page-local) ----
   const [cart, setCart] = useState<CartLine[]>([]);
-  const cartCount = cart.length;
+  const cartCount = useMemo(
+    () => cart.reduce((sum, l) => sum + Number(l?.qtyKg ?? l?.qty ?? 0), 0),
+    [cart]
+  );
 
-  const addToCart = useCallback((item: any) => {
+
+  const addToCart = useCallback((item: any, qty: number) => {
+    const clamped = Math.max(1, Math.min(20, Number(qty) || 1));
     setCart((prev) => {
-      // If the same line exists, bump qty by 1 kg
-      const id = item?.id ?? item?.itemId ?? `${item?.name ?? "item"}|${item?.farmerId ?? item?.farmerName ?? "farmer"}`;
+      // Prefer stockId (then fallbacks) for identity
+      const id =
+        item?.stockId ??
+        item?.lineId ??
+        item?.id ??
+        item?.itemId ??
+        `${item?.name ?? "item"}|${item?.farmerId ?? item?.farmerName ?? "farmer"}`;
+
       const idx = prev.findIndex((l) => l.id === id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], qtyKg: Number(next[idx].qtyKg || 0) + 1 };
+        const currQty = Number(next[idx].qtyKg ?? 0);
+        next[idx] = { ...next[idx], qtyKg: Math.max(1, Math.min(20, currQty + clamped)) };
         return next;
       }
-      return [...prev, mkLineFromItem(item)];
+      return [...prev, mkLineFromItem(item, clamped)];
     });
-    setCartOpen(true);
-    toaster.create({ title: "Added to cart", type: "success" });
+
+    // Do NOT open the drawer here (per new behavior)
+    toaster.create({
+      title: "Added to cart",
+      description: `${clamped} × ${item?.name ?? "Item"}${item?.farmerName ? ` • ${item.farmerName}` : ""}`,
+      type: "success",
+      duration: 2500,
+    });
   }, []);
 
-  const removeLine = useCallback(async (line: CartLine) => {
-    setCart((prev) => prev.filter((l) => l.id !== (line.id ?? line)));
+  const removeLineByKey = useCallback((key: string) => {
+    setCart((prev) => prev.filter((l) => l.id !== key));
   }, []);
+
 
   const clearCart = useCallback(async () => {
     setCart([]);
@@ -197,9 +236,6 @@ export default function MarketPage() {
     <Box w="full">
       <Stack gap="6">
 
-        {/* Header */}
-        <Heading size="lg">Market</Heading>
-
         {/* Inactive Gate */}
         {!isActive ? (
           <ActivationGate
@@ -212,7 +248,7 @@ export default function MarketPage() {
           <>
             {/* Sticky filters */}
             <StickyFilterBar
-              offsetTop={64}                 // adjust to your header height
+              offsetTop={55}                 // adjust to your header height
               category={category}
               search={search}
               sort={sort}
@@ -237,7 +273,7 @@ export default function MarketPage() {
               totalPages={totalPages}
               totalItems={totalItems}
               onPageChange={handlePageChange}
-              onAdd={({ item }) => addToCart(item)}
+              onAdd={({ item, qty }) => addToCart(item, qty)}
             />
           </>
         )}
@@ -262,7 +298,7 @@ export default function MarketPage() {
         isOpen={cartOpen}
         onClose={() => setCartOpen(false)}
         items={cart}
-        onRemove={removeLine}
+        onRemove={removeLineByKey}
         onClear={clearCart}
         onCheckout={checkout}
       />

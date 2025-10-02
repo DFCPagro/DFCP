@@ -1,363 +1,380 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+// src/pages/.../components/CartDrawer.tsx
+import { memo, useCallback, useMemo, useState } from "react";
 import {
-  Alert,
-  AspectRatio,
   Box,
   Button,
-  Dialog,
-  Separator,
-  Drawer,
   HStack,
   IconButton,
   Image,
-  Portal,
-  Skeleton,
+  Separator,
   Stack,
   Text,
-  useDisclosure,
-} from "@chakra-ui/react"
-import { FiTrash2, FiCheck } from "react-icons/fi"
-import { toaster } from "@/components/ui/toaster"
+  Drawer,
+  Dialog,
+  Portal,
+} from "@chakra-ui/react";
+import { FiTrash2, FiX } from "react-icons/fi";
+import { toaster } from "@/components/ui/toaster";
+// If you already have a shared confirm dialog component, feel free to swap:
+// import ConfirmDialog from "./ConfirmDialog";
 
-/** Minimal duck-typed cart line (we avoid adding shared types on purpose) */
-type CartLine = Record<string, any>
+/* -------------------------------------------------------------------------- */
+/*                                    Types                                   */
+/* -------------------------------------------------------------------------- */
+
+export type CartLine = {
+  // identity fields (not all guaranteed, so we fall back carefully)
+  stockId?: string;         // <itemId>_<farmerId> (canonical)
+  id?: string;
+  lineId?: string;
+  itemId?: string;
+  farmerId?: string;
+
+  // display
+  name?: string;
+  displayName?: string;
+  imageUrl?: string;
+  farmerName?: string;
+  farmName?: string;
+
+  // pricing & qty (support both kg- and unit-based lines)
+  pricePerUnit?: number;    // preferred key from your normalized API
+  unitPrice?: number;       // legacy fallback
+  price?: number;           // legacy fallback
+
+  qtyKg?: number;           // preferred for kg-based
+  qty?: number;             // fallback for unit-based
+
+  // any other fields are ignored
+  [key: string]: any;
+};
 
 export type CartDrawerProps = {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
 
-  /** Current cart lines */
-  items: CartLine[]
+  items: CartLine[];
 
-  /** Called to remove a single line */
-  onRemove: (line: CartLine) => Promise<void> | void
+  /** remove a single line by a stable key */
+  onRemove?: (key: string) => void;
 
-  /** Called to clear entire cart (after confirm) */
-  onClear: () => Promise<void> | void
+  /** clear the cart */
+  onClear?: () => void;
 
-  /** Called to proceed to checkout */
-  onCheckout: () => Promise<void> | void
+  /** proceed to checkout */
+  onCheckout?: () => void;
+};
 
-  /** Loading flags (optional) */
-  loading?: boolean // initial load
-  workingIds?: string[] // show spinner on specific line removes
-  checkingOut?: boolean
-  clearing?: boolean
-  error?: string | null
+/* -------------------------------------------------------------------------- */
+/*                                   Helpers                                  */
+/* -------------------------------------------------------------------------- */
+
+/** Stable key so same product from different farmers NEVER merges */
+function getLineKey(line: CartLine): string {
+  // 1) Canonical: stockId = "<itemId>_<farmerId>"
+  if (line.stockId && typeof line.stockId === "string") return line.stockId;
+
+  // 2) Explicit ids
+  if (line.id && typeof line.id === "string") return line.id;
+  if (line.lineId && typeof line.lineId === "string") return line.lineId;
+
+  // 3) Compose minimal identity (product + farmer)
+  const item = line.itemId ?? "item";
+  const farmer = line.farmerId ?? "farmer";
+  return `${item}|${farmer}`;
 }
 
-/* ------------------------------ helpers ------------------------------ */
-function lineId(line: CartLine): string {
-  return (
-    line.id ??
-    line.lineId ??
-    `${line.itemId ?? line.name ?? "item"}|${line.farmerId ?? line.farmerName ?? "farmer"}`
-  )
+function getUnitPrice(line: CartLine): number {
+  const cand =
+    line.pricePerUnit ??
+    line.priceUsd ??
+    line.price ??
+    0;
+  const n = Number(cand);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
+
+function getQty(line: CartLine): number {
+  // prefer kg-based qty when available, else fallback to unit-based
+  const cand = (line.qtyKg ?? line.qty ?? 0);
+  const n = Number(cand);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 function getName(line: CartLine): string {
-  return String(line.name ?? line.itemName ?? "Item")
-}
-function getFarmer(line: CartLine): string | undefined {
-  return (line.farmerName ?? line.farmer ?? undefined) as string | undefined
-}
-function getImage(line: CartLine): string | undefined {
-  return line.imageUrl ?? line.img ?? line.photo ?? line.picture ?? undefined
-}
-function getQtyKg(line: CartLine): number {
-  const cand = line.qtyKg ?? line.quantityKg ?? line.kg ?? line.quantity ?? line.qty ?? 0
-  const n = Number(cand)
-  return Number.isFinite(n) ? n : 0
-}
-function getUnitPriceUSD(line: CartLine): number {
-  const cand = line.priceUsd ?? line.usd ?? line.price ?? line.unitPrice ?? line.pricePerUnit ?? 0
-  const n = Number(cand)
-  return Number.isFinite(n) ? n : 0
-}
-function formatMoneyUSD(v: number): string {
-  const n = Number.isFinite(v) ? v : 0
-  return `$${n.toFixed(2)}`
+  return (line.name ?? line.displayName ?? "Item");
 }
 
-/* -------------------------------- UI --------------------------------- */
-export default function CartDrawer({
+function formatMoneyUSD(val: number): string {
+  // keep formatting minimal; adapt to your currency if needed
+  return `$${val.toFixed(2)}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              Inline Confirm (UX)                            */
+/* -------------------------------------------------------------------------- */
+
+function useConfirm() {
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<null | {
+    title: string;
+    body?: string;
+    onConfirm: () => void;
+  }>(null);
+
+  const ask = useCallback((title: string, onConfirm: () => void, body?: string) => {
+    setPending({ title, onConfirm, body });
+    setOpen(true);
+  }, []);
+
+  const ConfirmDialogInline = (
+    <Dialog.Root open={open} onOpenChange={(e) => !e.open && setOpen(false)}>
+      <Portal> {/* 👈 render outside the Drawer to escape its stacking/focus */}
+        <Dialog.Backdrop />
+        <Dialog.Positioner>
+          <Dialog.Content
+            // make sure it stacks above the Drawer
+            // (Drawer is already high; 10000 is safe. Adjust if you have a token.)
+            style={{ zIndex: 10000 }}
+          >
+            <Dialog.Header>
+              <Dialog.Title>{pending?.title ?? "Confirm"}</Dialog.Title>
+              <Dialog.CloseTrigger asChild>
+                <IconButton aria-label="Close" variant="ghost" size="sm">
+                  <FiX />
+                </IconButton>
+              </Dialog.CloseTrigger>
+            </Dialog.Header>
+            <Dialog.Body>
+              <Text>{pending?.body ?? "Are you sure?"}</Text>
+            </Dialog.Body>
+            <Dialog.Footer>
+              <HStack>
+                <Button
+                  onClick={() => {
+                    setOpen(false);
+                  }}
+                  variant="subtle"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  colorPalette="red"
+                  onClick={() => {
+                    const fn = pending?.onConfirm;
+                    setOpen(false);
+                    if (fn) fn();
+                  }}
+                >
+                  Confirm
+                </Button>
+              </HStack>
+            </Dialog.Footer>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
+  );
+
+  return { ask, ConfirmDialogInline };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                 Component                                  */
+/* -------------------------------------------------------------------------- */
+
+function CartDrawerBase({
   isOpen,
   onClose,
   items,
   onRemove,
   onClear,
   onCheckout,
-  loading = false,
-  workingIds = [],
-  checkingOut = false,
-  clearing = false,
-  error = null,
 }: CartDrawerProps) {
-  const [localWorking, setLocalWorking] = useState<string | null>(null)
+  const { ask, ConfirmDialogInline } = useConfirm();
 
-  // Confirm dialog for Clear Cart (v3: use Dialog with role="alertdialog")
-  const {
-    open: isConfirmOpen,
-    onOpen: openConfirm,
-    onClose: closeConfirm,
-  } = useDisclosure()
-  const [confirmBusy, setConfirmBusy] = useState(false)
-  const cancelRef = useRef<HTMLButtonElement | null>(null)
+  const subtotal = useMemo(
+    () => items.reduce((sum, l) => sum + getUnitPrice(l) * getQty(l), 0),
+    [items]
+  );
 
-  const subtotal = useMemo(() => {
-    return items.reduce((sum, line) => sum + getUnitPriceUSD(line) * getQtyKg(line), 0)
-  }, [items])
-
-  const totalQtyKg = useMemo(() => {
-    return items.reduce((sum, line) => sum + getQtyKg(line), 0)
-  }, [items])
+  const totalQty = useMemo(
+    () => items.reduce((sum, l) => sum + getQty(l), 0),
+    [items]
+  );
 
   const handleRemove = useCallback(
-    async (line: CartLine) => {
-      const id = lineId(line)
-      setLocalWorking(id)
-      try {
-        await Promise.resolve(onRemove(line))
-        toaster.create({
-          title: "Removed",
-          description: getName(line),
-          type: "success",
-        })
-      } catch (e: any) {
-        toaster.create({
-          title: "Could not remove item",
-          description: e?.message ?? "Please try again",
-          type: "error",
-        })
-      } finally {
-        setLocalWorking(null)
-      }
+    (line: CartLine) => {
+      const key = getLineKey(line);
+      ask(
+        "Remove this item?",
+        () => {
+          onRemove?.(key);
+          toaster.create({
+            title: "Removed from cart",
+            description: getName(line),
+            type: "success",
+            duration: 2500,
+          });
+        },
+        getName(line)
+      );
     },
-    [onRemove],
-  )
+    [ask, onRemove]
+  );
 
-  const handleClear = useCallback(async () => {
-    setConfirmBusy(true)
-    try {
-      await Promise.resolve(onClear())
+  const handleClear = useCallback(() => {
+    ask("Clear cart?", () => {
+      onClear?.();
       toaster.create({
         title: "Cart cleared",
         type: "success",
-      })
-      closeConfirm()
-    } catch (e: any) {
-      toaster.create({
-        title: "Could not clear cart",
-        description: e?.message ?? "Please try again",
-        type: "error",
-      })
-    } finally {
-      setConfirmBusy(false)
-    }
-  }, [onClear, closeConfirm])
+        duration: 2500,
+      });
+    }, "This will remove all items from your cart.");
+  }, [ask, onClear]);
 
-  const handleCheckout = useCallback(async () => {
-    try {
-      await Promise.resolve(onCheckout())
-    } catch (e: any) {
-      toaster.create({
-        title: "Checkout failed",
-        description: e?.message ?? "Please try again",
-        type: "error",
-      })
-    }
-  }, [onCheckout])
-
-  const isLineWorking = (line: CartLine) =>
-    localWorking === lineId(line) || workingIds.includes(lineId(line))
-
-  const empty = !loading && items.length === 0
+  const handleCheckout = useCallback(() => {
+    onCheckout?.();
+    toaster.create({
+      title: "Proceeding to checkout",
+      type: "info",
+      duration: 2200,
+    });
+  }, [onCheckout]);
 
   return (
     <>
-      {/* Drawer v3 compound API */}
-      <Drawer.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="lg" placement="end">
-        <Portal>
-          <Drawer.Backdrop />
-          <Drawer.Positioner>
-            <Drawer.Content>
-              <Drawer.Header>
-                <Drawer.Title>Cart</Drawer.Title>
-              </Drawer.Header>
+      {/* Inline confirm dialog (swap for your shared <ConfirmDialog> if you want) */}
+      {ConfirmDialogInline}
 
-              <Drawer.Body>
-                {/* Error (v3 Alert slots) */}
-                {error ? (
-                  <Alert.Root status="error" rounded="md" mb="3">
-                    <Alert.Indicator />
-                    <Alert.Content>
-                      <Text fontSize="sm">{error}</Text>
-                    </Alert.Content>
-                  </Alert.Root>
-                ) : null}
+      <Drawer.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="md" placement="start">
+        <Drawer.Backdrop />
+        <Drawer.Positioner>
+          <Drawer.Content >
+            <Drawer.Header>
+              <HStack justify="space-between" width="full">
+                <Text fontWeight="semibold">Your Cart</Text>
+                <IconButton aria-label="Close cart" variant="ghost" onClick={onClose}>
+                  <FiX />
+                </IconButton>
+              </HStack>
+            </Drawer.Header>
 
-                {/* Lines */}
-                <Stack gap="4">
-                  {loading ? (
-                    <>
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <HStack key={`s-${i}`} gap="3" align="stretch">
-                          <AspectRatio ratio={1} w="88px">
-                            <Skeleton />
-                          </AspectRatio>
-                          <Stack flex="1" gap="2">
-                            <Skeleton h="16px" />
-                            <Skeleton h="12px" />
-                            <Skeleton h="12px" />
-                          </Stack>
-                          <Skeleton h="10" w="10" rounded="md" />
-                        </HStack>
-                      ))}
-                    </>
-                  ) : empty ? (
-                    <Box py="10" textAlign="center" color="fg.muted">
+            <Drawer.Body>
+              <Stack gap="4">
+                {/* Items list */}
+                <Stack gap="3">
+                  {items.length === 0 ? (
+                    <Box px="2" py="8" textAlign="center" color="fg.muted">
                       <Text>Your cart is empty.</Text>
                     </Box>
                   ) : (
                     items.map((line) => {
-                      const id = lineId(line)
-                      const img = getImage(line)
-                      const name = getName(line)
-                      const farmer = getFarmer(line)
-                      const qtyKg = getQtyKg(line)
-                      const unitPrice = getUnitPriceUSD(line)
-                      const total = unitPrice * qtyKg
-
+                      const key = getLineKey(line); // <<<<<< KEY uses stockId first
+                      const qty = getQty(line);
+                      const price = getUnitPrice(line);
+                      const lineTotal = price * qty;
+                      // console.log("Cart item:", line);
                       return (
-                        <Box key={id}>
-                          <HStack gap="3" align="stretch">
-                            {/* Image */}
-                            <AspectRatio ratio={1} w="88px">
-                              <Box bg="bg.muted">
-                                {img ? (
-                                  <Image src={img} alt={name} objectFit="cover" />
-                                ) : (
-                                  <Box />
+                        <Box key={key} p="3" borderWidth="1px" rounded="lg">
+                          <HStack align="flex-start" justify="space-between">
+                            <HStack align="flex-start" gap="3">
+                              {line.imageUrl ? (
+                                <Image
+                                  src={line.imageUrl}
+                                  alt={getName(line)}
+                                  boxSize="56px"
+                                  objectFit="cover"
+                                  rounded="md"
+                                />
+                              ) : (
+                                <Box
+                                  boxSize="56px"
+                                  rounded="md"
+                                  bg="bg.subtle"
+                                />
+                              )}
+                              <Stack gap="1">
+                                <Text fontWeight="medium">{getName(line)}</Text>
+                                {line.farmerName && (
+                                  <Text fontSize="sm" color="fg.muted">
+                                    {line.farmerName}
+                                  </Text>
                                 )}
-                              </Box>
-                            </AspectRatio>
+                                <HStack gap="2">
+                                  <Text fontSize="sm" color="fg.muted">
+                                    Qty: {qty}
+                                  </Text>
+                                  <Separator orientation="vertical" />
+                                  <Text fontSize="sm" color="fg.muted">
+                                    Unit: {formatMoneyUSD(price)}
+                                  </Text>
+                                </HStack>
+                              </Stack>
+                            </HStack>
 
-                            {/* Texts */}
-                            <Stack flex="1" gap="1" minW="0">
-                              <Text fontWeight="semibold" lineClamp={1}>
-                                {name}
+                            <Stack align="flex-end" gap="2" minW="120px">
+                              <Text fontWeight="semibold">
+                                {formatMoneyUSD(lineTotal)}
                               </Text>
-                              {farmer ? (
-                                <Text fontSize="sm" color="fg.muted" lineClamp={1}>
-                                  {farmer}
-                                </Text>
-                              ) : null}
-
-                              {/* Qty (kg) • Total ($) */}
-                              <Text fontSize="sm">
-                                <Text as="span" color="fg.muted">
-                                  {qtyKg} kg
-                                </Text>
-                                <Text as="span" mx="2" color="fg.muted">
-                                  •
-                                </Text>
-                                <Text as="span" fontWeight="medium">
-                                  {formatMoneyUSD(total)}
-                                </Text>
-                              </Text>
+                              <IconButton
+                                aria-label="Remove item"
+                                variant="outline"
+                                size="sm"
+                                colorPalette="red"
+                                onClick={() => handleRemove(line)}
+                              >
+                                <FiTrash2 />
+                              </IconButton>
                             </Stack>
-
-                            {/* Remove (v3 IconButton: children + loading/disabled props) */}
-                            <IconButton
-                              aria-label="Remove"
-                              variant="outline"
-                              colorPalette="red"
-                              onClick={() => handleRemove(line)}
-                              loading={isLineWorking(line)}
-                              title="Remove from cart"
-                            >
-                              <FiTrash2 />
-                            </IconButton>
                           </HStack>
-
-                          <Separator my="3" />
                         </Box>
-                      )
+                      );
                     })
                   )}
                 </Stack>
-              </Drawer.Body>
 
-              {/* Summary + actions */}
-              <Drawer.Footer>
-                <Stack w="full" gap="3">
+                <Separator />
+
+                {/* Totals */}
+                <Stack gap="1">
                   <HStack justify="space-between">
-                    <Text color="fg.muted">Total weight</Text>
-                    <Text fontWeight="medium">{totalQtyKg.toFixed(2)} kg</Text>
+                    <Text color="fg.muted">Total qty</Text>
+                    <Text>{totalQty}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text color="fg.muted">Subtotal</Text>
+                    <Text fontWeight="medium">Subtotal</Text>
                     <Text fontWeight="semibold">{formatMoneyUSD(subtotal)}</Text>
                   </HStack>
-
-                  <HStack mt="1" justify="space-between">
-                    <Button variant="outline" colorPalette="red" onClick={openConfirm} disabled={empty}>
-                      <FiTrash2 /> Clear cart
-                    </Button>
-                    <HStack gap="3">
-                      <Button variant="ghost" onClick={onClose}>
-                        Close
-                      </Button>
-                      <Button
-                        colorPalette="teal"
-                        onClick={handleCheckout}
-                        disabled={empty}
-                        loading={checkingOut}
-                      >
-                        <FiCheck /> Checkout
-                      </Button>
-                    </HStack>
-                  </HStack>
                 </Stack>
-              </Drawer.Footer>
-            </Drawer.Content>
-          </Drawer.Positioner>
-        </Portal>
-      </Drawer.Root>
+              </Stack>
+            </Drawer.Body>
 
-      {/* Confirm dialog for Clear Cart (v3 uses Dialog) */}
-      <Dialog.Root
-        role="alertdialog"
-        open={isConfirmOpen}
-        onOpenChange={(e) => {
-          // prevent closing while busy
-          if (!e.open && !confirmBusy) closeConfirm()
-        }}
-        initialFocusEl={() => cancelRef.current}
-      >
-        <Portal>
-          <Dialog.Backdrop />
-          <Dialog.Positioner>
-            <Dialog.Content>
-              <Dialog.Header>
-                <Dialog.Title>Clear cart</Dialog.Title>
-              </Dialog.Header>
-              <Dialog.Body>
-                This will remove all items from your cart. Are you sure?
-              </Dialog.Body>
-              <Dialog.Footer>
-                <Dialog.ActionTrigger asChild>
-                  <Button ref={cancelRef} variant="ghost" disabled={confirmBusy}>
-                    Cancel
-                  </Button>
-                </Dialog.ActionTrigger>
-                <Button colorPalette="red" onClick={handleClear} loading={confirmBusy || clearing}>
-                  Confirm
+            <Drawer.Footer>
+              <HStack width="full" justify="space-between">
+                <Button
+                  variant="outline"
+                  colorPalette="red"
+                  onClick={handleClear}
+                  disabled={items.length === 0}
+                >
+                  Clear
                 </Button>
-              </Dialog.Footer>
-            </Dialog.Content>
-          </Dialog.Positioner>
-        </Portal>
-      </Dialog.Root>
+                <Button
+                  onClick={handleCheckout}
+                  disabled={items.length === 0}
+                >
+                  Checkout
+                </Button>
+              </HStack>
+            </Drawer.Footer>
+          </Drawer.Content>
+        </Drawer.Positioner>
+      </Drawer.Root>
     </>
-  )
+  );
 }
+
+export const CartDrawer = memo(CartDrawerBase);
+export default CartDrawer;

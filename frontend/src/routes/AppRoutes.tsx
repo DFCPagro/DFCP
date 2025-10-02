@@ -1,3 +1,4 @@
+// src/routes/index.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import AuthGuard from "@/guards/AuthGuard";
@@ -32,8 +33,6 @@ const ItemManager = lazy(() => import("@/pages/ItemManager"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
-
-// Package Sizes (management)
 const PackageSizesPage = lazy(() => import("@/pages/package-sizes"));
 
 export default function AppRoutes() {
@@ -117,7 +116,7 @@ export default function AppRoutes() {
             </Route>
             <Route path={PATHS.orders} element={<Orders />} />
             <Route element={<AppShell showHeader={false} />}>
-              <Route path={PATHS.DeliveryNotePage} element={<DeliveryNote />} />
+              <Route path={PATHS.deliveryNote} element={<DeliveryNote />} />
             </Route>
 
             {/* Driver-only */}

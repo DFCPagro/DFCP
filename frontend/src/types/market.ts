@@ -64,9 +64,10 @@ export const MarketStockDocSchema = z.object({
 export type MarketStockDoc = z.infer<typeof MarketStockDocSchema>;
 
 /**
+ * need fixes
  * Flattened item used by grid/cards/search.
  * - pricePerUnit/availableKg are optional to reflect source truth.
- */
+ */ 
 export const MarketItemSchema = z.object({
   docId: z.string(),
   lineId: z.string(),

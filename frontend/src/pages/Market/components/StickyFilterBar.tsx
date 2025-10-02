@@ -103,7 +103,7 @@ function StickyFilterBarBase({
       position="sticky"
       top={`${offsetTop}px`}
       zIndex={zIndex}
-      bg="bg.canvas"
+      bg="bg"
       borderBottomWidth="1px"
       px={{ base: 3, md: 4 }}
       py={3}

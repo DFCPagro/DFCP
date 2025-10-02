@@ -12,12 +12,13 @@ export const ORDER_STATUSES = [
   "farmer",
   "in-transit",
   "packing",
-  "ready for pickUp",
+  "ready_for_pickUp",
   "out_for_delivery",
   "delivered",
+  "received",
   "canceled",
   "problem",
-] as const;
+] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 // ------ sub-schema: embedded order item ------
