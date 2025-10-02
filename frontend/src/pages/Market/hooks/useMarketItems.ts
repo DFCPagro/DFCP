@@ -121,9 +121,9 @@ export function useMarketItems({
 
       // Expect an array of MarketItem
       // data is a MarketStockDoc; flatten to MarketItem[]
-      console.log("stock doc", data);
+      // console.log("stock doc", data);
       const arr = flattenMarketDocToItems(data);
-      console.log("flattened items", arr.length, arr.slice(0,3));      
+      // console.log("flattened items", arr.length, arr.slice(0,3));      
       setAllItems(arr);
       onFetched?.(arr);
 

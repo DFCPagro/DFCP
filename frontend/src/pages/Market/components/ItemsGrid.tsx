@@ -58,7 +58,7 @@ function ItemsGridBase({
 }: ItemsGridProps) {
   const renderSkeletons = isLoading
   const showEmpty = !isLoading && !error && items.length === 0
-  console.log("ItemsGrid received items:", items.length);
+  // console.log("ItemsGrid received items:", items);
 
   return (
     <Stack gap="4" width="full">

@@ -87,7 +87,7 @@ function getLineKey(line: CartLine): string {
 function getUnitPrice(line: CartLine): number {
   const cand =
     line.pricePerUnit ??
-    line.unitPrice ??
+    line.priceUsd ??
     line.price ??
     0;
   const n = Number(cand);
@@ -248,10 +248,10 @@ function CartDrawerBase({
       {/* Inline confirm dialog (swap for your shared <ConfirmDialog> if you want) */}
       {ConfirmDialogInline}
 
-      <Drawer.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()}>
+      <Drawer.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="md" placement="end">
         <Drawer.Backdrop />
         <Drawer.Positioner>
-          <Drawer.Content>
+          <Drawer.Content >
             <Drawer.Header>
               <HStack justify="space-between" width="full">
                 <Text fontWeight="semibold">Your Cart</Text>
@@ -275,7 +275,7 @@ function CartDrawerBase({
                       const qty = getQty(line);
                       const price = getUnitPrice(line);
                       const lineTotal = price * qty;
-
+                      // console.log("Cart item:", line);
                       return (
                         <Box key={key} p="3" borderWidth="1px" rounded="lg">
                           <HStack align="flex-start" justify="space-between">
