@@ -1,5 +1,5 @@
 // src/pages/DeliveryNote.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Box,
@@ -15,7 +15,6 @@ import {
 import type { OrderRowAPI } from "@/types/orders";
 import ItemList, { type ItemRow } from "@/components/common/ItemList";
 import { fetchOrders } from "@/api/orders";
-import LocationMapModal from "@/components/feature/orders/LocationMapModal";
 
 // types
 type UIStatus =
@@ -29,11 +28,6 @@ type UIStatus =
   | "lc_to_customer"
   | "delivered"
   | "confirm_receiving";
-
-type LatLng = { lat: number; lng: number };
-
-// LC
-const LOGISTIC_CENTER: LatLng = { lat: 32.733459, lng: 35.218805 };
 
 // status helpers
 const STATUS_LABEL: Record<UIStatus, string> = {
@@ -97,10 +91,6 @@ function normalizeStatus(s: string): UIStatus {
       return "pending";
   }
 }
-function isOldStatus(s: any) {
-  const ui = normalizeStatus(String(s));
-  return ui === "delivered" || ui === "confirm_receiving";
-}
 
 // formatting
 function fmtDateShort(iso: string) {
@@ -128,81 +118,9 @@ function pickCurrency(items: any[]): string | undefined {
   return undefined;
 }
 
-// coords helpers
-function asNum(n: any) {
-  const v = Number(n);
-  return Number.isFinite(v) ? v : undefined;
-}
-function arrToLatLng(a: any): LatLng | null {
-  if (!Array.isArray(a) || a.length < 2) return null;
-  const a0 = Number(a[0]),
-    a1 = Number(a[1]);
-  if (!Number.isFinite(a0) || !Number.isFinite(a1)) return null;
-  const looksLatLng = Math.abs(a0) <= 90 && Math.abs(a1) <= 180;
-  const lat = looksLatLng ? a0 : a1;
-  const lng = looksLatLng ? a1 : a0;
-  return { lat, lng };
-}
-function pick(obj: any, ...paths: string[]) {
-  for (const p of paths) {
-    const v = p.split(".").reduce((x, k) => x?.[k], obj);
-    if (v != null) return v;
-  }
-  return undefined;
-}
-function getDeliveryCoord(o: any): LatLng | null {
-  const c =
-    pick(
-      o,
-      "delivery",
-      "delivery.location",
-      "delivery.geo",
-      "shippingAddress",
-      "shippingAddress.location",
-      "shippingAddress.geo",
-      "customer.location",
-      "customer.address.geo",
-      "location",
-      "geo"
-    ) ?? null;
-
-  const fromArr =
-    arrToLatLng((c as any)?.coordinates) ??
-    arrToLatLng((c as any)?.coords) ??
-    arrToLatLng(c);
-  if (fromArr) return fromArr;
-
-  const lat = asNum((c as any)?.lat ?? (c as any)?.latitude ?? (c as any)?.y);
-  const lng = asNum(
-    (c as any)?.lng ??
-      (c as any)?.lon ??
-      (c as any)?.long ??
-      (c as any)?.longitude ??
-      (c as any)?.x
-  );
-  if (lat != null && lng != null) return { lat, lng };
-
-  const lat2 = asNum(o?.destLat);
-  const lng2 = asNum(o?.destLng);
-  return lat2 != null && lng2 != null ? { lat: lat2, lng: lng2 } : null;
-}
-function mockPointFor(id: string): LatLng {
-  const seed =
-    id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
-  const dLat = ((seed % 80) - 40) / 1000;
-  const dLng = (((seed / 10) | 0) % 80 - 40) / 1000;
-  return {
-    lat: LOGISTIC_CENTER.lat + 0.12 + dLat,
-    lng: LOGISTIC_CENTER.lng + 0.18 + dLng,
-  };
-}
-function pickDeliveryPoint(o: OrderRowAPI): LatLng {
-  return getDeliveryCoord(o as any) ?? mockPointFor(o.id);
-}
-
 // page
 export default function DeliveryNotePage() {
-  const { orderKey } = useParams<{ orderKey: string }>();
+  const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
   const loc = useLocation() as { state?: { order?: OrderRowAPI } };
 
@@ -210,24 +128,22 @@ export default function DeliveryNotePage() {
 
   const [order, setOrder] = useState<OrderRowAPI | null>(fromState);
   const [loading, setLoading] = useState(!fromState);
-  const [mapOpen, setMapOpen] = useState(false);
 
   useEffect(() => {
     if (fromState) return;
-    if (!orderKey) return;
+    if (!id) return;
 
     let mounted = true;
     (async () => {
       setLoading(true);
       try {
-        // naive lookup via list
         const data = await fetchOrders(1, 200);
         const items: OrderRowAPI[] = Array.isArray((data as any)?.items)
           ? (data as any).items
           : [];
         const found =
-          items.find((o) => o.id === orderKey) ||
-          items.find((o) => (o as any).orderId === orderKey) ||
+          items.find((o) => o.id === id) ||
+          items.find((o) => (o as any).orderId === id) ||
           null;
         if (mounted) setOrder(found);
       } finally {
@@ -237,7 +153,7 @@ export default function DeliveryNotePage() {
     return () => {
       mounted = false;
     };
-  }, [orderKey, fromState]);
+  }, [id, fromState]);
 
   const ui = useMemo(
     () => (order ? normalizeStatus((order as any).status) : "pending"),
@@ -271,8 +187,6 @@ export default function DeliveryNotePage() {
     );
   }
 
-  const point = pickDeliveryPoint(order);
-
   return (
     <Container maxW="3xl" py={8}>
       <HStack justify="space-between" mb={4}>
@@ -295,23 +209,13 @@ export default function DeliveryNotePage() {
           Created: {fmtDateShort(order.createdAt)}
         </Text>
 
-        <HStack gap={2} mb={3}>
-          <Button size="sm" onClick={() => setMapOpen(true)}>
-            View map
-          </Button>
-        </HStack>
-
         <Separator my={3} />
 
-        <ItemList items={toItemRows((order as any).items ?? [])} currency={currency} />
+        <ItemList
+          items={toItemRows((order as any).items ?? [])}
+          currency={currency}
+        />
       </Box>
-
-      <LocationMapModal
-        open={mapOpen}
-        onClose={() => setMapOpen(false)}
-        point={point}
-        onlyDelivery={isOldStatus((order as any).status)}
-      />
     </Container>
   );
 }

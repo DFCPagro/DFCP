@@ -1,35 +1,44 @@
+// src/routes/paths.ts
 export const PATHS = {
   home: "/",
   login: "/login",
   register: "/register",
   dashboard: "/dashboard",
+
   driverSchedule: "/driver-schedule",
   jobs: "/jobs",
   jobApplication: "/job-application",
-  //costumer pages
+
+  // customer pages
   market: "/market",
   cart: "/cart",
   checkout: "/checkout",
   profile: "/profile",
   orders: "/orders",
-  DeliveryNotePage: "/delivery-note/:noteId?",
-  // Farmer pages
+  deliveryNote: "/orders/:id/note", // DeliveryNote page
+
+  // farmer pages
   farmerDashboard: "/FarmerDashboard",
   FarmerCropManagement: "/farmer/crops",
-  // Item manager
+
+  // item manager
   ItemsManagment: "/admin/items",
-  //admin pages TEMP:- 
+
+  // admin pages
   adminDashboard: "/admin/dashboard",
   JobAppReview: "/admin/jobReview",
   cropHarvest: "/admin/crop-harvest",
   PackageSizes: "/admin/package-sizes",
-  // Driver pages
+
+  // driver pages
   shipments: "/shipments",
-  // Public QR routes
+
+  // public QR routes
   ops: "/o/:token",
   customerConfirm: "/r/:token",
   arrivalConfirm: "/a/:token",
   aggregationView: "/ag/:token",
   containerView: "/c/:barcode",
+
   notFound: "/404",
 } as const;

@@ -25,7 +25,7 @@ import { fetchOrders } from "@/api/orders";
 import type { OrderRowAPI } from "@/types/orders";
 import ItemList, { type ItemRow } from "@/components/common/ItemList";
 import LocationMapModal from "@/components/feature/orders/LocationMapModal";
-import { MOCK_ORDERS, type OrderRowLoose } from "@/data/orders";
+import { MOCK_ORDERS } from "@/data/orders";
 
 // types
 type UIStatus =
@@ -86,6 +86,7 @@ const STATUS_OPTIONS: Array<"ALL" | UIStatus> = [
   "delivered",
   "confirm_receiving",
 ];
+
 function normalizeStatus(s: string): UIStatus {
   const key = s.toLowerCase().replaceAll(/\s+/g, "_");
   switch (key) {
@@ -258,8 +259,7 @@ function getDeliveryCoord(o: any): LatLng | null {
   return lat2 != null && lng2 != null ? { lat: lat2, lng: lng2 } : null;
 }
 function mockPointFor(id: string): LatLng {
-  const seed =
-    id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
+  const seed = id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
   const dLat = ((seed % 80) - 40) / 1000;
   const dLng = (((seed / 10) | 0) % 80 - 40) / 1000;
   return {
@@ -269,6 +269,11 @@ function mockPointFor(id: string): LatLng {
 }
 function pickDeliveryPoint(o: OrderRowAPI): LatLng {
   return getDeliveryCoord(o as any) ?? mockPointFor(o.id);
+}
+
+// ---------- reported ----------
+function isReported(o: any) {
+  return Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue);
 }
 
 // page
@@ -383,12 +388,6 @@ export default function OrdersPage() {
     });
   }, [orders, statusFilter, dateFilter, customFrom, customTo]);
 
-// ---------- reported ----------
-function isReported(o: any) {
-  return Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue);
-}
-
-
   const activeOrders = useMemo(
     () =>
       (filtered ?? []).filter((o) => {
@@ -461,11 +460,7 @@ function isReported(o: any) {
           <GridItem justifySelf="end">
             <HStack gap={2}>
               {showNote && (
-                <Button
-                  onClick={() =>
-                    nav(`/orders/${o.id}/note`, { state: { order: o } })
-                  }
-                >
+                <Button onClick={() => nav(`/orders/${o.id}/note`, { state: { order: o } })}>
                   Delivery Note
                 </Button>
               )}

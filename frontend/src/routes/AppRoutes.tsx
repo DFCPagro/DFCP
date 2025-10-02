@@ -1,3 +1,4 @@
+// src/routes/index.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import AuthGuard from "@/guards/AuthGuard";
@@ -17,7 +18,7 @@ const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
 const OpsOrderPage = lazy(() => import("@/pages/OpsOrder"));
 const CustomerConfirmPage = lazy(() => import("@/pages/CustomerConfirm"));
 const ArrivalConfirmPage = lazy(() => import("@/pages/ArrivalConfirm"));
-const FarmerDashboard = lazy(() => import("@/pages/FarmerDashboard")); // NOTE: PascalCase
+const FarmerDashboard = lazy(() => import("@/pages/FarmerDashboard"));
 const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
 const Market = lazy(() => import("@/pages/Market"));
 const Cart = lazy(() => import("@/pages/Cart"));
@@ -31,8 +32,6 @@ const ItemManager = lazy(() => import("@/pages/ItemManager"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
-
-// Package Sizes (management)
 const PackageSizesPage = lazy(() => import("@/pages/package-sizes"));
 
 export default function AppRoutes() {
@@ -40,6 +39,7 @@ export default function AppRoutes() {
     <Suspense fallback={null}>
       <Routes>
         <Route path={PATHS.home} element={<Home />} />
+
         <Route
           path={PATHS.login}
           element={
@@ -112,7 +112,7 @@ export default function AppRoutes() {
           <Route path={PATHS.checkout} element={<Checkout />} />
           <Route path={PATHS.profile} element={<Profile />} />
           <Route path={PATHS.orders} element={<Orders />} />
-          <Route path={PATHS.DeliveryNotePage} element={<DeliveryNote />} />
+          <Route path={PATHS.deliveryNote} element={<DeliveryNote />} />
 
           {/* driver-only page */}
           <Route

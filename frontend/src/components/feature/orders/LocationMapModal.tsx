@@ -56,7 +56,10 @@ export default function LocationMapModal({
 
       const center =
         point && !onlyDelivery
-          ? { lat: (LOGISTIC_CENTER.lat + point.lat) / 2, lng: (LOGISTIC_CENTER.lng + point.lng) / 2 }
+          ? {
+              lat: (LOGISTIC_CENTER.lat + point.lat) / 2,
+              lng: (LOGISTIC_CENTER.lng + point.lng) / 2,
+            }
           : point ?? LOGISTIC_CENTER;
 
       mapRef.current = new g.maps.Map(el, {
