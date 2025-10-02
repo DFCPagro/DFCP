@@ -1,5 +1,5 @@
 // src/pages/Orders.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Container,
@@ -27,112 +27,87 @@ import ItemList, { type ItemRow } from "@/components/common/ItemList";
 import LocationMapModal from "@/components/feature/orders/LocationMapModal";
 import { MOCK_ORDERS } from "@/data/orders";
 
-// types
-type UIStatus =
-  | "pending"
-  | "accepted"
-  | "farmer"
-  | "farm_to_lc"
-  | "logistic_center"
-  | "packed"
-  | "ready_for_delivery"
-  | "lc_to_customer"
-  | "delivered"
-  | "confirm_receiving";
+// ---------- canonical statuses ----------
+export const ORDER_STATUSES = [
+  "pending",
+  "confirmed",
+  "farmer",
+  "in-transit",
+  "packing",
+  "ready_for_pickUp",
+  "out_for_delivery",
+  "recived",
+  "canceled",
+  "problem",
+] as const;
+
+type UIStatus = (typeof ORDER_STATUSES)[number];
 type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
 type LatLng = { lat: number; lng: number };
 
-// LC
+// LC for map route drawing
 const LOGISTIC_CENTER: LatLng = { lat: 32.733459, lng: 35.218805 };
 
 function isOldStatus(s: any) {
   const ui = normalizeStatus(String(s));
-  return ui === "delivered" || ui === "confirm_receiving";
+  return ui === "recived" || ui === "canceled";
 }
 const STATUS_LABEL: Record<UIStatus, string> = {
-  pending: "pending",
-  accepted: "accepted",
-  farmer: "farmer",
-  farm_to_lc: "from farmer to logistic center",
-  logistic_center: "logistic center",
-  packed: "packed",
-  ready_for_delivery: "ready for delivery",
-  lc_to_customer: "delivering",
-  delivered: "delivered",
-  confirm_receiving: "confirm receiving",
+  pending: "Pending",
+  confirmed: "Confirmed",
+  farmer: "Farmer",
+  "in-transit": "In transit",
+  packing: "Packing",
+  ready_for_pickUp: "Ready for pick-up",
+  out_for_delivery: "Out for delivery",
+  recived: "Received",
+  canceled: "Canceled",
+  problem: "Problem",
 };
 const STATUS_EMOJI: Record<UIStatus, string> = {
   pending: "⏳",
-  accepted: "👍",
+  confirmed: "👍",
   farmer: "👨‍🌾",
-  farm_to_lc: "🚚",
-  logistic_center: "🏬",
-  packed: "📦",
-  ready_for_delivery: "✅",
-  lc_to_customer: "🛵",
-  delivered: "🏠",
-  confirm_receiving: "🧾",
+  "in-transit": "🚚",
+  packing: "📦",
+  ready_for_pickUp: "✅",
+  out_for_delivery: "🛵",
+  recived: "🏠",
+  canceled: "⛔",
+  problem: "⚠️",
 };
-const STATUS_OPTIONS: Array<"ALL" | UIStatus> = [
-  "ALL",
-  "pending",
-  "accepted",
-  "farmer",
-  "farm_to_lc",
-  "logistic_center",
-  "packed",
-  "ready_for_delivery",
-  "lc_to_customer",
-  "delivered",
-  "confirm_receiving",
-];
+const STATUS_OPTIONS: Array<"ALL" | UIStatus> = ["ALL", ...ORDER_STATUSES];
 
 function normalizeStatus(s: string): UIStatus {
   const key = s.toLowerCase().replaceAll(/\s+/g, "_");
+  if (ORDER_STATUSES.includes(key as UIStatus)) return key as UIStatus;
   switch (key) {
-    case "created":
-      return "pending";
-    case "out_for_delivery":
-      return "lc_to_customer";
-    case "confirmed":
-      return "confirm_receiving";
-    case "accepted":
-      return "accepted";
-    case "farmer":
-      return "farmer";
-    case "form_framer_to_the_logistic_center":
-    case "from_farmer_to_the_logistic_center":
-    case "farm_to_lc":
-      return "farm_to_lc";
-    case "logistic_center":
-      return "logistic_center";
-    case "packed":
-      return "packed";
     case "ready_for_delivery":
-      return "ready_for_delivery";
-    case "from_the_logistic_to_the_costmer":
-    case "from_the_logistic_to_the_customer":
-    case "lc_to_customer":
-    case "delivering":
-      return "lc_to_customer";
+    case "ready_for_pickup":
+      return "ready_for_pickUp";
     case "delivered":
-      return "delivered";
-    case "confirm_reciveing":
-    case "confirm_receiving":
-      return "confirm_receiving";
+    case "received":
+    case "recieved":
+      return "recived";
+    case "delivering":
+    case "lc_to_customer":
+    case "farm_to_lc":
+    case "intransit":
+      return "in-transit";
+    case "issue":
+    case "reported":
+      return "problem";
     default:
       return "pending";
   }
 }
 
-// date helpers
+// ---------- date + delivery time ----------
 function fmt2(n: number) {
   return String(n).padStart(2, "0");
 }
 function fmtDateYY(d: Date) {
-  return `${fmt2(d.getDate())}/${fmt2(d.getMonth() + 1)}/${String(
-    d.getFullYear()
-  ).slice(-2)}`;
+  return `${fmt2(d.getDate())}/${fmt2(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
 }
 function fmtHM(d: Date) {
   return `${fmt2(d.getHours())}:${fmt2(d.getMinutes())}`;
@@ -181,26 +156,27 @@ function formatDeliveryTime(o: any) {
   return `${fmtDateYY(d)} ${range}`;
 }
 
-// items helpers
+// ---------- items ----------
 function toItemRows(items: any[]): ItemRow[] {
-  return (items ?? []).map((it: any, idx: number): ItemRow => ({
-    id: it.id ?? it.productId ?? String(idx),
-    name:
-      it.name ?? it.displayName ?? it.productName ?? it.productId ?? "item",
-    farmer: it.farmerName ?? it.farmer ?? "—",
-    imageUrl: it.imageUrl ?? it.image ?? undefined,
-    qty: Number(it.quantity ?? it.qty ?? 0),
-    unitLabel: it.unit ?? it.unitLabel ?? "unit",
-    unitPrice: Number(it.unitPrice ?? it.pricePerUnit ?? it.price ?? 0),
-    currency: it.currency ?? undefined,
-  }));
+  return (items ?? []).map(
+    (it: any, idx: number): ItemRow => ({
+      id: it.id ?? it.productId ?? String(idx),
+      name: it.name ?? it.displayName ?? it.productName ?? it.productId ?? "item",
+      farmer: it.farmerName ?? it.farmer ?? "—",
+      imageUrl: it.imageUrl ?? it.image ?? undefined,
+      qty: Number(it.quantity ?? it.qty ?? 0),
+      unitLabel: it.unit ?? it.unitLabel ?? "unit",
+      unitPrice: Number(it.unitPrice ?? it.pricePerUnit ?? it.price ?? 0),
+      currency: it.currency ?? undefined,
+    })
+  );
 }
 function pickCurrency(items: any[]): string | undefined {
   for (const it of items ?? []) if (it?.currency) return it.currency;
   return undefined;
 }
 
-// coords helpers
+// ---------- coords helpers ----------
 function asNum(n: any) {
   const v = Number(n);
   return Number.isFinite(v) ? v : undefined;
@@ -271,19 +247,18 @@ function pickDeliveryPoint(o: OrderRowAPI): LatLng {
   return getDeliveryCoord(o as any) ?? mockPointFor(o.id);
 }
 
-// ---------- reported ----------
+// reported => map to "problem"
 function isReported(o: any) {
-  return Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue);
+  const ui = normalizeStatus((o as any)?.status ?? "");
+  return ui === "problem";
 }
 
-// page
+// ---------- page ----------
 export default function OrdersPage() {
   const nav = useNavigate();
 
   const [orders, setOrders] = useState<OrderRowAPI[]>([]);
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
 
   const [statusFilter, setStatusFilter] = useState<"ALL" | UIStatus>("ALL");
   const [dateFilter, setDateFilter] = useState<DateFilter>("ALL");
@@ -307,20 +282,12 @@ export default function OrdersPage() {
     (async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(page, 50);
-        const items: OrderRowAPI[] = Array.isArray((data as any)?.items)
-          ? (data as any).items
-          : [];
+        const items = await fetchOrders(50); // GET /orders/my?limit=50
         if (!mounted) return;
-        setOrders((prev) => (page === 1 ? items : [...prev, ...items]));
-        const curPage = Number((data as any)?.page ?? page);
-        const pageSize = Number((data as any)?.pageSize ?? items.length);
-        const total = Number((data as any)?.total ?? items.length);
-        setHasMore(curPage * pageSize < total);
+        setOrders(items);
       } catch {
         if (!mounted) return;
         setOrders(MOCK_ORDERS as unknown as OrderRowAPI[]);
-        setHasMore(false);
       } finally {
         setLoading(false);
       }
@@ -328,16 +295,7 @@ export default function OrdersPage() {
     return () => {
       mounted = false;
     };
-  }, [page]);
-
-  const firstRun = useRef(true);
-  useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
-    setPage(1);
-  }, [statusFilter, dateFilter, customFrom, customTo]);
+  }, []);
 
   function startOfWeek(d: Date) {
     const day = d.getDay();
@@ -392,7 +350,7 @@ export default function OrdersPage() {
     () =>
       (filtered ?? []).filter((o) => {
         const ui = normalizeStatus((o as any).status);
-        return !isReported(o) && ui !== "delivered" && ui !== "confirm_receiving";
+        return !isReported(o) && ui !== "recived" && ui !== "canceled";
       }),
     [filtered]
   );
@@ -400,7 +358,7 @@ export default function OrdersPage() {
     () =>
       (filtered ?? []).filter((o) => {
         const ui = normalizeStatus((o as any).status);
-        return !isReported(o) && (ui === "delivered" || ui === "confirm_receiving");
+        return !isReported(o) && (ui === "recived" || ui === "canceled");
       }),
     [filtered]
   );
@@ -412,8 +370,8 @@ export default function OrdersPage() {
   function OrderCard(o: OrderRowAPI) {
     const ui = normalizeStatus((o as any).status);
     const emoji = STATUS_EMOJI[ui];
-    const statusLabel = STATUS_LABEL[ui];
-    const showNote = ui === "delivered" || ui === "confirm_receiving";
+       const statusLabel = STATUS_LABEL[ui];
+    const showNote = ui === "recived" || ui === "canceled";
     const deliveryTime = formatDeliveryTime(o);
     const rows = toItemRows((o as any).items ?? []);
     const currency = pickCurrency((o as any).items ?? []) ?? "$";
@@ -460,7 +418,7 @@ export default function OrdersPage() {
           <GridItem justifySelf="end">
             <HStack gap={2}>
               {showNote && (
-                <Button onClick={() => nav(`/orders/${o.id}/note`, { state: { order: o } })}>
+                <Button onClick={() => nav(`/orders/${o.id}/note`)}>
                   Delivery Note
                 </Button>
               )}
@@ -489,6 +447,7 @@ export default function OrdersPage() {
           <CartIconButton />
         </HStack>
 
+        {/* Filters */}
         <HStack gap={3} align="end" mb={6} style={{ flexWrap: "wrap" }}>
           <Field.Root>
             <Field.Label htmlFor="status-filter">Status</Field.Label>
@@ -589,6 +548,7 @@ export default function OrdersPage() {
           </>
         )}
 
+        {/* Map modal */}
         <LocationMapModal
           open={mapOpen}
           onClose={() => setMapOpen(false)}

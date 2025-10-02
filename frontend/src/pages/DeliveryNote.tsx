@@ -16,77 +16,59 @@ import type { OrderRowAPI } from "@/types/orders";
 import ItemList, { type ItemRow } from "@/components/common/ItemList";
 import { fetchOrders } from "@/api/orders";
 
-// types
-type UIStatus =
-  | "pending"
-  | "accepted"
-  | "farmer"
-  | "farm_to_lc"
-  | "logistic_center"
-  | "packed"
-  | "ready_for_delivery"
-  | "lc_to_customer"
-  | "delivered"
-  | "confirm_receiving";
+// canonical statuses
+export const ORDER_STATUSES = [
+  "pending",
+  "confirmed",
+  "farmer",
+  "in-transit",
+  "packing",
+  "ready_for_pickUp",
+  "out_for_delivery",
+  "recived",
+  "canceled",
+  "problem",
+] as const;
+type UIStatus = (typeof ORDER_STATUSES)[number];
 
-// status helpers
 const STATUS_LABEL: Record<UIStatus, string> = {
-  pending: "pending",
-  accepted: "accepted",
-  farmer: "farmer",
-  farm_to_lc: "from farmer to logistic center",
-  logistic_center: "logistic center",
-  packed: "packed",
-  ready_for_delivery: "ready for delivery",
-  lc_to_customer: "delivering",
-  delivered: "delivered",
-  confirm_receiving: "confirm receiving",
+  pending: "Pending",
+  confirmed: "Confirmed",
+  farmer: "Farmer",
+  "in-transit": "In transit",
+  packing: "Packing",
+  ready_for_pickUp: "Ready for pick-up",
+  out_for_delivery: "Out for delivery",
+  recived: "Received",
+  canceled: "Canceled",
+  problem: "Problem",
 };
 const STATUS_EMOJI: Record<UIStatus, string> = {
   pending: "⏳",
-  accepted: "👍",
+  confirmed: "👍",
   farmer: "👨‍🌾",
-  farm_to_lc: "🚚",
-  logistic_center: "🏬",
-  packed: "📦",
-  ready_for_delivery: "✅",
-  lc_to_customer: "🛵",
-  delivered: "🏠",
-  confirm_receiving: "🧾",
+  "in-transit": "🚚",
+  packing: "📦",
+  ready_for_pickUp: "✅",
+  out_for_delivery: "🛵",
+  recived: "🏠",
+  canceled: "⛔",
+  problem: "⚠️",
 };
 function normalizeStatus(s: string): UIStatus {
   const key = s.toLowerCase().replaceAll(/\s+/g, "_");
+  if (ORDER_STATUSES.includes(key as UIStatus)) return key as UIStatus;
   switch (key) {
-    case "created":
-      return "pending";
-    case "out_for_delivery":
-      return "lc_to_customer";
-    case "confirmed":
-      return "confirm_receiving";
-    case "accepted":
-      return "accepted";
-    case "farmer":
-      return "farmer";
-    case "form_framer_to_the_logistic_center":
-    case "from_farmer_to_the_logistic_center":
-    case "farm_to_lc":
-      return "farm_to_lc";
-    case "logistic_center":
-      return "logistic_center";
-    case "packed":
-      return "packed";
     case "ready_for_delivery":
-      return "ready_for_delivery";
-    case "from_the_logistic_to_the_costmer":
-    case "from_the_logistic_to_the_customer":
-    case "lc_to_customer":
-    case "delivering":
-      return "lc_to_customer";
+    case "ready_for_pickup":
+      return "ready_for_pickUp";
     case "delivered":
-      return "delivered";
-    case "confirm_reciveing":
-    case "confirm_receiving":
-      return "confirm_receiving";
+    case "received":
+    case "recieved":
+      return "recived";
+    case "delivering":
+    case "lc_to_customer":
+      return "in-transit";
     default:
       return "pending";
   }
@@ -118,7 +100,6 @@ function pickCurrency(items: any[]): string | undefined {
   return undefined;
 }
 
-// page
 export default function DeliveryNotePage() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
@@ -137,10 +118,7 @@ export default function DeliveryNotePage() {
     (async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(1, 200);
-        const items: OrderRowAPI[] = Array.isArray((data as any)?.items)
-          ? (data as any).items
-          : [];
+        const items = await fetchOrders(200); // latest, then find by id
         const found =
           items.find((o) => o.id === id) ||
           items.find((o) => (o as any).orderId === id) ||
