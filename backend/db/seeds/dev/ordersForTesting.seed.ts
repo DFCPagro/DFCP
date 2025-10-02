@@ -174,7 +174,7 @@ async function seed() {
     const itemsPool = await sampleItems(12);
     console.log(`[Items] Pulled ${itemsPool.length}`);
 
-    // 1) Three past "Receive" orders: -3d, -2d, -1d; random shifts
+    // 1) Three past "recived" orders: -3d, -2d, -1d; random shifts
     for (const daysAgo of [3, 2, 1]) {
       const when = addDays(new Date(), -daysAgo);
       const ymd = fmtYMD(when, TZ);

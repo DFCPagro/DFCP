@@ -1,9 +1,9 @@
 // src/components/feature/orders/LocationMapModal.tsx
 import { useEffect, useRef } from "react";
 import { Box, Button, Dialog, Text } from "@chakra-ui/react";
-import type { LatLng } from "@/utils/order/orders";
 import { loadGoogleMaps } from "@/utils/googleMaps";
 
+type LatLng = { lat: number; lng: number };
 const LOGISTIC_CENTER: LatLng = { lat: 32.733459, lng: 35.218805 };
 
 export default function LocationMapModal({
@@ -19,68 +19,60 @@ export default function LocationMapModal({
 }) {
   const boxRef = useRef<HTMLDivElement | null>(null);
 
-  const googleRef = useRef<any>(null);
-  const mapRef = useRef<any>(null);
-  const destMarkerRef = useRef<any>(null);
-  const lcMarkerRef = useRef<any>(null);
-  const routeRef = useRef<any>(null);
+  const gRef = useRef<typeof google | null>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const destMarkerRef = useRef<google.maps.Marker | null>(null);
+  const lcMarkerRef = useRef<google.maps.Marker | null>(null);
+  const routeRef = useRef<google.maps.Polyline | null>(null);
+
+  async function waitForSize(el: HTMLElement) {
+    if (el.clientWidth > 0 && el.clientHeight > 0) return;
+    await new Promise<void>((resolve) => {
+      const ro = new ResizeObserver(() => {
+        if (el.clientWidth > 0 && el.clientHeight > 0) {
+          ro.disconnect();
+          resolve();
+        }
+      });
+      ro.observe(el);
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
 
-    const waitForVisible = (el: HTMLElement) =>
-      new Promise<void>((resolve) => {
-        const check = () => {
-          if (cancelled) return;
-          const visible = el.offsetWidth > 0 && el.offsetHeight > 0;
-          if (visible) resolve();
-          else requestAnimationFrame(check);
-        };
-        check();
-      });
-
     const init = async () => {
       if (!open || !boxRef.current) return;
+      const el = boxRef.current;
 
-      await waitForVisible(boxRef.current); // ensure dialog laid out
+      await waitForSize(el);
+      if (cancelled) return;
 
-      try {
-        const g = await loadGoogleMaps();
-        if (cancelled) return;
-        googleRef.current = g;
+      const g = await loadGoogleMaps();
+      if (cancelled) return;
+      gRef.current = g;
 
-        // clean container if reopening
-        boxRef.current.innerHTML = "";
+      el.innerHTML = "";
 
-        const center = point
-          ? !onlyDelivery
-            ? {
-                lat: (LOGISTIC_CENTER.lat + point.lat) / 2,
-                lng: (LOGISTIC_CENTER.lng + point.lng) / 2,
-              }
-            : { lat: point.lat, lng: point.lng }
-          : LOGISTIC_CENTER;
+      const center =
+        point && !onlyDelivery
+          ? { lat: (LOGISTIC_CENTER.lat + point.lat) / 2, lng: (LOGISTIC_CENTER.lng + point.lng) / 2 }
+          : point ?? LOGISTIC_CENTER;
 
-        mapRef.current = new g.maps.Map(boxRef.current, {
-          center,
-          zoom: 13,
-          mapTypeId: g.maps.MapTypeId.ROADMAP,
-          zoomControl: true,
-          streetViewControl: false,
-          fullscreenControl: false,
-          mapTypeControl: false,
-          gestureHandling: "greedy",
-          clickableIcons: false,
-        });
+      mapRef.current = new g.maps.Map(el, {
+        center,
+        zoom: 13,
+        mapTypeId: g.maps.MapTypeId.ROADMAP,
+        zoomControl: true,
+        streetViewControl: false,
+        fullscreenControl: false,
+        mapTypeControl: false,
+        gestureHandling: "greedy",
+        clickableIcons: false,
+      });
 
-        // next frame to ensure tiles render
-        requestAnimationFrame(() => g.maps.event.trigger(mapRef.current, "resize"));
-
-        drawOverlays();
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("Google Maps init error:", err);
-      }
+      requestAnimationFrame(() => g.maps.event.trigger(mapRef.current!, "resize"));
+      drawOverlays();
     };
 
     void init();
@@ -106,43 +98,32 @@ export default function LocationMapModal({
   }
 
   function drawOverlays() {
-    const g = googleRef.current;
+    const g = gRef.current;
     const map = mapRef.current;
     if (!g || !map || !point) return;
 
     clearOverlays();
 
-    destMarkerRef.current = new g.maps.Marker({
-      position: { lat: point.lat, lng: point.lng },
-      map,
-    });
+    destMarkerRef.current = new g.maps.Marker({ position: point, map });
 
     if (!onlyDelivery) {
-      lcMarkerRef.current = new g.maps.Marker({
-        position: { lat: LOGISTIC_CENTER.lat, lng: LOGISTIC_CENTER.lng },
-        map,
-      });
+      lcMarkerRef.current = new g.maps.Marker({ position: LOGISTIC_CENTER, map });
 
       routeRef.current = new g.maps.Polyline({
-        path: [
-          { lat: LOGISTIC_CENTER.lat, lng: LOGISTIC_CENTER.lng },
-          { lat: point.lat, lng: point.lng },
-        ],
+        path: [LOGISTIC_CENTER, point],
         strokeColor: "#0ea5e9",
         strokeOpacity: 1,
         strokeWeight: 4,
-        icons: [
-          { icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 4 }, offset: "0", repeat: "14px" },
-        ],
+        icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 4 }, offset: "0", repeat: "14px" }],
         map,
       });
 
       const bounds = new g.maps.LatLngBounds();
       bounds.extend(new g.maps.LatLng(LOGISTIC_CENTER.lat, LOGISTIC_CENTER.lng));
       bounds.extend(new g.maps.LatLng(point.lat, point.lng));
-      map.fitBounds(bounds, 32);
+      map.fitBounds(bounds);
     } else {
-      map.setCenter({ lat: point.lat, lng: point.lng });
+      map.setCenter(point);
       map.setZoom(14);
     }
   }
@@ -157,7 +138,15 @@ export default function LocationMapModal({
           </Dialog.Header>
           <Dialog.Body>
             {point ? (
-              <Box ref={boxRef} h="420px" w="100%" borderRadius="md" overflow="hidden" />
+              <Box
+                ref={boxRef}
+                h="420px"
+                w="100%"
+                borderRadius="md"
+                overflow="hidden"
+                bg="gray.50"
+                key={`${open}-${onlyDelivery}-${point.lat}-${point.lng}`}
+              />
             ) : (
               <Text>No delivery location available for this order.</Text>
             )}

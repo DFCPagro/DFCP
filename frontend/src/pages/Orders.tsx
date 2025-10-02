@@ -1,7 +1,6 @@
 // src/pages/Orders.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-
 import {
   Container,
   Heading,
@@ -15,21 +14,20 @@ import {
   Field,
   Grid,
   GridItem,
-  Dialog,
-  Separator,
   Input,
   IconButton,
 } from "@chakra-ui/react";
 import { MapPin } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import AuthGuard from "@/guards/AuthGuard";
 import CartIconButton from "@/components/common/CartIconButton";
 import { fetchOrders } from "@/api/orders";
 import type { OrderRowAPI } from "@/types/orders";
 import ItemList, { type ItemRow } from "@/components/common/ItemList";
 import LocationMapModal from "@/components/feature/orders/LocationMapModal";
-import { MOCK_ORDERS } from "@/data/orders";
+import { MOCK_ORDERS, type OrderRowLoose } from "@/data/orders";
 
-// ---------- types / status ----------
+// types
 type UIStatus =
   | "pending"
   | "accepted"
@@ -41,18 +39,16 @@ type UIStatus =
   | "lc_to_customer"
   | "delivered"
   | "confirm_receiving";
-
 type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
 type LatLng = { lat: number; lng: number };
 
-// one LC for all orders
+// LC
 const LOGISTIC_CENTER: LatLng = { lat: 32.733459, lng: 35.218805 };
 
 function isOldStatus(s: any) {
   const ui = normalizeStatus(String(s));
   return ui === "delivered" || ui === "confirm_receiving";
 }
-
 const STATUS_LABEL: Record<UIStatus, string> = {
   pending: "pending",
   accepted: "accepted",
@@ -90,7 +86,6 @@ const STATUS_OPTIONS: Array<"ALL" | UIStatus> = [
   "delivered",
   "confirm_receiving",
 ];
-
 function normalizeStatus(s: string): UIStatus {
   const key = s.toLowerCase().replaceAll(/\s+/g, "_");
   switch (key) {
@@ -129,15 +124,7 @@ function normalizeStatus(s: string): UIStatus {
   }
 }
 
-// ---------- date + delivery time ----------
-function fmtDateShort(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.valueOf())) return iso;
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yy = String(d.getFullYear()).slice(-2);
-  return `${dd}/${mm}/${yy}`;
-}
+// date helpers
 function fmt2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -192,52 +179,27 @@ function formatDeliveryTime(o: any) {
   if (!range) range = "00:00–00:00";
   return `${fmtDateYY(d)} ${range}`;
 }
-function startOfWeek(d: Date) {
-  const day = d.getDay();
-  const diff = (day + 6) % 7;
-  const s = new Date(d);
-  s.setHours(0, 0, 0, 0);
-  s.setDate(s.getDate() - diff);
-  return s;
-}
-function startOfMonth(d: Date) {
-  const s = new Date(d.getFullYear(), d.getMonth(), 1);
-  s.setHours(0, 0, 0, 0);
-  return s;
-}
-function toEndOfDay(d: Date) {
-  const e = new Date(d);
-  e.setHours(23, 59, 59, 999);
-  return e;
-}
 
-// ---------- reported ----------
-function isReported(o: any) {
-  return Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue);
-}
-
-// ---------- items ----------
+// items helpers
 function toItemRows(items: any[]): ItemRow[] {
-  return (items ?? []).map(
-    (it: any, idx: number): ItemRow => ({
-      id: it.id ?? it.productId ?? String(idx),
-      name:
-        it.name ?? it.displayName ?? it.productName ?? it.productId ?? "item",
-      farmer: it.farmerName ?? it.farmer ?? "—",
-      imageUrl: it.imageUrl ?? it.image ?? undefined,
-      qty: Number(it.quantity ?? it.qty ?? 0),
-      unitLabel: it.unit ?? it.unitLabel ?? "unit",
-      unitPrice: Number(it.unitPrice ?? it.pricePerUnit ?? it.price ?? 0),
-      currency: it.currency ?? undefined,
-    })
-  );
+  return (items ?? []).map((it: any, idx: number): ItemRow => ({
+    id: it.id ?? it.productId ?? String(idx),
+    name:
+      it.name ?? it.displayName ?? it.productName ?? it.productId ?? "item",
+    farmer: it.farmerName ?? it.farmer ?? "—",
+    imageUrl: it.imageUrl ?? it.image ?? undefined,
+    qty: Number(it.quantity ?? it.qty ?? 0),
+    unitLabel: it.unit ?? it.unitLabel ?? "unit",
+    unitPrice: Number(it.unitPrice ?? it.pricePerUnit ?? it.price ?? 0),
+    currency: it.currency ?? undefined,
+  }));
 }
 function pickCurrency(items: any[]): string | undefined {
   for (const it of items ?? []) if (it?.currency) return it.currency;
   return undefined;
 }
 
-// ---------- coords helpers ----------
+// coords helpers
 function asNum(n: any) {
   const v = Number(n);
   return Number.isFinite(v) ? v : undefined;
@@ -295,12 +257,10 @@ function getDeliveryCoord(o: any): LatLng | null {
   const lng2 = asNum(o?.destLng);
   return lat2 != null && lng2 != null ? { lat: lat2, lng: lng2 } : null;
 }
-
-// deterministic mock near LC if missing
 function mockPointFor(id: string): LatLng {
   const seed =
-    id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 1000; // 0..999
-  const dLat = ((seed % 80) - 40) / 1000; // ~±0.04°
+    id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
+  const dLat = ((seed % 80) - 40) / 1000;
   const dLng = (((seed / 10) | 0) % 80 - 40) / 1000;
   return {
     lat: LOGISTIC_CENTER.lat + 0.12 + dLat,
@@ -311,8 +271,10 @@ function pickDeliveryPoint(o: OrderRowAPI): LatLng {
   return getDeliveryCoord(o as any) ?? mockPointFor(o.id);
 }
 
-// ---------- page ----------
+// page
 export default function OrdersPage() {
+  const nav = useNavigate();
+
   const [orders, setOrders] = useState<OrderRowAPI[]>([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -324,22 +286,16 @@ export default function OrdersPage() {
   const [customTo, setCustomTo] = useState<string>("");
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [noteOpen, setNoteOpen] = useState(false);
 
   // map modal
   const [mapOpen, setMapOpen] = useState(false);
   const [mapPoint, setMapPoint] = useState<LatLng | null>(null);
   const [onlyDelivery, setOnlyDelivery] = useState(false);
 
-  // per-section "more"
+  // section toggles
   const [showAllActive, setShowAllActive] = useState(false);
   const [showAllOld, setShowAllOld] = useState(false);
   const [showAllReported, setShowAllReported] = useState(false);
-
-  const expandedOrder = useMemo(
-    () => (orders ?? []).find((o) => o.id === expandedId) ?? null,
-    [orders, expandedId]
-  );
 
   useEffect(() => {
     let mounted = true;
@@ -378,6 +334,25 @@ export default function OrdersPage() {
     setPage(1);
   }, [statusFilter, dateFilter, customFrom, customTo]);
 
+  function startOfWeek(d: Date) {
+    const day = d.getDay();
+    const diff = (day + 6) % 7;
+    const s = new Date(d);
+    s.setHours(0, 0, 0, 0);
+    s.setDate(s.getDate() - diff);
+    return s;
+  }
+  function startOfMonth(d: Date) {
+    const s = new Date(d.getFullYear(), d.getMonth(), 1);
+    s.setHours(0, 0, 0, 0);
+    return s;
+  }
+  function toEndOfDay(d: Date) {
+    const e = new Date(d);
+    e.setHours(23, 59, 59, 999);
+    return e;
+  }
+
   const filtered = useMemo(() => {
     const base = orders ?? [];
     const byStatus =
@@ -408,6 +383,12 @@ export default function OrdersPage() {
     });
   }, [orders, statusFilter, dateFilter, customFrom, customTo]);
 
+// ---------- reported ----------
+function isReported(o: any) {
+  return Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue);
+}
+
+
   const activeOrders = useMemo(
     () =>
       (filtered ?? []).filter((o) => {
@@ -429,7 +410,6 @@ export default function OrdersPage() {
     [filtered]
   );
 
-  // -------- order card --------
   function OrderCard(o: OrderRowAPI) {
     const ui = normalizeStatus((o as any).status);
     const emoji = STATUS_EMOJI[ui];
@@ -442,37 +422,22 @@ export default function OrdersPage() {
 
     return (
       <Box key={o.id} borderWidth="1px" borderRadius="md" p={4}>
-        <Grid
-          templateColumns={{ base: "1fr", md: "1fr auto 1fr" }}
-          w="100%"
-          alignItems="center"
-          gap={3}
-        >
-          {/* left: delivery time */}
+        <Grid templateColumns={{ base: "1fr", md: "1fr auto 1fr" }} w="100%" alignItems="center" gap={3}>
           <GridItem minW={0}>
             <HStack gap={2}>
               <Text fontWeight="bold">Delivery time:</Text>
-              <Text
-                as="span"
-                maxW="100%"
-                overflow="hidden"
-                textOverflow="ellipsis"
-                whiteSpace="nowrap"
-              >
+              <Text as="span" maxW="100%" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                 {deliveryTime}
               </Text>
             </HStack>
           </GridItem>
 
-          {/* center: status + map icon */}
           <GridItem justifySelf="center" zIndex={10}>
             <HStack gap={3}>
               <HStack gap={2}>
                 <Text fontWeight="bold">Status:</Text>
                 <Text>{statusLabel}</Text>
-                <Text as="span" fontSize="xl">
-                  {emoji}
-                </Text>
+                <Text as="span" fontSize="xl">{emoji}</Text>
               </HStack>
 
               <IconButton
@@ -493,23 +458,18 @@ export default function OrdersPage() {
             </HStack>
           </GridItem>
 
-          {/* right: actions */}
           <GridItem justifySelf="end">
             <HStack gap={2}>
               {showNote && (
                 <Button
-                  onClick={() => {
-                    setExpandedId(o.id);
-                    setNoteOpen(true);
-                  }}
+                  onClick={() =>
+                    nav(`/orders/${o.id}/note`, { state: { order: o } })
+                  }
                 >
                   Delivery Note
                 </Button>
               )}
-              <Button
-                variant="outline"
-                onClick={() => setExpandedId(isOpen ? null : o.id)}
-              >
+              <Button variant="outline" onClick={() => setExpandedId(isOpen ? null : o.id)}>
                 {isOpen ? "Close" : "Full order"}
               </Button>
             </HStack>
@@ -518,18 +478,13 @@ export default function OrdersPage() {
 
         {isOpen && (
           <Box mt={3} borderWidth="1px" borderRadius="md" p={3}>
-            {rows.length ? (
-              <ItemList items={rows} currency={currency} />
-            ) : (
-              <Text color="gray.600">No items attached.</Text>
-            )}
+            {rows.length ? <ItemList items={rows} currency={currency} /> : <Text color="gray.600">No items attached.</Text>}
           </Box>
         )}
       </Box>
     );
   }
 
-  // -------- UI --------
   return (
     <AuthGuard>
       <Container maxW="6xl" py={6}>
@@ -539,7 +494,6 @@ export default function OrdersPage() {
           <CartIconButton />
         </HStack>
 
-        {/* Filters */}
         <HStack gap={3} align="end" mb={6} style={{ flexWrap: "wrap" }}>
           <Field.Root>
             <Field.Label htmlFor="status-filter">Status</Field.Label>
@@ -550,8 +504,7 @@ export default function OrdersPage() {
               style={{
                 padding: "8px 10px",
                 borderRadius: "8px",
-                border:
-                  "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+                border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
                 minWidth: 220,
                 background: "var(--chakra-colors-white, #fff)",
               }}
@@ -573,8 +526,7 @@ export default function OrdersPage() {
               style={{
                 padding: "8px 10px",
                 borderRadius: "8px",
-                border:
-                  "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+                border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
                 minWidth: 180,
                 background: "var(--chakra-colors-white, #fff)",
               }}
@@ -590,29 +542,13 @@ export default function OrdersPage() {
             <HStack gap={2} align="end">
               <Field.Root>
                 <Field.Label htmlFor="from">From</Field.Label>
-                <Input
-                  id="from"
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                />
+                <Input id="from" type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
               </Field.Root>
               <Field.Root>
                 <Field.Label htmlFor="to">To</Field.Label>
-                <Input
-                  id="to"
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                />
+                <Input id="to" type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
               </Field.Root>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCustomFrom("");
-                  setCustomTo("");
-                }}
-              >
+              <Button variant="outline" onClick={() => { setCustomFrom(""); setCustomTo(""); }}>
                 Clear
               </Button>
             </HStack>
@@ -620,9 +556,7 @@ export default function OrdersPage() {
         </HStack>
 
         {loading && (orders ?? []).length === 0 ? (
-          <HStack justifyContent="center" py={12}>
-            <Spinner />
-          </HStack>
+          <HStack justifyContent="center" py={12}><Spinner /></HStack>
         ) : (filtered ?? []).length === 0 ? (
           <Alert.Root status="info" borderRadius="md">
             <Alert.Indicator />
@@ -660,75 +594,6 @@ export default function OrdersPage() {
           </>
         )}
 
-        {hasMore && (
-          <HStack justifyContent="center" mt={6}>
-            <Button onClick={() => setPage((p) => p + 1)} disabled={loading}>
-              {loading ? "Loading..." : "Load more"}
-            </Button>
-          </HStack>
-        )}
-
-        {/* Delivery Note modal */}
-        <Dialog.Root
-          open={noteOpen}
-          onOpenChange={(e) => !e.open && setNoteOpen(false)}
-        >
-          <Dialog.Backdrop />
-          <Dialog.Positioner>
-            <Dialog.Content maxW="3xl">
-              <Dialog.Header>
-                <Dialog.Title>Delivery Note</Dialog.Title>
-              </Dialog.Header>
-              <Dialog.Body>
-                {expandedOrder ? (
-                  <Box>
-                    <HStack justify="space-between" mb={2}>
-                      <Text>Order: {expandedOrder.orderId}</Text>
-                      <HStack>
-                        <Text as="span" fontSize="xl">
-                          {
-                            STATUS_EMOJI[
-                              normalizeStatus((expandedOrder as any).status)
-                            ]
-                          }
-                        </Text>
-                        <Text>
-                          {
-                            STATUS_LABEL[
-                              normalizeStatus((expandedOrder as any).status)
-                            ]
-                          }
-                        </Text>
-                      </HStack>
-                    </HStack>
-                    {expandedOrder.deliverySlot && (
-                      <Text mb={2}>Slot: {expandedOrder.deliverySlot}</Text>
-                    )}
-                    <Text color="gray.600" mb={3}>
-                      Created: {fmtDateShort(expandedOrder.createdAt)}
-                    </Text>
-                    <Separator my={3} />
-                    <ItemList
-                      items={toItemRows((expandedOrder as any).items ?? [])}
-                      currency={
-                        pickCurrency((expandedOrder as any).items ?? []) ?? "$"
-                      }
-                    />
-                  </Box>
-                ) : (
-                  <HStack justifyContent="center" py={8}>
-                    <Spinner />
-                  </HStack>
-                )}
-              </Dialog.Body>
-              <Dialog.Footer>
-                <Button onClick={() => setNoteOpen(false)}>Close</Button>
-              </Dialog.Footer>
-            </Dialog.Content>
-          </Dialog.Positioner>
-        </Dialog.Root>
-
-        {/* Map modal */}
         <LocationMapModal
           open={mapOpen}
           onClose={() => setMapOpen(false)}
@@ -740,7 +605,6 @@ export default function OrdersPage() {
   );
 }
 
-// ---------- reusable section ----------
 function Section<T>({
   title,
   items,

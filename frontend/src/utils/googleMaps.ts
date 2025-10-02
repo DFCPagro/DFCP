@@ -1,6 +1,5 @@
-// src/utils/googleMaps.ts
 import { Loader } from "@googlemaps/js-api-loader";
-import { GOOGLE_MAPS_API_KEY } from "@/helpers/env";
+import { GOOGLE_MAPS_API_KEY } from "../helpers/env";
 
 let mapsPromise: Promise<typeof google> | null = null;
 
@@ -11,12 +10,16 @@ export function loadGoogleMaps(): Promise<typeof google> {
     const loader = new Loader({
       apiKey: GOOGLE_MAPS_API_KEY,
       version: "weekly",
-      libraries: ["places"], // base Maps is implicit
       language: "en",
       region: "US",
     });
 
-    mapsPromise = loader.load(); // returns the google namespace
+    mapsPromise = (async () => {
+      await loader.importLibrary("maps");
+      // load Places if other parts need it; ignore if not installed
+      try { await loader.importLibrary("places"); } catch {}
+      return (window as any).google as typeof google;
+    })();
   }
   return mapsPromise;
 }
