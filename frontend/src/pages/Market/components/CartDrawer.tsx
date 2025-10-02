@@ -248,7 +248,7 @@ function CartDrawerBase({
       {/* Inline confirm dialog (swap for your shared <ConfirmDialog> if you want) */}
       {ConfirmDialogInline}
 
-      <Drawer.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="md" placement="end">
+      <Drawer.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="md" placement="start">
         <Drawer.Backdrop />
         <Drawer.Positioner>
           <Drawer.Content >
