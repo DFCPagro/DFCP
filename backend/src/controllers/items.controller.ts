@@ -184,25 +184,35 @@ export async function deleteItemHandler(req: Request, res: Response, next: NextF
   } catch (err) { next(err); }
 }
 
-export async function getItemBenefits(req: Request, res: Response, next:NextFunction){
+
+export async function getItemBenefits(req: Request, res: Response, next: NextFunction) {
   try {
     const { itemId } = req.params;
     if (!ensureValidObjectId(itemId)) {
       return res.status(400).json({ message: "Invalid itemId" });
     }
-    const benefits = await itemBenefits(itemId);
-    if (!benefits) return res.status(404).json({ message: "Item not found" });
-    res.status(204).send();
-  } catch (err) { next(err); }
+
+    const data = await itemBenefits(itemId);
+    if (!data) return res.status(404).json({ message: "Item not found" });
+
+    // ✅ send the data (not 204)
+    res.status(200).json({ data });
+  } catch (err) {
+    next(err);
+  }
 }
 
-export async function marketItemPage(req: Request, res: Response, next:NextFunction ){
+export async function marketItemPage(req: Request, res: Response, next: NextFunction) {
   try {
-    const { itemId, userId } = req.params;
+    // ✅ match the route param name
+    const { itemId, farmerUserId } = req.params;
 
-    if (!itemId || !userId) throw new ApiError(400, "itemId and userId are required");
+    if (!ensureValidObjectId(itemId) || !ensureValidObjectId(farmerUserId)) {
+      throw new ApiError(400, "itemId and farmerUserId are required and must be valid ObjectIds");
+    }
 
-    const data = await marketItemPageData(itemId, userId);
+    // ✅ correct service name
+    const data = await marketItemPageData(itemId, farmerUserId);
     if (!data) throw new ApiError(404, "Item or Farmer not found");
 
     res.status(200).json({ data });

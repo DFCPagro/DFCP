@@ -133,8 +133,12 @@ function normalizeSort(input: string) {
   }, {});
 }
 
+/*
+FOR MARKET PAGE
+*/ 
+
 export type ItemBenefits = {
-  customerInfo: string[];            
+  customerInfo: string[];
   caloriesPer100gr: number | null;
 } | null;
 
@@ -147,19 +151,19 @@ export async function itemBenefits(_id: string): Promise<ItemBenefits> {
 
   if (!doc) return null;
 
-  const customerInfoArr =
-    Array.isArray((doc as any).customerInfo)
-      ? (doc as any).customerInfo.filter((s: unknown) => typeof s === "string")
-      : [];
+  const customerInfoArr = Array.isArray((doc as any).customerInfo)
+    ? (doc as any).customerInfo.filter((s: unknown) => typeof s === "string")
+    : [];
 
   return {
     customerInfo: customerInfoArr,
-    caloriesPer100gr: typeof (doc as any).caloriesPer100gr === "number" ? (doc as any).caloriesPer100gr : null,
+    caloriesPer100gr:
+      typeof (doc as any).caloriesPer100gr === "number" ? (doc as any).caloriesPer100gr : null,
   };
 }
 
 export type MarketItemPageResult = {
-  item: { customerInfo: string[]; caloriesPer100gr: number | null };  // <— array here
+  item: { customerInfo: string[]; caloriesPer100gr: number | null };
   farmer: { logo: string | null; farmName: string; farmLogo: string | null; farmerBio: string | null };
 } | null;
 
@@ -178,7 +182,7 @@ export async function marketItemPageData(itemId: string, farmerUserId: string): 
 
   return {
     item: {
-      customerInfo: itemInfo.customerInfo, // already string[]
+      customerInfo: itemInfo.customerInfo,
       caloriesPer100gr: itemInfo.caloriesPer100gr,
     },
     farmer: {
