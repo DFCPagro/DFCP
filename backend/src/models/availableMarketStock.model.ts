@@ -26,6 +26,7 @@ const AvailableStockItemSchema = new Schema(
     farmerID: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
+    farmLogo:{type: String, required: false},
 
     status: { type: String, enum: ITEM_STATUSES, default: "active", index: true },
   },

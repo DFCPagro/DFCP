@@ -10,7 +10,7 @@ servers:
 
 tags:
   - name: AvailableStock
-    description: Manage available market stock docs and items
+    description: Manage available market stock docs and items. run command "npm run seed:ams to get 2 new ams"
 
 paths:
   /market/available-stock/init:
