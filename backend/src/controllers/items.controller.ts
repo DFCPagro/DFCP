@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import ApiError from "@/utils/ApiError";
 import {
   createItem,
   getItemByItemId,
@@ -6,6 +7,8 @@ import {
   updateItemByItemId,
   replaceItemByItemId,
   deleteItemByItemId,
+  itemBenefits,
+  marketItemPageData,
 } from "../services/items.service";
 import { itemCategories, PUBLIC_ITEM_PROJECTION } from "../models/Item.model";
 import { Types } from "mongoose";
@@ -179,4 +182,31 @@ export async function deleteItemHandler(req: Request, res: Response, next: NextF
     if (!deletedCount) return res.status(404).json({ message: "Item not found" });
     res.status(204).send();
   } catch (err) { next(err); }
+}
+
+export async function getItemBenefits(req: Request, res: Response, next:NextFunction){
+  try {
+    const { itemId } = req.params;
+    if (!ensureValidObjectId(itemId)) {
+      return res.status(400).json({ message: "Invalid itemId" });
+    }
+    const benefits = await itemBenefits(itemId);
+    if (!benefits) return res.status(404).json({ message: "Item not found" });
+    res.status(204).send();
+  } catch (err) { next(err); }
+}
+
+export async function marketItemPage(req: Request, res: Response, next:NextFunction ){
+  try {
+    const { itemId, userId } = req.params;
+
+    if (!itemId || !userId) throw new ApiError(400, "itemId and userId are required");
+
+    const data = await marketItemPageData(itemId, userId);
+    if (!data) throw new ApiError(404, "Item or Farmer not found");
+
+    res.status(200).json({ data });
+  } catch (err) {
+    next(err);
+  }
 }

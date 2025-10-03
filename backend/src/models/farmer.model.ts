@@ -35,7 +35,7 @@ const FarmerSchema = new Schema(
       required: false,
     },
     
-    farmerInfo: {
+    farmerBio: {
       type: String,
       required: false,//the farmers story/infomertial
       trim: true,

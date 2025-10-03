@@ -4,6 +4,7 @@ import ItemModel, {
   type Item as ItemType,
   type ItemCategory,
 } from "../models/Item.model";
+import { getFarmerBioByUserId } from "./farmer.service";
 
 export type ListItemsFilters = {
   category?: ItemCategory;
@@ -130,4 +131,61 @@ function normalizeSort(input: string) {
     else acc[token] = 1;
     return acc;
   }, {});
+}
+
+export type ItemBenefits = {
+  customerInfo: string[];            
+  caloriesPer100gr: number | null;
+} | null;
+
+export async function itemBenefits(_id: string): Promise<ItemBenefits> {
+  if (!Types.ObjectId.isValid(_id)) return null;
+
+  const doc = await ItemModel.findById(_id)
+    .select({ customerInfo: 1, caloriesPer100gr: 1, _id: 0 })
+    .lean();
+
+  if (!doc) return null;
+
+  const customerInfoArr =
+    Array.isArray((doc as any).customerInfo)
+      ? (doc as any).customerInfo.filter((s: unknown) => typeof s === "string")
+      : [];
+
+  return {
+    customerInfo: customerInfoArr,
+    caloriesPer100gr: typeof (doc as any).caloriesPer100gr === "number" ? (doc as any).caloriesPer100gr : null,
+  };
+}
+
+export type MarketItemPageResult = {
+  item: { customerInfo: string[]; caloriesPer100gr: number | null };  // <— array here
+  farmer: { logo: string | null; farmName: string; farmLogo: string | null; farmerBio: string | null };
+} | null;
+
+/**
+ * Returns both item benefits and farmer bio (by farmer's userId)
+ */
+export async function marketItemPageData(itemId: string, farmerUserId: string): Promise<MarketItemPageResult> {
+  if (!Types.ObjectId.isValid(itemId) || !Types.ObjectId.isValid(farmerUserId)) return null;
+
+  const [itemInfo, farmerInfo] = await Promise.all([
+    itemBenefits(itemId),
+    getFarmerBioByUserId(farmerUserId),
+  ]);
+
+  if (!itemInfo || !farmerInfo) return null;
+
+  return {
+    item: {
+      customerInfo: itemInfo.customerInfo, // already string[]
+      caloriesPer100gr: itemInfo.caloriesPer100gr,
+    },
+    farmer: {
+      logo: farmerInfo.logo ?? null,
+      farmName: farmerInfo.farmName,
+      farmLogo: farmerInfo.farmLogo ?? null,
+      farmerBio: farmerInfo.farmerBio ?? null,
+    },
+  };
 }

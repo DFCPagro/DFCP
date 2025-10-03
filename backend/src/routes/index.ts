@@ -14,6 +14,7 @@ import configRoutes from './config.routes';
 import farmerOrderRoutes from './farmerOrder.route';
 import PackageSizeRoute from './packageSize.route';
 import ItemPackingRoute from './ItemPacking.route';
+import farmerRoute from './farmer.routes';
 
 const router = Router();
 router.use('/auth', authRoutes);
@@ -28,6 +29,7 @@ router.use('/config', configRoutes);
 router.use('/farmer-orders', farmerOrderRoutes);
 router.use('/package-sizes', PackageSizeRoute);
 router.use('/item-packing', ItemPackingRoute);
+router.use('/farmer',farmerRoute);
 
 // router.use(centerMapRoutes);
 router.use('/shifts',shiftRoutes);

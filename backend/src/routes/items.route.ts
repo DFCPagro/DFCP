@@ -6,6 +6,8 @@ import {
   patchItemHandler,
   putItemHandler,
   deleteItemHandler,
+  getItemBenefits,
+  marketItemPage,
 } from "@/controllers/items.controller";
 import { authenticate, authorize, authenticateIfPresent } from "@/middlewares/auth";
 
@@ -43,5 +45,10 @@ router.put("/:itemId", authenticate, authorize("admin", "fManager"), putItemHand
  * @route   DELETE /items/:itemId (protected)
  */
 router.delete("/:itemId", authenticate, authorize("admin"), deleteItemHandler);
+
+
+//for market page
+router.get("/benefits/:itemId",authenticate,getItemBenefits);
+router.get("/marketItemPage/:itemId/:farmerUserId",authenticate, marketItemPage);
 
 export default router;
