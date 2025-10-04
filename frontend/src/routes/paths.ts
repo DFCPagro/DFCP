@@ -24,6 +24,8 @@ export const PATHS = {
   // item manager
   ItemsManagment: "/admin/items",
 
+  MapExample: "/map-example",
+
   // admin pages
   adminDashboard: "/admin/dashboard",
   JobAppReview: "/admin/jobReview",

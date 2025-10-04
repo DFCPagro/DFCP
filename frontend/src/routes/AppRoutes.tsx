@@ -34,6 +34,10 @@ const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 
 
+//delete this route later, its just an example for using map picker
+const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
+
+
 export default function AppRoutes() {
   return (
     <Suspense fallback={null}>
@@ -42,6 +46,7 @@ export default function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path={PATHS.home} element={<Home />} />
           <Route path={PATHS.notFound} element={<NotFound />} />
+            <Route path={PATHS.MapExample} element={< MapPickerExamplePage/>} />
         </Route>
 
         {/* --- Public, immersive (no chrome) --- */}
