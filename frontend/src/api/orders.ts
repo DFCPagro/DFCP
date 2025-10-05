@@ -1,6 +1,11 @@
 // src/api/orders.ts
 import { api } from "./config";
-import type { OrderRowAPI } from "@/types/orders";
+import type {
+  OrderRowAPI,
+  CreateOrderRequest,
+  CreateOrderResponse,
+  CreateOrderResponseData,
+} from "@/types/orders";
 
 /**
  * Fetch the authenticated user's recent orders.
@@ -32,4 +37,45 @@ export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
   });
 
   return items as OrderRowAPI[];
+}
+
+/* ----------------------------------------------------------------------------
+ * Create Order (POST /orders)
+ * - Uses the Swagger contract you provided.
+ * - Normalizes the response to always have `.logisticsCenterId` (camelCase).
+ * - Surfaces helpful error messages on 400/404.
+ * --------------------------------------------------------------------------*/
+export async function createOrder(
+  payload: CreateOrderRequest
+): Promise<CreateOrderResponseData> {
+  try {
+    const { data } = await api.post<CreateOrderResponse>("/orders", payload);
+    const raw = data?.data ?? (data as any);
+
+    // Normalize LogisticsCenterId → logisticsCenterId if backend uses capital L
+    const normalized: CreateOrderResponseData = {
+      ...raw,
+      logisticsCenterId: raw?.logisticsCenterId ?? raw?.LogisticsCenterId,
+    };
+
+    return normalized;
+  } catch (err: any) {
+    const status = err?.response?.status;
+    const body = err?.response?.data;
+    const serverMsg = body?.error || body?.message || err?.message || "Unknown error";
+    const details = body?.details;
+
+    // Build a developer-friendly message (also useful for toasts)
+    let friendly = `Order creation failed`;
+    if (status === 400) friendly = `Validation error`;
+    else if (status === 404) friendly = `Not found`;
+    else if (status === 401) friendly = `Unauthorized`;
+
+    const e = new Error(
+      `${friendly}: ${serverMsg}${details ? ` — ${JSON.stringify(details)}` : ""}`
+    ) as Error & { status?: number; details?: unknown };
+    e.status = status;
+    e.details = details ?? null;
+    throw e;
+  }
 }

@@ -49,6 +49,11 @@ function mkLineFromItem(item: any, qty: number = 1): CartLine {
       item?.pricePerUnit ?? item?.priceUsd ?? item?.usd ?? item?.price ?? item?.unitPrice ?? 0
     ) || 0,
 
+    //  aliases for Checkout/readers that expect these names
+    quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+    pricePerUnit: Number(
+      item?.pricePerUnit ?? item?.priceUsd ?? item?.usd ?? item?.price ?? item?.unitPrice ?? 0
+    ) || 0,
     // optional context (kept if present; harmless)
     date: item?.date,
     shift: item?.shift,
@@ -141,6 +146,34 @@ export default function MarketPage() {
 
   // ---- Cart (page-local) ----
   const [cart, setCart] = useState<CartLine[]>([]);
+  // Persist + hydrate the cart so Checkout can read it
+  const CART_KEY = "market.cart.v1";
+
+  // Hydrate on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CART_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const lines = Array.isArray(parsed) ? parsed : parsed?.lines;
+      if (Array.isArray(lines)) {
+        setCart(lines);
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist whenever cart or marketStockId changes
+  useEffect(() => {
+    try {
+      // Save { lines, availableMarketStockId } so Checkout can infer AMS if needed
+      localStorage.setItem(
+        CART_KEY,
+        JSON.stringify({ lines: cart, availableMarketStockId: marketStockId })
+      );
+    } catch { /* ignore */ }
+  }, [cart, marketStockId]);
+
   const cartCount = useMemo(
     () => cart.reduce((sum, l) => sum + Number(l?.qtyKg ?? l?.qty ?? 0), 0),
     [cart]
@@ -198,7 +231,8 @@ export default function MarketPage() {
       return;
     }
     // Plug this into your real checkout flow; for now, go to /checkout
-    navigate("/checkout");
+    navigate(`/checkout?ams=${marketStockId}`);
+
   }, [isActive, marketStockId, navigate]);
 
   // ---- Handlers for UI ----
