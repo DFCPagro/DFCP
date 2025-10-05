@@ -41,7 +41,7 @@ const AvailableStockItemSchema = new Schema(
     // NEW: estimates for unit-based display
     estimates: {
       avgWeightPerUnitKg: { type: Number, default: null },
-      stdDevKg: { type: Number, default: null },
+      sdKg: { type: Number, default: null },
       availableUnitsEstimate: { type: Number, default: null },
     },
 
