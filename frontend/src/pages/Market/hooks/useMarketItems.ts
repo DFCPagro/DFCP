@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getStockByMarketStockId } from "@/api/market";
+import { getFlatItemsByMarketStockId } from "@/api/market";
 import type { SortKey } from "./useMarketFilters";
-import { flattenMarketDocToItems, type MarketItem } from "@/types/market";
+import type { MarketItem } from "@/types/market";
 
 export type UseMarketItemsOptions = {
   /** When null, fetching is disabled (inactive market) */
@@ -56,17 +56,10 @@ export type UseMarketItems = {
  * We try a few common keys and coerce to number safely without TS errors.
  */
 function getUnitPriceUSD(it: MarketItem): number {
-  const anyIt = it as any;
-  const cand =
-    anyIt.priceUsd ??
-    anyIt.usd ??
-    anyIt.price ??
-    anyIt.unitPrice ??
-    anyIt.pricePerUnit ??
-    0;
-  const n = Number(cand);
+  const n = Number(it.pricePerUnit);
   return Number.isFinite(n) ? n : 0;
 }
+
 
 /* ------------------------------ Name helpers ------------------------------ */
 function norm(s: string | undefined | null) {
@@ -115,15 +108,9 @@ export function useMarketItems({
     if (allItems.length === 0) setLoading(true);
 
     try {
-      const data = await getStockByMarketStockId(marketStockId);
-      // ignore out-of-order responses
+      const arr = await getFlatItemsByMarketStockId(marketStockId);
       if (reqId !== reqIdRef.current) return;
 
-      // Expect an array of MarketItem
-      // data is a MarketStockDoc; flatten to MarketItem[]
-      // console.log("stock doc", data);
-      const arr = flattenMarketDocToItems(data);
-      // console.log("flattened items", arr.length, arr.slice(0,3));      
       setAllItems(arr);
       onFetched?.(arr);
 
@@ -158,7 +145,7 @@ export function useMarketItems({
     // Category filter (string equality on your item.category)
     if (category) {
       const cat = norm(category);
-      arr = arr.filter((it) => norm((it as any).category) === cat);
+      arr = arr.filter((it) => norm(it.category) === cat);
     }
 
     // Search: prefer external predicate (from useMarketSearchIndex),
@@ -169,8 +156,8 @@ export function useMarketItems({
       const q = norm(debouncedSearch);
       if (q) {
         arr = arr.filter((it) => {
-          const name = norm((it as any).name);
-          const farmer = norm((it as any).farmerName);
+          const name = norm(it.name);
+          const farmer = norm(it.farmerName);
           return name.includes(q) || farmer.includes(q);
         });
       }
@@ -186,14 +173,14 @@ export function useMarketItems({
         break;
       case "nameAsc":
         arr = [...arr].sort((a, b) =>
-          String((a as any).name ?? "").localeCompare(String((b as any).name ?? ""), undefined, {
+          String(a.name ?? "").localeCompare(String(b.name ?? ""), undefined, {
             sensitivity: "base",
           })
         );
         break;
       case "nameDesc":
         arr = [...arr].sort((a, b) =>
-          String((b as any).name ?? "").localeCompare(String((a as any).name ?? ""), undefined, {
+          String(b.name ?? "").localeCompare(String(a.name ?? ""), undefined, {
             sensitivity: "base",
           })
         );

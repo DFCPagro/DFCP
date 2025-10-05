@@ -151,14 +151,10 @@ function ItemsGridBase({
 
 /** Defensive unique key for a MarketItem */
 function itemKey(it: MarketItem): string {
-  const anyIt = it as any;
-  return (
-    anyIt.stockId ??                // prefer stockId: "<itemId>_<farmerId>"
-    anyIt.lineId ??
-    anyIt.id ??
-    anyIt.itemId ??
-    `${anyIt.name ?? "item"}|${anyIt.farmerId ?? anyIt.farmerName ?? "farmer"}|${anyIt.variety ?? ""}`
-  );
+  if (it.stockId) return it.stockId;                          // "<itemId>_<farmerId>"
+  if (it.docId && it.lineId) return `${it.docId}:${it.lineId}`; // stable within doc
+  return `${it.itemId}:${it.farmerId ?? it.farmerName ?? "unknown"}`;
 }
+
 
 export const ItemsGrid = memo(ItemsGridBase)

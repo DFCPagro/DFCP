@@ -7,32 +7,52 @@
  * 1) Open your Market page (likely `src/pages/Market/index.tsx`) and find the
  *    localStorage key it uses for the cart (e.g., "market.cart.v1").
  * 2) Put that exact string as the FIRST item in CANDIDATE_KEYS below.
- * 3) Checkout can now import { getCart, clearCart } and show the same items.
+ * 3) Checkout can now import { getCart, setCart, clearCart, marketItemToCartLine }
+ *    and show/use the same items.
  */
 
+import type { MarketItem } from "@/types/market";
+
+/* ---------------------------------- Types --------------------------------- */
+
 export type CartLine = {
-  // identity (stable key for list rendering)
-  key: string; // e.g., `${itemId}_${farmerId}` or `${stockId}`
+  /* identity (stable key for list rendering) */
+  key: string;              // e.g., `${stockId}` or fallback
 
-  // item identity
+  /* server identity (optional but recommended for checkout preflight) */
+  docId?: string;           // market stock doc id
+  lineId?: string;          // subdocument id
+  stockId?: string;         // "<itemId>_<farmerID>"
   itemId: string;
-  farmerOrderId?: string;
-  stockId?: string;
 
-  // display
+  /* context (optional but recommended) */
+  date?: string;            // YYYY-MM-DD
+  shift?: "morning" | "afternoon" | "evening" | "night";
+  logisticCenterId?: string;
+  status?: "active" | "soldout" | "removed";
+
+  /* display */
   name: string;
   imageUrl?: string;
   category?: string;
+
+  /* provenance */
+  farmerId?: string;
+  farmerName?: string;      // canonical
+  farmName?: string;
+  farmLogo?: string;
+  // Back-compat read fallback (deprecated):
   sourceFarmerName?: string;
   sourceFarmName?: string;
 
-  // pricing snapshot and qty
-  pricePerUnit: number; // snapshot at add-to-cart time
-  quantity: number;     // kg or units (float allowed)
+  /* pricing snapshot and qty */
+  pricePerUnit: number;     // USD snapshot at add-to-cart time
+  quantity: number;         // kg or units (float allowed)
+  avgWeightPerUnitKg?: number; // optional, if available
 
-  // optional meta
+  /* optional meta */
   unit?: "kg" | "unit";
-  addedAt?: string; // ISO
+  addedAt?: string;         // ISO
 };
 
 export type CartSnapshot = {
@@ -132,14 +152,70 @@ export function getCartStorageKey(): string | null {
 /*                          Normalization & Totals                            */
 /* -------------------------------------------------------------------------- */
 
+/** Normalize a single line for backward compatibility and canonical fields. */
+function normalizeLine(line: any): CartLine {
+  const qty = Number(line?.quantity);
+  const price = Number(line?.pricePerUnit);
+
+  // Prefer canonical farmer fields; fallback to legacy "source*" on read
+  const farmerName = line?.farmerName ?? line?.sourceFarmerName ?? undefined;
+  const farmName = line?.farmName ?? line?.sourceFarmName ?? undefined;
+
+  // Prefer explicit stockId; else use provided key if it matches; else derive best-effort
+  const stockId: string | undefined =
+    typeof line?.stockId === "string" && line.stockId.trim()
+      ? line.stockId
+      : (typeof line?.key === "string" && line.key.includes("_") ? line.key : undefined);
+
+  const key: string =
+    typeof line?.key === "string" && line.key.trim()
+      ? line.key
+      : (stockId ?? line?.itemId ?? crypto.randomUUID?.() ?? String(Date.now()));
+
+  return {
+    key,
+    docId: line?.docId,
+    lineId: line?.lineId,
+    stockId,
+    itemId: String(line?.itemId ?? ""),
+
+    date: line?.date,
+    shift: line?.shift,
+    logisticCenterId: line?.logisticCenterId,
+    status: line?.status,
+
+    name: String(line?.name ?? ""),
+    imageUrl: line?.imageUrl,
+    category: line?.category,
+
+    farmerId: line?.farmerId,
+    farmerName,
+    farmName,
+    farmLogo: line?.farmLogo,
+    // keep legacy fields so older UIs that read them don't explode
+    sourceFarmerName: line?.sourceFarmerName,
+    sourceFarmName: line?.sourceFarmName,
+
+    pricePerUnit: Number.isFinite(price) ? price : 0,
+    quantity: Number.isFinite(qty) ? qty : 0,
+    avgWeightPerUnitKg:
+      typeof line?.avgWeightPerUnitKg === "number" ? line.avgWeightPerUnitKg : undefined,
+
+    unit: line?.unit === "unit" ? "unit" : "kg",
+    addedAt: typeof line?.addedAt === "string" ? line.addedAt : new Date().toISOString(),
+  };
+}
+
 function normalizeSnapshot(raw: unknown): CartSnapshot {
   // Case A: { lines: [] }
   if (looksLikeSnapshot(raw)) {
-    return { lines: raw.lines ?? [] };
+    const lines = (raw as any).lines?.map?.(normalizeLine) ?? [];
+    return { lines };
   }
   // Case B: plain array stored directly
   if (looksLikeLinesArray(raw)) {
-    return { lines: raw ?? [] };
+    const lines = (raw as any)?.map?.(normalizeLine) ?? [];
+    return { lines };
   }
   // Fallback
   return { lines: [] };
@@ -147,12 +223,55 @@ function normalizeSnapshot(raw: unknown): CartSnapshot {
 
 function computeTotals(lines: CartLine[]): CartTotals {
   const itemsSubtotal = Number(
-    lines.reduce((sum, l) => sum + (Number(l.pricePerUnit) || 0) * (Number(l.quantity) || 0), 0).toFixed(2)
+    lines.reduce((sum, l) => {
+      const p = Number(l.pricePerUnit) || 0;
+      const q = Number(l.quantity) || 0;
+      return sum + p * q;
+    }, 0).toFixed(2)
   );
   return {
     itemsSubtotal,
     linesCount: lines.length,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          Creation helper (recommended)                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Make a cart line from a UI-flat MarketItem + user quantity.
+ * Use this in the Market "Add to Cart" handler to guarantee consistent shape.
+ */
+export function marketItemToCartLine(item: MarketItem, quantity: number): CartLine {
+  return normalizeLine({
+    key: item.stockId,                // stable & unique per farmer+item
+    docId: item.docId,
+    lineId: item.lineId,
+    stockId: item.stockId,
+    itemId: item.itemId,
+
+    date: item.date,
+    shift: item.shift,
+    logisticCenterId: item.logisticCenterId,
+    status: item.status,
+
+    name: item.name,
+    imageUrl: item.imageUrl,
+    category: item.category,
+
+    farmerId: item.farmerId,
+    farmerName: item.farmerName,
+    farmName: item.farmName,
+    farmLogo: item.farmLogo,
+
+    pricePerUnit: item.pricePerUnit,  // USD
+    quantity,
+    avgWeightPerUnitKg: item.avgWeightPerUnitKg,
+
+    unit: "kg",
+    addedAt: new Date().toISOString(),
+  });
 }
 
 /* -------------------------------------------------------------------------- */

@@ -56,6 +56,15 @@ export type UseMarketFilters = {
   toQuery: () => { cat?: string; q?: string; sort?: SortKey; page?: number; limit?: number };
 };
 
+// small helper to normalize a category string into our canonical filter value
+function normalizeCategory(input: string | null | undefined): string | null {
+  if (input == null) return null;
+  const lc = input.trim().toLowerCase();
+  if (lc === "" || lc === "all") return null;
+  return lc;
+}
+
+
 /* ------------------------- tiny debounce utility ------------------------- */
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState<T>(value);
@@ -83,12 +92,8 @@ export function useMarketFilters({
   const readURL = useCallback(() => {
     if (!syncToURL) {
       // normalize initialCategory too: "" or "all" -> null, else lowercase
-      const normInitCat =
-        initialCategory == null
-          ? null
-          : (initialCategory.trim().toLowerCase() || null) === "all"
-          ? null
-          : initialCategory.trim().toLowerCase();
+      const normInitCat = normalizeCategory(initialCategory);
+
 
       return {
         category: normInitCat,
@@ -105,16 +110,8 @@ export function useMarketFilters({
 
     // normalize cat from URL: "" or "all" -> null, else lowercase
     const category =
-      rawCat == null
-        ? (initialCategory == null
-            ? null
-            : (initialCategory.trim().toLowerCase() || null) === "all"
-            ? null
-            : initialCategory.trim().toLowerCase())
-        : (() => {
-            const lc = rawCat.trim().toLowerCase();
-            return lc === "" || lc === "all" ? null : lc;
-          })();
+    rawCat == null ? normalizeCategory(initialCategory) : normalizeCategory(rawCat);
+
 
     return {
       category,
@@ -170,19 +167,13 @@ export function useMarketFilters({
   }, []);
 
   const resetFilters = useCallback(() => {
-    const normInitCat =
-      initialCategory == null
-        ? null
-        : (() => {
-            const lc = initialCategory.trim().toLowerCase();
-            return lc === "" || lc === "all" ? null : lc;
-          })();
     setState({
-      category: normInitCat,
-      search: initialSearch,
-      sort: initialSort,
-      page: 1,
-    });
+    category: normalizeCategory(initialCategory),
+    search: initialSearch,
+    sort: initialSort,
+    page: 1,
+  });
+
   }, [initialCategory, initialSearch, initialSort]);
 
 

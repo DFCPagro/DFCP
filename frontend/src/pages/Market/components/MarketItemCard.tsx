@@ -30,39 +30,26 @@ export type MarketItemCardProps = {
 /* ------------------------------ helpers ------------------------------ */
 
 function getUnitPriceUSD(it: MarketItem): number {
-  const anyIt = it as any;
-  const cand =
-    anyIt.priceUsd ??
-    anyIt.usd ??
-    anyIt.price ??
-    anyIt.unitPrice ??
-    anyIt.pricePerUnit ??
-    0;
-  const n = Number(cand);
+  const n = Number(it.pricePerUnit);
   return Number.isFinite(n) ? n : 0;
 }
+
 
 function getImageUrl(it: MarketItem): string | undefined {
-  const anyIt = it as any;
-  return anyIt.imageUrl ?? anyIt.img ?? anyIt.photo ?? anyIt.picture ?? undefined;
+  return it.imageUrl;
 }
+
 
 function getFarmerIconUrl(it: MarketItem): string | undefined {
-  const anyIt = it as any;
-  return anyIt.farmerIconUrl ?? anyIt.farmerAvatarUrl ?? anyIt.farmerImageUrl ?? undefined;
+  return it.farmLogo;
 }
 
-function getAvailableUnits(it: MarketItem): number {
-  const anyIt = it as any;
-  const cand =
-    anyIt.availableUnits ??
-    anyIt.availableQty ??
-    anyIt.availableQuantity ??
-    anyIt.availableKg ?? // treat same as units for display
-    0;
-  const n = Number(cand);
+
+function getAvailableKg(it: MarketItem): number {
+  const n = Number(it.availableKg);
   return Number.isFinite(n) ? n : 0;
 }
+
 
 /* --------------------------------- UI --------------------------------- */
 
@@ -88,16 +75,20 @@ function MarketItemCardBase({
   const img = getImageUrl(item);
 
   const farmerIcon = getFarmerIconUrl(item);
-  const farmerName = (item as any).farmerName as string | undefined;
-  const name = (item as any).name as string | undefined;
+  const farmerName = item.farmerName;
+  const name = item.name;
+  // If you don't actually have "variety" on MarketItem, keep this optional read guarded:
   const variety = (item as any).variety as string | undefined;
 
+
   const price = getUnitPriceUSD(item);
-  const availableUnits = getAvailableUnits(item);
+  const availableKg = getAvailableKg(item);
+
 
   const priceLabel = useMemo(() => {
-    return `$${(Number.isFinite(price) ? price : 0).toFixed(2)}/unit`;
+    return `$${(Number.isFinite(price) ? price : 0).toFixed(2)}/kg`;
   }, [price]);
+
 
   const dec = useCallback(() => {
     setQty((q) => Math.max(minQty, Math.min(maxQty, q - 1)));
@@ -184,7 +175,7 @@ function MarketItemCardBase({
           <HStack justify="space-between">
             <Text fontWeight="medium">{priceLabel}</Text>
             <Text fontSize="sm" color="fg.muted">
-              {availableUnits} units available
+              {availableKg} kg available
             </Text>
           </HStack>
 

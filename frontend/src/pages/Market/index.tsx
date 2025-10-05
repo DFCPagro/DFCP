@@ -15,51 +15,18 @@ import { ItemsGrid } from "./components/ItemsGrid";
 import { PinButton } from "./components/PinButton";
 import { CartFAB } from "./components/CartFAB";
 import CartDrawer from "./components/CartDrawer";
+import {
+  getCart as getSharedCart,
+  setCart as setSharedCart,
+  clearCart as clearSharedCart,
+  subscribeCart,
+  marketItemToCartLine,
+  type CartLine as SharedCartLine,
+} from "@/utils/marketCart.shared";
 
 // --------------------------- Local cart adapter ---------------------------
 // (kept inside this file as requested; swap to your real cart store later)
 
-type CartLine = Record<string, any>;
-function mkLineFromItem(item: any, qty: number = 1): CartLine {
-  // Prefer canonical stock identity: "<itemId>_<farmerId>"
-  const id =
-    item?.stockId ??
-    item?.lineId ??
-    item?.id ??
-    item?.itemId ??
-    `${item?.name ?? "item"}|${item?.farmerId ?? item?.farmerName ?? "farmer"}`;
-
-  return {
-    // identity & references
-    id,
-    stockId: item?.stockId,
-    itemId: item?.itemId ?? item?.id,
-    farmerId: item?.farmerId,
-
-    // display
-    name: item?.name ?? "Item",
-    farmerName: item?.farmerName,
-    imageUrl: item?.imageUrl ?? item?.img ?? item?.photo ?? item?.picture,
-
-    // qty (follow current logic: use kg slot)
-    qtyKg: Number.isFinite(qty) && qty > 0 ? qty : 1,
-
-    // price (prefer normalized pricePerUnit)
-    priceUsd: Number(
-      item?.pricePerUnit ?? item?.priceUsd ?? item?.usd ?? item?.price ?? item?.unitPrice ?? 0
-    ) || 0,
-
-    //  aliases for Checkout/readers that expect these names
-    quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
-    pricePerUnit: Number(
-      item?.pricePerUnit ?? item?.priceUsd ?? item?.usd ?? item?.price ?? item?.unitPrice ?? 0
-    ) || 0,
-    // optional context (kept if present; harmless)
-    date: item?.date,
-    shift: item?.shift,
-    logisticCenterId: item?.logisticCenterId,
-  };
-}
 
 
 function formatAddressShort(a: any): string {
@@ -67,14 +34,14 @@ function formatAddressShort(a: any): string {
   // prefer the plain text address; fall back to coords
   const txt = (a.address ?? "").trim();
   if (txt) return txt;
-  const lat = Number(a.alt), lng = Number(a.lnt);
+  const lat = Number(a.lat ?? a.alt), lng = Number(a.lng ?? a.lng);
   return (Number.isFinite(lat) && Number.isFinite(lng)) ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : "—";
 }
 
 function formatShiftLabel(s: any): string {
   if (!s) return "—";
   const date = s.date ?? "";
-  const win  = s.window ?? s.shiftName ?? "";
+  const win  = s.shift ?? ""; // our API: "morning" | "afternoon" | ...
   return `${date}${date && win ? " • " : ""}${win}`;
 }
 
@@ -144,79 +111,57 @@ export default function MarketPage() {
     text: debouncedSearch,
   });
 
-  // ---- Cart (page-local) ----
-  const [cart, setCart] = useState<CartLine[]>([]);
-  // Persist + hydrate the cart so Checkout can read it
-  const CART_KEY = "market.cart.v1";
+  // ---- Cart (shared utils) ----
+  const [cartLines, setCartLines] = useState<SharedCartLine[]>(() => getSharedCart().lines);
 
-  // Hydrate on mount
+  // keep in sync with other tabs / pages
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(CART_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      const lines = Array.isArray(parsed) ? parsed : parsed?.lines;
-      if (Array.isArray(lines)) {
-        setCart(lines);
-      }
-    } catch { /* ignore */ }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const off = subscribeCart(() => setCartLines(getSharedCart().lines));
+    return off;
   }, []);
 
-  // Persist whenever cart or marketStockId changes
-  useEffect(() => {
-    try {
-      // Save { lines, availableMarketStockId } so Checkout can infer AMS if needed
-      localStorage.setItem(
-        CART_KEY,
-        JSON.stringify({ lines: cart, availableMarketStockId: marketStockId })
-      );
-    } catch { /* ignore */ }
-  }, [cart, marketStockId]);
 
   const cartCount = useMemo(
-    () => cart.reduce((sum, l) => sum + Number(l?.qtyKg ?? l?.qty ?? 0), 0),
-    [cart]
+    () => cartLines.reduce((sum, l) => sum + Number(l.quantity ?? 0), 0),
+    [cartLines]
   );
 
 
   const addToCart = useCallback((item: any, qty: number) => {
-    const clamped = Math.max(1, Math.min(20, Number(qty) || 1));
-    setCart((prev) => {
-      // Prefer stockId (then fallbacks) for identity
-      const id =
-        item?.stockId ??
-        item?.lineId ??
-        item?.id ??
-        item?.itemId ??
-        `${item?.name ?? "item"}|${item?.farmerId ?? item?.farmerName ?? "farmer"}`;
+    const clamped = Math.max(0.25, Math.min(50, Number(qty) || 1)); // keep a sane range; min quarter kg
+    const newLine = marketItemToCartLine(item, clamped);
+    const curr = getSharedCart().lines;
+    const idx = curr.findIndex((l) => (l.key ?? l.stockId) === (newLine.key ?? newLine.stockId));
 
-      const idx = prev.findIndex((l) => l.id === id);
-      if (idx >= 0) {
-        const next = [...prev];
-        const currQty = Number(next[idx].qtyKg ?? 0);
-        next[idx] = { ...next[idx], qtyKg: Math.max(1, Math.min(20, currQty + clamped)) };
-        return next;
-      }
-      return [...prev, mkLineFromItem(item, clamped)];
-    });
+    let next: SharedCartLine[];
+    if (idx >= 0) {
+      next = [...curr];
+      const prevQty = Number(next[idx].quantity ?? 0);
+      next[idx] = { ...next[idx], quantity: prevQty + clamped };
+    } else {
+      next = [...curr, newLine];
+    }
+    setSharedCart({ lines: next });
+    setCartLines(next);
 
-    // Do NOT open the drawer here (per new behavior)
     toaster.create({
       title: "Added to cart",
-      description: `${clamped} × ${item?.name ?? "Item"}${item?.farmerName ? ` • ${item.farmerName}` : ""}`,
+      description: `${clamped} kg × ${item?.name ?? "Item"}${item?.farmerName ? ` • ${item.farmerName}` : ""}`,
       type: "success",
       duration: 2500,
     });
   }, []);
 
   const removeLineByKey = useCallback((key: string) => {
-    setCart((prev) => prev.filter((l) => l.id !== key));
+    const curr = getSharedCart().lines;
+    const next = curr.filter((l) => (l.key ?? l.stockId) !== key);
+    setSharedCart({ lines: next });
+    setCartLines(next);
   }, []);
 
-
   const clearCart = useCallback(async () => {
-    setCart([]);
+    clearSharedCart();
+    setCartLines([]);
   }, []);
 
   const checkout = useCallback(async () => {
@@ -260,6 +205,22 @@ export default function MarketPage() {
     setLocalPage(p);
   }, [setPage, setLocalPage]);
 
+  const handleChangeQty = useCallback((key: string, nextQtyKg: number) => {
+    const curr = getSharedCart().lines;
+    const idx = curr.findIndex((l) => (l.key ?? l.stockId) === key);
+    if (idx < 0) return;
+
+    let next: SharedCartLine[];
+    if (nextQtyKg <= 0) {
+      next = curr.filter((_, i) => i !== idx);
+    } else {
+      next = [...curr];
+      next[idx] = { ...next[idx], quantity: nextQtyKg };
+    }
+    setSharedCart({ lines: next });
+    setCartLines(next);
+  }, []);
+
   // ---- Derived: page items filtered with search predicate from index ----
   // (Optional: if you want matchFilter to apply before paging, move it into useMarketItems via its options)
   const visiblePageItems = useMemo(() => {
@@ -299,7 +260,7 @@ export default function MarketPage() {
 
             {/* Grid */}
             <ItemsGrid
-              items={pageItems}
+              items={visiblePageItems}
               isLoading={itemsLoading}
               isFetching={itemsFetching}
               error={itemsError}
@@ -317,6 +278,16 @@ export default function MarketPage() {
       <PinButton active={isActive} onClick={() => setPinOpen(true)} />
       <CartFAB count={cartCount} onClick={() => setCartOpen(true)} />
 
+      <CartDrawer
+        isOpen={cartOpen}
+        onClose={() => setCartOpen(false)}
+        items={cartLines}
+        onRemove={removeLineByKey}
+        onClear={clearCart}
+        onChangeQty={handleChangeQty}
+        onCheckout={checkout}
+      />
+
       {/* Drawers */}
       <AddressShiftDrawer
         isOpen={pinOpen}
@@ -326,15 +297,6 @@ export default function MarketPage() {
         currentShift={shift}
         onConfirmChange={handleChangeSelectionConfirm}
         onPick={handlePickSelection}
-      />
-
-      <CartDrawer
-        isOpen={cartOpen}
-        onClose={() => setCartOpen(false)}
-        items={cart}
-        onRemove={removeLineByKey}
-        onClear={clearCart}
-        onCheckout={checkout}
       />
     </Box>
   );
