@@ -571,7 +571,7 @@
     "sdWeightPerUnitGr": 80,
     "season": "November-February",
     "sellModes": {
-      "byKg": true,
+      "byKg": false,
       "byUnit": true,
       "unitBundleSize": 1
     },
@@ -654,7 +654,7 @@
     "sdWeightPerUnitGr": 8,
     "season": "November-February",
     "sellModes": {
-      "byKg": true,
+      "byKg": false,
       "byUnit": true,
       "unitBundleSize": 1
     },
