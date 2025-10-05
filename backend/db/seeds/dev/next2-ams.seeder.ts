@@ -1,9 +1,9 @@
 /**
  * Seed: next TWO AMS docs (empty), then for each shift:
  *   - pick 5 items
- *   - create 5 orders for Farmer 1 (one per item) AND the same 5 orders for Farmer 2
- *   - random qty per order
- *   - set farmerStatus="ok" and add to AMS
+ *   - create 5 farmer orders for Farmer 1 (one per item) AND the same 5 for Farmer 2
+ *   - random committed kg per farmer order
+ *   - set farmerStatus="ok" and add to AMS with unitMode + estimates
  *
  * Run (PowerShell):
  *   $env:MONGO_URI="mongodb+srv://user:pass@cluster/mydb"
@@ -23,23 +23,24 @@ import { AvailableMarketStockModel } from "../../../src/models/availableMarketSt
 import { FarmerOrder } from "../../../src/models/farmerOrder.model";
 import { Item } from "../../../src/models/Item.model";
 import { getContactInfoByIdService } from "../../../src/services/user.service";
+import { buildAmsItemFromItem } from "../../../src/services/amsLine.builder";
 
 // -----------------------------
 // Config
 // -----------------------------
 const TZ = "Asia/Jerusalem";
-const STATIC_LC_ID = "66e007000000000000000001";
-const FARMER_MANAGER_ID = "66f2aa000000000000000005"; // createdBy/updatedBy
+const STATIC_LC_ID = "66e007000000000000000001";            // LC _id (hex string)
+const FARMER_MANAGER_ID = "66f2aa000000000000000005";        // createdBy/updatedBy
 
-// static *user* IDs for two farmers
+// static *user* IDs for two farmers (assumed == Farmer._id)
 const Farmer1_ID = "66f2aa000000000000000008";
 const Farmer2_ID = "66f2aa00000000000000002a";
 
 const SHIFT_CONFIG = [
-  { name: "morning" as const,   startMin: 60,   endMin: 420 },
-  { name: "afternoon" as const, startMin: 420,  endMin: 780 },
-  { name: "evening" as const,   startMin: 780,  endMin: 1140 },
-  { name: "night" as const,     startMin: 1140, endMin: 60 }, // crosses midnight
+  { name: "morning" as const,   startMin:  60, endMin:  420 },
+  { name: "afternoon" as const, startMin: 420, endMin:  780 },
+  { name: "evening" as const,   startMin: 780, endMin: 1140 },
+  { name: "night" as const,     startMin: 1140, endMin:   60 }, // crosses midnight
 ];
 
 const ITEMS_PER_SHIFT = 5;
@@ -153,8 +154,8 @@ async function seed() {
 
     // For FarmerOrder.farmerId we assume Farmer _id == User _id; adjust if different.
     const FARMERS = [
-      { farmerUserId: Farmer1_ID, farmerId: new Types.ObjectId(Farmer1_ID), farmerName: f1.name, farmName: f1.farmName || "freshy fresh" },
-      { farmerUserId: Farmer2_ID, farmerId: new Types.ObjectId(Farmer2_ID), farmerName: f2.name, farmName: f2.farmName || "freshy fresh" },
+      { farmerUserId: Farmer1_ID, farmerId: new Types.ObjectId(Farmer1_ID), farmerName: f1.name, farmName: f1.farmName || "freshy fresh", farmLogo: f1.farmLogo ?? null },
+      { farmerUserId: Farmer2_ID, farmerId: new Types.ObjectId(Farmer2_ID), farmerName: f2.name, farmName: f2.farmName || "freshy fresh", farmLogo: f2.farmLogo ?? null },
     ];
 
     // 1) Next 2 shifts
@@ -170,26 +171,42 @@ async function seed() {
     const items = await pickRandomItems(ITEMS_PER_SHIFT);
     console.log("[Items] Selected:", items.map((it: any) => ({ id: String(it._id), type: it.type, variety: it.variety })));
 
-    // 4) For each shift: for each item, create an order for Farmer1 AND an order for Farmer2
+
+    // 4) For each shift: for each item, create an FO for Farmer1 AND for Farmer2
     for (const s of next2) {
       const key = `${s.ymd} ${s.name}`;
-      console.log(`[Shift] ${key}: creating orders…`);
+      console.log(`[Shift] ${key}: creating farmer orders & AMS lines…`);
 
       const amsId = await ensureAMSId(STATIC_LC_ID, s.ymd, s.name);
 
       for (const item of items) {
+        // Enrich from Item collection for AMS line + price
+        const itemDoc: any = await Item.findById(item._id).lean();
+        if (!itemDoc) {
+          console.warn(`[WARN] Item not found: ${String(item._id)} — skipping`);
+          continue;
+        }
+
+        // price per KG (your AMS uses pricePerUnit as per-KG)
+        const pricePerKg = Number(itemDoc?.price?.a ?? itemDoc?.priceA ?? itemDoc?.price?.kg ?? NaN);
+        if (!Number.isFinite(pricePerKg) || pricePerKg < 0) {
+          console.warn(`[WARN] Missing/invalid pricePerKg for item ${String(item._id)} — skipping`);
+          continue;
+        }
+
         // both farmers get this item (2 orders per item)
         for (const farmer of FARMERS) {
-          const originalKg = isEggs(item) ? 80 : randInt(50, 80);
+          const committedKg = isEggs(item) ? 80 : randInt(50, 80);
 
+          // Create FarmerOrder (aligned with model: ObjectId fields)
           const created = await FarmerOrder.create({
             createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
             updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
 
-            itemId: String(item._id),
-            type: String(item.type || "Unknown"),
-            variety: String(item.variety || ""),
-            pictureUrl: String(item.imageUrl || "https://example.com/placeholder.jpg"),
+            itemId: new Types.ObjectId(item._id),
+            type: String(itemDoc.type || "Unknown"),
+            variety: String(itemDoc.variety || ""),
+            pictureUrl: String(itemDoc?.imageUrl ?? "https://example.com/placeholder.jpg"),
 
             farmerId: farmer.farmerId,
             farmerName: farmer.farmerName,
@@ -197,44 +214,64 @@ async function seed() {
 
             shift: s.name,
             pickUpDate: s.ymd,
-            logisticCenterId: STATIC_LC_ID,
+            logisticCenterId: new Types.ObjectId(STATIC_LC_ID),
 
             farmerStatus: "ok",
 
             sumOrderedQuantityKg: 0,
-            forcastedQuantityKg: originalKg,
-            finalQuantityKg: null,
+            forcastedQuantityKg: committedKg,
 
             orders: [],
             containers: [],
+
             historyAuditTrail: [],
           });
 
-          const orderIdStr = String(created._id);
+          // Build AMS item using your builder (returns schema-aligned shape)
+          const amsLine = buildAmsItemFromItem({
+            item: itemDoc,
+            farmer: {
+              id: created.farmerId,
+              name: created.farmerName,
+              farmName: created.farmName,
+              farmLogo: farmer.farmLogo ?? undefined,
+            },
+            committedKg,
+            unitConfig: { zScore: 1.28, shrinkagePct: 0.02 }, // optional tuning
+          });
 
-          // Enrich from Item collection for AMS line
-          const itemDoc = await Item.findById(item._id).lean();
-          const displayName =
-            (itemDoc?.type && itemDoc?.variety)
-              ? `${itemDoc.type} ${itemDoc.variety}`
-              : (itemDoc?.type ?? itemDoc?.variety ?? `${created.type} ${created.variety}`.trim());
+          // Attach FarmerOrder link
+          (amsLine as any).farmerOrderId = created._id;
 
+          // Ensure per-KG price is set under pricePerUnit (builder already does; keep defensively)
+          (amsLine as any).pricePerUnit = pricePerKg;
+
+          // Push to AMS via service
+          // NOTE: If your service interface expects strings for some fields, coerce below
           await addItemToAvailableMarketStock({
             docId: amsId,
             item: {
-              itemId: String(created.itemId),
-              displayName,
-              imageUrl: (itemDoc?.imageUrl ?? created.pictureUrl) || null,
-              category: itemDoc?.category ?? "unknown",
-              // pricePerUnit: (omit -> computePriceFromItem)
-              originalCommittedQuantityKg: Number(created.forcastedQuantityKg) || 0,
-              currentAvailableQuantityKg: Number(created.forcastedQuantityKg) || 0,
-              farmerOrderId: orderIdStr,
-              farmerID: String(created.farmerId),
-              farmerName: created.farmerName,
-              farmName: created.farmName,
-              status: "active",
-            },
+              // string coercions for maximal TS compatibility with service signature
+              itemId: String((amsLine as any).itemId),
+              displayName: (amsLine as any).displayName,
+              imageUrl: (amsLine as any).imageUrl ?? null,
+              category: (amsLine as any).category,
+              pricePerUnit: Number((amsLine as any).pricePerUnit),
+
+              originalCommittedQuantityKg: Number((amsLine as any).originalCommittedQuantityKg),
+              currentAvailableQuantityKg: Number((amsLine as any).currentAvailableQuantityKg),
+
+              farmerOrderId: String((amsLine as any).farmerOrderId),
+              farmerID: String((amsLine as any).farmerID),
+              farmerName: (amsLine as any).farmerName,
+              farmName: (amsLine as any).farmName,
+              farmLogo: (amsLine as any).farmLogo ?? null,
+
+              unitMode: (amsLine as any).unitMode,     // "kg" | "unit" | "mixed"
+              estimates: (amsLine as any).estimates,   // { avgWeightPerUnitKg?, stdDevKg?, availableUnitsEstimate? }
+
+              status: (amsLine as any).status ?? "active",
+            } as any, // <-- cast in case the service's TS type hasn't been widened yet
           });
         }
       }

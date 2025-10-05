@@ -5,7 +5,7 @@ import type { Item } from "@/models/Item.model";
 /**
  * Unit conversion & estimate config
  */
-type UnitSafeConfig = {
+export type UnitSafeConfig = {
   zScore?: number;        // default 1.28 (~90% one-sided)
   shrinkagePct?: number;  // default 0.02 (2% handling loss)
   bundle?: number;        // default 1 (e.g., eggs -> 12)
@@ -15,7 +15,7 @@ type UnitSafeConfig = {
  * Compute a conservative estimate of how many units you can sell
  * from the available KG, given avg/sd, z-score, shrink and bundle.
  */
-function conservativeUnitsFromKg(
+export function conservativeUnitsFromKg(
   availableKg: number,
   avgGr: number,
   sdGr = 0,
@@ -32,21 +32,47 @@ function conservativeUnitsFromKg(
 }
 
 /**
- * Derive unit price from price per KG and avg unit weight (grams).
- * If override is present, prefer it.
+ * Derive price per unit from price per KG and avg unit weight (grams).
+ * If override is present, prefer it. (Used for UI/reference; AMS stores per-KG price as pricePerUnit.)
  */
-function derivePricePerUnit(pricePerKg: number | null | undefined, avgGr: number | null | undefined, override?: number | null) {
+export function derivePricePerUnit(
+  pricePerKg: number | null | undefined,
+  avgGr: number | null | undefined,
+  override?: number | null
+) {
   if (override != null) return override;
   if (!pricePerKg || !avgGr) return null;
   return pricePerKg * (avgGr / 1000);
 }
 
 /**
+ * Decide AMS unitMode ("kg" | "unit" | "mixed") based on item sellModes and heuristics
+ */
+function decideUnitMode(item: any, avgGr?: number | null): "kg" | "unit" | "mixed" {
+  const byUnit = !!item?.sellModes?.byUnit;
+  const byKg = item?.sellModes?.byKg ?? true;
+  const hasAvg = !!avgGr && avgGr > 0;
+
+  if (byUnit && byKg && hasAvg) return "mixed";
+  if (byUnit && hasAvg) return "unit";
+  return "kg";
+}
+
+/**
  * Build a single AMS "items" subdoc ready to push into AvailableMarketStock.items[]
- * NOTE: Aligns with your schema field names exactly.
+ * SHAPE ALIGNED to AvailableStockItemSchema:
+ *  {
+ *    itemId, displayName, imageUrl, category,
+ *    pricePerUnit (per KG),
+ *    currentAvailableQuantityKg, originalCommittedQuantityKg,
+ *    farmerOrderId, farmerID, farmerName, farmName, farmLogo,
+ *    unitMode: "kg" | "unit" | "mixed",
+ *    estimates: { avgWeightPerUnitKg?, stdDevKg?, availableUnitsEstimate? },
+ *    status
+ *  }
  */
 export function buildAmsItemFromItem(params: {
-  item: Item; // populated Item document (or plain object with same fields)
+  item: Item; // Item document (or plain object)
   farmer: {
     id: string | Types.ObjectId;
     name: string;
@@ -54,97 +80,79 @@ export function buildAmsItemFromItem(params: {
     farmLogo?: string | null;
   };
   committedKg: number;
-  unitConfig?: UnitSafeConfig; // optional tuning
+  unitConfig?: UnitSafeConfig; // optional tuning for estimates
 }) {
   const { item, farmer, committedKg, unitConfig } = params;
 
-  const pricePerKg = item?.price?.a ?? 0; // canonical per KG
-  const byUnit = !!item?.sellModes?.byUnit;
-  const bundle = Math.max(1, item?.sellModes?.unitBundleSize ?? 1);
+  // canonical per KG (your Item model)
+  const pricePerKg = Number((item as any)?.price?.a ?? 0);
 
-  // Derive price per unit (fallback: set to pricePerKg just to satisfy required constraint)
-  const derivedUnitPrice = derivePricePerUnit(pricePerKg, item?.avgWeightPerUnitGr ?? null, item?.pricePerUnitOverride ?? null);
-  const requiredPricePerUnit = byUnit
-    ? (derivedUnitPrice ?? pricePerKg) // if byUnit but we lack avg, fallback to kg price
-    : pricePerKg;                      // if not byUnit, keep parity with kg price (schema requires number)
+  // unit stats from Item (if present)
+  const avgGr = (item as any)?.avgWeightPerUnitGr ?? null;
+  const sdGr = (item as any)?.sdWeightPerUnitGr ?? 0;
+  const bundle = Math.max(1, (item as any)?.sellModes?.unitBundleSize ?? unitConfig?.bundle ?? 1);
 
-  // Base AMS item shape (matches your schema names)
-  const amsLine = {
+  // choose unitMode to match AMS schema
+  const unitMode = decideUnitMode(item, avgGr);
+
+  // estimates for AMS (match schema keys)
+  const estimates: {
+    avgWeightPerUnitKg?: number | null;
+    stdDevKg?: number | null;
+    availableUnitsEstimate?: number | null;
+  } = {};
+
+  if (avgGr && avgGr > 0) {
+    estimates.avgWeightPerUnitKg = Math.round((avgGr / 1000) * 1000) / 1000;
+    estimates.stdDevKg = sdGr ? Math.round((sdGr / 1000) * 1000) / 1000 : null;
+
+    // conservative units only when units might be sold (unit/mixed)
+    if (unitMode === "unit" || unitMode === "mixed") {
+      const estUnits = conservativeUnitsFromKg(committedKg, avgGr, sdGr ?? 0, {
+        zScore: unitConfig?.zScore ?? 1.28,
+        shrinkagePct: unitConfig?.shrinkagePct ?? 0.02,
+        bundle,
+      });
+      estimates.availableUnitsEstimate = estUnits;
+    }
+  } else {
+    // no avg => keep only KG mode estimates empty
+    if (unitMode !== "kg") {
+      // fallback to KG if no avg weight is available
+      // (you can keep "unit"/"mixed" if you want, but order service needs avg to convert)
+    }
+  }
+
+  return {
     itemId: new Types.ObjectId((item as any)._id),
 
-    displayName: item.variety ? `${item.type} ${item.variety}` : item.type,
-    imageUrl: item.imageUrl ?? null,
-    category: item.category,
+    displayName:
+      (item as any).variety ? `${(item as any).type} ${(item as any).variety}` : (item as any).type,
+    imageUrl: (item as any).imageUrl ?? null,
+    category: (item as any).category ?? "unknown",
 
-    pricePerKg: pricePerKg,
-    pricePerUnit: requiredPricePerUnit,
+    // AMS expects per-KG under pricePerUnit
+    pricePerUnit: pricePerKg,
 
     currentAvailableQuantityKg: committedKg,
     originalCommittedQuantityKg: committedKg,
 
-    farmerOrderId: null, // fill later if linked
-
+    farmerOrderId: null as any, // fill after you create FarmerOrder
     farmerID: new Types.ObjectId(farmer.id),
     farmerName: farmer.name,
     farmName: farmer.farmName,
-    farmLogo: farmer.farmLogo ?? undefined,
+    farmLogo: farmer.farmLogo ?? null,
 
-    // unitMode + estimates are additive (optional) – only when selling by unit and we have avg
-    unitMode: undefined as
-      | {
-          enabled: boolean;
-          unitBundleSize: number;
-          avgWeightPerUnitGr: number | null;
-          sdWeightPerUnitGr: number;
-          pricePerUnit: number | null;
-          zScore: number;
-          shrinkagePct: number;
-          minUnitStep: number;
-        }
-      | undefined,
-    estimates: undefined as
-      | {
-          availableUnitsEstimate: number | null;
-        }
-      | undefined,
+    unitMode, // "kg" | "unit" | "mixed"
+    estimates, // { avgWeightPerUnitKg?, stdDevKg?, availableUnitsEstimate? }
 
     status: "active" as const,
   };
-
-  // If units are enabled, include unitMode & conservative estimate
-  if (byUnit) {
-    const avgGr = item?.avgWeightPerUnitGr ?? null;
-    const sdGr = item?.sdWeightPerUnitGr ?? 0;
-    const z = unitConfig?.zScore ?? 1.28;
-    const shrink = unitConfig?.shrinkagePct ?? 0.02;
-
-    amsLine.unitMode = {
-      enabled: true,
-      unitBundleSize: bundle,
-      avgWeightPerUnitGr: avgGr,
-      sdWeightPerUnitGr: sdGr,
-      pricePerUnit: derivedUnitPrice, // may be null if avg missing
-      zScore: z,
-      shrinkagePct: shrink,
-      minUnitStep: 1,
-    };
-
-    if (avgGr) {
-      const estimate = conservativeUnitsFromKg(committedKg, avgGr, sdGr ?? 0, {
-        zScore: z,
-        shrinkagePct: shrink,
-        bundle,
-      });
-      amsLine.estimates = { availableUnitsEstimate: estimate };
-    }
-  }
-
-  return amsLine;
 }
 
 /**
  * OPTIONAL: For unit-based cart lines, convert requested units -> safe KG to reserve.
- * Use the same conservative math used for the estimate.
+ * Uses the same conservative math as the estimate.
  */
 export function kgNeededForUnits(units: number, cfg: {
   avgWeightPerUnitGr: number;

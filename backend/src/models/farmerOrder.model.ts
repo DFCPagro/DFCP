@@ -1,3 +1,4 @@
+// src/models/farmerOrder.model.ts
 import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
 import toJSON from "../utils/toJSON";
 
@@ -9,8 +10,8 @@ import {
 } from "./shared/stage.types";
 import { buildFarmerOrderDefaultStages } from "./shared/stage.utils";
 import { AuditEntrySchema } from "./shared/audit.schema";
-import {ContainerSchema} from "./shared/container.schema";
-import { VisualInspectionSchema,  QSReportSchema } from "./shared/inspection.schema";
+import { ContainerSchema } from "./shared/container.schema";
+import { VisualInspectionSchema, QSReportSchema } from "./shared/inspection.schema";
 
 // ---------- enums ----------
 export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
@@ -19,16 +20,30 @@ export type Shift = (typeof SHIFTS)[number];
 export const FARMER_APPROVAL_STATUSES = ["pending", "ok", "problem"] as const;
 export type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
 
-// ---------- schema (no generics; infer later) ----------
+// ---------- sub-schema: linked customer orders (orderId + allocated kg) ----------
+const OrderLinkSchema = new Schema(
+  {
+    orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
+    // Store as allocatedQuantityKg; expose alias orderedQuantityKg for readability in JSON/TS
+    allocatedQuantityKg: {
+      type: Number,
+      min: 0,
+      default: 0, // avoid null→number issues
+      alias: "orderedQuantityKg",
+    },
+  },
+  { _id: false, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+);
+
+// ---------- main schema ----------
 const FarmerOrderSchema = new Schema(
   {
-    createdAt: { type: Date, default: Date.now },
+    // timestamps handled by { timestamps: true } below
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    updatedAt: { type: Date, default: Date.now },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
 
     // identity / relations
-    itemId: { type: String, ref: "Item", required: true, index: true }, // Item._id is string in your Item model
+    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
     type: { type: String, default: "", trim: true },
     variety: { type: String, default: "", trim: true },
     pictureUrl: { type: String, default: "", trim: true },
@@ -37,40 +52,30 @@ const FarmerOrderSchema = new Schema(
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
 
-    //landId: { type: Schema.Types.ObjectId, ref: "FarmerLand", default: null },
-    //sectionId: { type: String, default: "", trim: true },
-
     // planning / logistics
     shift: { type: String, enum: SHIFTS, required: true, index: true },
     pickUpDate: { type: String, required: true, index: true }, // "YYYY-MM-DD"
-    logisticCenterId: { type: String, default: "LC-1", index: true },
-     // farmer-level approval/ack
+    logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", required: true, index: true },
+
+    // farmer-level approval/ack
     farmerStatus: { type: String, enum: FARMER_APPROVAL_STATUSES, default: "pending", index: true },
 
     // customer demand aggregation (explicit + derived)
-    sumOrderedQuantityKg: { type: Number, required: true, min: 0 },
+    // expose friendly alias "orderedQuantityKg" for the sum as well
+    sumOrderedQuantityKg: { type: Number, required: true, min: 0, default: 0, alias: "orderedQuantityKg" },
 
-    // NEW: forecast & final
-    // Keep your original spelling exactly; also expose a friendly alias "forecastedQuantityKg"
-    forcastedQuantityKg: { type: Number, required: true, min: 0, alias: "forecastedQuantityKg" },
-    finalQuantityKg: { type: Number, default: null, min: 0 }, // auto = sum(orders[].allocatedQuantityKg) * 1.02
+    // forecast & final
+    // keep original spelling + alias, add default to avoid required errors
+    forcastedQuantityKg: { type: Number, required: true, min: 0, default: 0, alias: "forecastedQuantityKg" },
+    finalQuantityKg: { type: Number, min: 0 }, // optional; computed in recalcQuantities()
 
     // linked customer orders contributing to this FarmerOrder
     orders: {
-      type: [
-        new Schema(
-          {
-            orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
-            allocatedQuantityKg: { type: Number, min: 0, default: null },
-          },
-          { _id: false }
-        ),
-      ],
+      type: [OrderLinkSchema],
       default: [],
     },
-   
 
-    // NEW: Containers linked to this farmer order
+    // Containers linked to this farmer order
     containers: {
       type: [ContainerSchema],
       default: [],
@@ -82,27 +87,24 @@ const FarmerOrderSchema = new Schema(
       default: () => buildFarmerOrderDefaultStages(),
       validate: [
         {
-          validator: (arr: any[]) => (arr || []).every(s => FARMER_ORDER_STAGE_KEYS.includes(s?.key)),
+          validator: (arr: any[]) => (arr || []).every((s) => FARMER_ORDER_STAGE_KEYS.includes(s?.key)),
           message: "Invalid stage key in FarmerOrder.stages",
         },
         {
-          validator: (arr: any[]) => (arr || []).filter(s => s?.status === "current").length <= 1,
+          validator: (arr: any[]) => (arr || []).filter((s) => s?.status === "current").length <= 1,
           message: "Only one stage may have status 'current'",
         },
       ],
     },
 
     // --- QS reports ---
-  farmersQSreport:    { type: QSReportSchema, default: undefined }, // farmer’s submitted QS values
-  inspectionQSreport: { type: QSReportSchema, default: undefined }, // LC/inspection QS values
+    farmersQSreport: { type: QSReportSchema, default: undefined }, // farmer’s submitted QS values
+    inspectionQSreport: { type: QSReportSchema, default: undefined }, // LC/inspection QS values
 
-// --- quick visual inspection status (optional) ---
-  visualInspection:   { type: VisualInspectionSchema, default: undefined },
+    // --- quick visual inspection status (optional) ---
+    visualInspection: { type: VisualInspectionSchema, default: undefined },
+    inspectionStatus: { type: String, enum: ["pending", "passed", "failed"], default: "pending", index: true },
 
-  inspectionStatus: { type: String, enum: ["pending", "passed", "failed"], default: "pending", index: true },
-
-
-   
     // audit trail
     historyAuditTrail: { type: [AuditEntrySchema], default: [] },
   },
@@ -131,23 +133,18 @@ export interface FarmerOrderMethods {
     opts?: { note?: string; expectedAt?: Date }
   ): void;
 
-  markStageDone(
-    key: FarmerOrderStageKey,
-    userId: Types.ObjectId,
-    opts?: { note?: string }
-  ): void;
+  markStageDone(key: FarmerOrderStageKey, userId: Types.ObjectId, opts?: { note?: string }): void;
 
-  markStageOk(
-    key: FarmerOrderStageKey,
-    userId: Types.ObjectId,
-    opts?: { note?: string }
-  ): void;
+  markStageOk(key: FarmerOrderStageKey, userId: Types.ObjectId, opts?: { note?: string }): void;
 
-  /** Link or update a customer order and optionally its allocated quantity */
+  /** Link or update a customer order and optionally its allocated quantity (kg) */
   linkOrder(orderId: Types.ObjectId, allocatedQuantityKg?: number | null): void;
 
   /** Recalculate sumOrderedQuantityKg and finalQuantityKg (= sum * 1.02, rounded to 2 decimals) */
   recalcQuantities(): void;
+
+  /** Compare QS inputs and set inspectionStatus accordingly */
+  recomputeInspectionStatus(): void;
 }
 
 export type FarmerOrderModel = Model<FarmerOrder, {}, FarmerOrderMethods>;
@@ -181,9 +178,9 @@ FarmerOrderSchema.methods.setStageCurrent = function (
     }
   }
 
-  let target: any = (this.stages as any[]).find(s => s.key === key);
+  let target: any = (this.stages as any[]).find((s) => s.key === key);
   if (!target) {
-    const template = FARMER_ORDER_STAGES.find(s => s.key === key);
+    const template = FARMER_ORDER_STAGES.find((s) => s.key === key);
     target = {
       key,
       label: template?.label || key,
@@ -213,7 +210,7 @@ FarmerOrderSchema.methods.markStageDone = function (
   opts: { note?: string } = {}
 ) {
   const now = new Date();
-  const s: any = (this.stages as any[]).find(x => x.key === key);
+  const s: any = (this.stages as any[]).find((x) => x.key === key);
   if (!s) throw new Error(`Stage not found: ${key}`);
 
   s.status = "done";
@@ -231,7 +228,7 @@ FarmerOrderSchema.methods.markStageOk = function (
   opts: { note?: string } = {}
 ) {
   const now = new Date();
-  const s: any = (this.stages as any[]).find(x => x.key === key);
+  const s: any = (this.stages as any[]).find((x) => x.key === key);
   if (!s) throw new Error(`Stage not found: ${key}`);
 
   s.status = "ok";
@@ -247,13 +244,13 @@ FarmerOrderSchema.methods.linkOrder = function (
   orderId: Types.ObjectId,
   allocatedQuantityKg: number | null = null
 ) {
-  const existing = (this.orders as any[]).find(e => e.orderId?.toString() === orderId.toString());
+  const existing = (this.orders as any[]).find((e) => e.orderId?.toString() === orderId.toString());
   if (existing) {
     if (allocatedQuantityKg !== null && allocatedQuantityKg !== undefined) {
       existing.allocatedQuantityKg = allocatedQuantityKg;
     }
   } else {
-    (this.orders as any[]).push({ orderId, allocatedQuantityKg });
+    (this.orders as any[]).push({ orderId, allocatedQuantityKg: allocatedQuantityKg ?? 0 });
   }
 
   // keep aggregates in sync
@@ -268,31 +265,35 @@ FarmerOrderSchema.methods.recalcQuantities = function (
     .reduce((a: number, b: number) => a + b, 0);
 
   // reflect totals:
-  this.sumOrderedQuantityKg = sum;
+  this.sumOrderedQuantityKg = Math.round(sum * 1000) / 1000;
 
   // final = sum * 1.02 (2% buffer), round to 2 decimals
   const finalRaw = sum * 1.02;
   this.finalQuantityKg = Math.round(finalRaw * 100) / 100;
 };
 
-// if the QS reports of farmer and inspection are in the same range and have the same overall grade (if provided),
-//maybe do it in the controller instead of the model?
 FarmerOrderSchema.methods.recomputeInspectionStatus = function (
   this: HydratedDocument<FarmerOrder> & FarmerOrderMethods
 ) {
   const visualOk = this.visualInspection?.status === "ok";
   const farmerVals = this.farmersQSreport?.values;
-  const inspVals   = this.inspectionQSreport?.values;
+  const inspVals = this.inspectionQSreport?.values;
 
   // gate 1: need visual ok
-  if (!visualOk) { this.inspectionStatus = "pending"; return; }
+  if (!visualOk) {
+    this.inspectionStatus = "pending";
+    return;
+  }
 
   // gate 2: need both QS inputs
-  if (!farmerVals || !inspVals) { this.inspectionStatus = "pending"; return; }
+  if (!farmerVals || !inspVals) {
+    this.inspectionStatus = "pending";
+    return;
+  }
 
   // optional: compare overall grades if provided
   const farmerGrade = this.farmersQSreport?.overallGrade || "";
-  const inspGrade   = this.inspectionQSreport?.overallGrade || "";
+  const inspGrade = this.inspectionQSreport?.overallGrade || "";
   if (farmerGrade && inspGrade && farmerGrade !== inspGrade) {
     this.inspectionStatus = "failed";
     return;
@@ -311,7 +312,8 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
   ] as any;
 
   const within2Percent = (a: number, b: number) => {
-    const A = Number(a), B = Number(b);
+    const A = Number(a),
+      B = Number(b);
     if (!Number.isFinite(A) || !Number.isFinite(B)) return true; // ignore non-finite
     const denom = Math.max(Math.abs(A), Math.abs(B), 1e-9); // avoid divide-by-zero
     return Math.abs(A - B) / denom <= 0.02; // 2% relative tolerance
@@ -330,19 +332,11 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
   this.inspectionStatus = "passed";
 };
 
-
-
-
-
 // ---------- hooks ----------
-// Whenever the doc validates, ensure aggregate quantities reflect 'orders'
+// Keep aggregates consistent even if orders changed via direct array ops
 FarmerOrderSchema.pre("validate", function (next) {
   const doc = this as HydratedDocument<FarmerOrder> & FarmerOrderMethods;
-
-  // keep aggregates consistent even if orders changed via direct array ops
   doc.recalcQuantities();
-
-  // Note: 'forcastedQuantityKg' is required. If you need a default, set it earlier in your service.
   next();
 });
 
