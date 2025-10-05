@@ -90,6 +90,6 @@ export async function confirmOrderByCustomerToken(
   token: string,
   body: { rating?: number; comment?: string },
 ) {
-  const { data } = await api.post(`/orders/confirm/${token}, body`);
+  const { data } = await api.post(`/orders/confirm/${token}`, body);
   return data;
 }
