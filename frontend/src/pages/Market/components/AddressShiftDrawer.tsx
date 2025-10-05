@@ -129,39 +129,41 @@ export default function AddressShiftDrawer({
       try {
         setShiftsError(null)
         setShiftsLoading(true)
-        const raw = await getAvailableShiftsByLC(addr.logisticCenterId)
+        // inside loadShiftsForAddress()
+        const raw = await getAvailableShiftsByLC(addr.logisticCenterId);
 
-          const mapped = (raw ?? [])
-            .map((row: any) => {
-              const k = String(row.shift ?? row.key ?? "").toLowerCase();
-              const isShift =
-                k === "morning" || k === "afternoon" || k === "evening" || k === "night";
-              if (!isShift) return null;
+        // Optional: temporary debug so you can see what arrived & what we keep
+        console.log("[Shifts] raw:", raw);
 
-              const d = String(row.date ?? row.availableDate ?? "").slice(0, 10);
-              const id = String(row.docId ?? row.marketStockId ?? row._id ?? "");
-              if (!d || !id) return null;
+        const mapped: AvailableShiftFlat[] = (raw ?? []).flatMap((row: any) => {
+          const key  = String(row.shift ?? row.key ?? row.shiftKey ?? "").toLowerCase();
+          const date = String(row.date ?? row.availableDate ?? row.day ?? "").slice(0, 10);
+          // prefer real id; otherwise synthesize a stable one so UI can select
+          const realId =
+            String(row.docId ?? row.marketStockId ?? row._id ?? row.id ?? "") || undefined;
+          const syntheticId = `synthetic:${addr.logisticCenterId}:${date}:${key}`;
+          const id = realId ?? syntheticId;
 
-              return {
-                shift: k as AvailableShiftFlat["shift"],           // <- cast after guard
-                date: d,
-                marketStockId: id,
-                slotLabel: row.deliverySlotLabel
-                  ? String(row.deliverySlotLabel)
-                  : row.slotLabel
-                  ? String(row.slotLabel)
-                  : undefined,
-              } as AvailableShiftFlat;
-            })
-            .filter((x): x is AvailableShiftFlat => x !== null);
+          if (!key || !date) return []; // only drop truly invalid rows (missing shift/date)
 
-          setShifts(mapped);
+          return [{
+            shift: key as AvailableShiftFlat["shift"],
+            date,
+            marketStockId: id,
+            // fix precedence bug (see patch #2)
+            slotLabel: (row.deliverySlotLabel ?? row.slotLabel)
+              ? String(row.deliverySlotLabel ?? row.slotLabel)
+              : undefined,
+          }];
+        });
 
 
-          // reset previous selection if not in the new list
-          if (!mapped.some((s) => s.marketStockId === selectedMarketStockId)) {
-            setSelectedMarketStockId("")
-          }
+        setShifts(mapped);
+
+        // reset previous selection if it’s no longer present
+        if (!mapped.some((s) => s.marketStockId === selectedMarketStockId)) {
+          setSelectedMarketStockId("");
+        }
 
 
       } catch (e: any) {

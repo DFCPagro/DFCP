@@ -80,25 +80,46 @@ export async function addCustomerAddress(input: AddressInput): Promise<Address[]
  * -------------------------------------------------------------------------- */
 
 export type AvailableShift = {
-  marketStockId?: string;
-  LCid?: string;
-  date: string; // YYYY-MM-DD
+  marketStockId?: string;        // from docId | _id | marketStockId (if provided)
+  LCid?: string;                 // from payload or the function arg
+  date: string;                  // YYYY-MM-DD
   shift: "morning" | "afternoon" | "evening" | "night";
+  slotLabel?: string;            // from deliverySlotLabel | slotLabel (if provided)
 };
+
 
 export async function getAvailableShiftsByLC(LCid: string): Promise<AvailableShift[]> {
   const { data } = await api.get("/market/available-stock/next5", {
     params: { LCid }, // must match backend name exactly
   });
-  // Backend may wrap under { data }; also allow passthrough arrays
-  const raw = (Array.isArray(data?.data) ? data.data : data) as any[];
-  // Normalize date to YMD and shift to lowercase enum
-  return raw.map((r) => ({
-    marketStockId: r?.marketStockId ?? r?._id,
-    LCid: r?.LCid ?? LCid,
-    date: toYMD(r?.availableDate ?? r?.date),
-    shift: String(r?.availableShift ?? r?.shift ?? "").toLowerCase() as AvailableShift["shift"],
-  }));
+
+  // Allow either { data: [...] } or [...]
+  const raw = (Array.isArray(data?.data) ? data.data : data) as any[] | undefined;
+  if (!Array.isArray(raw)) return [];
+
+  const out: AvailableShift[] = [];
+
+  for (const r of raw) {
+    const date = toYMD(r?.availableDate ?? r?.date);
+    const shiftStr = String(r?.availableShift ?? r?.shift ?? "").toLowerCase();
+
+    // strictly accept only known shifts; skip invalid rows safely
+    const isKnownShift =
+      shiftStr === "morning" || shiftStr === "afternoon" || shiftStr === "evening" || shiftStr === "night";
+    if (!date || !isKnownShift) continue;
+
+    out.push({
+      // prefer explicit docId; fallback to _id/marketStockId if backend returns them
+      marketStockId: r?.docId ?? r?.marketStockId ?? r?._id ?? undefined,
+      LCid: r?.LCid ?? LCid,
+      date,
+      shift: shiftStr as AvailableShift["shift"],
+      // accept either deliverySlotLabel or slotLabel if present
+      slotLabel: r?.deliverySlotLabel ?? r?.slotLabel ?? undefined,
+    });
+  }
+
+  return out;
 }
 
 /* -----------------------------------------------------------------------------
@@ -132,7 +153,7 @@ export async function getStockByMarketStockId(marketStockId: string): Promise<Ma
 
         // Pricing & quantities (undefined if truly missing; do not coerce to 0)
         pricePerUnit: x.pricePerUnit,
-        avgWeightPerUnitKg: x.avgWeightPerUnitKg,
+        avgWeightPerUnitKg: x.avgWeightPerUnitKg ? x.avgWeightPerUnitKg : 1, // NEW (backend will add)
         originalCommittedQuantityKg: x.originalCommittedQuantityKg,
         currentAvailableQuantityKg: x.currentAvailableQuantityKg,
 

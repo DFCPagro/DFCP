@@ -60,6 +60,7 @@ export default function MarketPage() {
   const [pinOpen, setPinOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
 
+  const [forcePicker, setForcePicker] = useState(false);
   // track first transition to active to fire a toast once
   const wasActiveRef = useRef<boolean>(false);
   useEffect(() => {

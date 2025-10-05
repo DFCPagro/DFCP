@@ -167,3 +167,31 @@ export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
  * -------------------------------------------------------------------------- */
 export const MarketItemListSchema = z.array(MarketItemSchema);
 export type MarketItemList = z.infer<typeof MarketItemListSchema>;
+
+// --- NEW: "lite" shift result for endpoints that don't provide docId yet ---
+export const AvailableShiftLiteSchema = z.object({
+  shift: ShiftNameSchema,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  LCid: z.string(),                 // backend returns LCid for context
+  slotLabel: z.string().optional(), // if/when backend adds deliverySlotLabel, we accept it
+});
+export type AvailableShiftLite = z.infer<typeof AvailableShiftLiteSchema>;
+
+// --- NEW: small helper to make a stable synthetic key (safe for list/radios) ---
+export function makeShiftKey(date: string, shift: ShiftName): string {
+  // date is already validated to YYYY-MM-DD by the schema
+  return `${date}__${shift}`;
+}
+
+// --- NEW: type guard to discriminate between "flat" (with id) and "lite" ---
+export function isAvailableShiftFlat(
+  value: unknown
+): value is AvailableShiftFlat {
+  try {
+    // Will throw if required props (including marketStockId) are missing
+    AvailableShiftFlatSchema.parse(value);
+    return true;
+  } catch {
+    return false;
+  }
+}

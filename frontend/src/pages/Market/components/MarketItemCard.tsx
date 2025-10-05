@@ -86,7 +86,7 @@ function MarketItemCardBase({
 
 
   const priceLabel = useMemo(() => {
-    return `$${(Number.isFinite(price) ? price : 0).toFixed(2)}/kg`;
+    return `$${(Number.isFinite(price) ? price : 0).toFixed(2)}/unit`;
   }, [price]);
 
 
