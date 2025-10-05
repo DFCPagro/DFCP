@@ -1,13 +1,19 @@
 import { FilterQuery, ClientSession, Types } from "mongoose";
-import { AvailableMarketStockModel, AvailableStockItem, AvailableMarketStock} from "../models/availableMarketStock.model";
+import {
+  AvailableMarketStockModel,
+  AvailableStockItem,
+  AvailableMarketStock,
+} from "../models/availableMarketStock.model";
 import { SHIFT_NAMES } from "../models/availableMarketStock.model";
-import ItemModel from "../models/Item.model"; // adjust import to your project path
-import { getNextAvailableShifts, getShiftConfigByKey } from "./shiftConfig.service"; // <-- use your actual path
+import ItemModel from "../models/Item.model";
+import { getNextAvailableShifts, getShiftConfigByKey } from "./shiftConfig.service";
 import { DateTime } from "luxon";
 import { normalizeWindow } from "../utils/time";
+
 type ShiftName = (typeof SHIFT_NAMES)[number];
 type ItemsOnly = { _id: Types.ObjectId; items: AvailableStockItem[] };
 
+/* ------------------------------ time helpers ------------------------------ */
 
 function normalizeDateUTC(d: Date | string): Date {
   const dd = typeof d === "string" ? new Date(d) : new Date(d);
@@ -32,6 +38,9 @@ async function getDeliverySlotLabel(params: { LCid: string; shift: ShiftName }):
   const slot = normalizeWindow(cfg.deliveryTimeSlotStartMin, cfg.deliveryTimeSlotEndMin);
   return `${fmtHHMM(slot.startMin)}–${fmtHHMM(slot.endMin)}`;
 }
+
+/* ------------------------------ stock find/create ------------------------------ */
+
 export async function findOrCreateAvailableMarketStock(params: {
   LCid: string;
   date: string | Date;
@@ -71,9 +80,7 @@ export async function getAvailableMarketStockByKey(params: {
   });
 }
 
-/**
- * Get an AvailableMarketStock document by its _id (stock id).
- */
+/** Get an AvailableMarketStock document by its _id (stock id). */
 export async function getAvailableMarketStockById(docId: string) {
   const _docId = new Types.ObjectId(docId);
 
@@ -86,9 +93,9 @@ export async function getAvailableMarketStockById(docId: string) {
   return doc;
 }
 
+/* ---------------------------- list upcoming stocks ---------------------------- */
 
-
-//returns full on shifts stock
+/** returns full on shifts stock */
 export async function listUpcomingAvailableMarketStock(params: {
   LCid: string;
   count?: number;
@@ -102,8 +109,6 @@ export async function listUpcomingAvailableMarketStock(params: {
     .limit(count)
     .lean();
 }
-
-
 
 /**
  * For the next 5 shifts (by LC timezone), return only those that have
@@ -119,7 +124,7 @@ export async function nextFiveShiftsWithStock(params: {
   const upcoming = await getNextAvailableShifts({ logisticCenterId: LCid, count: 5, fromTs }); // [{date, name}]
 
   // 2) Single Mongo query for any existing docs among those 5
-  const orPairs = upcoming.map(s => ({
+  const orPairs = upcoming.map((s) => ({
     LCid,
     availableDate: normalizeDateUTC(s.date),
     availableShift: s.name as ShiftName,
@@ -145,9 +150,7 @@ export async function nextFiveShiftsWithStock(params: {
   // 4) Build output in the same order, only if doc has items
   const out: Array<{ date: string; shift: ShiftName; docId: string; deliverySlotLabel: string }> = [];
   for (const s of upcoming) {
-    const hit = byKey.get(
-      `${normalizeDateUTC(s.date).toISOString()}|${s.name}`
-    );
+    const hit = byKey.get(`${normalizeDateUTC(s.date).toISOString()}|${s.name}`);
     if (hit && hit.items.length > 0) {
       const deliverySlotLabel = await getDeliverySlotLabel({ LCid, shift: s.name as ShiftName });
       out.push({
@@ -161,16 +164,83 @@ export async function nextFiveShiftsWithStock(params: {
   return out;
 }
 
-async function computePriceFromItem(
-  itemId: string | Types.ObjectId
-): Promise<number> {
+/* -------------------------- pricing & conversion helpers -------------------------- */
+
+/**
+ * Fetch price.a (price per KG) and unit conversion fields from Item.
+ * - pricePerKg is required on AMS lines
+ * - returns a derived pricePerUnit (or null if not applicable)
+ * - returns sell-by-unit config for unitMode
+ */
+async function fetchItemPricingAndUnitConfig(itemId: string | Types.ObjectId): Promise<{
+  pricePerKg: number;
+  // unit projection
+  byUnit: boolean;
+  unitBundleSize: number;
+  avgWeightPerUnitGr: number | null;
+  sdWeightPerUnitGr: number;
+  pricePerUnitDerived: number | null; // override respected
+}> {
   const _id = typeof itemId === "string" ? new Types.ObjectId(itemId) : itemId;
-  const it = await ItemModel.findById(_id, { price: 1 }).lean();
+
+  const it = await ItemModel.findById(_id, {
+    price: 1,
+    sellModes: 1,
+    avgWeightPerUnitGr: 1,
+    sdWeightPerUnitGr: 1,
+    pricePerUnitOverride: 1,
+  }).lean();
+
   if (!it || !it.price || typeof (it as any).price.a !== "number") {
     throw new Error("Item price.a not found");
   }
-  return Number(((it as any).price.a * 1.2).toFixed(2));
+
+  const pricePerKg = Number((it as any).price.a);
+
+  const byUnit = !!(it as any).sellModes?.byUnit;
+  const unitBundleSize = Math.max(1, (it as any).sellModes?.unitBundleSize ?? 1);
+  const avg = (it as any).avgWeightPerUnitGr ?? null;
+  const sd = (it as any).sdWeightPerUnitGr ?? 0;
+
+  // derive pricePerUnit from avg unless override exists
+  let pricePerUnitDerived: number | null = null;
+  if (byUnit) {
+    const override = (it as any).pricePerUnitOverride;
+    if (typeof override === "number" && override >= 0) {
+      pricePerUnitDerived = override;
+    } else if (avg && pricePerKg) {
+      pricePerUnitDerived = pricePerKg * (avg / 1000);
+    }
+  }
+
+  return {
+    pricePerKg,
+    byUnit,
+    unitBundleSize,
+    avgWeightPerUnitGr: avg,
+    sdWeightPerUnitGr: sd,
+    pricePerUnitDerived,
+  };
 }
+
+/** Conservative estimate of how many units are obtainable from available KG. */
+function conservativeUnitsEstimate(args: {
+  availableKg: number;
+  avgGr: number;
+  sdGr?: number;
+  zScore?: number;
+  shrinkagePct?: number;
+  bundle?: number;
+}) {
+  const { availableKg, avgGr, sdGr = 0, zScore = 1.28, shrinkagePct = 0.02, bundle = 1 } = args;
+  if (!availableKg || !avgGr) return 0;
+
+  const effKgPerUnit = (avgGr + zScore * sdGr) / 1000;
+  const est = Math.floor(availableKg / (effKgPerUnit * (1 + shrinkagePct)));
+  return Math.max(0, Math.floor(est / bundle) * bundle);
+}
+
+/* ----------------------------- atomic qty adjustment ----------------------------- */
 
 /**
  * Atomically adjust quantity by deltaKg for a specific line in items[].
@@ -189,15 +259,8 @@ export async function adjustAvailableQtyAtomic(params: {
   enforceEnoughForReserve?: boolean;
   session?: ClientSession | null;
 }) {
-  const {
-    docId,
-    lineId,
-    deltaKg,
-    enforceEnoughForReserve = true,
-    session,
-  } = params;
-  if (!deltaKg || !Number.isFinite(deltaKg))
-    throw new Error("deltaKg must be a non-zero finite number");
+  const { docId, lineId, deltaKg, enforceEnoughForReserve = true, session } = params;
+  if (!deltaKg || !Number.isFinite(deltaKg)) throw new Error("deltaKg must be a non-zero finite number");
 
   const _docId = new Types.ObjectId(docId);
   const _lineId = new Types.ObjectId(lineId);
@@ -232,10 +295,7 @@ export async function adjustAvailableQtyAtomic(params: {
                             $min: [
                               "$$it.originalCommittedQuantityKg",
                               {
-                                $add: [
-                                  "$$it.currentAvailableQuantityKg",
-                                  deltaKg,
-                                ],
+                                $add: ["$$it.currentAvailableQuantityKg", deltaKg],
                               },
                             ],
                           },
@@ -256,13 +316,40 @@ export async function adjustAvailableQtyAtomic(params: {
   const result = await q.exec();
 
   if (result.matchedCount === 0) {
-    if (deltaKg < 0 && enforceEnoughForReserve)
-      throw new Error("Not enough available quantity to reserve");
+    if (deltaKg < 0 && enforceEnoughForReserve) throw new Error("Not enough available quantity to reserve");
     throw new Error("Document not found or lineId invalid");
+  }
+
+  // Best-effort: recompute the units estimate for that line (non-atomic follow-up).
+  try {
+    const doc = await AvailableMarketStockModel.findById(_docId, {
+      items: { $elemMatch: { _id: _lineId } },
+    }).lean();
+
+    const line = (doc as any)?.items?.[0];
+    if (line?.unitMode?.enabled && line?.unitMode?.avgWeightPerUnitGr) {
+      const estimate = conservativeUnitsEstimate({
+        availableKg: line.currentAvailableQuantityKg,
+        avgGr: line.unitMode.avgWeightPerUnitGr,
+        sdGr: line.unitMode.sdWeightPerUnitGr ?? 0,
+        zScore: line.unitMode.zScore ?? 1.28,
+        shrinkagePct: line.unitMode.shrinkagePct ?? 0.02,
+        bundle: Math.max(1, line.unitMode.unitBundleSize ?? 1),
+      });
+
+      await AvailableMarketStockModel.updateOne(
+        { _id: _docId, "items._id": _lineId },
+        { $set: { "items.$.estimates.availableUnitsEstimate": estimate } }
+      ).exec();
+    }
+  } catch {
+    // swallow silently; not critical
   }
 
   return { ok: true };
 }
+
+/* ------------------------------ add/update/remove ------------------------------ */
 
 export async function addItemToAvailableMarketStock(params: {
   docId: string;
@@ -271,36 +358,93 @@ export async function addItemToAvailableMarketStock(params: {
     displayName: string;
     imageUrl?: string | null;
     category: string;
-    pricePerUnit?: number;
+    pricePerUnit?: number; // optional: if omitted we derive it
     originalCommittedQuantityKg: number;
     currentAvailableQuantityKg: number;
     farmerOrderId?: string | null;
     farmerID: string;
     farmerName: string;
     farmName: string;
+    farmLogo?: string | null; // optional
     status?: "active" | "soldout" | "removed";
   };
 }) {
   const { docId, item } = params;
 
-  let pricePerUnit = item.pricePerUnit;
-  if (pricePerUnit == null)
-    pricePerUnit = await computePriceFromItem(item.itemId);
+  // --- Fetch item for pricing & unit info ---
+  const itemDoc = await ItemModel.findById(item.itemId, {
+    price: 1,
+    avgWeightPerUnitGr: 1,
+    sdWeightPerUnitGr: 1,
+    sellModes: 1,
+  }).lean();
 
-  const payload = {
+  if (!itemDoc || !itemDoc.price || typeof (itemDoc as any).price.a !== "number") {
+    throw new Error("Item price.a not found");
+  }
+
+  const pricePerKg: number = (itemDoc as any).price.a;
+  const avgGr: number | null = (itemDoc as any).avgWeightPerUnitGr ?? null;
+  const sdGr: number | null = (itemDoc as any).sdWeightPerUnitGr ?? null;
+
+  // --- Derive pricePerUnit if not provided ---
+  // If we have avg weight: pricePerUnit = pricePerKg * (avgGr/1000)
+  // Else fallback to pricePerKg just to satisfy legacy requirement
+  let pricePerUnit = item.pricePerUnit;
+  if (pricePerUnit == null) {
+    pricePerUnit =
+      avgGr && avgGr > 0 ? pricePerKg * (avgGr / 1000) : pricePerKg;
+  }
+
+  // --- Determine unitMode (kg | unit | mixed) ---
+  // Prefer sellModes if present; otherwise infer from avg weight
+  let unitMode: "kg" | "unit" | "mixed" = "kg";
+  const byUnit = !!(itemDoc as any).sellModes?.byUnit;
+  const byKg = (itemDoc as any).sellModes?.byKg !== false; // default true
+
+  if (byUnit && byKg) unitMode = "mixed";
+  else if (byUnit) unitMode = "unit";
+  else unitMode = avgGr && avgGr > 0 ? "unit" : "kg";
+
+  // --- Compute estimates (kg-based) ---
+  const avgWeightPerUnitKg =
+    avgGr && avgGr > 0 ? avgGr / 1000 : null;
+  const stdDevKg =
+    sdGr && sdGr > 0 ? sdGr / 1000 : null;
+  const availableUnitsEstimate =
+    avgWeightPerUnitKg
+      ? Math.floor(item.currentAvailableQuantityKg / avgWeightPerUnitKg)
+      : null;
+
+  // --- Build payload aligned to your current AMS model ---
+  const payload: any = {
     itemId: new Types.ObjectId(item.itemId),
     displayName: item.displayName,
     imageUrl: item.imageUrl ?? null,
     category: item.category,
+
+    // legacy required field (UI can still read this)
     pricePerUnit,
+
+    // canonical inventory
     originalCommittedQuantityKg: item.originalCommittedQuantityKg,
     currentAvailableQuantityKg: item.currentAvailableQuantityKg,
-    farmerOrderId: item.farmerOrderId
-      ? new Types.ObjectId(item.farmerOrderId)
-      : null,
+
+    farmerOrderId: item.farmerOrderId ? new Types.ObjectId(item.farmerOrderId) : null,
+
     farmerID: new Types.ObjectId(item.farmerID),
     farmerName: item.farmerName,
     farmName: item.farmName,
+    farmLogo: item.farmLogo ?? null,
+
+    unitMode, // "kg" | "unit" | "mixed"
+
+    estimates: {
+      avgWeightPerUnitKg,
+      stdDevKg,
+      availableUnitsEstimate,
+    },
+
     status: item.status ?? "active",
   };
 
@@ -330,12 +474,25 @@ export async function updateItemQtyStatusAtomic(params: {
   if (!line) throw new Error("Line item not found");
 
   if (typeof currentAvailableQuantityKg === "number") {
-    if (currentAvailableQuantityKg < 0)
-      throw new Error("Quantity cannot be negative");
+    if (currentAvailableQuantityKg < 0) throw new Error("Quantity cannot be negative");
     if (currentAvailableQuantityKg > line.originalCommittedQuantityKg) {
       throw new Error("Exceeds original committed quantity");
     }
     line.currentAvailableQuantityKg = currentAvailableQuantityKg;
+
+    // keep estimates in sync if unit mode is enabled
+    if (line.unitMode?.enabled && line.unitMode?.avgWeightPerUnitGr) {
+      const est = conservativeUnitsEstimate({
+        availableKg: line.currentAvailableQuantityKg,
+        avgGr: line.unitMode.avgWeightPerUnitGr,
+        sdGr: line.unitMode.sdWeightPerUnitGr ?? 0,
+        zScore: line.unitMode.zScore ?? 1.28,
+        shrinkagePct: line.unitMode.shrinkagePct ?? 0.02,
+        bundle: Math.max(1, line.unitMode.unitBundleSize ?? 1),
+      });
+      if (!line.estimates) line.estimates = {};
+      line.estimates.availableUnitsEstimate = est;
+    }
   }
   if (status) line.status = status;
 

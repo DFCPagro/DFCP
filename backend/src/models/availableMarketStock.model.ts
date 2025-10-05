@@ -8,6 +8,12 @@ export type ShiftName = (typeof SHIFT_NAMES)[number];
 export const ITEM_STATUSES = ["active", "soldout", "removed"] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
+export const UNIT_MODES = ["kg", "unit", "mixed"] as const;
+export type UnitMode = (typeof UNIT_MODES)[number];
+
+// -----------------------------
+// Subschema for AMS items
+// -----------------------------
 const AvailableStockItemSchema = new Schema(
   {
     itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
@@ -16,6 +22,7 @@ const AvailableStockItemSchema = new Schema(
     imageUrl: { type: String, default: null },
     category: { type: String, required: true, trim: true, index: true },
 
+    // price.a from Item model (price per KG)
     pricePerUnit: { type: Number, required: true, min: 0 },
 
     currentAvailableQuantityKg: { type: Number, required: true, min: 0 },
@@ -26,13 +33,24 @@ const AvailableStockItemSchema = new Schema(
     farmerID: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
-    farmLogo:{type: String, required: false},
+    farmLogo: { type: String, default: null },
+
+    // NEW: selling mode (by kg or units)
+    unitMode: { type: String, enum: UNIT_MODES, default: "kg" },
+
+    // NEW: estimates for unit-based display
+    estimates: {
+      avgWeightPerUnitKg: { type: Number, default: null },
+      stdDevKg: { type: Number, default: null },
+      availableUnitsEstimate: { type: Number, default: null },
+    },
 
     status: { type: String, enum: ITEM_STATUSES, default: "active", index: true },
   },
   { _id: true }
 );
 
+// Ensure available qty doesn’t exceed committed qty
 AvailableStockItemSchema
   .path("currentAvailableQuantityKg")
   .validate(function (this: any, value: number) {
@@ -41,6 +59,9 @@ AvailableStockItemSchema
 
 export type AvailableStockItem = InferSchemaType<typeof AvailableStockItemSchema>;
 
+// -----------------------------
+// Root AMS schema
+// -----------------------------
 const AvailableMarketStockSchema = new Schema(
   {
     availableDate: { type: Date, required: true, index: true },
@@ -65,8 +86,11 @@ AvailableMarketStockSchema.pre("validate", function (next) {
   next();
 });
 
-// Uniqueness per LC+date+shift
-AvailableMarketStockSchema.index({ LCid: 1, availableDate: 1, availableShift: 1 }, { unique: true, name: "uniq_lc_date_shift" });
+// Unique per LC + date + shift
+AvailableMarketStockSchema.index(
+  { LCid: 1, availableDate: 1, availableShift: 1 },
+  { unique: true, name: "uniq_lc_date_shift" }
+);
 
 // Helpful nested indexes
 AvailableMarketStockSchema.index({ "items.itemId": 1 });
@@ -74,10 +98,14 @@ AvailableMarketStockSchema.index({ "items.farmerID": 1 });
 
 AvailableMarketStockSchema.plugin(toJSON);
 
+// -----------------------------
+// Types & Model
+// -----------------------------
 export type AvailableMarketStock = InferSchemaType<typeof AvailableMarketStockSchema>;
 export type AvailableMarketStockDoc = HydratedDocument<AvailableMarketStock>;
 
 export const AvailableMarketStockModel =
-  models.AvailableMarketStock || model<AvailableMarketStock>("AvailableMarketStock", AvailableMarketStockSchema);
+  models.AvailableMarketStock ||
+  model<AvailableMarketStock>("AvailableMarketStock", AvailableMarketStockSchema);
 
 export default AvailableMarketStockModel;

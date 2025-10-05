@@ -1,11 +1,12 @@
 import mongoose,{Types} from "mongoose";
 import { FarmerOrder } from "../models/farmerOrder.model";
 import { Item } from "../models/Item.model"; // used to enrich AMS line (category/displayName/image)
-
+import { Farmer } from "../models/farmer.model";
 // Use your existing AMS helpers:
 import {
   addItemToAvailableMarketStock,
   getAvailableMarketStockByKey,
+  findOrCreateAvailableMarketStock,
 } from "../services/availableMarketStock.service";
 
 const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
@@ -216,7 +217,7 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
     throw e;
   }
 
-  // auth per your rule
+  // Authorization
   const isOwnerFarmer = user.role === "farmer" && String(order.farmerId) === String(user.id);
   const isManagerOrAdmin = user.role === "fManager" || user.role === "admin";
   if (!isOwnerFarmer && !isManagerOrAdmin) {
@@ -231,11 +232,11 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
   order.farmerStatus = status;
 
   if (status === "ok") {
-    // 1) farmerAck -> ok
+    // 1) mark farmer stage ok
     order.markStageOk("farmerAck", order.updatedBy as any, { note: note ?? "" });
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", { newStatus: "ok" });
 
-    // 2) AMS upsert
+    // 2) Prepare AMS item
     const itemDoc = await Item.findById(order.itemId).lean();
     if (!itemDoc) {
       const e: any = new Error("BadRequest");
@@ -244,26 +245,59 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       throw e;
     }
 
-    const amsDocId = await ensureAMSAndGetId({
+    // Try to get farm logo (optional)
+    let farmLogo: string | undefined;
+    try {
+      const farmerDoc = await Farmer.findById(order.farmerId, { farmLogo: 1 }).lean();
+      farmLogo = farmerDoc?.farmLogo ?? (order as any)?.farmLogo ?? undefined;
+    } catch {
+      farmLogo = (order as any)?.farmLogo ?? undefined;
+    }
+
+    // 3) Get or create AMS doc for LC + date + shift
+    const amsDoc = await findOrCreateAvailableMarketStock({
       LCid: order.logisticCenterId,
       date: order.pickUpDate,
-      shift: order.shift as Shift,
+      shift: order.shift,
+      createdById: order.updatedBy,
     });
+    const amsDocId = String(amsDoc._id);
 
+    // normalize committed kg
+    const committedKg = Math.max(
+      0,
+      Number(
+        (order as any).forcastedQuantityKg ??
+          (order as any).forecastedQuantityKg ??
+          (order as any).allocatedQuantityKg ??
+          0
+      )
+    );
+
+    // build display name
+    const displayName =
+      (itemDoc.variety ? `${itemDoc.type} ${itemDoc.variety}` : itemDoc.type) ||
+      (order.variety ? `${order.type ?? ""} ${order.variety}`.trim() : order.type) ||
+      "Unknown Item";
+
+    // 4) Push to AMS stock
     await addItemToAvailableMarketStock({
       docId: amsDocId,
       item: {
         itemId: String(order.itemId),
-        displayName: itemDoc.type ?? itemDoc.variety ?? `${order.type} ${order.variety}`.trim(),
-        imageUrl: itemDoc.imageUrl ?? order.pictureUrl ?? null,
-        category: itemDoc.category ?? "unknown",
-        // pricePerUnit: (omit to let helper compute via computePriceFromItem)
-        originalCommittedQuantityKg: Number(order.forcastedQuantityKg) || 0,
-        currentAvailableQuantityKg: Number(order.forcastedQuantityKg) || 0,
+        displayName,
+        imageUrl: itemDoc.imageUrl ?? (order as any).pictureUrl ?? null,
+        category: (itemDoc as any).category ?? "unknown",
+
+        originalCommittedQuantityKg: committedKg,
+        currentAvailableQuantityKg: committedKg,
+
         farmerOrderId: String(order._id),
         farmerID: String(order.farmerId),
         farmerName: order.farmerName,
         farmName: order.farmName,
+        farmLogo, // ✅ new
+
         status: "active",
       },
     });
@@ -274,13 +308,20 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       shift: order.shift,
       itemId: order.itemId,
       farmerId: order.farmerId,
-      qtyForecast: order.forcastedQuantityKg,
+      qtyForecast:
+        (order as any).forcastedQuantityKg ??
+        (order as any).forecastedQuantityKg ??
+        (order as any).allocatedQuantityKg ??
+        0,
     });
 
-    // 3) farmerAck -> done; 4) quality check current
-    order.markStageDone("farmerAck", order.updatedBy as any, { note: "Farmer approved; moved to QS" });
-    order.setStageCurrent("farmerQSrep", order.updatedBy as any, { note: "Quality check in progress" });
-
+    // 5) update pipeline to next stages
+    order.markStageDone("farmerAck", order.updatedBy as any, {
+      note: "Farmer approved; moved to QS",
+    });
+    order.setStageCurrent("farmerQSrep", order.updatedBy as any, {
+      note: "Quality check in progress",
+    });
   } else if (status === "problem") {
     // Halt pipeline: clear any "current"
     for (const s of (order.stages as any[]) ?? []) {
@@ -293,11 +334,14 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       note: note ?? "HALT: farmer reported problem",
     });
     order.addAudit(order.updatedBy as any, "PIPELINE_HALT", note ?? "Farmer reported problem");
-    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", { newStatus: "problem" });
-
+    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
+      newStatus: "problem",
+    });
   } else {
     // Allow revert to pending (optional)
-    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", { newStatus: "pending" });
+    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
+      newStatus: "pending",
+    });
   }
 
   await order.save();

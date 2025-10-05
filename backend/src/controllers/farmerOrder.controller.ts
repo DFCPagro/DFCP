@@ -50,10 +50,10 @@ export async function updateStageStatus(req: Request, res: Response) {
     const user = (req as any).user as AuthUser | undefined;
     if (!user?.id) return res.status(401).json({ error: "Unauthorized" });
 
-    const orderId = req.params.id;
+    const farmerOrderId = req.params.id;
     const { key, action, note } = req.body ?? {};
 
-    const data = await updateStageStatusService({ orderId, key, action, note, user });
+    const data = await updateStageStatusService({ farmerOrderId, key, action, note, user });
     return res.status(200).json({ data });
   } catch (err: any) {
     if (err?.name === "BadRequest")  return res.status(400).json({ error: "Validation failed", details: err.details });

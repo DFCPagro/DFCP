@@ -44,7 +44,7 @@ const UserSchema = new Schema(
     // active after verification later; default true for now
     activeStatus: { type: Boolean, default: true },
 
-    points: {type: Number, default:0},
+    coins: {type: Number, default:0},
     // addresses array (subdocuments)
     addresses: {
       type: [AddressSchema],
