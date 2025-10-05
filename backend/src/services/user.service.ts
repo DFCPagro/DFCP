@@ -254,6 +254,7 @@ export type ContactInfo = {
   role: Role | string;
   // added only for farmer role
   farmName?: string | "Freshy Fresh";
+  farmLogo?:string |"none";
 };
 
 /**
@@ -277,6 +278,7 @@ export async function getContactInfoByIdService(userId: string): Promise<Contact
     // Only for farmers, enrich with farmName from Farmer collection
     const farmer = await Farmer.findOne({ user: userId }, { farmName: 1 }).lean();
     base.farmName = farmer?.farmName ?? "freshy fresh";
+    base.farmLogo=farmer?.farmLogo?? "none";
   }
 
   return base;
