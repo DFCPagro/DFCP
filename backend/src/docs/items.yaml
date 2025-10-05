@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Items API
-  version: 1.0.0
+  version: 1.1.0
 
 tags:
   - name: Items
@@ -21,7 +21,8 @@ paths:
           name: category
           schema:
             type: string
-          description: Filter by category (enum depends on catalog)
+            enum: [fruit, vegetable]
+          description: Filter by category
         - in: query
           name: type
           schema: { type: string }
@@ -47,7 +48,7 @@ paths:
         - in: query
           name: sort
           schema: { type: string, example: "-updatedAt" }
-          description: Comma-separated fields, prefix with '-' for desc
+          description: Comma-separated fields; prefix with '-' for desc
       responses:
         '200':
           description: Paginated items
@@ -78,20 +79,31 @@ paths:
                         type: "Apple"
                         variety: "Fuji"
                         category: "fruit"
-                        caloriesPer100gr: 52
+                        caloriesPer100g: 52
                         customerInfo: ["High in vitamin C"]
+                        price: { a: 2.5, b: 2, c: 1.5 }
+                        sellModes: { byKg: true, byUnit: true, unitBundleSize: 1 }
+                        avgWeightPerUnitGr: 180
+                        sdWeightPerUnitGr: 20
+                        tolerance: "0.02"
                         createdAt: "2025-09-21T08:00:00.000Z"
                         updatedAt: "2025-10-02T13:00:00.000Z"
                     page: 1
                     limit: 20
                     total: 1
                     pages: 1
-
     post:
       tags: [Items]
       summary: Create a new item (admin/fManager)
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ItemCreate'
       responses:
         '201':
           description: Created
@@ -116,7 +128,9 @@ paths:
         - in: path
           name: itemId
           required: true
-          schema: { type: string }
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
       responses:
         '200':
           description: Item
@@ -138,7 +152,6 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorMessage' }
               example: { message: "Item not found" }
-
     patch:
       tags: [Items]
       summary: Partially update an item (admin/fManager)
@@ -148,7 +161,15 @@ paths:
         - in: path
           name: itemId
           required: true
-          schema: { type: string }
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemPatch'
       responses:
         '200':
           description: Updated item
@@ -169,7 +190,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorMessage' }
-
     put:
       tags: [Items]
       summary: Replace an item (admin/fManager)
@@ -179,7 +199,16 @@ paths:
         - in: path
           name: itemId
           required: true
-          schema: { type: string }
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ItemCreate'
       responses:
         '200':
           description: Replaced item
@@ -200,7 +229,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorMessage' }
-
     delete:
       tags: [Items]
       summary: Delete an item (admin)
@@ -210,7 +238,9 @@ paths:
         - in: path
           name: itemId
           required: true
-          schema: { type: string }
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
       responses:
         '204':
           description: Deleted
@@ -240,7 +270,9 @@ paths:
           name: itemId
           required: true
           description: The MongoDB ObjectId of the item
-          schema: { type: string }
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
       responses:
         '200':
           description: Item benefits
@@ -255,7 +287,7 @@ paths:
               example:
                 data:
                   customerInfo: ["High in vitamin C", "Good for immunity"]
-                  caloriesPer100gr: 52
+                  caloriesPer100g: 52
         '400':
           description: Invalid itemId
           content:
@@ -280,12 +312,16 @@ paths:
           name: itemId
           required: true
           description: The MongoDB ObjectId of the item
-          schema: { type: string }
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
         - in: path
           name: farmerUserId
           required: true
           description: The MongoDB ObjectId of the farmer's linked User
-          schema: { type: string }
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
       responses:
         '200':
           description: Combined item and farmer info
@@ -301,7 +337,7 @@ paths:
                 data:
                   item:
                     customerInfo: ["High in vitamin C", "Good for immunity"]
-                    caloriesPer100gr: 52
+                    caloriesPer100g: 52
                   farmer:
                     logo: "https://example.com/user-logo.png"
                     farmName: "Green Valley Farm"
@@ -329,22 +365,148 @@ components:
 
   schemas:
     # ---------- Core item shapes ----------
-    ItemFull:
+    Price:
       type: object
-      description: Full item object (privileged view)
+      properties:
+        a: { type: number, minimum: 0, nullable: true, description: Base price per KG }
+        b: { type: number, minimum: 0, nullable: true }
+        c: { type: number, minimum: 0, nullable: true }
+
+    SellModes:
+      type: object
+      properties:
+        byKg: { type: boolean, default: true }
+        byUnit: { type: boolean, default: false }
+        unitBundleSize: { type: integer, minimum: 1, default: 1 }
+
+    QualityStandards:
+      type: object
+      description: Quality/tolerance descriptors (free-form strings per grade).
+      properties:
+        brix:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        acidityPercentage:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        pressure:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        colorDescription:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        colorPercentage:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        weightPerUnitG:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        diameterMM:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        qualityGrade:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        maxDefectRatioLengthDiameter:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+        rejectionRate:
+          type: object
+          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
+
+    ItemBase:
+      type: object
       properties:
         _id: { type: string }
         type: { type: string }
-        variety: { type: string }
-        category: { type: string }
-        caloriesPer100gr:
-          type: number
-          nullable: true
+        variety: { type: string, nullable: true }
+        category:
+          type: string
+          enum: [fruit, vegetable]
+        imageUrl: { type: string, nullable: true, format: uri }
+        season: { type: string, nullable: true }
+        farmerTips: { type: string, nullable: true }
         customerInfo:
           type: array
           items: { type: string }
+          default: []
+        caloriesPer100g: { type: number, minimum: 0, nullable: true }
+        price:
+          $ref: '#/components/schemas/Price'
+        avgWeightPerUnitGr: { type: number, minimum: 0, nullable: true }
+        sdWeightPerUnitGr: { type: number, minimum: 0, default: 0 }
+        avgQmPerUnit: { type: number, minimum: 0, nullable: true }
+        weightPerUnitG: { type: number, minimum: 0, nullable: true, description: Legacy alias for avgWeightPerUnitGr }
+        sellModes: { $ref: '#/components/schemas/SellModes' }
+        pricePerUnitOverride: { type: number, minimum: 0, nullable: true }
+        qualityStandards: { $ref: '#/components/schemas/QualityStandards' }
+        tolerance:
+          type: string
+          example: "0.02"
+          description: Decimal fraction as string (e.g. "0.02" for ±2%)
+        lastUpdated: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    ItemFull:
+      allOf:
+        - $ref: '#/components/schemas/ItemBase'
+
+    ItemCreate:
+      type: object
+      required: [category, type, variety]
+      properties:
+        category:
+          type: string
+          enum: [fruit, vegetable]
+        type: { type: string }
+        variety: { type: string }
+        imageUrl: { type: string, nullable: true, format: uri }
+        season: { type: string, nullable: true }
+        farmerTips: { type: string, nullable: true }
+        customerInfo:
+          type: array
+          items: { type: string }
+        caloriesPer100g: { type: number, minimum: 0, nullable: true }
+        price:
+          $ref: '#/components/schemas/Price'
+        avgWeightPerUnitGr: { type: number, minimum: 0, nullable: true }
+        sdWeightPerUnitGr: { type: number, minimum: 0 }
+        avgQmPerUnit: { type: number, minimum: 0, nullable: true }
+        weightPerUnitG: { type: number, minimum: 0, nullable: true }
+        sellModes: { $ref: '#/components/schemas/SellModes' }
+        pricePerUnitOverride: { type: number, minimum: 0, nullable: true }
+        qualityStandards: { $ref: '#/components/schemas/QualityStandards' }
+        tolerance:
+          type: string
+          example: "0.02"
+        lastUpdated: { type: string, format: date-time }
+
+    ItemPatch:
+      type: object
+      description: Any subset of fields from ItemCreate
+      properties:
+        category: { type: string, enum: [fruit, vegetable] }
+        type: { type: string }
+        variety: { type: string }
+        imageUrl: { type: string, nullable: true, format: uri }
+        season: { type: string, nullable: true }
+        farmerTips: { type: string, nullable: true }
+        customerInfo:
+          type: array
+          items: { type: string }
+        caloriesPer100g: { type: number, minimum: 0, nullable: true }
+        price: { $ref: '#/components/schemas/Price' }
+        avgWeightPerUnitGr: { type: number, minimum: 0, nullable: true }
+        sdWeightPerUnitGr: { type: number, minimum: 0 }
+        avgQmPerUnit: { type: number, minimum: 0, nullable: true }
+        weightPerUnitG: { type: number, minimum: 0, nullable: true }
+        sellModes: { $ref: '#/components/schemas/SellModes' }
+        pricePerUnitOverride: { type: number, minimum: 0, nullable: true }
+        qualityStandards: { $ref: '#/components/schemas/QualityStandards' }
+        tolerance:
+          type: string
+          example: "0.02"
 
     ItemPublic:
       type: object
@@ -352,7 +514,7 @@ components:
       properties:
         _id: { type: string }
         displayName: { type: string }
-        category: { type: string }
+        category: { type: string, enum: [fruit, vegetable] }
         itemUrl: { type: string }
 
     # ---------- List response wrappers ----------
@@ -385,7 +547,7 @@ components:
         customerInfo:
           type: array
           items: { type: string }
-        caloriesPer100gr:
+        caloriesPer100g:
           type: number
           nullable: true
 

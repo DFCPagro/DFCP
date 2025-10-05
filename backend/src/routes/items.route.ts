@@ -10,46 +10,74 @@ import {
   marketItemPage,
 } from "@/controllers/items.controller";
 import { authenticate, authorize, authenticateIfPresent } from "@/middlewares/auth";
-
+import { Types } from "mongoose";
 
 const router = Router();
 
-/**
- * @route   GET /items
- * Public route, but if a valid Bearer token of admin/fManager is present,
- * controllers will detect req.user and return full item data.
- */
+// Optional: tiny param guard middleware (keeps controllers cleaner)
+const requireObjectIdParam = (paramName: string) => (
+  req: any, res: any, next: any
+) => {
+  const id = req.params?.[paramName];
+  if (!Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: `Invalid ${paramName}` });
+  }
+  next();
+};
+
+// Put specific routes BEFORE the catch-all "/:itemId"
+
+// Market helpers (protected)
+router.get(
+  "/benefits/:itemId",
+  authenticate,
+  requireObjectIdParam("itemId"),
+  getItemBenefits
+);
+
+router.get(
+  "/marketItemPage/:itemId/:farmerUserId",
+  authenticate,
+  requireObjectIdParam("itemId"),
+  requireObjectIdParam("farmerUserId"),
+  marketItemPage
+);
+
+// List (public; optional auth)
 router.get("/", authenticateIfPresent, listItemsHandler);
 
-/**
- * @route   POST /items (protected)
- */
+// CRUD
 router.post("/", authenticate, authorize("admin", "fManager"), createItemHandler);
 
-/**
- * @route   GET /items/:itemId
- * Public route, same optional auth behavior.
- */
-router.get("/:itemId", authenticateIfPresent, getItemHandler);
+router.get(
+  "/:itemId",
+  authenticateIfPresent,
+  requireObjectIdParam("itemId"),
+  getItemHandler
+);
 
-/**
- * @route   PATCH /items/:itemId (protected)
- */
-router.patch("/:itemId", authenticate, authorize("admin", "fManager"), patchItemHandler);
+router.patch(
+  "/:itemId",
+  authenticate,
+  authorize("admin", "fManager"),
+  requireObjectIdParam("itemId"),
+  patchItemHandler
+);
 
-/**
- * @route   PUT /items/:itemId (protected)
- */
-router.put("/:itemId", authenticate, authorize("admin", "fManager"), putItemHandler);
+router.put(
+  "/:itemId",
+  authenticate,
+  authorize("admin", "fManager"),
+  requireObjectIdParam("itemId"),
+  putItemHandler
+);
 
-/**
- * @route   DELETE /items/:itemId (protected)
- */
-router.delete("/:itemId", authenticate, authorize("admin"), deleteItemHandler);
-
-
-//for market page
-router.get("/benefits/:itemId",authenticate,getItemBenefits);
-router.get("/marketItemPage/:itemId/:farmerUserId",authenticate, marketItemPage);
+router.delete(
+  "/:itemId",
+  authenticate,
+  authorize("admin"),
+  requireObjectIdParam("itemId"),
+  deleteItemHandler
+);
 
 export default router;

@@ -30,7 +30,6 @@ const toFullItem = (docOrObj: any) => {
   if (obj && !("_id" in obj) && docOrObj?._id) {
     obj._id = String(docOrObj._id);
   }
-  // If _id exists but is an ObjectId, stringify for consistency
   if (obj && obj._id && typeof obj._id !== "string") {
     try { obj._id = String(obj._id); } catch {}
   }
@@ -56,7 +55,6 @@ export async function createItemHandler(req: Request, res: Response, next: NextF
   try {
     if (req.body?._id) delete req.body._id; // ignore _id if provided
     const doc = await createItem(req.body);
-    // createItem already returns plain object in your service, but normalize anyway
     res.status(201).json(toFullItem(doc));
   } catch (err) { next(err); }
 }
@@ -95,8 +93,6 @@ export async function listItemsHandler(req: Request, res: Response, next: NextFu
         limit: limit != null ? Number(limit) : undefined,
         sort: typeof sort === "string" ? sort : undefined,
         projection: privileged ? undefined : PUBLIC_ITEM_PROJECTION,
-        // Public = lean true (we reshape anyway). Privileged = non-lean (validators/hooks apply),
-        // then we normalize to ensure `_id` is present.
         lean: !privileged,
       }
     );
@@ -106,7 +102,6 @@ export async function listItemsHandler(req: Request, res: Response, next: NextFu
       return res.json({ ...data, items });
     }
 
-    // privileged: ensure `_id` exists even if toJSON plugin hid it
     const items = data.items.map((it: any) => toFullItem(it));
     return res.json({ ...data, items });
   } catch (err) { next(err); }
@@ -130,7 +125,6 @@ export async function getItemHandler(req: Request, res: Response, next: NextFunc
       return res.json(toPublicItem(req, obj));
     }
 
-    // privileged: return full data and guarantee `_id`
     return res.json(toFullItem(doc));
   } catch (err) { next(err); }
 }
@@ -184,7 +178,6 @@ export async function deleteItemHandler(req: Request, res: Response, next: NextF
   } catch (err) { next(err); }
 }
 
-
 export async function getItemBenefits(req: Request, res: Response, next: NextFunction) {
   try {
     const { itemId } = req.params;
@@ -195,7 +188,7 @@ export async function getItemBenefits(req: Request, res: Response, next: NextFun
     const data = await itemBenefits(itemId);
     if (!data) return res.status(404).json({ message: "Item not found" });
 
-    // ✅ send the data (not 204)
+    // NOTE: now returns caloriesPer100g key
     res.status(200).json({ data });
   } catch (err) {
     next(err);
@@ -204,17 +197,16 @@ export async function getItemBenefits(req: Request, res: Response, next: NextFun
 
 export async function marketItemPage(req: Request, res: Response, next: NextFunction) {
   try {
-    // ✅ match the route param name
     const { itemId, farmerUserId } = req.params;
 
     if (!ensureValidObjectId(itemId) || !ensureValidObjectId(farmerUserId)) {
       throw new ApiError(400, "itemId and farmerUserId are required and must be valid ObjectIds");
     }
 
-    // ✅ correct service name
     const data = await marketItemPageData(itemId, farmerUserId);
     if (!data) throw new ApiError(404, "Item or Farmer not found");
 
+    // NOTE: data.item.caloriesPer100g now
     res.status(200).json({ data });
   } catch (err) {
     next(err);

@@ -6,6 +6,9 @@ import ItemModel, {
 } from "../models/Item.model";
 import { getFarmerBioByUserId } from "./farmer.service";
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Filters & options
+// ───────────────────────────────────────────────────────────────────────────────
 export type ListItemsFilters = {
   category?: ItemCategory;
   type?: string;
@@ -25,8 +28,93 @@ export type ListItemsOptions = {
 
 const DEFAULT_LIMIT = 20;
 
+// ───────────────────────────────────────────────────────────────────────────────
+// Normalizers for the new model fields
+// ───────────────────────────────────────────────────────────────────────────────
+function normalizeTolerance(input: unknown): string | null {
+  if (input == null) return null;
+  const raw = String(input).trim();
+  // Accept "±2%", "+/-2%", "0.02", "2%" etc., store as "0.02"
+  const pctMatch = raw.match(/([+-]?\d+(\.\d+)?)\s*%/);
+  if (pctMatch) {
+     const val = Number(pctMatch[1]) / 100;
+     return Number.isFinite(val) ? val.toString() : null;
+  }
+  const plusMinusMatch = raw.replace(/[±]|(\+\/-)/g, "").trim();
+  const asNum = Number(plusMinusMatch);
+  if (Number.isFinite(asNum)) {
+    // If value seems like 0.x keep as-is, if looks like 2, treat as 2%
+    return (asNum > 1 ? asNum / 100 : asNum).toString();
+  }
+  return null;
+}
+
+function normalizeSellModes(input: any) {
+  const defaults = { byKg: true, byUnit: false, unitBundleSize: 1 };
+  if (!input || typeof input !== "object") return defaults;
+  return {
+    byKg: typeof input.byKg === "boolean" ? input.byKg : true,
+    byUnit: typeof input.byUnit === "boolean" ? input.byUnit : false,
+    unitBundleSize: Number.isFinite(Number(input.unitBundleSize))
+      ? Number(input.unitBundleSize)
+      : 1,
+  };
+}
+
+function normalizeImageUrl(url: unknown): string | null {
+  if (typeof url !== "string") return null;
+  const trimmed = url.trim();
+  return trimmed || null;
+}
+
+function normalizeWeights(payload: any) {
+  const copy = { ...payload };
+
+  // Legacy alias support at payload level (your schema hook also covers nested QS)
+  if ((copy.avgWeightPerUnitGr == null) && (copy.weightPerUnitG != null)) {
+    copy.avgWeightPerUnitGr = copy.weightPerUnitG;
+  }
+
+  // Default sdWeightPerUnitGr to 0 if supplied as null/undefined
+  if (copy.sdWeightPerUnitGr == null) copy.sdWeightPerUnitGr = 0;
+
+  return copy;
+}
+
+function normalizeBeforeWrite(payload: Partial<ItemType>): Partial<ItemType> {
+  const p: any = { ...payload };
+
+  // tolerance → "0.02" style string
+  if ("tolerance" in p) {
+    const t = normalizeTolerance(p.tolerance);
+    if (t != null) p.tolerance = t;
+    else if (p.tolerance == null) {/* keep null/undefined */} 
+    else delete p.tolerance; // bad format → drop and let model default
+  }
+
+  // sellModes defaults
+  if ("sellModes" in p || p.sellModes == null) {
+    p.sellModes = normalizeSellModes(p.sellModes);
+  }
+
+  // imageUrl cleanup
+  if ("imageUrl" in p) {
+    p.imageUrl = normalizeImageUrl(p.imageUrl) as any;
+  }
+
+  // weight helpers
+  Object.assign(p, normalizeWeights(p));
+
+  // keep price as given (schema validates min >= 0)
+  return p;
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// CRUD
+// ───────────────────────────────────────────────────────────────────────────────
 export async function createItem(payload: Partial<ItemType>): Promise<ItemType> {
-  const doc = await ItemModel.create(payload as any);
+  const normalized = normalizeBeforeWrite(payload);
+  const doc = await ItemModel.create(normalized as any);
   return doc.toObject ? (doc.toObject() as ItemType) : (doc as unknown as ItemType);
 }
 
@@ -92,9 +180,16 @@ export async function updateItemByItemId(
 ) {
   if (!Types.ObjectId.isValid(_id)) return null;
   const { upsert = false, returnNew = true } = opts;
+
+  // normalize only $set payload (don’t mutate other operators)
+  const nextUpdate: UpdateQuery<ItemType> = { ...update };
+  if ((nextUpdate as any).$set) {
+    (nextUpdate as any).$set = normalizeBeforeWrite((nextUpdate as any).$set);
+  }
+
   const doc = await ItemModel.findOneAndUpdate(
     { _id },
-    update,
+    nextUpdate,
     { upsert, new: returnNew, runValidators: true }
   ).exec();
   return doc;
@@ -105,9 +200,10 @@ export async function replaceItemByItemId(
   replacement: Partial<ItemType>
 ) {
   if (!Types.ObjectId.isValid(_id)) return null;
+  const normalized = normalizeBeforeWrite(replacement);
   const doc = await ItemModel.findOneAndReplace(
     { _id },
-    { ...replacement, _id } as any,
+    { ...normalized, _id } as any,
     { new: true, upsert: false, runValidators: true }
   ).exec();
   return doc;
@@ -119,6 +215,9 @@ export async function deleteItemByItemId(_id: string) {
   return { deletedCount: res.deletedCount ?? 0 };
 }
 
+// ───────────────────────────────────────────────────────────────────────────────
+// utils
+// ───────────────────────────────────────────────────────────────────────────────
 function escapeRegex(input: string) {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -133,20 +232,23 @@ function normalizeSort(input: string) {
   }, {});
 }
 
+// ───────────────────────────────────────────────────────────────────────────────
+// MARKET PAGE helpers (fixed field names)
+// ───────────────────────────────────────────────────────────────────────────────
 /*
 FOR MARKET PAGE
-*/ 
-
+*/
 export type ItemBenefits = {
   customerInfo: string[];
-  caloriesPer100gr: number | null;
+  caloriesPer100g: number | null;
 } | null;
 
 export async function itemBenefits(_id: string): Promise<ItemBenefits> {
   if (!Types.ObjectId.isValid(_id)) return null;
 
+  // FIX: select the correct field name "caloriesPer100g"
   const doc = await ItemModel.findById(_id)
-    .select({ customerInfo: 1, caloriesPer100gr: 1, _id: 0 })
+    .select({ customerInfo: 1, caloriesPer100g: 1, _id: 0 })
     .lean();
 
   if (!doc) return null;
@@ -157,13 +259,13 @@ export async function itemBenefits(_id: string): Promise<ItemBenefits> {
 
   return {
     customerInfo: customerInfoArr,
-    caloriesPer100gr:
-      typeof (doc as any).caloriesPer100gr === "number" ? (doc as any).caloriesPer100gr : null,
+    caloriesPer100g:
+      typeof (doc as any).caloriesPer100g === "number" ? (doc as any).caloriesPer100g : null,
   };
 }
 
 export type MarketItemPageResult = {
-  item: { customerInfo: string[]; caloriesPer100gr: number | null };
+  item: { customerInfo: string[]; caloriesPer100g: number | null };
   farmer: { logo: string | null; farmName: string; farmLogo: string | null; farmerBio: string | null };
 } | null;
 
@@ -183,7 +285,7 @@ export async function marketItemPageData(itemId: string, farmerUserId: string): 
   return {
     item: {
       customerInfo: itemInfo.customerInfo,
-      caloriesPer100gr: itemInfo.caloriesPer100gr,
+      caloriesPer100g: itemInfo.caloriesPer100g,
     },
     farmer: {
       logo: farmerInfo.logo ?? null,
