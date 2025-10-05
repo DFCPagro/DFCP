@@ -55,6 +55,7 @@ const STATUS_EMOJI: Record<UIStatus, string> = {
   canceled: "⛔",
   problem: "⚠️",
 };
+
 function normalizeStatus(s: string): UIStatus {
   const key = s.toLowerCase().replaceAll(/\s+/g, "_");
   if (ORDER_STATUSES.includes(key as UIStatus)) return key as UIStatus;
@@ -83,11 +84,17 @@ function fmtDateShort(iso: string) {
   const yy = String(d.getFullYear()).slice(-2);
   return `${dd}/${mm}/${yy}`;
 }
+
 function toItemRows(items: any[]): ItemRow[] {
   return (items ?? []).map((it: any, idx: number): ItemRow => ({
-    id: it.id ?? it.productId ?? String(idx),
+    id: it.id ?? it.productId ?? it.itemId ?? String(idx),
     name: it.name ?? it.displayName ?? it.productName ?? it.productId ?? "item",
-    farmer: it.farmerName ?? it.farmer ?? "—",
+    farmer:
+      it.sourceFarmerName ??
+      it.sourceFarmName ??
+      it.farmerName ??
+      it.farmer ??
+      "—",
     imageUrl: it.imageUrl ?? it.image ?? undefined,
     qty: Number(it.quantity ?? it.qty ?? 0),
     unitLabel: it.unit ?? it.unitLabel ?? "unit",
@@ -95,9 +102,71 @@ function toItemRows(items: any[]): ItemRow[] {
     currency: it.currency ?? undefined,
   }));
 }
+
 function pickCurrency(items: any[]): string | undefined {
   for (const it of items ?? []) if (it?.currency) return it.currency;
   return undefined;
+}
+
+// address + shift helpers
+function getAddress(o: any): string {
+  // preferred: your API shape
+  if (typeof o?.deliveryAddress === "string") return o.deliveryAddress;
+  if (o?.deliveryAddress?.address) return o.deliveryAddress.address;
+
+  // other common shapes
+  const tryStrings = [
+    o?.address?.label,
+    o?.shippingAddress?.label,
+    o?.addressFull,
+    o?.deliveryAddressFull,
+    typeof o?.address === "string" ? o.address : null,
+    typeof o?.shippingAddress === "string" ? o.shippingAddress : null,
+  ].filter(Boolean) as string[];
+  if (tryStrings.length) return tryStrings[0]!;
+
+  const a =
+    o?.deliveryAddress ?? o?.address ?? o?.shippingAddress ?? {};
+  const line = [a.street, a.houseNumber, a.apartment, a.city]
+    .filter(Boolean)
+    .join(" ");
+  const line2 = [a.region, a.state, a.postalCode, a.country]
+    .filter(Boolean)
+    .join(", ");
+  const built = [line, line2].filter(Boolean).join(", ");
+  return built || "—";
+}
+
+const SHIFT_NAME: Record<string, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+  night: "Night",
+};
+
+function getShiftLabel(o: any): string {
+  // supported keys
+  const s =
+    o?.deliverySlot ??
+    o?.shiftKey ??
+    o?.shift ??
+    o?.shiftName ??
+    o?.deliveryShift ??
+    o?.timeSlot ??
+    o?.deliveryTimeWindow ??
+    o?.timeWindow;
+
+  if (typeof s === "string") return SHIFT_NAME[s] ?? s;
+
+  const key = s?.key ?? s?.name ?? s?.id;
+  const label = s?.label ?? (key ? SHIFT_NAME[key] : undefined);
+  const from = s?.from ?? s?.start ?? s?.startTime;
+  const to = s?.to ?? s?.end ?? s?.endTime;
+
+  if (label && from && to) return `${label} ${from}-${to}`;
+  if (label) return label;
+  if (key) return String(key);
+  return "—";
 }
 
 export default function DeliveryNotePage() {
@@ -143,6 +212,9 @@ export default function DeliveryNotePage() {
     [order]
   );
 
+  const address = useMemo(() => (order ? getAddress(order as any) : "—"), [order]);
+  const shiftLabel = useMemo(() => (order ? getShiftLabel(order as any) : "—"), [order]);
+
   if (loading) {
     return (
       <Container maxW="3xl" py={8}>
@@ -183,9 +255,11 @@ export default function DeliveryNotePage() {
           </HStack>
         </HStack>
 
-        <Text color="gray.600" mb={2}>
-          Created: {fmtDateShort(order.createdAt)}
-        </Text>
+        <VStack align="start" gap={1} mb={2}>
+          <Text color="gray.600">Created: {fmtDateShort(order.createdAt)}</Text>
+          <Text color="gray.600">Address: {address}</Text>
+          <Text color="gray.600">Shift: {shiftLabel}</Text>
+        </VStack>
 
         <Separator my={3} />
 

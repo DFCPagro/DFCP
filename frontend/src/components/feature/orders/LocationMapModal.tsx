@@ -1,7 +1,9 @@
 // src/components/feature/orders/LocationMapModal.tsx
+"use client";
+
 import { useEffect, useRef } from "react";
 import { Box, Button, Dialog, Text } from "@chakra-ui/react";
-import { loadGoogleMaps } from "@/utils/googleMaps";
+import { loadGoogleMaps, createMap } from "@/utils/googleMaps";
 
 type LatLng = { lat: number; lng: number };
 const LOGISTIC_CENTER: LatLng = { lat: 32.733459, lng: 35.218805 };
@@ -52,6 +54,7 @@ export default function LocationMapModal({
       if (cancelled) return;
       gRef.current = g;
 
+      // reset container to avoid duplicate canvases on StrictMode remount
       el.innerHTML = "";
 
       const center =
@@ -62,7 +65,7 @@ export default function LocationMapModal({
             }
           : point ?? LOGISTIC_CENTER;
 
-      mapRef.current = new g.maps.Map(el, {
+      mapRef.current = await createMap(el, {
         center,
         zoom: 13,
         mapTypeId: g.maps.MapTypeId.ROADMAP,
@@ -74,7 +77,13 @@ export default function LocationMapModal({
         clickableIcons: false,
       });
 
-      requestAnimationFrame(() => g.maps.event.trigger(mapRef.current!, "resize"));
+      // ensure proper sizing after dialog animation
+      requestAnimationFrame(() => {
+        // @ts-ignore
+        g.maps.event.trigger(mapRef.current, "resize");
+        mapRef.current!.setCenter(center);
+      });
+
       drawOverlays();
     };
 
@@ -83,7 +92,7 @@ export default function LocationMapModal({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open]); // initialize once per open
 
   useEffect(() => {
     if (!open) return;
@@ -110,14 +119,23 @@ export default function LocationMapModal({
     destMarkerRef.current = new g.maps.Marker({ position: point, map });
 
     if (!onlyDelivery) {
-      lcMarkerRef.current = new g.maps.Marker({ position: LOGISTIC_CENTER, map });
+      lcMarkerRef.current = new g.maps.Marker({
+        position: LOGISTIC_CENTER,
+        map,
+      });
 
       routeRef.current = new g.maps.Polyline({
         path: [LOGISTIC_CENTER, point],
         strokeColor: "#0ea5e9",
         strokeOpacity: 1,
         strokeWeight: 4,
-        icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 4 }, offset: "0", repeat: "14px" }],
+        icons: [
+          {
+            icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 4 },
+            offset: "0",
+            repeat: "14px",
+          },
+        ],
         map,
       });
 
@@ -132,7 +150,7 @@ export default function LocationMapModal({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(e) => !e.open && onClose()}>
+    <Dialog.Root open={open} onOpenChange={(d) => !d.open && onClose()}>
       <Dialog.Backdrop />
       <Dialog.Positioner>
         <Dialog.Content maxW="5xl">

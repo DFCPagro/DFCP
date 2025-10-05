@@ -7,7 +7,7 @@ export default function StatCard() {
   const items = [
     { color: "teal", title: "Farmers supported", value: 7, target: 10 },
     { color: "blue", title: "Total orders", value: 28, target: 40 },
-    { color: "purple", title: "Total points", value: 420, target: 900 },
+    { color: "purple", title: "MD Coins", value: 420, target: 900 },
   ];
 
   return (

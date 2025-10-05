@@ -33,6 +33,9 @@ export default function CommunityCard({
             </HStack>
           </Button>
         </HStack>
+        {/* add friends to gain more MD coins */}
+        <text>Invite a friend to gain 5 MD Coins when he sign up </text>
+
       </Card.Header>
       <Separator />
       <Card.Body p={4}>
