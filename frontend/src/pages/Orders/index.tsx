@@ -72,7 +72,10 @@ export default function OrdersIndex() {
   // map state
   const [mapOpen, setMapOpen] = useState(false);
   const [orderForMap, setOrderForMap] = useState<OrderRowAPI | null>(null);
-  const [mapPoint, setMapPoint] = useState<LatLng | null>(null); // optional override from child
+  const [mapPoint, setMapPoint] = useState<LatLng | null>(null);
+
+  // show-only-2 for active orders
+  const [showAllActive, setShowAllActive] = useState(false);
 
   // show 1 old order by default
   const [showAllOld, setShowAllOld] = useState(false);
@@ -148,8 +151,7 @@ export default function OrdersIndex() {
   const reportedOrders = useMemo(
     () =>
       (filtered ?? []).filter(
-        (o: any) =>
-          Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue)
+        (o: any) => Boolean(o?.reported || o?.isReported || o?.reportFlag || o?.issue)
       ),
     [filtered]
   );
@@ -165,7 +167,6 @@ export default function OrdersIndex() {
     [orderForMap]
   );
 
-  // Prefer explicit point from card, else compute from order
   const dest = useMemo<PointValue | undefined>(() => {
     if (!orderForMap) return undefined;
     if (mapPoint)
@@ -177,13 +178,9 @@ export default function OrdersIndex() {
     const p = pickDeliveryPoint(orderForMap);
     if (!p) return undefined;
 
-    // readable label if present on the order
     const a: any = (orderForMap as any).deliveryAddress;
     const label =
-      (typeof a === "string" && a) ||
-      a?.address ||
-      a?.label ||
-      `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+      (typeof a === "string" && a) || a?.address || a?.label || `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
 
     return { address: label, lat: p.lat, lng: p.lng };
   }, [orderForMap, mapPoint]);
@@ -193,13 +190,11 @@ export default function OrdersIndex() {
     []
   );
 
-  // Route for active orders. Point-only for delivered/received/cancelled.
   const showRoute = useMemo(
     () => !!orderForMap && !!dest && !isOldStatus((orderForMap as any).status),
     [orderForMap, dest]
   );
 
-  // force dialog re-mount when params change
   const mapKey = useMemo(
     () => JSON.stringify({ mode: showRoute ? "route" : "point", o: ORIGIN_POINT, d: dest }),
     [showRoute, ORIGIN_POINT, dest]
@@ -211,9 +206,7 @@ export default function OrdersIndex() {
         {/* Header + Filters */}
         <ColorBlock light="purple.50" dark="purple.900">
           <HStack gap={3} align="center">
-            <Heading size="2xl" fontWeight="extrabold">
-              My Orders
-            </Heading>
+            <Heading size="2xl" fontWeight="extrabold">My Orders</Heading>
             <span style={{ flex: 1 }} />
             <CartIconButton />
           </HStack>
@@ -229,8 +222,7 @@ export default function OrdersIndex() {
                 style={{
                   padding: "8px 10px",
                   borderRadius: "8px",
-                  border:
-                    "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+                  border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
                   minWidth: 220,
                   background: "var(--chakra-colors-white, #fff)",
                 }}
@@ -266,8 +258,7 @@ export default function OrdersIndex() {
                 style={{
                   padding: "8px 10px",
                   borderRadius: "8px",
-                  border:
-                    "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
+                  border: "1px solid var(--chakra-colors-gray-300, rgba(0,0,0,0.12))",
                   minWidth: 180,
                   background: "var(--chakra-colors-white, #fff)",
                 }}
@@ -284,29 +275,13 @@ export default function OrdersIndex() {
             <HStack gap={2} align="end" mt={3} wrap="wrap">
               <Field.Root>
                 <Field.Label htmlFor="from">From</Field.Label>
-                <Input
-                  id="from"
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                />
+                <Input id="from" type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
               </Field.Root>
               <Field.Root>
                 <Field.Label htmlFor="to">To</Field.Label>
-                <Input
-                  id="to"
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                />
+                <Input id="to" type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
               </Field.Root>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setCustomFrom("");
-                  setCustomTo("");
-                }}
-              >
+              <Button variant="outline" onClick={() => { setCustomFrom(""); setCustomTo(""); }}>
                 Clear
               </Button>
             </HStack>
@@ -317,9 +292,7 @@ export default function OrdersIndex() {
         <Box h={3} />
         <ColorBlock light="teal.50" dark="teal.900">
           {loading && (orders ?? []).length === 0 ? (
-            <HStack justifyContent="center" py={12}>
-              <Spinner />
-            </HStack>
+            <HStack justifyContent="center" py={12}><Spinner /></HStack>
           ) : (activeOrders ?? []).length === 0 ? (
             <Alert.Root status="info" borderRadius="md">
               <Alert.Indicator />
@@ -329,22 +302,23 @@ export default function OrdersIndex() {
             <Section
               title={
                 <HStack w="full" justify="space-between" align="center">
-                  <Text fontSize="xl" fontWeight="bold" m={0}>
-                    Active Orders
-                  </Text>
+                  <Text fontSize="xl" fontWeight="bold" m={0}>Active Orders</Text>
+                  {(activeOrders?.length ?? 0) > 2 && (
+                    <Button size="xs" variant="ghost" onClick={() => setShowAllActive((v) => !v)}>
+                      {showAllActive ? "Less" : "More"}
+                    </Button>
+                  )}
                 </HStack>
               }
               emptyText="No active orders."
               items={activeOrders}
-              showAll={true}
-              onToggle={() => {}}
+              showAll={showAllActive}
+              onToggle={() => setShowAllActive((v) => !v)}
               renderItem={(o) => (
                 <OrderCard
                   order={o}
                   isOpen={expandedId === o.id}
-                  onToggleOpen={() =>
-                    setExpandedId(expandedId === o.id ? null : o.id)
-                  }
+                  onToggleOpen={() => setExpandedId(expandedId === o.id ? null : o.id)}
                   onOpenMap={(pt) => {
                     setOrderForMap(o);
                     setMapPoint(pt ?? null);
@@ -353,7 +327,7 @@ export default function OrdersIndex() {
                   onOpenNote={() => goToDeliveryNote(o)}
                 />
               )}
-              previewCount={activeOrders.length}
+              previewCount={2}
             />
           )}
         </ColorBlock>
@@ -370,15 +344,9 @@ export default function OrdersIndex() {
             <Section
               title={
                 <HStack align="center" gap={2}>
-                  <Text fontSize="xl" fontWeight="bold" m={0}>
-                    Previous Orders
-                  </Text>
+                  <Text fontSize="xl" fontWeight="bold" m={0}>Previous Orders</Text>
                   {(oldOrders?.length ?? 0) > 1 && (
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => setShowAllOld((v) => !v)}
-                    >
+                    <Button size="xs" variant="ghost" onClick={() => setShowAllOld((v) => !v)}>
                       {showAllOld ? "Less" : "More"}
                     </Button>
                   )}
@@ -392,9 +360,7 @@ export default function OrdersIndex() {
                 <OrderCard
                   order={o}
                   isOpen={expandedId === o.id}
-                  onToggleOpen={() =>
-                    setExpandedId(expandedId === o.id ? null : o.id)
-                  }
+                  onToggleOpen={() => setExpandedId(expandedId === o.id ? null : o.id)}
                   onOpenMap={(pt) => {
                     setOrderForMap(o);
                     setMapPoint(pt ?? null);
@@ -414,9 +380,7 @@ export default function OrdersIndex() {
           <Section
             title={
               <HStack w="full" justify="space-between" align="center">
-                <Text fontSize="xl" fontWeight="bold" m={0}>
-                  Reported Orders
-                </Text>
+                <Text fontSize="xl" fontWeight="bold" m={0}>Reported Orders</Text>
               </HStack>
             }
             emptyText="No reported orders."
@@ -428,9 +392,7 @@ export default function OrdersIndex() {
                 order={o as any}
                 isOpen={expandedId === (o as any).id}
                 onToggleOpen={() =>
-                  setExpandedId(
-                    expandedId === (o as any).id ? null : (o as any).id
-                  )
+                  setExpandedId(expandedId === (o as any).id ? null : (o as any).id)
                 }
                 onOpenMap={(pt) => {
                   setOrderForMap(o as any);

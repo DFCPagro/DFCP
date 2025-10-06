@@ -1,4 +1,7 @@
 // pages/orders/components/OrderCard.tsx
+"use client";
+
+import { useState } from "react";
 import {
   Box,
   Grid,
@@ -7,10 +10,12 @@ import {
   IconButton,
   Text,
   Button,
+  VStack,
 } from "@chakra-ui/react";
 import { MapPin } from "lucide-react";
 import ItemList from "@/components/common/ItemList";
 import type { OrderRowAPI } from "@/types/orders";
+import OrderTimeline from "./OrderTimeline";
 import {
   STATUS_EMOJI,
   STATUS_LABEL,
@@ -38,15 +43,18 @@ export default function OrderCard({
   onOpenMap,
   onOpenNote,
 }: Props) {
-  if (!order) return null; // guard against undefined items
+  if (!order) return null;
+
+  const [timelineOpen, setTimelineOpen] = useState(false);
 
   const ui = normalizeStatus((order as any).status);
   const emoji = STATUS_EMOJI[ui];
   const statusLabel = STATUS_LABEL[ui];
-  const showNote = ui === "delivered" || ui === "received";
+  const onlyDelivery = isOldStatus((order as any).status);
   const deliveryTime = formatDeliveryTime(order);
   const rows = toItemRows((order as any).items ?? []);
   const currency = pickCurrency((order as any).items ?? []) ?? "$";
+  const dest = pickDeliveryPoint(order);
 
   return (
     <Box borderWidth="1px" borderRadius="md" p={4}>
@@ -64,6 +72,7 @@ export default function OrderCard({
               overflow="hidden"
               textOverflow="ellipsis"
               whiteSpace="nowrap"
+              title={deliveryTime}
             >
               {deliveryTime}
             </Text>
@@ -73,8 +82,26 @@ export default function OrderCard({
         <GridItem justifySelf="center" zIndex={10}>
           <HStack gap={3}>
             <HStack gap={2}>
-              <Text fontWeight="bold">Status:</Text>
-              <Text>{statusLabel}</Text>
+              <Text
+                fontWeight="bold"
+                cursor="pointer"
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTimelineOpen((v) => !v);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setTimelineOpen((v) => !v);
+                  }
+                }}
+                title="Click to view status timeline"
+              >
+                Status
+              </Text>
+              <Text textTransform="capitalize">{statusLabel}</Text>
               <Text as="span" fontSize="xl">
                 {emoji}
               </Text>
@@ -84,10 +111,11 @@ export default function OrderCard({
               aria-label="Open map"
               size="sm"
               variant="solid"
+              disabled={!dest}
               onClick={(e) => {
                 e.stopPropagation();
-                const pt = pickDeliveryPoint(order);
-                onOpenMap(pt, isOldStatus((order as any).status));
+                if (!dest) return;
+                onOpenMap(dest, onlyDelivery);
               }}
             >
               <MapPin size={16} />
@@ -97,7 +125,9 @@ export default function OrderCard({
 
         <GridItem justifySelf="end">
           <HStack gap={2}>
-            {showNote && <Button onClick={onOpenNote}>Delivery Note</Button>}
+            {(ui === "delivered" || ui === "received") && (
+              <Button onClick={onOpenNote}>Delivery Note</Button>
+            )}
             <Button variant="outline" onClick={onToggleOpen}>
               {isOpen ? "Close" : "Full order"}
             </Button>
@@ -105,14 +135,20 @@ export default function OrderCard({
         </GridItem>
       </Grid>
 
+      {timelineOpen && (
+        <Box mt={3}>
+          <OrderTimeline status={(order as any).status} />
+        </Box>
+      )}
+
       {isOpen && (
-        <Box mt={3} borderWidth="1px" borderRadius="md" p={3}>
+        <VStack align="stretch" mt={3} gap={3}>
           {rows.length ? (
             <ItemList items={rows} currency={currency} />
           ) : (
             <Text color="gray.600">No items attached.</Text>
           )}
-        </Box>
+        </VStack>
       )}
     </Box>
   );
