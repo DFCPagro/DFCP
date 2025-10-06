@@ -11,6 +11,17 @@ export type ShiftName = z.infer<typeof ShiftNameSchema>;
 export const ItemStatusSchema = z.enum(["active", "soldout", "removed"]);
 export type ItemStatus = z.infer<typeof ItemStatusSchema>;
 
+/** NEW: selling mode (introduced in new model) */
+export const UnitModeSchema = z.enum(["kg", "unit", "mixed"]);
+export type UnitMode = z.infer<typeof UnitModeSchema>;
+
+/** NEW: estimates bag used by the backend for unit-mode presentation */
+export const ItemEstimatesSchema = z.object({
+  avgWeightPerUnitKg: z.number().nonnegative().nullable().optional(),
+  sdKg: z.number().nonnegative().nullable().optional(),
+  availableUnitsEstimate: z.number().nonnegative().nullable().optional(),
+});
+
 /* -----------------------------------------------------------------------------
  * BACKEND-ALIGNED SCHEMAS (exact field names from availableMarketStock.model)
  *  - Use these ONLY inside the API adapter layer.
@@ -20,28 +31,46 @@ export type ItemStatus = z.infer<typeof ItemStatusSchema>;
 export const AvailableShiftFlatSchema = z.object({
   shift: ShiftNameSchema,
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  marketStockId: z.string(),      // mapped from BackendShiftRow.docId
+  marketStockId: z.string(),        // mapped from BackendShiftRow.docId
   slotLabel: z.string().optional(), // mapped from BackendShiftRow.deliverySlotLabel
 });
 export type AvailableShiftFlat = z.infer<typeof AvailableShiftFlatSchema>;
 
-
+/**
+ * NOTE:
+ *  - New backend adds: unitMode + estimates{avgWeightPerUnitKg, sdKg, availableUnitsEstimate}
+ *  - Older code (and possibly some old docs) had a flat avgWeightPerUnitKg at the line root.
+ *  - To remain backward-compatible, we accept BOTH:
+ *      - optional root-level avgWeightPerUnitKg (legacy)
+ *      - optional estimates object (current)
+ */
 export const MarketStockLineBackendSchema = z.object({
   _id: z.string(), // subdocument id
   itemId: z.string(),
   displayName: z.string(),
   imageUrl: z.string().url().optional(),
   category: z.string(),
+
+  // price per KG
   pricePerUnit: z.number().nonnegative(),
-  avgWeightPerUnitKg: z.number().nonnegative().optional(), // NEW: to be added in backend
+
+  // LEGACY (kept for compatibility; new backend moves this inside estimates)
+  avgWeightPerUnitKg: z.number().nonnegative().optional(),
+
   originalCommittedQuantityKg: z.number().nonnegative(),
   currentAvailableQuantityKg: z.number().nonnegative(),
+
   farmerID: z.string(),
   farmerName: z.string(),
   farmName: z.string().optional(),
   farmLogo: z.string().url().optional(),
+
   status: ItemStatusSchema.optional(), // default behavior handled server-side
   farmerOrderId: z.string().optional(),
+
+  // NEW (optional to stay backward compatible with old documents)
+  unitMode: UnitModeSchema.optional(),
+  estimates: ItemEstimatesSchema.optional(),
 });
 export type MarketStockLineBackend = z.infer<typeof MarketStockLineBackendSchema>;
 
@@ -69,16 +98,26 @@ export const MarketStockLineSchema = z.object({
   displayName: z.string(),
   imageUrl: z.string().url().optional(),
   category: z.string(),
+
   pricePerUnit: z.number().nonnegative(),
+
+  // Keep legacy top-level avgWeightPerUnitKg for existing UI
   avgWeightPerUnitKg: z.number().nonnegative().optional(),
+
   originalCommittedQuantityKg: z.number().nonnegative(),
   currentAvailableQuantityKg: z.number().nonnegative(),
+
   farmerID: z.string(),
   farmerName: z.string(),
   farmName: z.string().optional(),
   farmLogo: z.string().url().optional(),
+
   status: ItemStatusSchema.optional(),
   farmerOrderId: z.string().optional(),
+
+  /** NEW: additional fields—optional so current UI keeps working unchanged */
+  unitMode: UnitModeSchema.optional(),
+  estimates: ItemEstimatesSchema.optional(),
 });
 export type MarketStockLine = z.infer<typeof MarketStockLineSchema>;
 
@@ -97,6 +136,7 @@ export type MarketStockDoc = z.infer<typeof MarketStockDocSchema>;
  * UI-FLAT ITEM (what cards/grid/search receive)
  *  - This is the only item shape components should use.
  *  - Friendly names; derived from MarketStockDoc + MarketStockLine.
+ *  - We keep existing fields intact; we only ADD optional fields for new data.
  * -------------------------------------------------------------------------- */
 
 export const MarketItemSchema = z.object({
@@ -113,9 +153,12 @@ export const MarketItemSchema = z.object({
   category: z.string(),
 
   pricePerUnit: z.number().nonnegative(),
+
+  // Keep legacy field; UI already expects it
   avgWeightPerUnitKg: z.number().nonnegative().optional(),
 
-  availableKg: z.number().nonnegative(), // from currentAvailableQuantityKg
+  // From currentAvailableQuantityKg
+  availableKg: z.number().nonnegative(),
 
   farmerId: z.string(), // farmerID -> farmerId
   farmerName: z.string(),
@@ -123,6 +166,10 @@ export const MarketItemSchema = z.object({
   farmLogo: z.string().url().optional(),
 
   status: ItemStatusSchema.optional(),
+
+  /** NEW: passthrough of selling mode + available units if the API provides/derives it */
+  unitMode: UnitModeSchema.optional(),
+  availableUnitsEstimate: z.number().nonnegative().optional(),
 });
 export type MarketItem = z.infer<typeof MarketItemSchema>;
 
@@ -130,6 +177,7 @@ export type MarketItem = z.infer<typeof MarketItemSchema>;
  * HELPERS
  *  - Map normalized doc -> UI-flat items for consumption by the UI.
  *  - Keep mapping logic here type-safe to prevent drift.
+ *  - We pass through new fields when present, but nothing in the UI is forced to use them.
  * -------------------------------------------------------------------------- */
 
 export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
@@ -147,7 +195,9 @@ export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
     category: ln.category,
 
     pricePerUnit: ln.pricePerUnit,
-    avgWeightPerUnitKg: ln.avgWeightPerUnitKg,
+
+    // Keep legacy top-level on the UI item
+    avgWeightPerUnitKg: ln.avgWeightPerUnitKg ?? ln.estimates?.avgWeightPerUnitKg ?? undefined,
 
     availableKg: ln.currentAvailableQuantityKg,
 
@@ -157,6 +207,10 @@ export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
     farmLogo: ln.farmLogo,
 
     status: ln.status,
+
+    // NEW: passthroughs (optional, won’t affect existing UI)
+    unitMode: ln.unitMode,
+    availableUnitsEstimate: ln.estimates?.availableUnitsEstimate ?? undefined,
   }));
 }
 
@@ -168,7 +222,7 @@ export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
 export const MarketItemListSchema = z.array(MarketItemSchema);
 export type MarketItemList = z.infer<typeof MarketItemListSchema>;
 
-// --- NEW: "lite" shift result for endpoints that don't provide docId yet ---
+// --- "lite" shift result for endpoints that don't provide docId yet ---
 export const AvailableShiftLiteSchema = z.object({
   shift: ShiftNameSchema,
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -177,13 +231,13 @@ export const AvailableShiftLiteSchema = z.object({
 });
 export type AvailableShiftLite = z.infer<typeof AvailableShiftLiteSchema>;
 
-// --- NEW: small helper to make a stable synthetic key (safe for list/radios) ---
+// --- stable synthetic key (safe for list/radios) ---
 export function makeShiftKey(date: string, shift: ShiftName): string {
   // date is already validated to YYYY-MM-DD by the schema
   return `${date}__${shift}`;
 }
 
-// --- NEW: type guard to discriminate between "flat" (with id) and "lite" ---
+// --- discriminator between "flat" (with id) and "lite" ---
 export function isAvailableShiftFlat(
   value: unknown
 ): value is AvailableShiftFlat {

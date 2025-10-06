@@ -12,7 +12,17 @@ import {
 
 /* -----------------------------------------------------------------------------
  * Raw (backend-aligned) zod schemas
+ *  - Extended to support new model: unitMode + estimates{...}
+ *  - Kept legacy root-level avgWeightPerUnitKg for compatibility.
  * -------------------------------------------------------------------------- */
+
+const UnitModeRaw = z.enum(["kg", "unit", "mixed"]);
+
+const ItemEstimatesRaw = z.object({
+  avgWeightPerUnitKg: z.number().nonnegative().nullable().optional(),
+  sdKg: z.number().nonnegative().nullable().optional(),
+  availableUnitsEstimate: z.number().nonnegative().nullable().optional(),
+});
 
 const ItemRaw = z.object({
   _id: z.string(), // subdoc id
@@ -21,15 +31,23 @@ const ItemRaw = z.object({
   imageUrl: z.string().url().optional(),
   category: z.string().optional(),
   pricePerUnit: z.number().nonnegative().optional(),
-  avgWeightPerUnitKg: z.number().nonnegative().optional(), // NEW (backend will add)
+
+  // LEGACY (pre-new-model) – kept for compatibility:
+  avgWeightPerUnitKg: z.number().nonnegative().optional(),
+
   originalCommittedQuantityKg: z.number().nonnegative().optional(),
   currentAvailableQuantityKg: z.number().nonnegative().optional(),
+
   farmerID: z.string().optional(),
   farmerName: z.string().optional(),
   farmName: z.string().optional(),
   farmLogo: z.string().url().optional(),
   status: z.enum(["active", "soldout", "removed"]).optional(),
   farmerOrderId: z.string().optional(),
+
+  // NEW (post-new-model):
+  unitMode: UnitModeRaw.optional(),
+  estimates: ItemEstimatesRaw.optional(),
 });
 
 const DocRaw = z.object({
@@ -87,7 +105,6 @@ export type AvailableShift = {
   slotLabel?: string;            // from deliverySlotLabel | slotLabel (if provided)
 };
 
-
 export async function getAvailableShiftsByLC(LCid: string): Promise<AvailableShift[]> {
   const { data } = await api.get("/market/available-stock/next5", {
     params: { LCid }, // must match backend name exactly
@@ -124,6 +141,11 @@ export async function getAvailableShiftsByLC(LCid: string): Promise<AvailableShi
 
 /* -----------------------------------------------------------------------------
  * Stock (the important one)
+ *  - Now reads new fields and keeps legacy behavior:
+ *    * avgWeightPerUnitKg falls back to 1 if not provided anywhere.
+ *    * Pass through unitMode and estimates (if present).
+ *    * If availableUnitsEstimate is missing but we have avgWeightPerUnitKg and currentAvailableQuantityKg,
+ *      we derive an integer estimate (= floor(qtyKg / avgW)).
  * -------------------------------------------------------------------------- */
 
 export async function getStockByMarketStockId(marketStockId: string): Promise<MarketStockDoc> {
@@ -139,6 +161,28 @@ export async function getStockByMarketStockId(marketStockId: string): Promise<Ma
       const itemId = x.itemId;
       const farmerID = x.farmerID ?? "unknown";
 
+      // Prefer new estimates.avgWeightPerUnitKg; fall back to legacy root; then to 1 (keep old behavior)
+      const avgW =
+        (x.estimates?.avgWeightPerUnitKg ?? x.avgWeightPerUnitKg ?? undefined);
+      const avgWeightPerUnitKg =
+        typeof avgW === "number" && Number.isFinite(avgW) && avgW > 0 ? avgW : 1;
+
+      // Derive availableUnitsEstimate if backend omitted it but provided enough info
+      let availableUnitsEstimate =
+        x.estimates?.availableUnitsEstimate ?? null;
+
+      if (
+        (availableUnitsEstimate == null || Number.isNaN(availableUnitsEstimate)) &&
+        typeof x.currentAvailableQuantityKg === "number" &&
+        Number.isFinite(x.currentAvailableQuantityKg) &&
+        x.currentAvailableQuantityKg >= 0 &&
+        typeof avgWeightPerUnitKg === "number" &&
+        Number.isFinite(avgWeightPerUnitKg) &&
+        avgWeightPerUnitKg > 0
+      ) {
+        availableUnitsEstimate = Math.floor(x.currentAvailableQuantityKg / avgWeightPerUnitKg);
+      }
+
       return {
         lineId: x._id,
         stockId: `${itemId}_${farmerID}`,
@@ -153,7 +197,7 @@ export async function getStockByMarketStockId(marketStockId: string): Promise<Ma
 
         // Pricing & quantities (undefined if truly missing; do not coerce to 0)
         pricePerUnit: x.pricePerUnit,
-        avgWeightPerUnitKg: x.avgWeightPerUnitKg ? x.avgWeightPerUnitKg : 1, // NEW (backend will add)
+        avgWeightPerUnitKg, // <- preserves previous default(1) while supporting new nested field
         originalCommittedQuantityKg: x.originalCommittedQuantityKg,
         currentAvailableQuantityKg: x.currentAvailableQuantityKg,
 
@@ -165,6 +209,14 @@ export async function getStockByMarketStockId(marketStockId: string): Promise<Ma
 
         status: x.status,
         farmerOrderId: x.farmerOrderId,
+
+        // NEW passthroughs (optional in types, so UI remains unchanged if unused)
+        unitMode: x.unitMode,
+        estimates: {
+          avgWeightPerUnitKg: x.estimates?.avgWeightPerUnitKg ?? avgWeightPerUnitKg ?? null,
+          sdKg: x.estimates?.sdKg ?? null,
+          availableUnitsEstimate: availableUnitsEstimate ?? null,
+        },
       };
     }),
     createdAt: raw.createdAt,
