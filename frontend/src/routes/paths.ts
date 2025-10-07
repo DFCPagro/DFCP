@@ -35,6 +35,10 @@ export const PATHS = {
   // driver pages
   shipments: "/shipments",
 
+
+  // picker pages
+  pickerDashboard: "/picker/dashboard",
+
   // public QR routes
   ops: "/o/:token",
   customerConfirm: "/r/:token",

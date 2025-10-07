@@ -32,6 +32,11 @@ const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
+const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
+
+
+
+
 
 
 //delete this route later, its just an example for using map picker
@@ -122,6 +127,11 @@ export default function AppRoutes() {
                 <DriverSchedule />
               </RoleGuard>
             }
+          />
+          {/* Picker-only */}
+          <Route
+            path={PATHS.pickerDashboard}
+            element={<RoleGuard allow={["picker"]}><PickerDashboard /></RoleGuard>}
           />
 
           {/* Farmer-only */}
