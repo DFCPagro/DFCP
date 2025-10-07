@@ -41,7 +41,7 @@ function formatAddressShort(a: any): string {
 function formatShiftLabel(s: any): string {
   if (!s) return "—";
   const date = s.date ?? "";
-  const win  = s.shift ?? ""; // our API: "morning" | "afternoon" | ...
+  const win = s.shift ?? ""; // our API: "morning" | "afternoon" | ...
   return `${date}${date && win ? " • " : ""}${win}`;
 }
 
@@ -68,15 +68,13 @@ export default function MarketPage() {
     if (!was && isActive) {
       wasActiveRef.current = true;
       setPinOpen(false);
-      toaster.create({
-        title: "Market activated",
-        description: `Deliver to ${formatAddressShort(address)} · ${formatShiftLabel(shift)}`,
-        type: "success",
-        duration: 5000,
-      });
+      alert(
+        `Market activated!\nDeliver to ${formatAddressShort(address)} · ${formatShiftLabel(shift)}`
+      );
     }
     if (!isActive) wasActiveRef.current = false;
   }, [isActive, address, shift]);
+
 
 
   // ---- Filters ----

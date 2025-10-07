@@ -1,95 +1,92 @@
 // src/api/orders.ts
+// Basic Orders API used by the Checkout flow.
+// - POST /orders (create)
+// - GET  /orders/:id (fetch)
+//
+// Notes:
+// • Swagger request example shows `logisticsCenterId` (lowercase 'l') in the *request body*,
+//   while the backend model stores `LogisticsCenterId` (capital 'L').
+//   This client will accept either in the input body and send `logisticsCenterId` to the API.
+// • Response envelope is `{ data: Order }` — we unwrap and return `Order` directly.
+
 import { api } from "./config";
-import type {
-  OrderRowAPI,
-  CreateOrderRequest,
-  CreateOrderResponse,
-  CreateOrderResponseData,
-} from "@/types/orders";
+import type { CreateOrderBody, Order } from "@/types/orders";
+
+export type ApiError = {
+  status: number;
+  message: string;
+  details?: unknown;
+};
+
+// Internal: Normalize field casing for API POST body
+function normalizeCreateBody(body: CreateOrderBody): Record<string, any> {
+  // Prefer `logisticsCenterId` for the HTTP request body (as shown in Swagger).
+  const logisticsCenterId =
+    // already lower-cased?
+    (body as any).logisticsCenterId ??
+    // from capitalized form (types aligned to model)?
+    (body as any).LogisticsCenterId ??
+    undefined;
+
+  // Build final payload for API
+  const payload: Record<string, any> = {
+    amsId: body.amsId,
+    logisticsCenterId, // API expects this name in the request
+    deliveryDate: body.deliveryDate,
+    deliveryAddress: body.deliveryAddress,
+    shiftName: body.shiftName,
+    items: body.items,
+  };
+
+  // Only send if caller provided tolerancePct
+  if (typeof (body as any).tolerancePct === "number") {
+    payload.tolerancePct = (body as any).tolerancePct;
+  }
+
+  return payload;
+}
 
 /**
- * Fetch the authenticated user's recent orders.
- * Backend: GET /orders/my?limit=15
- * Returns up to 15 most-recent orders.
+ * Create an order for the authenticated customer.
+ * Returns the created Order object (envelope `data` unwrapped).
  */
-export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
-  const { data } = await api.get<{ data: any[] }>("/orders/my", { params: { limit } });
-
-  // Light normalization into our OrderRowAPI-ish shape (keep extra fields intact).
-  const items = (data?.data ?? []).map((o: any) => {
-    const id = o._id ?? o.id ?? String(Math.random());
-    const orderId = o.orderId ?? o.orderNumber ?? id;
-
-    return {
-      id,
-      orderId,
-      status: o.status ?? "created",
-      createdAt: o.createdAt ?? new Date().toISOString(),
-      acceptedAt: o.acceptedAt,
-      deliveryDate: o.deliveryDate,
-      deliverySlot: o.deliverySlot ?? o.slot ?? undefined,
-      // keep original items and address so our UI mappers can read different keys
-      items: o.items ?? [],
-      deliveryAddress: o.deliveryAddress, // our UI reads this in getDeliveryCoord
-      shippingAddress: o.shippingAddress, // keep if backend ever sends it
-      ...o,
-    } as OrderRowAPI;
-  });
-
-  return items as OrderRowAPI[];
-}
-
-/* ----------------------------------------------------------------------------
- * Create Order (POST /orders)
- * - Uses the Swagger contract you provided.
- * - Normalizes the response to always have `.logisticsCenterId` (camelCase).
- * - Surfaces helpful error messages on 400/404.
- * --------------------------------------------------------------------------*/
-export async function createOrder(
-  payload: CreateOrderRequest
-): Promise<CreateOrderResponseData> {
+export async function createOrder(body: CreateOrderBody): Promise<Order> {
   try {
-    const { data } = await api.post<CreateOrderResponse>("/orders", payload);
-    const raw = data?.data ?? (data as any);
-
-    // Normalize LogisticsCenterId → logisticsCenterId if backend uses capital L
-    const normalized: CreateOrderResponseData = {
-      ...raw,
-      logisticsCenterId: raw?.logisticsCenterId ?? raw?.LogisticsCenterId,
-    };
-
-    return normalized;
+    const payload = normalizeCreateBody(body);
+    const res = await api.post("/orders", payload);
+    // Swagger shows { data: { ...Order } }
+    const out = res?.data?.data ?? res?.data;
+    return out as Order;
   } catch (err: any) {
-    const status = err?.response?.status;
-    const body = err?.response?.data;
-    const serverMsg = body?.error || body?.message || err?.message || "Unknown error";
-    const details = body?.details;
+    // Normalize error
+    const status = err?.response?.status ?? 0;
+    const message =
+      err?.response?.data?.error ??
+      err?.message ??
+      "Order creation failed";
+    const details = err?.response?.data?.details ?? err?.response?.data;
 
-    // Build a developer-friendly message (also useful for toasts)
-    let friendly = `Order creation failed`;
-    if (status === 400) friendly = `Validation error`;
-    else if (status === 404) friendly = `Not found`;
-    else if (status === 401) friendly = `Unauthorized`;
-
-    const e = new Error(
-      `${friendly}: ${serverMsg}${details ? ` — ${JSON.stringify(details)}` : ""}`
-    ) as Error & { status?: number; details?: unknown };
-    e.status = status;
-    e.details = details ?? null;
-    throw e;
+    const apiErr: ApiError = { status, message, details };
+    throw apiErr;
   }
 }
-/** Fetch order details via an ops token (for logistics staff). */
-export async function getOrderByOpsToken(token: string) {
-  const { data } = await api.get(`/orders/by-ops-token/${token}`);
-  return data;
-}
 
-/** Confirm an order via the customer token. Accepts an optional rating and comment. */
-export async function confirmOrderByCustomerToken(
-  token: string,
-  body: { rating?: number; comment?: string },
-) {
-  const { data } = await api.post(`/orders/confirm/${token}`, body);
-  return data;
+/**
+ * Fetch an order by id.
+ * If your backend returns { data: Order }, we unwrap; otherwise we return the raw object.
+ */
+export async function getOrderById(orderId: string): Promise<Order> {
+  try {
+    const res = await api.get(`/orders/${encodeURIComponent(orderId)}`);
+    const out = res?.data?.data ?? res?.data;
+    return out as Order;
+  } catch (err: any) {
+    const status = err?.response?.status ?? 0;
+    const message =
+      err?.response?.data?.error ?? err?.message ?? "Failed to fetch order";
+    const details = err?.response?.data?.details ?? err?.response?.data;
+
+    const apiErr: ApiError = { status, message, details };
+    throw apiErr;
+  }
 }
