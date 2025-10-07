@@ -1,27 +1,18 @@
 openapi: 3.0.3
 info:
-  title: Available Market Stock API
-  version: 1.1.0
-  description: |
-    API for managing available market stock by Logistic Center (LC), date, and shift.
-
-servers:
-  - url: /api/market
+  title: Available Market Stock APIs
+  version: "1.0.0"
 
 tags:
-  - name: AvailableStock
-    description: Manage available market stock docs and items. Run `npm run seed:ams` to generate example docs.
+  - name: Market
+    description: Market stock (shift-based) endpoints.  Run `npm run seed:ams` to generate example docs.
 
 paths:
-  /available-stock/init:
+  /market/available-stock/init:
     post:
-      tags: [AvailableStock]
-      summary: Create or find a stock document for a given LC + date + shift
-      description: |
-        Creates the `(LCid + date + shift)` document if it does not exist, otherwise returns the existing one.
-        **Auth:** Bearer token required. **Role:** `fManager` required.
-      security:
-        - bearerAuth: []
+      tags: [Market]
+      summary: Create or fetch stock doc for LC + date + shift
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
@@ -30,227 +21,182 @@ paths:
               type: object
               required: [LCid, date, shift]
               properties:
-                LCid:
-                  $ref: '#/components/schemas/ObjectId'
-                date:
-                  type: string
-                  format: date
-                  description: Calendar date (YYYY-MM-DD); normalized to 00:00 UTC internally
-                shift:
-                  $ref: '#/components/schemas/ShiftName'
+                LCid: { type: string, description: "Logistics Center id (ObjectId string)" }
+                date: { type: string, format: date, description: "YYYY-MM-DD or ISO" }
+                shift: { $ref: "#/components/schemas/ShiftName" }
+            example:
+              LCid: "66e007000000000000000001"
+              date: "2025-10-07"
+              shift: afternoon
       responses:
-        '200':
-          description: Created or existing AvailableMarketStock document
+        "200":
+          description: Stock document (existing or newly created)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AvailableMarketStock'
-        '400':
-          description: Missing required fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Failed to init available market stock
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/AvailableMarketStock"
+        "400": { description: LCid, date, and shift are required }
+        "401": { description: Unauthorized }
+        "500": { description: Server error }
 
-  /available-stock:
+  /market/available-stock:
     get:
-      tags: [AvailableStock]
-      summary: Get a stock doc by LC + date + shift
-      description: Returns the document that matches `(LCid, date, shift)`.
-      security:
-        - bearerAuth: []
+      tags: [Market]
+      summary: Get stock doc by LC + date + shift
+      security: [{ bearerAuth: [] }]
       parameters:
         - in: query
           name: LCid
           required: true
-          schema: { $ref: '#/components/schemas/ObjectId' }
+          schema: { type: string }
         - in: query
           name: date
           required: true
-          schema:
-            type: string
-            format: date
-            description: YYYY-MM-DD
+          schema: { type: string, format: date }
         - in: query
           name: shift
           required: true
-          schema: { $ref: '#/components/schemas/ShiftName' }
+          schema: { $ref: "#/components/schemas/ShiftName" }
       responses:
-        '200':
-          description: Found
+        "200":
+          description: Stock document
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AvailableMarketStock'
-        '400':
-          description: Missing params
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '500':
-          description: Failed to fetch
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+                $ref: "#/components/schemas/AvailableMarketStock"
+        "400": { description: LCid, date, and shift are required }
+        "401": { description: Unauthorized }
+        "404": { description: Not found }
+        "500": { description: Server error }
 
-  /available-stock/{docId}:
+  /market/available-stock/{docId}:
     get:
-      tags: [AvailableStock]
-      summary: Get a stock doc by its ID
-      description: Fetches an `AvailableMarketStock` by `_id`.
-      security:
-        - bearerAuth: []
+      tags: [Market]
+      summary: Get stock doc by its id
+      security: [{ bearerAuth: [] }]
       parameters:
         - in: path
           name: docId
           required: true
-          schema: { $ref: '#/components/schemas/ObjectId' }
+          schema: { type: string }
       responses:
-        '200':
-          description: Found
+        "200":
+          description: Stock document
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AvailableMarketStock'
-        '400':
-          description: Missing or invalid docId
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+                $ref: "#/components/schemas/AvailableMarketStock"
+        "400": { description: Invalid docId }
+        "401": { description: Unauthorized }
+        "404": { description: AvailableMarketStock not found }
 
-  /available-stock/upcoming:
+  /market/available-stock/upcoming:
     get:
-      tags: [AvailableStock]
-      summary: List upcoming stock docs for an LC
-      description: Returns upcoming (today and forward) stock docs for the LC, any shift.
-      security:
-        - bearerAuth: []
+      tags: [Market]
+      summary: List upcoming stock docs for LC (today forward)
+      security: [{ bearerAuth: [] }]
       parameters:
         - in: query
           name: LCid
           required: true
-          schema: { $ref: '#/components/schemas/ObjectId' }
+          schema: { type: string }
         - in: query
           name: count
           required: false
-          schema:
-            type: integer
-            minimum: 1
-            default: 5
+          schema: { type: integer, default: 6, minimum: 1, maximum: 50 }
         - in: query
           name: fromDate
           required: false
-          schema:
-            type: string
-            format: date
-            description: Start date (YYYY-MM-DD). Defaults to today.
+          schema: { type: string, format: date }
       responses:
-        '200':
-          description: Array of upcoming docs
+        "200":
+          description: Array of stock docs
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/AvailableMarketStock' }
-        '400':
-          description: Missing LCid
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '500':
-          description: Failed to list
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+                items: { $ref: "#/components/schemas/AvailableMarketStock" }
+        "400": { description: LCid is required }
+        "401": { description: Unauthorized }
+        "500": { description: Server error }
 
-  /available-stock/next5:
+  /market/available-stock/next5:
     get:
-      tags: [AvailableStock]
-      summary: Next 5 shifts (by LC timezone) that have stock items
-      description: |
-        Looks at the next 5 upcoming shifts (per LC timezone) and returns those that **have items**.
-        Each result includes a delivery time-slot label derived from the shift configuration.
-      security:
-        - bearerAuth: []
+      tags: [Market]
+      summary: Next 5 shifts (by LC timezone) that actually have items
+      description: Returns only shifts that already have a stock doc **with at least one item**, plus the delivery slot label.
+      security: [{ bearerAuth: [] }]
       parameters:
         - in: query
           name: LCid
           required: true
-          schema: { $ref: '#/components/schemas/ObjectId' }
+          schema: { type: string }
       responses:
-        '200':
-          description: Matching next shifts with stock
+        "200":
+          description: Array of upcoming shifts with stock
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/NextFiveShiftItem'
-        '400':
-          description: Missing LCid
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '500':
-          description: Failed to list next five shifts
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+                items: { $ref: "#/components/schemas/NextShiftWithStock" }
+              example:
+                - date: "2025-10-07"
+                  shift: "afternoon"
+                  docId: "6703f4f7c9b5f3a7b3a9d123"
+                  deliverySlotLabel: "14:00–17:00"
+                - date: "2025-10-07"
+                  shift: "evening"
+                  docId: "6703f527c9b5f3a7b3a9d124"
+                  deliverySlotLabel: "18:00–21:00"
+        "400": { description: LCid is required }
+        "401": { description: Unauthorized }
+        "500": { description: Server error }
 
-  /available-stock/adjustQty:
+  /market/available-stock/adjustQty:
     post:
-      tags: [AvailableStock]
-      summary: Atomically adjust available quantity for a specific line item
+      tags: [Market]
+      summary: Atomically adjust line quantity (reserve/release)
       description: |
-        Adjusts `items[n].currentAvailableQuantityKg` by `deltaKg` (negative=reserve, positive=release).
-        When `enforceEnoughForReserve=true` (default), reserves that exceed the available qty are rejected.
-        If `autoSoldoutOnZero=true` (default) and the new qty hits 0, the line status is set to `soldout`.
-      security:
-        - bearerAuth: []
+        Negative `deltaKg` reserves (decrements). Positive releases (increments).
+        If `enforceEnoughForReserve` is true (default), reserve succeeds only when there is enough quantity.
+        If `autoSoldoutOnZero` is true (default), status is set to `soldout` when new quantity hits zero.
+      security: [{ bearerAuth: [] }]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AdjustQtyRequest'
+              $ref: "#/components/schemas/AdjustQtyRequest"
+            examples:
+              reserve2kg:
+                value:
+                  docId: "6703f4f7c9b5f3a7b3a9d123"
+                  lineId: "6703f4f7c9b5f3a7b3a9d555"
+                  deltaKg: -2
+                  enforceEnoughForReserve: true
+                  autoSoldoutOnZero: true
+              release1_5kg:
+                value:
+                  docId: "6703f4f7c9b5f3a7b3a9d123"
+                  lineId: "6703f4f7c9b5f3a7b3a9d555"
+                  deltaKg: 1.5
       responses:
-        '200':
-          description: Adjustment result
+        "200":
+          description: Adjustment result with fresh line numbers
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdjustQtyResponse'
-        '400':
-          description: Validation error
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '404':
-          description: Document or line not found after update
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '409':
-          description: Conflict (e.g., not enough available quantity to reserve)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+                $ref: "#/components/schemas/AdjustQtyResponse"
+              example:
+                ok: true
+                docId: "6703f4f7c9b5f3a7b3a9d123"
+                lineId: "6703f4f7c9b5f3a7b3a9d555"
+                newQty: 47.5
+                unitsLeft: 38
+        "400": { description: Invalid docId/lineId or bad body (deltaKg required and non-zero) }
+        "401": { description: Unauthorized }
+        "404": { description: Document or line not found after update }
+        "409": { description: Not enough available quantity to reserve / conflict }
 
 components:
   securitySchemes:
@@ -260,211 +206,173 @@ components:
       bearerFormat: JWT
 
   schemas:
-    ObjectId:
-      type: string
-      description: MongoDB ObjectId
-      pattern: '^[a-fA-F0-9]{24}$'
-      example: 6512bd43d9caa6e02c990b0a
-
     ShiftName:
       type: string
-      description: Shift name
       enum: [morning, afternoon, evening, night]
 
-    ItemStatus:
-      type: string
-      enum: [active, soldout, removed]
-
-    UnitMode:
+    AvailableMarketStock:
       type: object
-      description: Unit-sale projection/config for a line (UI & conversions)
+      required: [ _id, LCid, availableDate, availableShift, items ]
       properties:
-        enabled:
-          type: boolean
-          description: Whether unit-based sale is enabled for this item line
-        unitBundleSize:
-          type: integer
-          minimum: 1
-          default: 1
-          description: Units are sold in multiples of this size (e.g., 12 eggs)
-        avgWeightPerUnitGr:
-          type: number
-          format: double
+        _id:
+          type: string
+          description: Stock document id (ObjectId)
+        LCid:
+          type: string
+        availableDate:
+          type: string
+          format: date-time
+          description: Midnight UTC of the availability date
+        availableShift:
+          $ref: "#/components/schemas/ShiftName"
+        createdById:
+          type: string
           nullable: true
-          description: Average unit weight in grams
-        sdWeightPerUnitGr:
-          type: number
-          format: double
-          default: 0
-          description: Standard deviation of unit weight in grams
-        pricePerUnit:
-          type: number
-          format: double
-          nullable: true
-          description: Server-derived unit price (or override from Item)
-        zScore:
-          type: number
-          format: double
-          default: 1.28
-          description: One-sided z-score used for conservative conversions
-        shrinkagePct:
-          type: number
-          format: double
-          default: 0.02
-          description: Handling loss/rounding cushion in conversions
-        minUnitStep:
-          type: integer
-          minimum: 1
-          default: 1
-          description: Smallest unit step allowed in UI
-
-    Estimates:
-      type: object
-      description: Cached conservative projections for UI
-      properties:
-        availableUnitsEstimate:
-          type: number
-          format: double
-          nullable: true
-          description: Conservative estimate of obtainable units from current KG
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AvailableStockItem" }
 
     AvailableStockItem:
       type: object
+      description: >
+        Line item inside a stock document. Supports both kg-only and unit/mixed modes.
+        Some fields are optional depending on item configuration.
       required:
+        - _id
         - itemId
         - displayName
         - category
-        - pricePerKg
-        - pricePerUnit
-        - currentAvailableQuantityKg
         - originalCommittedQuantityKg
+        - currentAvailableQuantityKg
         - farmerID
         - farmerName
         - farmName
         - status
       properties:
-        _id:
-          $ref: '#/components/schemas/ObjectId'
-        itemId:
-          $ref: '#/components/schemas/ObjectId'
-        displayName:
-          type: string
-          example: Tomato Cherry
-        imageUrl:
-          type: string
-          nullable: true
-          example: https://cdn.example.com/items/tomato.jpg
-        category:
-          type: string
-          example: vegetable
+        _id: { type: string, description: "Line id (ObjectId)" }
+        itemId: { type: string }
+        displayName: { type: string }
+        imageUrl: { type: string, nullable: true }
+        category: { type: string }
+        # Pricing
         pricePerKg:
           type: number
-          format: double
-          minimum: 0
-          example: 12.9
-          description: Canonical price per KG (copied from Item.price.a)
+          nullable: true
+          description: "Optional; may be stored/derived per line"
         pricePerUnit:
           type: number
-          format: double
-          minimum: 0
-          example: 1.25
-          description: Required for backward compatibility; mirrors unitMode.pricePerUnit when unit sale is enabled
-        currentAvailableQuantityKg:
-          type: number
-          format: double
-          minimum: 0
-          example: 58.5
-          description: Must be ≤ originalCommittedQuantityKg
-        originalCommittedQuantityKg:
-          type: number
-          format: double
-          minimum: 0
-          example: 60
-        farmerOrderId:
-          allOf:
-            - $ref: '#/components/schemas/ObjectId'
           nullable: true
-        farmerID:
-          $ref: '#/components/schemas/ObjectId'
-        farmerName:
+          description: "If unit selling is enabled; may be derived from avg weight"
+        # Inventory
+        originalCommittedQuantityKg: { type: number }
+        currentAvailableQuantityKg: { type: number }
+        status:
           type: string
-          example: Levy Cohen
-        farmName:
+          enum: [active, soldout, removed]
+        # Relations
+        farmerOrderId:
           type: string
-          example: Green Valley Farm
+          nullable: true
+        farmerID: { type: string }
+        farmerName: { type: string }
+        farmName: { type: string }
         farmLogo:
           type: string
           nullable: true
-          example: https://cdn.example.com/farms/green-valley-logo.png
+        # Unit mode (two representations are possible in your codebase; both exposed as optional)
         unitMode:
-          allOf:
-            - $ref: '#/components/schemas/UnitMode'
+          oneOf:
+            - $ref: "#/components/schemas/UnitModeObject"
+            - $ref: "#/components/schemas/UnitModeString"
           nullable: true
         estimates:
-          allOf:
-            - $ref: '#/components/schemas/Estimates'
-          nullable: true
-        status:
-          $ref: '#/components/schemas/ItemStatus'
+          $ref: "#/components/schemas/Estimates"
+      example:
+        _id: "6703f4f7c9b5f3a7b3a9d555"
+        itemId: "68960284330bf1699eee8955"
+        displayName: "Lettuce Romaine"
+        imageUrl: "https://cdn.example.com/items/lettuce.jpg"
+        category: "vegetables"
+        pricePerKg: 12.9
+        pricePerUnit: 6.5
+        originalCommittedQuantityKg: 60
+        currentAvailableQuantityKg: 47.5
+        farmerOrderId: "6703f2e4c9b5f3a7b3a9d101"
+        farmerID: "68960695a7850beaf8dac1ea"
+        farmerName: "Yousef Haddad"
+        farmName: "Haddad Fields"
+        farmLogo: "https://cdn.example.com/logos/haddad.png"
+        unitMode:
+          enabled: true
+          unitBundleSize: 1
+          avgWeightPerUnitGr: 500
+          sdWeightPerUnitGr: 80
+          pricePerUnit: 6.45
+          zScore: 1.28
+          shrinkagePct: 0.02
+          minUnitStep: 1
+        estimates:
+          availableUnitsEstimate: 38
+          avgWeightPerUnitKg: 0.5
+          stdDevKg: 0.08
 
-    AvailableMarketStock:
+    UnitModeObject:
       type: object
-      description: Root document for a given LC + date + shift
+      description: Rich unit-mode config (as surfaced by controller for matched lines)
+      required: [enabled, unitBundleSize, zScore, shrinkagePct, minUnitStep]
       properties:
-        _id:
-          $ref: '#/components/schemas/ObjectId'
-        availableDate:
-          type: string
-          format: date-time
-          description: Stored normalized to 00:00:00.000Z
-          example: 2025-09-18T00:00:00.000Z
-        availableShift:
-          $ref: '#/components/schemas/ShiftName'
-        LCid:
-          $ref: '#/components/schemas/ObjectId'
-        createdById:
-          allOf:
-            - $ref: '#/components/schemas/ObjectId'
-          nullable: true
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/AvailableStockItem'
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+        enabled: { type: boolean }
+        unitBundleSize: { type: integer, minimum: 1 }
+        avgWeightPerUnitGr: { type: number, nullable: true }
+        sdWeightPerUnitGr: { type: number, default: 0 }
+        pricePerUnit: { type: number, nullable: true }
+        zScore: { type: number, default: 1.28 }
+        shrinkagePct: { type: number, default: 0.02 }
+        minUnitStep: { type: integer, default: 1 }
 
-    NextFiveShiftItem:
+    UnitModeString:
+      type: string
+      description: Simple unit mode descriptor from service creation
+      enum: [kg, unit, mixed]
+
+    Estimates:
       type: object
+      description: Conservative availability metrics
+      properties:
+        availableUnitsEstimate:
+          type: integer
+          nullable: true
+        avgWeightPerUnitKg:
+          type: number
+          nullable: true
+        stdDevKg:
+          type: number
+          nullable: true
+
+    NextShiftWithStock:
+      type: object
+      required: [date, shift, docId, deliverySlotLabel]
       properties:
         date:
           type: string
           description: ISO date string (YYYY-MM-DD)
-          example: '2025-09-18'
         shift:
-          $ref: '#/components/schemas/ShiftName'
+          $ref: "#/components/schemas/ShiftName"
         docId:
-          $ref: '#/components/schemas/ObjectId'
+          type: string
         deliverySlotLabel:
           type: string
-          example: '09:00–11:00'
+          example: "14:00–17:00"
 
     AdjustQtyRequest:
       type: object
       required: [docId, lineId, deltaKg]
       properties:
-        docId:
-          $ref: '#/components/schemas/ObjectId'
-        lineId:
-          $ref: '#/components/schemas/ObjectId'
+        docId: { type: string }
+        lineId: { type: string }
         deltaKg:
           type: number
-          format: double
-          description: Negative=reserve (decrement), Positive=release (increment); must be non-zero
-          example: -3.5
+          description: Negative to reserve, positive to release (non-zero)
         enforceEnoughForReserve:
           type: boolean
           default: true
@@ -476,30 +384,15 @@ components:
       type: object
       required: [ok, docId, lineId, newQty]
       properties:
-        ok:
-          type: boolean
-          example: true
-        docId:
-          $ref: '#/components/schemas/ObjectId'
-        lineId:
-          $ref: '#/components/schemas/ObjectId'
-        newQty:
-          type: number
-          format: double
-          example: 116.5
+        ok: { type: boolean }
+        docId: { type: string }
+        lineId: { type: string }
+        newQty: { type: number }
         unitsLeft:
-          type: number
-          format: double
+          type: integer
           nullable: true
-          description: Conservative estimate of remaining units (from `items.$.estimates.availableUnitsEstimate`)
-          example: 420
+          description: Estimate from `estimates.availableUnitsEstimate`, if present
         status:
-          $ref: '#/components/schemas/ItemStatus'
-          description: Present when auto-soldout triggered
-
-    Error:
-      type: object
-      properties:
-        error:
           type: string
-          example: Not found
+          enum: [soldout]
+          description: Present when `autoSoldoutOnZero` triggers
