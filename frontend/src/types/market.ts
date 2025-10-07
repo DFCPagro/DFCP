@@ -1,6 +1,11 @@
 // src/types/market.ts
 import { z } from "zod";
 
+// Accepts absolute URLs, but also tolerates "", null, or undefined by converting them to undefined
+export const OptionalUrl = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? undefined : v),
+  z.string().url().optional()
+);
 /* -----------------------------------------------------------------------------
  * SHARED ENUMS
  * -------------------------------------------------------------------------- */
@@ -63,7 +68,7 @@ export const MarketStockLineBackendSchema = z.object({
   farmerID: z.string(),
   farmerName: z.string(),
   farmName: z.string().optional(),
-  farmLogo: z.string().url().optional(),
+  farmLogo: OptionalUrl,        // allows "", null, undefined → undefined, or a valid absolute URL
 
   status: ItemStatusSchema.optional(), // default behavior handled server-side
   farmerOrderId: z.string().optional(),
@@ -110,7 +115,7 @@ export const MarketStockLineSchema = z.object({
   farmerID: z.string(),
   farmerName: z.string(),
   farmName: z.string().optional(),
-  farmLogo: z.string().url().optional(),
+  farmLogo: OptionalUrl,        // allows "", null, undefined → undefined, or a valid absolute URL
 
   status: ItemStatusSchema.optional(),
   farmerOrderId: z.string().optional(),
@@ -163,7 +168,7 @@ export const MarketItemSchema = z.object({
   farmerId: z.string(), // farmerID -> farmerId
   farmerName: z.string(),
   farmName: z.string().optional(),
-  farmLogo: z.string().url().optional(),
+  farmLogo: OptionalUrl,        // allows "", null, undefined → undefined, or a valid absolute URL
 
   status: ItemStatusSchema.optional(),
 

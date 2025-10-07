@@ -1,6 +1,7 @@
 // src/api/market.ts
 import { api } from "./config";
 import { z } from "zod";
+import { ASSET_BASE_URL } from "@/helpers/env"; 
 
 import { AddressSchema, AddressListSchema, type Address } from "@/types/address";
 import {
@@ -16,6 +17,21 @@ import {
  *  - Kept legacy root-level avgWeightPerUnitKg for compatibility.
  * -------------------------------------------------------------------------- */
 
+function normalizeAssetUrl(v: unknown): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  const s = String(v).trim();
+  if (!s) return undefined;
+  // Absolute (http/https/data) — leave as is
+  if (/^(https?:|data:)/i.test(s)) return s;
+  // Protocol-relative //cdn... — make it https
+  if (/^\/\//.test(s)) return `https:${s}`;
+  // Relative path /uploads/… — prefix with base
+  if (s.startsWith("/") && ASSET_BASE_URL) {
+    return `${ASSET_BASE_URL.replace(/\/+$/, "")}${s}`;
+  }
+  // Anything else that isn’t a valid absolute URL gets dropped
+  return undefined;
+}
 const UnitModeRaw = z.enum(["kg", "unit", "mixed"]);
 
 const ItemEstimatesRaw = z.object({
@@ -28,7 +44,7 @@ const ItemRaw = z.object({
   _id: z.string(), // subdoc id
   itemId: z.string(),
   displayName: z.string(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: z.preprocess(normalizeAssetUrl, z.string().url().optional()),
   category: z.string().optional(),
   pricePerUnit: z.number().nonnegative().optional(),
 
@@ -41,7 +57,7 @@ const ItemRaw = z.object({
   farmerID: z.string().optional(),
   farmerName: z.string().optional(),
   farmName: z.string().optional(),
-  farmLogo: z.string().url().optional(),
+  farmLogo: z.preprocess(normalizeAssetUrl, z.string().url().optional()),
   status: z.enum(["active", "soldout", "removed"]).optional(),
   farmerOrderId: z.string().optional(),
 

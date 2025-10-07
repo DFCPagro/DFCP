@@ -10,3 +10,5 @@ const prefix = rawPrefix.startsWith("/") ? rawPrefix : `/${rawPrefix}`;
 export const VITE_API_BASE = base;
 export const VITE_API_PREFIX = prefix;
 export const VITE_API_URL = `${base}${prefix}`;
+
+export const ASSET_BASE_URL = import.meta.env.VITE_ASSET_BASE_URL ?? "";
