@@ -1,4 +1,4 @@
-export const roles = ['customer', 'farmer', 'deliverer','industrialDeliverer', 'tManager', 'fManager', 'opManager', 'admin'] as const;
+export const roles = ['customer', 'farmer', 'picker', 'sorter', 'deliverer','industrialDeliverer', 'tManager', 'fManager', 'opManager', 'admin'] as const;
 export type Role = typeof roles[number];
 
 /** ---------------------------
@@ -33,3 +33,24 @@ export const JOB_APP_ALLOWED_TRANSITIONS: Readonly<
 });
 
 export const JOB_APP_TERMINAL_STATUSES = ["approved", "denied"] as const;
+
+
+
+
+
+
+
+/** 
+ * 
+ * Tokens Related
+ */
+
+export const QR_SCOPES = [
+  "farmer-order",
+  "farmer-container",
+  "farmer-delivery",
+  "order-package",
+  "order",
+] as const;
+
+export type QrScope = (typeof QR_SCOPES)[number];
