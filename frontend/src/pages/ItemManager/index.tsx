@@ -11,7 +11,7 @@ import {
 import { Plus } from "lucide-react"
 
 import FiltersBar from "./components/FiltersBar"
-import ItemsTable from "./components/ItemsTable"
+import ItemsCards from "./components/ItemsCards"
 import RowsAndPagination from "./components/RowsAndPagination"
 import AddItemDrawer from "./components/AddItemDrawer"
 import EditItemDrawer from "./components/EditItemDrawer"
@@ -152,7 +152,8 @@ export default function ItemManager() {
         {total} total
       </Text>
 
-      <ItemsTable
+      {/* Card grid view */}
+      <ItemsCards
         items={items}
         isBusy={isBusy}
         onEdit={(it) => {

@@ -1,67 +1,32 @@
-import { useMemo, useState, useEffect } from "react"
+import { useMemo } from "react"
 import {
   Button,
   Field,
   Flex,
   Text,
-  HStack,
   Input,
   NativeSelect,
   NumberInput,
   Stack,
+  Box,
 } from "@chakra-ui/react"
-import { z } from "zod"
 import {
   itemCategories,
-  itemFormSchema,
   type ItemFormValues,
 } from "@/api/items"
-import QualityStandardsEditorDialog from "./QualityStandardsEditorDialog"
+import ImagePreview from "./form/sections/ImagePreview"
+import PriceFields from "./form/sections/PriceFields"
+import QualityStandardsSection, { type QualityStandards } from "./form/sections/QualityStandardsSection"
+import { normalizeFormDefaults, useItemFormState } from "./form/useItemFormState"
 
-// ---------- Error mapping ----------
-type Errors = Partial<
-  Record<
-    | "category"
-    | "type"
-    | "variety"
-    | "imageUrl"
-    | "caloriesPer100g"
-    | "price.a"
-    | "price.b"
-    | "price.c"
-    | "season"
-    | "tolerance",
-    string
-  >
->
-
-function zodErrorsToState(err: z.ZodError): Errors {
-  const out: Errors = {}
-  for (const issue of err.issues) {
-    const path = issue.path.join(".")
-    out[path as keyof Errors] = issue.message
-  }
-  return out
+type Props = {
+  defaultValues?: Partial<ItemFormValues>
+  onSubmit: (values: ItemFormValues) => void | Promise<void>
+  isSubmitting?: boolean
+  mode?: "create" | "edit"
+  /** When true, renders a non-editable, view-only form */
+  readOnly?: boolean
 }
-
-// ---------- Helpers ----------
-const normalizeFormDefaults = (defs?: Partial<ItemFormValues>): ItemFormValues => ({
-  category: "fruit",
-  type: "",
-  variety: "",
-  imageUrl: "",
-  caloriesPer100g: undefined,
-  season: "",
-  tolerance: "",
-  qualityStandards: undefined,
-  ...defs,
-  // ensure price shape
-  price: {
-    a: defs?.price?.a ?? null,
-    b: defs?.price?.b ?? null,
-    c: defs?.price?.c ?? null,
-  },
-})
 
 const toNumber = (value: string, fractionDigits = 0): number | null => {
   const normalized = value.replace(/\s/g, "").replace(",", ".")
@@ -70,59 +35,30 @@ const toNumber = (value: string, fractionDigits = 0): number | null => {
   return fractionDigits > 0 ? Number(n.toFixed(fractionDigits)) : Math.trunc(n)
 }
 
-// ---------- Component ----------
-type Props = {
-  defaultValues?: Partial<ItemFormValues>
-  onSubmit: (values: ItemFormValues) => void | Promise<void>
-  isSubmitting?: boolean
-  mode?: "create" | "edit"
-}
-
 export default function ItemForm({
   defaultValues,
   onSubmit,
   isSubmitting,
   mode = "create",
+  readOnly = false,
 }: Props) {
-  // initial snapshot (used for isDirty)
   const initial = useMemo(() => normalizeFormDefaults(defaultValues), [defaultValues])
+  const {
+    values,
+    setValues,
+    errors,
+    touched,
+    markTouched,
+    validate,
+    isDirty,
+    isValid,
+  } = useItemFormState(defaultValues)
 
-  const [values, setValues] = useState<ItemFormValues>(initial)
-  const [errors, setErrors] = useState<Errors>({})
-  const [touched, setTouched] = useState<Record<string, boolean>>({})
-  const [qsOpen, setQsOpen] = useState(false)
-
-  // keep state in sync when defaultValues change (e.g., switching edited item)
-  useEffect(() => {
-    const next = normalizeFormDefaults(defaultValues)
-    setValues(next)
-    setErrors({})
-    setTouched({})
-  }, [defaultValues])
-
-  const setField = <K extends keyof ItemFormValues>(key: K, v: ItemFormValues[K]) => {
+  const setField = <K extends keyof ItemFormValues>(key: K, v: ItemFormValues[K]) =>
     setValues((s) => ({ ...s, [key]: v }))
-  }
 
-  const setPrice = (key: "a" | "b" | "c", v: number | null) => {
+  const setPrice = (key: "a" | "b" | "c", v: number | null) =>
     setValues((s) => ({ ...s, price: { ...s.price, [key]: v } }))
-  }
-
-  const markTouched = (name: string) =>
-    setTouched((t) => (t[name] ? t : { ...t, [name]: true }))
-
-  const validate = (next?: ItemFormValues): Errors => {
-    const data = next ?? values
-    const res = itemFormSchema.safeParse(data)
-    if (res.success) {
-      setErrors({})
-      return {}
-    } else {
-      const mapped = zodErrorsToState(res.error)
-      setErrors(mapped)
-      return mapped
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -133,15 +69,9 @@ export default function ItemForm({
       const allTouched: Record<string, boolean> = {}
       Object.keys(values).forEach((k) => (allTouched[k] = true))
       ;["price.a", "price.b", "price.c"].forEach((k) => (allTouched[k] = true))
-      setTouched((t) => ({ ...t, ...allTouched }))
     }
   }
 
-  // Derived flags
-  const isDirty = JSON.stringify(values) !== JSON.stringify(initial)
-  const isValid = useMemo(() => itemFormSchema.safeParse(values).success, [values])
-
-  // quality standards metrics count (for subtitle)
   const countQs = (qs: any | undefined) => {
     if (!qs) return 0
     let c = 0
@@ -158,10 +88,11 @@ export default function ItemForm({
         {/* Category */}
         <Field.Root required invalid={!!errors["category"] && touched["category"]}>
           <Field.Label>Category</Field.Label>
-          <NativeSelect.Root>
+          <NativeSelect.Root disabled={readOnly}>
             <NativeSelect.Field
               value={values.category}
               onChange={(e) => {
+                if (readOnly) return
                 markTouched("category")
                 setField("category", e.target.value as ItemFormValues["category"])
               }}
@@ -185,15 +116,18 @@ export default function ItemForm({
             placeholder="e.g. Apple"
             value={values.type}
             onChange={(e) => {
+              if (readOnly) return
               markTouched("type")
               setField("type", e.target.value)
             }}
             onBlur={() => validate()}
+            readOnly={readOnly}
+            disabled={readOnly}
           />
           <Field.ErrorText>{errors["type"]}</Field.ErrorText>
         </Field.Root>
 
-        {/* Variety (required by your backend) */}
+        {/* Variety */}
         <Field.Root required invalid={!!errors["variety"] && touched["variety"]}>
           <Field.Label>Variety</Field.Label>
           <Input
@@ -201,26 +135,34 @@ export default function ItemForm({
             value={values.variety ?? ""}
             required
             onChange={(e) => {
+              if (readOnly) return
               markTouched("variety")
               setField("variety", e.target.value)
             }}
             onBlur={() => validate()}
+            readOnly={readOnly}
+            disabled={readOnly}
           />
-          <Field.ErrorText>{errors["variety"]}</Field.ErrorText>
         </Field.Root>
 
-        {/* Image URL */}
+        {/* Image URL + Preview */}
         <Field.Root invalid={!!errors["imageUrl"] && touched["imageUrl"]}>
           <Field.Label>Image URL</Field.Label>
           <Input
-            placeholder="https://..."
+            placeholder="https://example.com/image.jpg"
             value={values.imageUrl ?? ""}
             onChange={(e) => {
+              if (readOnly) return
               markTouched("imageUrl")
               setField("imageUrl", e.target.value)
             }}
             onBlur={() => validate()}
+            readOnly={readOnly}
+            disabled={readOnly}
           />
+          <Box mt="3">
+            <ImagePreview src={values.imageUrl} />
+          </Box>
           <Field.ErrorText>{errors["imageUrl"]}</Field.ErrorText>
         </Field.Root>
 
@@ -231,10 +173,13 @@ export default function ItemForm({
             placeholder="e.g. Nov–Mar"
             value={(values as any).season ?? ""}
             onChange={(e) => {
+              if (readOnly) return
               markTouched("season")
               setField("season" as any, e.target.value)
             }}
             onBlur={() => validate()}
+            readOnly={readOnly}
+            disabled={readOnly}
           />
           <Field.ErrorText>{errors["season"]}</Field.ErrorText>
         </Field.Root>
@@ -246,10 +191,13 @@ export default function ItemForm({
             placeholder="±2%"
             value={(values as any).tolerance ?? ""}
             onChange={(e) => {
+              if (readOnly) return
               markTouched("tolerance")
               setField("tolerance" as any, e.target.value)
             }}
             onBlur={() => validate()}
+            readOnly={readOnly}
+            disabled={readOnly}
           />
           <Field.ErrorText>{errors["tolerance"]}</Field.ErrorText>
         </Field.Root>
@@ -264,6 +212,7 @@ export default function ItemForm({
             locale="en-US"
             formatOptions={{ useGrouping: false, maximumFractionDigits: 0 }}
             onValueChange={({ value, valueAsNumber }) => {
+              if (readOnly) return
               markTouched("caloriesPer100g")
               const next =
                 value === "" || Number.isNaN(valueAsNumber)
@@ -271,8 +220,9 @@ export default function ItemForm({
                   : Math.trunc(valueAsNumber)
               setField("caloriesPer100g", next == null ? undefined : next)
             }}
+            disabled={readOnly}
           >
-            <NumberInput.Input placeholder="optional" inputMode="numeric" onBlur={() => validate()} />
+            <NumberInput.Input placeholder="e.g. 52" inputMode="numeric" onBlur={() => validate()} />
             <NumberInput.Control>
               <NumberInput.IncrementTrigger />
               <NumberInput.DecrementTrigger />
@@ -289,129 +239,39 @@ export default function ItemForm({
           }
         >
           <Field.Label>Price (A/B/C)</Field.Label>
-          <HStack gap="3" align="start">
-            {/* A */}
-            <Stack minW="110px" gap="1">
-              <Text fontSize="xs" color="fg.muted">
-                A
-              </Text>
-              <NumberInput.Root
-                min={0}
-                step={0.01}
-                value={values.price.a == null ? "" : String(values.price.a)}
-                locale="en-US"
-                formatOptions={{ useGrouping: false, maximumFractionDigits: 2 }}
-                onValueChange={({ value, valueAsNumber }) => {
-                  markTouched("price.a")
-                  const next =
-                    value === "" || Number.isNaN(valueAsNumber)
-                      ? toNumber(value, 2)
-                      : Number(valueAsNumber.toFixed(2))
-                  setPrice("a", next)
-                }}
-              >
-                <NumberInput.Input name="priceA" id="priceA" placeholder="A" inputMode="decimal" onBlur={() => validate()} />
-                <NumberInput.Control>
-                  <NumberInput.IncrementTrigger />
-                  <NumberInput.DecrementTrigger />
-                </NumberInput.Control>
-              </NumberInput.Root>
-            </Stack>
-
-            {/* B */}
-            <Stack minW="110px" gap="1">
-              <Text fontSize="xs" color="fg.muted">
-                B
-              </Text>
-              <NumberInput.Root
-                min={0}
-                step={0.01}
-                value={values.price.b == null ? "" : String(values.price.b)}
-                locale="en-US"
-                formatOptions={{ useGrouping: false, maximumFractionDigits: 2 }}
-                onValueChange={({ value, valueAsNumber }) => {
-                  markTouched("price.b")
-                  const next =
-                    value === "" || Number.isNaN(valueAsNumber)
-                      ? toNumber(value, 2)
-                      : Number(valueAsNumber.toFixed(2))
-                  setPrice("b", next)
-                }}
-              >
-                <NumberInput.Input name="priceB" id="priceB" placeholder="B" inputMode="decimal" onBlur={() => validate()} />
-                <NumberInput.Control>
-                  <NumberInput.IncrementTrigger />
-                  <NumberInput.DecrementTrigger />
-                </NumberInput.Control>
-              </NumberInput.Root>
-            </Stack>
-
-            {/* C */}
-            <Stack minW="110px" gap="1">
-              <Text fontSize="xs" color="fg.muted">
-                C
-              </Text>
-              <NumberInput.Root
-                min={0}
-                step={0.01}
-                value={values.price.c == null ? "" : String(values.price.c)}
-                locale="en-US"
-                formatOptions={{ useGrouping: false, maximumFractionDigits: 2 }}
-                onValueChange={({ value, valueAsNumber }) => {
-                  markTouched("price.c")
-                  const next =
-                    value === "" || Number.isNaN(valueAsNumber)
-                      ? toNumber(value, 2)
-                      : Number(valueAsNumber.toFixed(2))
-                  setPrice("c", next)
-                }}
-              >
-                <NumberInput.Input name="priceC" id="priceC" placeholder="C" inputMode="decimal" onBlur={() => validate()} />
-                <NumberInput.Control>
-                  <NumberInput.IncrementTrigger />
-                  <NumberInput.DecrementTrigger />
-                </NumberInput.Control>
-              </NumberInput.Root>
-            </Stack>
-          </HStack>
+          <PriceFields
+            value={values.price}
+            onChange={setPrice}
+            onBlur={() => validate()}
+            readOnly={readOnly}
+          />
           <Field.ErrorText>
             {errors["price.a"] || errors["price.b"] || errors["price.c"]}
           </Field.ErrorText>
         </Field.Root>
 
-        {/* Quality Standards editor trigger + summary */}
-        <Field.Root>
-          <HStack justify="space-between" align="center">
-            <Stack gap="0">
-              <Field.Label>Quality standards</Field.Label>
-              <Text fontSize="xs" color="fg.muted">
-                {countQs((values as any).qualityStandards)} metric
-                {countQs((values as any).qualityStandards) === 1 ? "" : "s"} set
-              </Text>
-            </Stack>
-            <Button size="sm" variant="outline" onClick={() => setQsOpen(true)}>
-              Edit
-            </Button>
-          </HStack>
-        </Field.Root>
-
-        {/* Editor dialog (portals) */}
-        <QualityStandardsEditorDialog
-          open={qsOpen}
-          setOpen={setQsOpen}
-          value={(values as any).qualityStandards}
+        {/* Collapsible Quality Standards – now part of the form */}
+        <QualityStandardsSection
+          value={(values as any).qualityStandards as QualityStandards | undefined}
           onChange={(next) => {
+            if (readOnly) return
             setValues((s) => ({ ...(s as any), qualityStandards: next }))
-            validate({ ...(values as any), qualityStandards: next })
           }}
+          readOnly={readOnly}
         />
+        <Text fontSize="xs" color="fg.muted">
+          {countQs((values as any).qualityStandards)} metric
+          {countQs((values as any).qualityStandards) === 1 ? "" : "s"} set
+        </Text>
 
         {/* Submit */}
-        <Flex justify="flex-end" gap={3} pt={2}>
-          <Button type="submit" colorPalette="teal" loading={isSubmitting} disabled={!isDirty || !isValid}>
-            {mode === "create" ? "Create Item" : "Save Changes"}
-          </Button>
-        </Flex>
+        {!readOnly && (
+          <Flex justify="flex-end" gap={3} pt={2}>
+            <Button type="submit" colorPalette="teal" loading={isSubmitting} disabled={!isDirty || !isValid}>
+              {mode === "create" ? "Create Item" : "Save Changes"}
+            </Button>
+          </Flex>
+        )}
       </Stack>
     </form>
   )

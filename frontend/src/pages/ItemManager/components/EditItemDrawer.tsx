@@ -58,7 +58,7 @@ export default function EditItemDrawer({
     <Drawer.Root
       open={open}
       onOpenChange={({ open }) => setOpen(open)}
-      size="lg"
+      size="full"
       placement="end"
       restoreFocus
       preventScroll

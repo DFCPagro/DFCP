@@ -1,5 +1,6 @@
 import { Button, Dialog, Portal } from "@chakra-ui/react"
 import type { Item } from "@/types/items"
+import StyledButton from "@/components/ui/Button"
 
 type Props = {
   open: boolean
@@ -29,9 +30,9 @@ export default function DeleteDialog({ open, setOpen, item, onConfirm, isLoading
               <Button variant="ghost" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button colorPalette="red" ml={3} loading={isLoading} onClick={onConfirm}>
+              <StyledButton visual="danger" ml={3} loading={isLoading} onClick={onConfirm}>
                 Delete
-              </Button>
+              </StyledButton>
             </Dialog.Footer>
           </Dialog.Content>
         </Dialog.Positioner>

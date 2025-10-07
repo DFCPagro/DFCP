@@ -10,26 +10,31 @@ import {
 } from "@chakra-ui/react"
 import { X } from "lucide-react"
 import ItemForm from "./ItemForm"
+import type { Item } from "@/types/items"
 import { StyledIconButton } from "@/components/ui/IconButton"
 
 type Props = {
   open: boolean
   setOpen: (val: boolean) => void
-  isSubmitting: boolean
-  onSubmit: (values: any) => Promise<void> | void
+  item: Item | null
 }
 
-export default function AddItemDrawer({
-  open,
-  setOpen,
-  isSubmitting,
-  onSubmit,
-}: Props) {
-  // focus first meaningful input when opening (same approach as Edit drawer)
+/** Read-only drawer to view an item's full details. */
+export default function ViewItemDrawer({ open, setOpen, item }: Props) {
+  const title = React.useMemo(() => {
+    if (!item) return "Item details"
+    const v = (item.variety ?? "").trim()
+    return v ? `${item.type} ${v}` : item.type
+  }, [item])
+
+  const category = item?.category
+  const updated = item?.updatedAt
+    ? new Date(item.updatedAt).toLocaleString()
+    : null
+
   const initialFocusEl = React.useCallback(() => {
     return (
-      (document.querySelector('input[placeholder="e.g. Apple"]') as HTMLElement) ||
-      (document.querySelector("input,select,textarea") as HTMLElement) ||
+      (document.querySelector('button[aria-label="Close drawer"]') as HTMLElement) ||
       null
     )
   }, [])
@@ -38,19 +43,18 @@ export default function AddItemDrawer({
     <Drawer.Root
       open={open}
       onOpenChange={({ open }) => setOpen(open)}
-      size="full"               // match Edit drawer
+      size="full"
       placement="end"
       restoreFocus
       preventScroll
-      closeOnEscape={!isSubmitting}
-      closeOnInteractOutside={!isSubmitting}
+      closeOnEscape
+      closeOnInteractOutside
       initialFocusEl={initialFocusEl}
     >
       <Portal>
         <Drawer.Backdrop />
         <Drawer.Positioner>
           <Drawer.Content>
-            {/* Header matches Edit drawer style */}
             <Drawer.Header
               display="flex"
               alignItems="center"
@@ -60,13 +64,12 @@ export default function AddItemDrawer({
               <Stack gap="0">
                 <HStack gap="2" align="baseline">
                   <Text fontSize="lg" fontWeight="semibold">
-                    Create Item
+                    {title}
                   </Text>
-                  {/* optional badge to hint context */}
-                  <Badge variant="subtle">New</Badge>
+                  {category && <Badge>{category}</Badge>}
                 </HStack>
                 <HStack gap="2" color="fg.muted" fontSize="xs">
-                  <Text>Fill all required fields</Text>
+                  {updated && <Text>Last updated: {updated}</Text>}
                   <HStack gap="1" hideBelow="md">
                     <Text>Press</Text>
                     <Kbd>Esc</Kbd>
@@ -86,24 +89,29 @@ export default function AddItemDrawer({
               </Drawer.CloseTrigger>
             </Drawer.Header>
 
-            {/* Body: re-mount form on each open to start fresh */}
             <Drawer.Body>
-              <ItemForm
-                key={open ? "create-open" : "create-closed"}
-                mode="create"
-                isSubmitting={isSubmitting}
-                // you can omit defaultValues — ItemForm has sensible defaults
-                // leaving this commented as documentation:
-                // defaultValues={{
-                //   category: "fruit",
-                //   type: "",
-                //   variety: "",
-                //   imageUrl: "",
-                //   caloriesPer100g: undefined,
-                //   price: { a: null, b: null, c: null },
-                // }}
-                onSubmit={onSubmit}
-              />
+              {item ? (
+                <ItemForm
+                  key={item._id ?? "view-form"}
+                  mode="edit"
+                  readOnly
+                  defaultValues={{
+                    category: item.category,
+                    type: item.type,
+                    variety: item.variety ?? "",
+                    imageUrl: item.imageUrl ?? "",
+                    caloriesPer100g: item.caloriesPer100g ?? undefined,
+                    price: item.price ?? { a: null, b: null, c: null },
+                    season: item.season ?? "",
+                    tolerance: item.tolerance ?? "",
+                    qualityStandards: item.qualityStandards ?? undefined,
+                  }}
+                  // onSubmit is unused in readOnly; provide a noop
+                  onSubmit={() => {}}
+                />
+              ) : (
+                <Text color="fg.muted">No item selected</Text>
+              )}
             </Drawer.Body>
           </Drawer.Content>
         </Drawer.Positioner>
