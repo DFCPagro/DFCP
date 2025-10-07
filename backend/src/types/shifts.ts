@@ -1,0 +1,1 @@
+export type shifts= "morning" | "afternoon" | "evening" | "night";
