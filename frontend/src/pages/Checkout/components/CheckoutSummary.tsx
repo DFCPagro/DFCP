@@ -1,3 +1,4 @@
+// src/pages/checkout/components/CheckoutSummary.tsx
 import { memo, useMemo } from "react";
 import {
     Box,
@@ -10,28 +11,64 @@ import {
     Stack,
     Text,
 } from "@chakra-ui/react";
-import { FiCalendar, FiClock, FiHome, FiMapPin, FiTruck, FiChevronRight } from "react-icons/fi";
-import type { Address } from "@/types/address";
-import type { CreateOrderItemInput } from "@/types/orders";
+import {
+    FiCalendar,
+    FiClock,
+    FiHome,
+    FiMapPin,
+    FiTruck,
+    FiChevronRight,
+} from "react-icons/fi";
+
+/* ---------------------------------- Types --------------------------------- */
+
+export type CartLineLike = {
+    key?: string;
+    stockId?: string;
+
+    // identity / display
+    name?: string;
+    displayName?: string;
+    imageUrl?: string;
+    category?: string;
+
+    // quantities
+    quantity?: number;       // legacy: kg
+    quantityKg?: number;     // kg
+    units?: number;          // count
+    unitMode?: "kg" | "unit" | "mixed";
+    estimatesSnapshot?: { avgWeightPerUnitKg?: number };
+    avgWeightPerUnitKg?: number;
+
+    // pricing (per KG)
+    unitPriceUsd?: number;
+    pricePerKg?: number;
+    pricePerUnit?: number;
+
+    // nested item (optional, from market)
+    item?: any;
+
+    [k: string]: unknown;
+};
+
+export type MoneyTotals = {
+    itemCount: number;
+    subtotal: number;
+};
 
 export type CheckoutSummaryProps = {
-    // Order lines to confirm
-    items: CreateOrderItemInput[];
+    // Order lines to confirm (from shared cart)
+    cartLines: CartLineLike[];
 
     // Delivery context
-    deliveryAddress: Address | null;
-    deliveryDate: string | null; // ISO yyyy-mm-dd
+    deliveryAddress?: any | null; // optional now
+    deliveryDate: string | null;  // ISO yyyy-mm-dd
     shiftName: string | null;
     amsId?: string | null;
     logisticsCenterId?: string | null;
 
-    // Totals (pre-tax/fees or post, depending on caller)
-    totals: {
-        itemsSubtotal: number;
-        deliveryFee: number;
-        taxUsd: number;
-        totalPrice: number;
-    };
+    // Totals (from useCheckoutState: { itemCount, subtotal })
+    totals: MoneyTotals;
 
     // UX
     onContinue?: () => void;
@@ -43,69 +80,126 @@ export type CheckoutSummaryProps = {
 
 function formatCurrencyUSD(n: number | undefined | null): string {
     const v = Number(n ?? 0);
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(
-        Number.isFinite(v) ? v : 0
-    );
+    return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2,
+    }).format(Number.isFinite(v) ? v : 0);
 }
 
 function formatDate(iso: string | null): string {
     if (!iso) return "—";
     try {
         const d = new Date(iso);
-        // If only YYYY-MM-DD is provided, Date() will treat as UTC; still fine for display.
         return d.toLocaleDateString();
     } catch {
         return iso;
     }
 }
 
-/** Mirror of computeTotals logic: estimated line total in USD */
-function computeLineTotalUSD(it: CreateOrderItemInput): number {
-    const price = Number(it.pricePerUnit) || 0;
-
-    if (it.unitMode === "unit" && it.units && it.estimatesSnapshot?.avgWeightPerUnitKg) {
-        return price * it.units * it.estimatesSnapshot.avgWeightPerUnitKg;
-    }
-    if ((it.unitMode === "kg" || !it.unitMode) && it.quantityKg) {
-        return price * it.quantityKg;
-    }
-    if (it.unitMode === "mixed") {
-        const kgPart = (Number(it.quantityKg) || 0) * price;
-        const unitPart =
-            (Number(it.units) || 0) * (Number(it.estimatesSnapshot?.avgWeightPerUnitKg) || 0) * price;
-        return kgPart + unitPart;
-    }
-    return 0;
+function readPerKgPrice(l: CartLineLike): number {
+    return (
+        Number(l.unitPriceUsd ?? NaN) ||
+        Number(l.pricePerUnit ?? NaN) ||
+        Number(l.pricePerKg ?? NaN) ||
+        Number(l.item?.pricePerUnit ?? NaN) ||
+        0
+    );
 }
 
-function formatQty(it: CreateOrderItemInput): string {
-    const parts: string[] = [];
-    if (it.unitMode === "kg" || it.unitMode === undefined) {
-        if (it.quantityKg) parts.push(`${Number(it.quantityKg)} kg`);
-    } else if (it.unitMode === "unit") {
-        if (it.units !== undefined) {
-            const unitTxt = `${Number(it.units)} unit${Number(it.units) === 1 ? "" : "s"}`;
-            if (it.estimatesSnapshot?.avgWeightPerUnitKg)
-                parts.push(`${unitTxt} (~${it.estimatesSnapshot.avgWeightPerUnitKg} kg/u)`);
-            else parts.push(unitTxt);
-        }
-    } else if (it.unitMode === "mixed") {
-        if (it.quantityKg) parts.push(`${Number(it.quantityKg)} kg`);
-        if (it.units !== undefined) {
-            const unitTxt = `${Number(it.units)} unit${Number(it.units) === 1 ? "" : "s"}`;
-            if (it.estimatesSnapshot?.avgWeightPerUnitKg)
-                parts.push(`${unitTxt} (~${it.estimatesSnapshot.avgWeightPerUnitKg} kg/u)`);
-            else parts.push(unitTxt);
-        }
+function readDisplayName(l: CartLineLike): string {
+    return (
+        (l.name as string) ??
+        (l.displayName as string) ??
+        (l.item?.displayName as string) ??
+        (l.item?.name as string) ??
+        "Item"
+    );
+}
+
+function readImageUrl(l: CartLineLike): string | undefined {
+    return (
+        (l.imageUrl as string | undefined) ??
+        (l.item?.imageUrl as string | undefined) ??
+        (l.item?.img as string | undefined) ??
+        (l.item?.photo as string | undefined)
+    );
+}
+
+function readCategory(l: CartLineLike): string | undefined {
+    return (l.category as string | undefined) ?? (l.item?.category as string | undefined);
+}
+
+function readUnitMode(l: CartLineLike): "kg" | "unit" | "mixed" {
+    return (l.unitMode as any) ?? (l.item?.unitMode as any) ?? "kg";
+}
+
+function readAvgPerUnit(l: CartLineLike): number | undefined {
+    return (
+        Number(l.estimatesSnapshot?.avgWeightPerUnitKg ?? NaN) ||
+        Number(l.avgWeightPerUnitKg ?? NaN) ||
+        Number(l.item?.estimatesSnapshot?.avgWeightPerUnitKg ?? NaN) ||
+        undefined
+    );
+}
+
+function computeDisplayQty(l: CartLineLike): { text: string; effKg: number } {
+    const mode = readUnitMode(l);
+    const avgPerUnit = readAvgPerUnit(l);
+    const qtyLegacyKg = Number(l.quantity ?? NaN);
+    const qtyKg = Number(l.quantityKg ?? NaN);
+    const units = Number(l.units ?? NaN);
+
+    // Legacy fallback: if nothing explicit and legacy quantity present → treat as kg
+    const hasLegacyKg =
+        !l.unitMode && !l.quantityKg && Number.isFinite(qtyLegacyKg) && qtyLegacyKg > 0;
+
+    if (mode === "kg" || hasLegacyKg) {
+        const kg = Number.isFinite(qtyKg) ? qtyKg : qtyLegacyKg || 0;
+        return { text: Number.isFinite(kg) ? `${kg} kg` : "—", effKg: Number(kg || 0) };
     }
-    return parts.length ? parts.join(" + ") : "—";
+
+    if (mode === "unit") {
+        if (Number.isFinite(units)) {
+            const base = `${units} unit${units === 1 ? "" : "s"}`;
+            if (Number.isFinite(avgPerUnit)) {
+                return {
+                    text: `${base} (~${avgPerUnit} kg/u)`,
+                    effKg: units * (avgPerUnit || 0),
+                };
+            }
+            return { text: base, effKg: 0 };
+        }
+        return { text: "—", effKg: 0 };
+    }
+
+    // mixed
+    const kgPart = Number.isFinite(qtyKg) ? qtyKg : 0;
+    const unitPartKg =
+        Number.isFinite(units) && Number.isFinite(avgPerUnit) ? units * (avgPerUnit || 0) : 0;
+
+    const parts: string[] = [];
+    if (kgPart > 0) parts.push(`${kgPart} kg`);
+    if (Number.isFinite(units)) {
+        const unitTxt = `${units} unit${units === 1 ? "" : "s"}`;
+        parts.push(Number.isFinite(avgPerUnit) ? `${unitTxt} (~${avgPerUnit} kg/u)` : unitTxt);
+    }
+
+    return { text: parts.length ? parts.join(" + ") : "—", effKg: kgPart + unitPartKg };
+}
+
+function formatAddress(a: any): string {
+    if (!a) return "—";
+    if (typeof a === "string") return a || "—";
+    const addr = a?.address ?? a?.fullAddress ?? a?.formatted ?? a?.label;
+    return (addr && String(addr).trim()) || "—";
 }
 
 /* -------------------------------- component -------------------------------- */
 
 export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSummaryProps) {
     const {
-        items,
+        cartLines,
         deliveryAddress,
         deliveryDate,
         shiftName,
@@ -117,23 +211,28 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
         isLoading,
     } = props;
 
-    const linesVM = useMemo(
-        () =>
-            (items ?? []).map((it, idx) => {
-                const lineTotal = computeLineTotalUSD(it);
-                return {
-                    key: `${it.itemId}-${idx}`,
-                    name: it.name ?? "Item",
-                    imageUrl: it.imageUrl,
-                    category: it.category,
-                    unitMode: it.unitMode ?? "kg",
-                    qtyText: formatQty(it),
-                    pricePerKgText: `${formatCurrencyUSD(it.pricePerUnit)} / kg`,
-                    lineTotalText: formatCurrencyUSD(lineTotal),
-                };
-            }),
-        [items]
-    );
+    const linesVM = useMemo(() => {
+        return (cartLines ?? []).map((l, idx) => {
+            const price = readPerKgPrice(l);
+            const { text: qtyText, effKg } = computeDisplayQty(l);
+            const lineTotal = Math.round(price * effKg * 100) / 100;
+
+            return {
+                key: String(l.key ?? l.stockId ?? idx),
+                name: readDisplayName(l),
+                imageUrl: readImageUrl(l),
+                category: readCategory(l),
+                pricePerKgText: `${formatCurrencyUSD(price)} / kg`,
+                qtyText,
+                lineTotalText: formatCurrencyUSD(lineTotal),
+            };
+        });
+    }, [cartLines]);
+
+    // delivery & tax zero for now; server is source of truth
+    const deliveryFee = 15;
+    const taxUsd = 0;
+    const totalPrice = Math.round((totals.subtotal + deliveryFee + taxUsd) * 100) / 100;
 
     return (
         <Stack gap={4}>
@@ -150,15 +249,10 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                         <HStack gap={3}>
                             <Icon as={FiHome} />
                             <Box flex="1">
-                                <Text fontSize="sm" color="fg.muted">Address</Text>
-                                <Text>
-                                    {deliveryAddress?.address ?? "—"}
+                                <Text fontSize="sm" color="fg.muted">
+                                    Address
                                 </Text>
-                                {deliveryAddress?.logisticCenterId && (
-                                    <Text color="fg.muted" fontSize="sm">
-                                        LC: {deliveryAddress.logisticCenterId}
-                                    </Text>
-                                )}
+                                <Text>{formatAddress(deliveryAddress)}</Text>
                             </Box>
                             {onEditAddress && (
                                 <Button size="sm" variant="outline" onClick={onEditAddress}>
@@ -170,7 +264,9 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                         <HStack gap={3}>
                             <Icon as={FiCalendar} />
                             <Box flex="1">
-                                <Text fontSize="sm" color="fg.muted">Delivery date</Text>
+                                <Text fontSize="sm" color="fg.muted">
+                                    Delivery date
+                                </Text>
                                 <Text>{formatDate(deliveryDate)}</Text>
                             </Box>
                         </HStack>
@@ -178,7 +274,9 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                         <HStack gap={3}>
                             <Icon as={FiClock} />
                             <Box flex="1">
-                                <Text fontSize="sm" color="fg.muted">Shift</Text>
+                                <Text fontSize="sm" color="fg.muted">
+                                    Shift
+                                </Text>
                                 <Text>{shiftName ?? "—"}</Text>
                             </Box>
                         </HStack>
@@ -186,7 +284,9 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                         <HStack gap={3}>
                             <Icon as={FiMapPin} />
                             <Box flex="1">
-                                <Text fontSize="sm" color="fg.muted">Region / Center</Text>
+                                <Text fontSize="sm" color="fg.muted">
+                                    Region / Center
+                                </Text>
                                 <Text>
                                     AMS: {amsId ?? "—"} · LC: {logisticsCenterId ?? "—"}
                                 </Text>
@@ -206,9 +306,7 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                 </Card.Header>
                 <Card.Body pt={0}>
                     <Stack gap={3}>
-                        {linesVM.length === 0 && (
-                            <Text color="fg.muted">Your cart is empty.</Text>
-                        )}
+                        {linesVM.length === 0 && <Text color="fg.muted">Your cart is empty.</Text>}
 
                         {linesVM.map((ln, i) => (
                             <Box key={ln.key}>
@@ -223,7 +321,9 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                                     <Box flex="1">
                                         <Text fontWeight="medium">{ln.name}</Text>
                                         {ln.category && (
-                                            <Text fontSize="sm" color="fg.muted">{ln.category}</Text>
+                                            <Text fontSize="sm" color="fg.muted">
+                                                {ln.category}
+                                            </Text>
                                         )}
                                         <Text fontSize="sm" color="fg.muted">{ln.qtyText}</Text>
                                         <Text fontSize="sm" color="fg.muted">{ln.pricePerKgText}</Text>
@@ -246,20 +346,20 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                     <Stack gap={2}>
                         <HStack justifyContent="space-between">
                             <Text color="fg.muted">Items subtotal</Text>
-                            <Text>{formatCurrencyUSD(totals.itemsSubtotal)}</Text>
+                            <Text>{formatCurrencyUSD(totals.subtotal)}</Text>
                         </HStack>
                         <HStack justifyContent="space-between">
                             <Text color="fg.muted">Delivery fee</Text>
-                            <Text>{formatCurrencyUSD(totals.deliveryFee)}</Text>
+                            <Text>{formatCurrencyUSD(deliveryFee)}</Text>
                         </HStack>
                         <HStack justifyContent="space-between">
                             <Text color="fg.muted">Tax</Text>
-                            <Text>{formatCurrencyUSD(totals.taxUsd)}</Text>
+                            <Text>{formatCurrencyUSD(taxUsd)}</Text>
                         </HStack>
                         <Separator />
                         <HStack justifyContent="space-between">
                             <Text fontWeight="semibold">Total</Text>
-                            <Text fontWeight="semibold">{formatCurrencyUSD(totals.totalPrice)}</Text>
+                            <Text fontWeight="semibold">{formatCurrencyUSD(totalPrice)}</Text>
                         </HStack>
                     </Stack>
                 </Card.Body>

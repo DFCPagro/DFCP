@@ -13,32 +13,45 @@ import {
     Text,
 } from "@chakra-ui/react";
 import { FiArrowLeft, FiCheck, FiCreditCard, FiDollarSign, FiSmartphone } from "react-icons/fi";
-import type { Address } from "@/types/address";
-import type { CreateOrderItemInput } from "@/types/orders";
 import { usePayment } from "../hooks/usePayment";
 
 /* ---------------------------------- types --------------------------------- */
 
+export type CartLineLike = {
+    quantity?: number;
+    quantityKg?: number;
+    units?: number;
+    unitMode?: "kg" | "unit" | "mixed";
+    unitPriceUsd?: number;
+    pricePerUnit?: number;
+    pricePerKg?: number;
+    estimatesSnapshot?: { avgWeightPerUnitKg?: number };
+    avgWeightPerUnitKg?: number;
+    item?: any;
+    [k: string]: unknown;
+};
+
+export type MoneyTotals = {
+    itemCount: number;
+    subtotal: number;
+};
+
 export type PaymentSectionProps = {
-    // Delivery/order context (already gathered from Market / user)
+    // Delivery/order context (URL-driven)
     context: {
         amsId: string | null;
         logisticsCenterId: string | null;
         deliveryDate: string | null;
         shiftName: string | null;
-        deliveryAddress: Address | null;
+        /** optional in new flow */
+        address?: unknown | null;
     };
 
-    // Lines prepared for the API (CreateOrderItemInput[])
-    items: CreateOrderItemInput[];
+    // Lines from shared cart
+    cartLines: CartLineLike[];
 
-    // Display totals (not sent to API unless you later decide to)
-    totals: {
-        itemsSubtotal: number;
-        deliveryFee: number;
-        taxUsd: number;
-        totalPrice: number;
-    };
+    // Display totals (server is source of truth; we just show a preview)
+    totals: MoneyTotals;
 
     // Callbacks
     onSuccess?: (orderId: string) => void; // navigate away, clear cart, etc.
@@ -59,11 +72,11 @@ function formatCurrencyUSD(n: number | undefined | null): string {
 /* -------------------------------- component -------------------------------- */
 
 export const PaymentSection = memo(function PaymentSection(props: PaymentSectionProps) {
-    const { context, items, totals, onSuccess, onBack } = props;
+    const { context, cartLines, totals, onSuccess, onBack } = props;
 
     const { method, setMethod, card, setCardField, canSubmit, submitting, submit } = usePayment({
         context,
-        items,
+        cartLines,
         totals,
         onSuccess,
     });
@@ -71,6 +84,11 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
     const showCard = method === "card";
     const showGPay = method === "google_pay";
     const showPaypal = method === "paypal";
+
+    // For now, delivery & tax are zero in UI; backend computes final totals.
+    const deliveryFee = 15;
+    const taxUsd = 0;
+    const totalPrice = Math.round((totals.subtotal + deliveryFee + taxUsd) * 100) / 100;
 
     return (
         <Stack gap={4}>
@@ -87,7 +105,6 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                 Select payment method
                             </Text>
 
-                            {/* v3 RadioGroup uses a slot API */}
                             <RadioGroup.Root value={method ?? ""} onValueChange={(val: any) => setMethod(val as any)}>
                                 <Stack gap={3}>
                                     <RadioGroup.Item value="card">
@@ -197,7 +214,7 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                             </Stack>
                         )}
 
-                        {/* Wallet placeholders (clicking still places the order per current flow) */}
+                        {/* Wallet placeholders (demo) */}
                         {showGPay && (
                             <Box>
                                 <Button variant="subtle" onClick={submit} loading={submitting}>
@@ -208,7 +225,6 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                 </Text>
                             </Box>
                         )}
-
                         {showPaypal && (
                             <Box>
                                 <Button variant="subtle" onClick={submit} loading={submitting}>
@@ -226,20 +242,20 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                             <Stack gap={2}>
                                 <HStack justifyContent="space-between">
                                     <Text color="fg.muted">Items subtotal</Text>
-                                    <Text>{formatCurrencyUSD(totals.itemsSubtotal)}</Text>
+                                    <Text>{formatCurrencyUSD(totals.subtotal)}</Text>
                                 </HStack>
                                 <HStack justifyContent="space-between">
                                     <Text color="fg.muted">Delivery fee</Text>
-                                    <Text>{formatCurrencyUSD(totals.deliveryFee)}</Text>
+                                    <Text>{formatCurrencyUSD(deliveryFee)}</Text>
                                 </HStack>
                                 <HStack justifyContent="space-between">
                                     <Text color="fg.muted">Tax</Text>
-                                    <Text>{formatCurrencyUSD(totals.taxUsd)}</Text>
+                                    <Text>{formatCurrencyUSD(taxUsd)}</Text>
                                 </HStack>
                                 <Separator />
                                 <HStack justifyContent="space-between">
                                     <Text fontWeight="semibold">Total</Text>
-                                    <Text fontWeight="semibold">{formatCurrencyUSD(totals.totalPrice)}</Text>
+                                    <Text fontWeight="semibold">{formatCurrencyUSD(totalPrice)}</Text>
                                 </HStack>
                             </Stack>
                         </Box>

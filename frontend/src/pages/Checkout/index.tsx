@@ -10,7 +10,9 @@ import PaymentSection from "./components/PaymentSection";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { context, items, totals, preflight, clear: clearCart } = useCheckoutState();
+  const { context, cartLines, totals, preflight, actions } = useCheckoutState();
+  console.log("CheckoutPage render", { context });
+  const clearCart = actions.clear;
   const [step, setStep] = useState<1 | 2>(1);
 
   const goToPayment = useCallback(() => setStep(2), []);
@@ -26,7 +28,7 @@ export default function CheckoutPage() {
   }, [navigate]);
 
   // Optional: precompute a boolean to disable step 2 entry if cart/context changed
-  const canProceedToPayment = useMemo(() => preflight.allGood, [preflight.allGood]);
+  const canProceedToPayment = useMemo(() => preflight.ok, [preflight.ok]);
 
   const handleOrderSuccess = useCallback(
     (orderId: string) => {
@@ -57,8 +59,8 @@ export default function CheckoutPage() {
         >
           {step === 1 && (
             <CheckoutSummary
-              items={items}
-              deliveryAddress={context.deliveryAddress}
+              cartLines={cartLines}                  // CHANGED: was items
+              deliveryAddress={context.address}      // CHANGED: was context.deliveryAddress
               deliveryDate={context.deliveryDate}
               shiftName={context.shiftName}
               amsId={context.amsId}
@@ -69,12 +71,13 @@ export default function CheckoutPage() {
                 if (canProceedToPayment) goToPayment();
               }}
             />
+
           )}
 
           {step === 2 && (
             <PaymentSection
               context={context}
-              items={items}
+              cartLines={cartLines}
               totals={totals}
               onBack={goBackToSummary}
               onSuccess={handleOrderSuccess}

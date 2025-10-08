@@ -1,220 +1,201 @@
 // src/pages/checkout/hooks/useCheckoutState.ts
-import { useEffect, useMemo, useState } from "react";
-import { toaster } from "@/components/ui/toaster";
-import type { Address } from "@/types/address";
-import type { CreateOrderItemInput, UnitMode } from "@/types/orders";
-import { getCart, clearCart, subscribeCart } from "@/utils/marketCart.shared";
-import type { SharedCart, CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
+import {
+  getCart as getSharedCart,
+  setCart as setSharedCart,
+  clearCart as clearSharedCart,
+  subscribeCart,
+} from "@/utils/marketCart.shared";
 
-/** What we need available before allowing payment */
+/* -----------------------------------------------------------------------------
+ * Types
+ * -------------------------------------------------------------------------- */
+
 export type CheckoutContext = {
+  /** Region / AMS id */
   amsId: string | null;
+  /** Logistics center id */
   logisticsCenterId: string | null;
-  deliveryDate: string | null; // ISO yyyy-mm-dd
+  /** ISO yyyy-mm-dd */
+  deliveryDate: string | null;
+  /** e.g., "morning" | "afternoon" | "night" */
   shiftName: string | null;
-  deliveryAddress: Address | null;
+
+  /** Optional: if you later resolve the human labels, keep placeholders here */
+  amsLabel?: string | null;
+  logisticsCenterLabel?: string | null;
+
+  /** Optional address object if you decide to resolve it in Checkout */
+  address?: unknown | null;
 };
 
 export type PreflightState = {
+  hasCart: boolean;
+  hasDeliveryDate: boolean;
+  hasShift: boolean;
   hasAmsId: boolean;
   hasLogisticsCenterId: boolean;
-  hasDeliveryDate: boolean;
-  hasShiftName: boolean;
-  hasAddress: boolean;
-  cartNotEmpty: boolean;
-  allGood: boolean;
+  /** All checks passed */
+  ok: boolean;
 };
 
-export type Totals = {
-  itemsSubtotal: number;     // sum of line price snapshots
-  deliveryFee: number;       // keep 0 for now (server can compute)
-  taxUsd: number;            // keep 0 for now (server can compute)
-  totalPrice: number;        // itemsSubtotal + deliveryFee + tax
+export type MoneyTotals = {
+  itemCount: number;
+  subtotal: number; // numeric only; format at render-time
 };
 
-/**
- * Try to read context saved by the Market page.
- * If you’ve used different keys, adjust here once and the rest of Checkout won’t change.
- */
-function readContextFromStorage(): CheckoutContext {
-  // Be conservative; only parse if value exists.
-  const safeParseJSON = <T,>(raw: string | null): T | null => {
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      return null;
-    }
+export type SharedCartLine = {
+  key?: string;
+  stockId?: string;
+  quantity?: number;
+  // try common price fields your market lines may carry
+  unitPrice?: number;
+  pricePerKg?: number;
+  pricePerUnit?: number;
+  // display helpers
+  name?: string;
+  farmerName?: string;
+  [k: string]: unknown;
+};
+
+export type UseCheckoutState = {
+  context: CheckoutContext;
+  cartLines: SharedCartLine[];
+  totals: MoneyTotals;
+  preflight: PreflightState;
+  actions: {
+    /** Clears the shared cart (all tabs/pages) */
+    clear: () => Promise<void>;
+    /** Re-reads the cart from storage (useful after external changes) */
+    refresh: () => void;
   };
+};
+
+/* -----------------------------------------------------------------------------
+ * Helpers
+ * -------------------------------------------------------------------------- */
+
+function parseParams(search: string): CheckoutContext {
+  const qs = new URLSearchParams(search);
+  console.log("parseParams", { search });
+  const amsId = (qs.get("amsId") || "").trim() || null;
+  const logisticsCenterId = (qs.get("logisticsCenterId") || "").trim() || null;
+
+  // Normalize date to yyyy-mm-dd (basic guard)
+  const rawDate = (qs.get("deliveryDate") || "").trim();
+  const deliveryDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+    ? rawDate
+    : rawDate
+      ? new Date(rawDate).toISOString().slice(0, 10)
+      : null;
+
+  // shift param in URL → shiftName in context
+  const shiftParam = (qs.get("shift") || "").trim();
+  const shiftName = shiftParam || null;
+  const addressParam = (qs.get("address") || "").trim();
 
   return {
-    amsId: localStorage.getItem("market.amsId") || null,
-    logisticsCenterId: localStorage.getItem("market.logisticsCenterId") || localStorage.getItem("market.LogisticsCenterId") || null,
-    deliveryDate: localStorage.getItem("market.deliveryDate") || null,
-    shiftName: localStorage.getItem("market.shiftName") || null,
-    deliveryAddress: safeParseJSON<Address>(localStorage.getItem("market.deliveryAddress")),
+    amsId,
+    logisticsCenterId,
+    deliveryDate,
+    shiftName,
+    amsLabel: null,
+    logisticsCenterLabel: null,
+    address: addressParam,
   };
 }
 
-/**
- * Map a cart line (whatever the marketCart.shared puts there) into a CreateOrderItemInput.
- * We intentionally accept both legacy (quantity) and new schema (unitMode, quantityKg/units).
- */
-function mapCartLineToOrderItem(line: any): CreateOrderItemInput {
-  // Common identity/display fields
-  const itemId: string = line.itemId ?? line.id ?? line.item?.itemId ?? line.item?._id ?? line._id;
-  const name: string | undefined =
-    line.name ?? line.displayName ?? line.item?.displayName ?? line.item?.name;
-  const imageUrl: string | undefined =
-    line.imageUrl ?? line.item?.imageUrl ?? line.item?.img ?? line.item?.photo;
-  const category: string | undefined =
-    line.category ?? line.item?.category;
+function computeTotals(lines: SharedCartLine[]): MoneyTotals {
+  let itemCount = 0;
+  let subtotal = 0;
 
-  // Price snapshot
-  const pricePerUnit: number =
-    Number(line.unitPriceUsd ?? line.pricePerUnit ?? line.item?.pricePerUnit ?? line.item?.price ?? 0) || 0;
+  for (const l of lines) {
+    const qty = Number(l.quantity ?? 0) || 0;
+    // prefer unitPrice, then pricePerKg, then pricePerUnit
+    const price =
+      Number(l.unitPrice ?? NaN) ||
+      Number(l.pricePerKg ?? NaN) ||
+      Number(l.pricePerUnit ?? NaN) ||
+      0;
 
-  // New model fields (preferred when present)
-  const unitMode: UnitMode | undefined =
-    (line.unitMode as UnitMode | undefined) ?? (line.item?.unitMode as UnitMode | undefined);
+    itemCount += qty;
+    subtotal += qty * price;
+  }
+  // round to cents to avoid floating artifacts
+  subtotal = Math.round(subtotal * 100) / 100;
 
+  return { itemCount, subtotal };
+}
 
-  const quantityKg: number | undefined =
-    line.quantityKg ?? line.weightKg ?? line.item?.originalCommittedQuantityKg ?? undefined;
-
-  const units: number | undefined =
-    line.units ?? line.quantityUnits ?? undefined;
-
-  const estimatesSnapshot =
-    line.estimatesSnapshot ??
-    line.item?.estimatesSnapshot ??
-    (line.avgWeightPerUnitKg
-      ? { avgWeightPerUnitKg: Number(line.avgWeightPerUnitKg) || undefined }
-      : undefined);
-
-  // Legacy fallback (pure kg with 'quantity')
-  const legacyQuantity = Number(line.quantity ?? line.qty);
-  const hasLegacyKg = !unitMode && !quantityKg && Number.isFinite(legacyQuantity) && legacyQuantity > 0;
+function computePreflight(
+  ctx: CheckoutContext,
+  lines: SharedCartLine[]
+): PreflightState {
+  const hasCart = lines.length > 0 && lines.some((l) => (l.quantity ?? 0) > 0);
+  const hasDeliveryDate = !!ctx.deliveryDate;
+  const hasShift = !!ctx.shiftName;
+  const hasAmsId = !!ctx.amsId;
+  const hasLogisticsCenterId = !!ctx.logisticsCenterId;
 
   return {
-    itemId: String(itemId),
-    pricePerUnit, // per KG by backend definition
-    unitMode: unitMode ?? "kg",
-    quantityKg: unitMode === "kg" || hasLegacyKg ? (quantityKg ?? legacyQuantity) : quantityKg,
-    units: unitMode === "unit" || unitMode === "mixed" ? units : undefined,
-    estimatesSnapshot,
-    name,
-    imageUrl,
-    category,
-    // Optional provenance (keep if present)
-    sourceFarmerName: line.sourceFarmerName ?? line.item?.farmerName,
-    sourceFarmName: line.sourceFarmName ?? line.item?.farmName,
-    farmerOrderId: line.farmerOrderId,
-  };
-}
-
-function computeTotals(items: CreateOrderItemInput[]): Totals {
-  // itemsSubtotal = sum(pricePerUnit * (quantityKg || units*avgPerUnitKg if available))
-  const subtotal = items.reduce((sum, it) => {
-    const price = Number(it.pricePerUnit) || 0;
-
-    if (it.unitMode === "unit" && it.units && it.estimatesSnapshot?.avgWeightPerUnitKg) {
-      return sum + price * it.units * it.estimatesSnapshot.avgWeightPerUnitKg;
-    }
-    if ((it.unitMode === "kg" || !it.unitMode) && it.quantityKg) {
-      return sum + price * it.quantityKg;
-    }
-    if (it.unitMode === "mixed") {
-      const kgPart = (Number(it.quantityKg) || 0) * price;
-      const unitPart =
-        (Number(it.units) || 0) *
-        (Number(it.estimatesSnapshot?.avgWeightPerUnitKg) || 0) *
-        price;
-      return sum + kgPart + unitPart;
-    }
-
-    // Fallback: nothing explicit => 0
-    return sum;
-  }, 0);
-
-  const itemsSubtotal = Math.max(0, Math.round(subtotal * 100) / 100);
-  const deliveryFee = 0;
-  const taxUsd = 0;
-  const totalPrice = itemsSubtotal + deliveryFee + taxUsd;
-
-  return { itemsSubtotal, deliveryFee, taxUsd, totalPrice };
-}
-
-export function useCheckoutState() {
-  // Cart subscription
-  
-    // Guarantee a non-null cart shape even if storage is empty
-    const ensureCart = (c: SharedCart | null | undefined): SharedCart =>
-    (c as SharedCart) ?? ({ lines: [] } as unknown as SharedCart);
-
-    const [cart, setCart] = useState<SharedCart>(() => ensureCart(getCart()));
-
-    useEffect(() => {
-    // subscribeCart(listener: () => void) — no args are passed, so re-read via getCart()
-    const unsub = subscribeCart(() => setCart(ensureCart(getCart())));
-    return () => { try { unsub?.(); } catch {} };
-    }, []);
-
-  // Read context once on mount; you can expose setters if you want to allow editing on Checkout
-  const [context] = useState<CheckoutContext>(() => readContextFromStorage());
-
-  // Derived order items from cart
-  const lines: SharedCartLine[] = useMemo(
-    () => cart?.lines ?? [],
-    [cart]
-    );
-
-  const items = useMemo(() => lines.map(mapCartLineToOrderItem), [lines]);
-
-
-  // Totals
-  const totals = useMemo(() => computeTotals(items), [items]);
-
-  // Preflight
-  const preflight: PreflightState = useMemo(() => {
-    const hasAmsId = !!context.amsId;
-    const hasLogisticsCenterId = !!context.logisticsCenterId;
-    const hasDeliveryDate = !!context.deliveryDate;
-    const hasShiftName = !!context.shiftName;
-    const hasAddress = !!context.deliveryAddress;
-    const cartNotEmpty = (cart?.lines?.length ?? 0) > 0;
-
-    return {
-      hasAmsId,
+    hasCart,
+    hasDeliveryDate,
+    hasShift,
+    hasAmsId,
+    hasLogisticsCenterId,
+    ok:
+      hasCart &&
+      hasDeliveryDate &&
+      hasShift &&
+      hasAmsId &&
       hasLogisticsCenterId,
-      hasDeliveryDate,
-      hasShiftName,
-      hasAddress,
-      cartNotEmpty,
-      allGood:
-        hasAmsId &&
-        hasLogisticsCenterId &&
-        hasDeliveryDate &&
-        hasShiftName &&
-        hasAddress &&
-        cartNotEmpty,
-    };
-  }, [context, cart?.lines?.length]);
-  // Actions
-  const clear = () => {
-    clearCart();
-    toaster.create({
-      title: "Cart cleared",
-      type: "info",
-    });
   };
+}
+
+/* -----------------------------------------------------------------------------
+ * Hook
+ * -------------------------------------------------------------------------- */
+
+export function useCheckoutState(): UseCheckoutState {
+  const { search } = useLocation();
+
+  // Parse URL → context
+  const context = useMemo<CheckoutContext>(() => parseParams(search), [search]);
+
+  // Shared cart (kept in sync with storage + other tabs via subscribeCart)
+  const [cartLines, setCartLines] = useState<SharedCartLine[]>(
+    () => getSharedCart().lines ?? []
+  );
+
+  // cross-tab sync
+  useEffect(() => {
+    const off = subscribeCart(() => setCartLines(getSharedCart().lines ?? []));
+    return off;
+  }, []);
+
+  const refresh = useCallback(() => {
+    setCartLines(getSharedCart().lines ?? []);
+  }, []);
+
+  const clear = useCallback(async () => {
+    await clearSharedCart();
+    setCartLines([]);
+    // optional: also write empty cart to storage explicitly
+    setSharedCart({ lines: [] });
+  }, []);
+
+  const totals = useMemo(() => computeTotals(cartLines), [cartLines]);
+  const preflight = useMemo(
+    () => computePreflight(context, cartLines),
+    [context, cartLines]
+  );
 
   return {
     context,
-    items,
+    cartLines,
     totals,
-    cart,
     preflight,
-    clear,
+    actions: { clear, refresh },
   };
 }

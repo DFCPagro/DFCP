@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Stack, Heading, Separator } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 import { toaster } from "@/components/ui/toaster";
+import type { Address } from "@/types/address";
 
 import { useMarketActivation } from "./hooks/useMarketActivation";
 import { useMarketFilters } from "./hooks/useMarketFilters";
@@ -23,11 +24,19 @@ import {
   marketItemToCartLine,
   type CartLine as SharedCartLine,
 } from "@/utils/marketCart.shared";
+import { getCustomerAddresses } from "@/api/market";
 
 // --------------------------- Local cart adapter ---------------------------
 // (kept inside this file as requested; swap to your real cart store later)
 
-
+const EPS = 1e-4; // ~11 meters; avoids float jitter
+function sameAddress(a: Address, b: Address): boolean {
+  if (!a || !b) return false;
+  const sameText = (a.address ?? "").trim() === (b.address ?? "").trim();
+  const sameLat = Math.abs((a.alt ?? NaN) - (b.alt ?? NaN)) < EPS;
+  const sameLng = Math.abs((a.lnt ?? NaN) - (b.lnt ?? NaN)) < EPS;
+  return sameText && sameLat && sameLng;
+}
 
 function formatAddressShort(a: any): string {
   if (!a) return "—";
@@ -164,8 +173,7 @@ export default function MarketPage() {
   }, []);
 
   const checkout = useCallback(async () => {
-    // Re-validate selection before proceeding
-    if (!isActive || !marketStockId) {
+    if (!isActive || !shift) {
       toaster.create({
         title: "Select address & shift",
         description: "Please pick your address and shift before checkout.",
@@ -174,10 +182,48 @@ export default function MarketPage() {
       setPinOpen(true);
       return;
     }
-    // Plug this into your real checkout flow; for now, go to /checkout
-    navigate(`/checkout?ams=${marketStockId}`);
 
-  }, [isActive, marketStockId, navigate]);
+    // Pull what Checkout needs from the active shift/context
+    const amsId = shift.marketStockId ?? selection?.marketStockId ?? null;
+    const addresses = await getCustomerAddresses();
+    const addr =
+      addresses.find((a) => sameAddress(a, selection.address)) ?? null;
+
+    if (!addr) {
+      return { address: null, shift: null };
+    }
+
+    // 2) Validate we can resolve the LC id from the address
+    const lcId = addr.logisticCenterId ?? null;
+    console.log("customer addresses", addresses);
+    const logisticsCenterId = lcId;
+    const deliveryDate = shift.date ?? null;   // ISO yyyy-mm-dd
+    const shiftName = shift.shift ?? null;     // "morning" | "afternoon" | ...
+
+    // Basic guardrails so you don’t navigate with half-baked context
+    if (!amsId || !logisticsCenterId || !deliveryDate || !shiftName) {
+      console.warn("checkout: missing context", { amsId, logisticsCenterId, deliveryDate, shiftName });
+      toaster.create({
+        title: "Missing delivery details",
+        description: "AMS, logistics center, date, and shift are required for checkout.",
+        type: "warning",
+      });
+      setPinOpen(true);
+      return;
+    }
+
+    const qs = new URLSearchParams({
+      amsId,
+      logisticsCenterId,
+      address: addr.address ?? "",
+      deliveryDate,
+      shift: shiftName,
+    });
+    console.log("checkout: navigate to /checkout with", Object.fromEntries(qs.entries()));
+
+    navigate(`/checkout?${qs.toString()}`);
+  }, [isActive, shift, selection, navigate]);
+
 
   // ---- Handlers for UI ----
   const handlePickSuggestion = useCallback((s: any) => {

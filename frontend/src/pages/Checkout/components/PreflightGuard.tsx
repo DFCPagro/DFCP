@@ -1,3 +1,4 @@
+// src/pages/checkout/components/PreflightGuard.tsx
 import { memo, useMemo } from "react";
 import {
     Alert,
@@ -22,7 +23,6 @@ import {
     FiEdit2,
     FiTruck,
 } from "react-icons/fi";
-import type { Address } from "@/types/address";
 import type { PreflightState } from "../hooks/useCheckoutState";
 
 export type PreflightGuardProps = {
@@ -34,7 +34,7 @@ export type PreflightGuardProps = {
         logisticsCenterId?: string | null;
         deliveryDate?: string | null;
         shiftName?: string | null;
-        deliveryAddress?: Address | null;
+        address?: unknown | null; // renamed from deliveryAddress
     };
 
     /** Called to take the user back to Market (fix cart, pickers, etc.) */
@@ -47,9 +47,20 @@ export type PreflightGuardProps = {
     children?: React.ReactNode;
 };
 
-/** Small helper for safe display */
+/** Small helpers for safe display */
 function fmt(v?: string | null) {
     return v && String(v).trim() ? String(v) : "—";
+}
+function fmtAddress(a: unknown): string {
+    if (!a) return "—";
+    if (typeof a === "string") return a || "—";
+    // try common shapes
+    const addr =
+        (a as any)?.address ??
+        (a as any)?.fullAddress ??
+        (a as any)?.formatted ??
+        (a as any)?.label;
+    return addr && String(addr).trim() ? String(addr) : "—";
 }
 
 export const PreflightGuard = memo(function PreflightGuard({
@@ -59,23 +70,24 @@ export const PreflightGuard = memo(function PreflightGuard({
     onEditAddressShift,
     children,
 }: PreflightGuardProps) {
-    const allGood = preflight?.allGood === true;
+    const allGood = preflight?.ok === true;
 
     const rows = useMemo(
         () => [
             {
                 key: "cart",
                 label: "Cart has items",
-                ok: preflight.cartNotEmpty,
+                ok: preflight.hasCart,
                 icon: FiShoppingBag,
-                hint: preflight.cartNotEmpty ? undefined : "Your cart is empty.",
+                hint: preflight.hasCart ? undefined : "Your cart is empty.",
             },
+            // Address is optional in the new preflight; show for UX but do not block
             {
                 key: "address",
                 label: "Delivery address selected",
-                ok: preflight.hasAddress,
+                ok: !!context?.address,
                 icon: FiHome,
-                hint: preflight.hasAddress ? undefined : "Pick an address on the Market page.",
+                hint: context?.address ? undefined : "Pick an address on the Market page.",
             },
             {
                 key: "date",
@@ -87,9 +99,9 @@ export const PreflightGuard = memo(function PreflightGuard({
             {
                 key: "shift",
                 label: "Shift selected",
-                ok: preflight.hasShiftName,
+                ok: preflight.hasShift,
                 icon: FiClock,
-                hint: preflight.hasShiftName ? undefined : "Choose a delivery shift.",
+                hint: preflight.hasShift ? undefined : "Choose a delivery shift.",
             },
             {
                 key: "ams",
@@ -106,7 +118,7 @@ export const PreflightGuard = memo(function PreflightGuard({
                 hint: preflight.hasLogisticsCenterId ? undefined : "Select a logistics center.",
             },
         ],
-        [preflight]
+        [preflight, context?.address]
     );
 
     if (allGood) {
@@ -161,7 +173,7 @@ export const PreflightGuard = memo(function PreflightGuard({
                                 <Stack fontSize="sm" color="fg.muted">
                                     <HStack>
                                         <Icon as={FiHome} />
-                                        <Text>{fmt(context.deliveryAddress?.address)}</Text>
+                                        <Text>{fmtAddress(context.address ?? null)}</Text>
                                     </HStack>
                                     <HStack>
                                         <Icon as={FiCalendar} />

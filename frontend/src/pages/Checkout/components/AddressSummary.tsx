@@ -1,11 +1,12 @@
+// src/pages/checkout/components/AddressSummary.tsx
 import { memo } from "react";
 import { Box, Button, Card, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import { FiCalendar, FiClock, FiHome, FiMapPin, FiEdit2, FiTruck } from "react-icons/fi";
 import type { Address } from "@/types/address";
 
 export type AddressSummaryProps = {
-    /** Selected delivery address (from Market pickers) */
-    address: Address | null;
+    /** Selected delivery address (can be a string or object) */
+    address: Address | string | Record<string, any> | null;
 
     /** ISO yyyy-mm-dd */
     deliveryDate: string | null;
@@ -49,6 +50,41 @@ function formatDate(iso: string | null) {
     }
 }
 
+/** Be tolerant to multiple address shapes */
+function formatAddress(a: Address | string | Record<string, any> | null): string {
+    if (!a) return "—";
+    if (typeof a === "string") return a || "—";
+
+    const tryKeys = [
+        "address",
+        "fullAddress",
+        "formatted",
+        "label",
+        "line1", // common line field
+    ];
+
+    for (const k of tryKeys) {
+        const v = (a as any)?.[k];
+        if (v && String(v).trim()) return String(v);
+    }
+
+    // Compose from parts if available
+    const parts = [
+        (a as any)?.line1,
+        (a as any)?.line2,
+        (a as any)?.city,
+        (a as any)?.state,
+        (a as any)?.postalCode,
+        (a as any)?.country,
+    ]
+        .filter(Boolean)
+        .map(String)
+        .join(", ")
+        .trim();
+
+    return parts || "—";
+}
+
 /* ------------------------------ component ----------------------------- */
 
 export const AddressSummary = memo(function AddressSummary({
@@ -61,6 +97,13 @@ export const AddressSummary = memo(function AddressSummary({
     variant = "card",
     title = "Delivery details",
 }: AddressSummaryProps) {
+    const addressText = formatAddress(address);
+    console.log("AddressSummary render", { address, addressText });
+
+    // Normalize possible LC key on the address object
+    const addressLc =
+        (address as any)?.logisticsCenterId ?? (address as any)?.logisticCenterId ?? null;
+
     const rows = (
         <Stack gap={3}>
             <HStack gap={3}>
@@ -69,10 +112,10 @@ export const AddressSummary = memo(function AddressSummary({
                     <Text fontSize="sm" color="fg.muted">
                         Address
                     </Text>
-                    <Text>{fmt(address?.address)}</Text>
-                    {address?.logisticCenterId && (
+                    <Text>{addressText}</Text>
+                    {addressLc && (
                         <Text fontSize="sm" color="fg.muted">
-                            LC: {fmt(address.logisticCenterId)}
+                            LC (from address): {fmt(String(addressLc))}
                         </Text>
                     )}
                 </Box>
@@ -112,21 +155,19 @@ export const AddressSummary = memo(function AddressSummary({
                 </HStack>
             )}
 
-            {logisticsCenterId &&
-                address?.logisticCenterId &&
-                logisticsCenterId !== address.logisticCenterId && (
-                    <HStack gap={3}>
-                        <Icon as={FiTruck} />
-                        <Box flex="1">
-                            <Text fontSize="sm" color="fg.muted">
-                                Note
-                            </Text>
-                            <Text>
-                                Using LC: {fmt(logisticsCenterId)} (address LC is {fmt(address.logisticCenterId)})
-                            </Text>
-                        </Box>
-                    </HStack>
-                )}
+            {logisticsCenterId && addressLc && logisticsCenterId !== String(addressLc) && (
+                <HStack gap={3}>
+                    <Icon as={FiTruck} />
+                    <Box flex="1">
+                        <Text fontSize="sm" color="fg.muted">
+                            Note
+                        </Text>
+                        <Text>
+                            Using LC: {fmt(logisticsCenterId)} (address LC is {fmt(String(addressLc))})
+                        </Text>
+                    </Box>
+                </HStack>
+            )}
         </Stack>
     );
 
