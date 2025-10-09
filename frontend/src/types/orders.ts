@@ -31,8 +31,6 @@ export type EstimatesSnapshot = {
   stdDevKg?: number | null;
 };
 
-
-
 export type CreateOrderItemInput = {
   /** Item reference (required) */
   itemId: string;
@@ -138,7 +136,7 @@ export type Order = {
   customerId: string;
 
   deliveryAddress: Address;
-  deliveryDate: string;    // ISO string
+  deliveryDate: string; // ISO string
   shiftName: string;
 
   /** Note: casing kept exactly as in schema */
@@ -149,7 +147,7 @@ export type Order = {
 
   // Estimated totals (pre-packing)
   itemsSubtotal: number;
-  deliveryFee: number;     // backend default: 15 (USD)
+  deliveryFee: number; // backend default: 15 (USD)
   totalPrice: number;
   totalOrderWeightKg: number;
 
@@ -159,7 +157,7 @@ export type Order = {
   finalOrderWeightKg?: number;
 
   // Per-order tolerance
-  tolerancePct: number;    // default 0.10
+  tolerancePct: number; // default 0.10
 
   status: OrderStatus;
 
@@ -182,4 +180,15 @@ export type Order = {
 /** Typical API envelope if your controllers wrap data */
 export type CreateOrderResponse = {
   data: Order;
+};
+
+export type OrderRowAPI = {
+  id: string;
+  orderId: string;
+  status: OrderStatus;
+  deliverySlot?: string | null;
+  createdAt: string;
+  items: OrderItem[];
+  // optional extra fields you might add later:
+  // consumerName?: string;
 };

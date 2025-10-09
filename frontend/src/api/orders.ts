@@ -10,7 +10,7 @@
 // • Response envelope is `{ data: Order }` — we unwrap and return `Order` directly.
 
 import { api } from "./config";
-import type { CreateOrderBody, Order } from "@/types/orders";
+import type { CreateOrderBody, Order, OrderRowAPI } from "@/types/orders";
 
 export type ApiError = {
   status: number;
@@ -61,9 +61,7 @@ export async function createOrder(body: CreateOrderBody): Promise<Order> {
     // Normalize error
     const status = err?.response?.status ?? 0;
     const message =
-      err?.response?.data?.error ??
-      err?.message ??
-      "Order creation failed";
+      err?.response?.data?.error ?? err?.message ?? "Order creation failed";
     const details = err?.response?.data?.details ?? err?.response?.data;
 
     const apiErr: ApiError = { status, message, details };
@@ -89,4 +87,33 @@ export async function getOrderById(orderId: string): Promise<Order> {
     const apiErr: ApiError = { status, message, details };
     throw apiErr;
   }
+}
+
+export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
+  const { data } = await api.get<{ data: any[] }>("/orders/my", {
+    params: { limit },
+  });
+
+  // Light normalization into our OrderRowAPI-ish shape (keep extra fields intact).
+  const items = (data?.data ?? []).map((o: any) => {
+    const id = o._id ?? o.id ?? String(Math.random());
+    const orderId = o.orderId ?? o.orderNumber ?? id;
+
+    return {
+      id,
+      orderId,
+      status: o.status ?? "created",
+      createdAt: o.createdAt ?? new Date().toISOString(),
+      acceptedAt: o.acceptedAt,
+      deliveryDate: o.deliveryDate,
+      deliverySlot: o.deliverySlot ?? o.slot ?? undefined,
+      // keep original items and address so our UI mappers can read different keys
+      items: o.items ?? [],
+      deliveryAddress: o.deliveryAddress, // our UI reads this in getDeliveryCoord
+      shippingAddress: o.shippingAddress, // keep if backend ever sends it
+      ...o,
+    } as OrderRowAPI;
+  });
+
+  return items as OrderRowAPI[];
 }
