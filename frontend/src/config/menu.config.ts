@@ -107,6 +107,15 @@ const workDeliverer: ReadonlyArray<MenuItem> = [
   { type: "link", key: "drv-month", label: "Month View", path: "/deliverer/schedule/month" },
 ] as const;
 
+const workPicker: ReadonlyArray<MenuItem> = [
+  {
+    type: "link",
+    key: "dashboard",
+    label: "dashboard",
+    path: ""
+  },
+ 
+]
 /* ------------------------ Registry export ------------------------ */
 
 export const MENUS: MenuRegistry = {
@@ -118,6 +127,7 @@ export const MENUS: MenuRegistry = {
     manager: workAdmin,
     deliverer: workDeliverer,
     industrialDeliverer: workDeliverer,
+    picker: workPicker,
     // You can add more roles at runtime:
     // supervisor: [...],
   },
