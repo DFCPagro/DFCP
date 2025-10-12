@@ -23,8 +23,9 @@ const AvailableStockItemSchema = new Schema(
     category: { type: String, required: true, trim: true, index: true },
 
     // price.a from Item model (price per KG)
-    pricePerUnit: { type: Number, required: true, min: 0 },
-
+    pricePerKg:   { type: Number, required: true,  min: 0 }, // <— NEW explicit per-KG price from Item.price.a
+    pricePerUnit: { type: Number, default: null,   min: 0 }, // <— now optional, only when unit/mixed
+   
     currentAvailableQuantityKg: { type: Number, required: true, min: 0 },
     originalCommittedQuantityKg: { type: Number, required: true, min: 0 },
 
@@ -38,11 +39,15 @@ const AvailableStockItemSchema = new Schema(
     // NEW: selling mode (by kg or units)
     unitMode: { type: String, enum: UNIT_MODES, default: "kg" },
 
-    // NEW: estimates for unit-based display
     estimates: {
-      avgWeightPerUnitKg: { type: Number, default: null },
-      sdKg: { type: Number, default: null },
-      availableUnitsEstimate: { type: Number, default: null },
+      avgWeightPerUnitKg: { type: Number, default: 0.5 }, // was avgWeightPerUnit
+      sdKg: { type: Number, default:0.02 },             // sdKg in schema
+      availableUnitsEstimate: { type: Number, default: 0 },
+
+      // NEW: tuning & bundling (optional, safe defaults)
+      unitBundleSize: { type: Number, default: 1, min: 1 }, // e.g., eggs 12
+      zScore: { type: Number, default: 1.28 },              // conservatism
+      shrinkagePct: { type: Number, default: 0.02 },        // handling loss
     },
 
     status: { type: String, enum: ITEM_STATUSES, default: "active", index: true },
@@ -50,14 +55,21 @@ const AvailableStockItemSchema = new Schema(
   { _id: true }
 );
 
-// Ensure available qty doesn’t exceed committed qty
+
+// Natural-number guarantee for units when present
+AvailableStockItemSchema
+  .path("estimates.availableUnitsEstimate")
+  .validate(function (this: any, value: number | null) {
+    if (value == null) return true; // not applicable for pure-kg lines
+    return Number.isInteger(value) && value >= 0;
+  }, "availableUnitsEstimate must be a natural integer");
+
+// Keep as-is: qty <= committed constraint
 AvailableStockItemSchema
   .path("currentAvailableQuantityKg")
   .validate(function (this: any, value: number) {
     return value <= this.originalCommittedQuantityKg;
   }, "currentAvailableQuantityKg cannot exceed originalCommittedQuantityKg");
-
-export type AvailableStockItem = InferSchemaType<typeof AvailableStockItemSchema>;
 
 // -----------------------------
 // Root AMS schema
@@ -92,6 +104,33 @@ AvailableMarketStockSchema.index(
   { unique: true, name: "uniq_lc_date_shift" }
 );
 
+// Recompute units estimate automatically on every save (cheap & safe)
+AvailableMarketStockSchema.pre("save", function (next) {
+  const doc: any = this;
+  if (!Array.isArray(doc.items)) return next();
+
+  for (const it of doc.items) {
+    const isUnity = it.unitMode === "unit" || it.unitMode === "mixed";
+    const avg = it.estimates?.avgWeightPerUnitKg;
+    if (!isUnity || !avg) {
+      it.estimates && (it.estimates.availableUnitsEstimate = null);
+      continue;
+    }
+
+    const sd = it.estimates?.sdKg ?? 0;
+    const z = it.estimates?.zScore ?? 1.28;
+    const shrink = it.estimates?.shrinkagePct ?? 0.02;
+    const bundle = Math.max(1, it.estimates?.unitBundleSize ?? 1);
+
+    const effKgPerUnit = avg + z * sd;              // conservative per-unit kg
+    const usable = it.currentAvailableQuantityKg;   // canonical
+    let est = usable > 0 ? Math.floor(usable / (effKgPerUnit * (1 + shrink))) : 0;
+    est = Math.max(0, Math.floor(est / bundle) * bundle);  // bundle align
+    it.estimates.availableUnitsEstimate = est;
+  }
+  next();
+});
+
 // Helpful nested indexes
 AvailableMarketStockSchema.index({ "items.itemId": 1 });
 AvailableMarketStockSchema.index({ "items.farmerID": 1 });
@@ -103,7 +142,8 @@ AvailableMarketStockSchema.plugin(toJSON);
 // -----------------------------
 export type AvailableMarketStock = InferSchemaType<typeof AvailableMarketStockSchema>;
 export type AvailableMarketStockDoc = HydratedDocument<AvailableMarketStock>;
-
+export type AmsItem = InferSchemaType<typeof AvailableStockItemSchema>;
+export { AvailableStockItemSchema };
 export const AvailableMarketStockModel =
   models.AvailableMarketStock ||
   model<AvailableMarketStock>("AvailableMarketStock", AvailableMarketStockSchema);

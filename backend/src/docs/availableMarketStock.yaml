@@ -1,11 +1,11 @@
 openapi: 3.0.3
 info:
   title: Available Market Stock APIs
-  version: "1.0.0"
+  version: "1.1.0"
 
 tags:
   - name: Market
-    description: Market stock (shift-based) endpoints.  Run `npm run seed:ams` to generate example docs.
+    description: Market stock (shift-based) endpoints. Run `npm run seed:ams` to generate example docs.
 
 paths:
   /market/available-stock/init:
@@ -155,7 +155,7 @@ paths:
   /market/available-stock/adjustQty:
     post:
       tags: [Market]
-      summary: Atomically adjust line quantity (reserve/release)
+      summary: Atomically adjust line quantity by KG (reserve/release)
       description: |
         Negative `deltaKg` reserves (decrements). Positive releases (increments).
         If `enforceEnoughForReserve` is true (default), reserve succeeds only when there is enough quantity.
@@ -198,6 +198,52 @@ paths:
         "404": { description: Document or line not found after update }
         "409": { description: Not enough available quantity to reserve / conflict }
 
+  /market/available-stock/adjustQtyUnits:
+    post:
+      tags: [Market]
+      summary: Atomically adjust line quantity by UNITS (reserve/release)
+      description: |
+        Negative `unitsDelta` reserves (decrements). Positive releases (increments).
+        Input units are **natural integers** and **bundle-aligned** internally.
+        The service converts units → conservative KG, updates canonical KG, and re-calculates unit estimates.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustQtyUnitsRequest"
+            examples:
+              reserve24units_bundle12:
+                value:
+                  docId: "6703f4f7c9b5f3a7b3a9d123"
+                  lineId: "6703f4f7c9b5f3a7b3a9d555"
+                  unitsDelta: -24
+                  enforceEnoughForReserve: true
+                  autoSoldoutOnZero: true
+              release1unit:
+                value:
+                  docId: "6703f4f7c9b5f3a7b3a9d123"
+                  lineId: "6703f4f7c9b5f3a7b3a9d555"
+                  unitsDelta: 1
+      responses:
+        "200":
+          description: Adjustment result with fresh line numbers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdjustQtyResponse"
+              example:
+                ok: true
+                docId: "6703f4f7c9b5f3a7b3a9d123"
+                lineId: "6703f4f7c9b5f3a7b3a9d555"
+                newQty: 46.2
+                unitsLeft: 26
+        "400": { description: Invalid docId/lineId or bad body (unitsDelta required and non-zero) }
+        "401": { description: Unauthorized }
+        "404": { description: Document or line not found after update }
+        "409": { description: Not enough available quantity to reserve / conflict }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -212,7 +258,7 @@ components:
 
     AvailableMarketStock:
       type: object
-      required: [ _id, LCid, availableDate, availableShift, items ]
+      required: [_id, LCid, availableDate, availableShift, items]
       properties:
         _id:
           type: string
@@ -235,8 +281,8 @@ components:
     AvailableStockItem:
       type: object
       description: >
-        Line item inside a stock document. Supports both kg-only and unit/mixed modes.
-        Some fields are optional depending on item configuration.
+        Line item inside a stock document. Supports kg-only and unit/mixed modes.
+        Unit-math configuration is stored under `estimates`.
       required:
         - _id
         - itemId
@@ -254,15 +300,14 @@ components:
         displayName: { type: string }
         imageUrl: { type: string, nullable: true }
         category: { type: string }
-        # Pricing
+        # Pricing (line-level). pricePerUnit may be derived from Item(avgWeightPerUnitGr) or override.
         pricePerKg:
           type: number
-          nullable: true
-          description: "Optional; may be stored/derived per line"
+          description: "Base price per KG(from item.price.a)"
         pricePerUnit:
           type: number
           nullable: true
-          description: "If unit selling is enabled; may be derived from avg weight"
+          description: "Per-unit price when unit/mixed; null otherwise (or when avg weight missing)"
         # Inventory
         originalCommittedQuantityKg: { type: number }
         currentAvailableQuantityKg: { type: number }
@@ -279,12 +324,10 @@ components:
         farmLogo:
           type: string
           nullable: true
-        # Unit mode (two representations are possible in your codebase; both exposed as optional)
+        # Unit mode string straight from the model
         unitMode:
-          oneOf:
-            - $ref: "#/components/schemas/UnitModeObject"
-            - $ref: "#/components/schemas/UnitModeString"
-          nullable: true
+          type: string
+          enum: [kg, unit, mixed]
         estimates:
           $ref: "#/components/schemas/Estimates"
       example:
@@ -293,7 +336,6 @@ components:
         displayName: "Lettuce Romaine"
         imageUrl: "https://cdn.example.com/items/lettuce.jpg"
         category: "vegetables"
-        pricePerKg: 12.9
         pricePerUnit: 6.5
         originalCommittedQuantityKg: 60
         currentAvailableQuantityKg: 47.5
@@ -302,52 +344,39 @@ components:
         farmerName: "Yousef Haddad"
         farmName: "Haddad Fields"
         farmLogo: "https://cdn.example.com/logos/haddad.png"
-        unitMode:
-          enabled: true
-          unitBundleSize: 1
-          avgWeightPerUnitGr: 500
-          sdWeightPerUnitGr: 80
-          pricePerUnit: 6.45
-          zScore: 1.28
-          shrinkagePct: 0.02
-          minUnitStep: 1
+        unitMode: mixed
         estimates:
           availableUnitsEstimate: 38
           avgWeightPerUnitKg: 0.5
-          stdDevKg: 0.08
-
-    UnitModeObject:
-      type: object
-      description: Rich unit-mode config (as surfaced by controller for matched lines)
-      required: [enabled, unitBundleSize, zScore, shrinkagePct, minUnitStep]
-      properties:
-        enabled: { type: boolean }
-        unitBundleSize: { type: integer, minimum: 1 }
-        avgWeightPerUnitGr: { type: number, nullable: true }
-        sdWeightPerUnitGr: { type: number, default: 0 }
-        pricePerUnit: { type: number, nullable: true }
-        zScore: { type: number, default: 1.28 }
-        shrinkagePct: { type: number, default: 0.02 }
-        minUnitStep: { type: integer, default: 1 }
-
-    UnitModeString:
-      type: string
-      description: Simple unit mode descriptor from service creation
-      enum: [kg, unit, mixed]
+          sdKg: 0.08
+          unitBundleSize: 1
+          zScore: 1.28
+          shrinkagePct: 0.02
 
     Estimates:
       type: object
-      description: Conservative availability metrics
+      description: Conservative availability metrics and tuning
       properties:
         availableUnitsEstimate:
           type: integer
           nullable: true
+          description: Bundle-aligned natural integer, or null if not applicable
         avgWeightPerUnitKg:
           type: number
           nullable: true
-        stdDevKg:
+        sdKg:
           type: number
           nullable: true
+        unitBundleSize:
+          type: integer
+          minimum: 1
+          description: Minimum sell/bundle increment (e.g., eggs=12)
+        zScore:
+          type: number
+          description: Safety factor for conservative estimate
+        shrinkagePct:
+          type: number
+          description: Handling loss factor for conservative estimate
 
     NextShiftWithStock:
       type: object
@@ -373,6 +402,22 @@ components:
         deltaKg:
           type: number
           description: Negative to reserve, positive to release (non-zero)
+        enforceEnoughForReserve:
+          type: boolean
+          default: true
+        autoSoldoutOnZero:
+          type: boolean
+          default: true
+
+    AdjustQtyUnitsRequest:
+      type: object
+      required: [docId, lineId, unitsDelta]
+      properties:
+        docId: { type: string }
+        lineId: { type: string }
+        unitsDelta:
+          type: integer
+          description: Negative to reserve, positive to release (non-zero). Natural integer; bundle alignment enforced.
         enforceEnoughForReserve:
           type: boolean
           default: true

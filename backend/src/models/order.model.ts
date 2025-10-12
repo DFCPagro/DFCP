@@ -30,7 +30,7 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export const UNIT_MODES = ["kg", "unit", "mixed"] as const;
 export type UnitMode = (typeof UNIT_MODES)[number];
 
-const DELIVERY_FEE_USD = 15;
+const DELIVERY_FEE_USD = 5;
 const DEFAULT_TOLERANCE = 0.10; // 10%
 
 /**

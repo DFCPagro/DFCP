@@ -156,7 +156,7 @@
   },
   {
     "_id": "66f2aa000000000000000008",
-    "name": "Farmer User",
+    "name": "Shalom Farmer",
     "email": "farmer@gmail.com",
     "password": "farmer123",
     "role": "farmer",
@@ -305,7 +305,7 @@
   },
   {
     "_id": "66f2aa00000000000000002a",
-    "name": "Farmer2 User",
+    "name": "Benny Farmer",
     "email": "farmer2@gmail.com",
     "password": "farmer123",
     "role": "farmer",
