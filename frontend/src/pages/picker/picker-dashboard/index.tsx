@@ -1,9 +1,13 @@
-// src/pages/picker-dashboard/index.tsx
+// src/pages/picker/picker-dashboard/index.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Container, Grid, GridItem, HStack, Heading, Text, Button, Spinner } from "@chakra-ui/react";
+import {
+  Container, Grid, GridItem, HStack, Heading, Text, Button, Spinner, Card,
+} from "@chakra-ui/react";
 import { RefreshCcw } from "lucide-react";
 import type { LeaderboardEntry, PickerStats, Quest, QuestScope, ReadyOrder } from "./types";
-import { apiFetchLeaderboard, apiFetchQuests, apiFetchReadyOrders, apiFetchStats, apiClaimOrder } from "./api/mock";
+import {
+  apiFetchLeaderboard, apiFetchQuests, apiFetchReadyOrders, apiFetchStats, apiClaimOrder,
+} from "./api/mock";
 import { useInterval } from "./hooks/useInterval";
 import { LeaderboardCard, QuestCard, ReadyOrdersTable, StatsCard } from "./components";
 
@@ -16,26 +20,26 @@ export default function PickerDashboard() {
   const [scope, setScope] = useState<QuestScope>("day");
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // gate for the orders table
+  const [showOrders, setShowOrders] = useState(false);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [s, b, q, o] = await Promise.all([
+      const [s, b, q] = await Promise.all([
         apiFetchStats(),
         apiFetchLeaderboard(),
         apiFetchQuests(),
-        apiFetchReadyOrders(),
       ]);
       if (!alive) return;
       setStats(s);
       setBoard(b);
       setQuests(q);
-      setOrders(o);
       setLoading(false);
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [refreshKey]);
 
   useInterval(() => {
@@ -81,12 +85,18 @@ export default function PickerDashboard() {
 
   const onRefresh = () => setRefreshKey(k => k + 1);
 
+  const onStartPicking = async () => {
+    setShowOrders(true);
+    setOrdersLoading(true);
+    const data = await apiFetchReadyOrders();
+    setOrders(data);
+    setOrdersLoading(false);
+  };
+
   if (loading || !stats || !activeQuest) {
     return (
       <Container maxW="7xl" py={6}>
-        <HStack gap={3}>
-          <Spinner /> <Text>Loading dashboard…</Text>
-        </HStack>
+        <HStack gap={3}><Spinner /><Text>Loading dashboard…</Text></HStack>
       </Container>
     );
   }
@@ -96,18 +106,11 @@ export default function PickerDashboard() {
       <HStack justify="space-between" mb={4}>
         <Heading size="lg">Picker Dashboard</Heading>
         <HStack gap={2}>
-          <Button variant={scope === "day" ? "solid" : "outline"} onClick={() => setScope("day")}>
-            Daily
+          <Button variant={scope === "day" ? "solid" : "outline"} onClick={() => setScope("day")}>Daily</Button>
+          <Button variant={scope === "week" ? "solid" : "outline"} onClick={() => setScope("week")}>Weekly</Button>
+          <Button variant="outline" onClick={onRefresh}>
+            <HStack gap={2}><RefreshCcw size={16} /><span>Refresh</span></HStack>
           </Button>
-          <Button variant={scope === "week" ? "solid" : "outline"} onClick={() => setScope("week")}>
-            Weekly
-          </Button>
-         <Button variant="outline" onClick={onRefresh}>
-  <HStack gap={2}>
-    <RefreshCcw size={16} />
-    <span>Refresh</span>
-  </HStack>
-</Button>
         </HStack>
       </HStack>
 
@@ -125,7 +128,20 @@ export default function PickerDashboard() {
         </GridItem>
 
         <GridItem colSpan={12}>
-          <ReadyOrdersTable orders={orders} onClaim={onClaimOrder} />
+          {!showOrders ? (
+            <Card.Root>
+              <Card.Body>
+                <HStack justify="space-between" wrap="wrap">
+                  <Text>Ready-to-pick orders are hidden. Start when you’re ready.</Text>
+                  <Button onClick={onStartPicking}>Start picking</Button>
+                </HStack>
+              </Card.Body>
+            </Card.Root>
+          ) : ordersLoading ? (
+            <HStack gap={3}><Spinner /><Text>Loading orders…</Text></HStack>
+          ) : (
+            <ReadyOrdersTable orders={orders} onClaim={onClaimOrder} />
+          )}
         </GridItem>
       </Grid>
     </Container>
