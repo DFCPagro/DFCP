@@ -267,7 +267,7 @@ export default function Jobs() {
                 >
                   <Stack direction="row" gap="2" align="center">
                     <Badge variant="solid" colorPalette="green" borderRadius="full">
-                      Open
+                      Recruiting
                     </Badge>
                     <Badge variant="subtle" colorPalette="gray" borderRadius="full">
                       {cap("general")}
@@ -280,7 +280,7 @@ export default function Jobs() {
                     colorPalette="blue"
                     borderRadius="xl"
                   >
-                    Apply Now
+                    View and Apply
                   </Button>
                 </Card.Footer>
               </Card.Root>
