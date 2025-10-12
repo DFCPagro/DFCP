@@ -16,7 +16,7 @@ import {
 } from "@chakra-ui/react";
 import { ArrowRightLeftIcon as SwapIcon, X as CloseIcon } from "lucide-react";
 import AddressAutocomplete from "@/components/common/AddressAutocomplete";
-import MapCanvas, { type LatLng, type MapCanvasHandle } from "@/components/common/MapCanvas";
+import MapCanvas, { type LatLng, type MapCanvasHandle } from "@/components/common/RouteLocationPicker/MapCanvas";
 import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
 
 export type TravelMode = "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";

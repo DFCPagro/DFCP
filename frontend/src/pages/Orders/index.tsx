@@ -35,7 +35,7 @@ import {
   pickDeliveryPoint,
 } from "./components/helpers";
 import { MOCK_ORDERS } from "@/data/orders";
-import LocationRouteDialog, { type PointValue } from "@/components/common/LocationRouteDialog";
+import RouteLocationDialog, { type PointValue } from "@/components/common/RouteLocationPicker";
 
 type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
 
@@ -442,7 +442,7 @@ export default function OrdersIndex() {
         </ColorBlock>
 
         {/* Map dialog */}
-        <LocationRouteDialog
+        <RouteLocationDialog
           key={mapKey}
           open={mapOpen && !!dest}
           onClose={() => setMapOpen(false)}

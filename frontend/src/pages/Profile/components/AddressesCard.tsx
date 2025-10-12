@@ -12,7 +12,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import { MapPin, Plus, Trash2 } from "lucide-react";
-import MapPickerDialog from "@/components/common/MapPickerDialog";
+import MapPickerDialog from "@/components/common/SingleLocationPicker";
 import type { Address } from "@/types/address";
 
 const Meta = ({ children }: { children: React.ReactNode }) => (

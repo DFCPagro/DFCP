@@ -18,7 +18,7 @@ import {
 } from "@chakra-ui/react"
 import { FiMapPin, FiRefreshCw, FiPlus, FiCheck, FiTrash2 } from "react-icons/fi"
 import { toaster } from "@/components/ui/toaster"
-import MapPickerDialog from "@/components/common/MapPickerDialog"
+import MapPickerDialog from "@/components/common/SingleLocationPicker"
 import {
   addCustomerAddress,
   getAvailableShiftsByLC,

@@ -20,7 +20,7 @@ import {
 } from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster";
 import AddressAutocomplete from "@/components/common/AddressAutocomplete";
-import MapPickerDialog from "@/components/common/MapPickerDialog";
+import MapPickerDialog from "@/components/common/SingleLocationPicker";
 import { reverseGeocode } from "@/utils/googleMaps";
 import { LocateFixed, Eye, EyeOff } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";

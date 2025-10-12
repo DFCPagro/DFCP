@@ -1,0 +1,1289 @@
+diff --git a/frontend/src/components/common/LocationRouteDialog.tsx b/frontend/src/components/common/LocationRouteDialog.tsx
+deleted file mode 100644
+index d6d8a21..0000000
+--- a/frontend/src/components/common/LocationRouteDialog.tsx
++++ /dev/null
+@@ -1,507 +0,0 @@
+-"use client";
+-
+-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+-import {
+-  Box,
+-  Button,
+-  Dialog,
+-  Field,
+-  Flex,
+-  HStack,
+-  IconButton,
+-  NativeSelect,
+-  Separator,
+-  Spinner,
+-  Text,
+-} from "@chakra-ui/react";
+-import { ArrowRightLeftIcon as SwapIcon, X as CloseIcon } from "lucide-react";
+-import AddressAutocomplete from "@/components/common/AddressAutocomplete";
+-import MapCanvas, { type LatLng, type MapCanvasHandle } from "@/components/common/MapCanvas";
+-import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
+-
+-export type TravelMode = "DRIVING" | "WALKING" | "BICYCLING" | "TRANSIT";
+-export type PointValue = { address: string; lat: number; lng: number };
+-export type Mode = "point" | "route";
+-export type ViewMode = "edit" | "view";
+-
+-type BaseProps = {
+-  open: boolean;
+-  onClose: () => void;
+-  viewMode?: ViewMode;
+-  countries?: string;
+-  size?: "sm" | "md" | "lg";
+-};
+-
+-type PointOnlyProps = BaseProps & {
+-  mode: "point";
+-  initialPoint?: PointValue;
+-  onConfirm?: (v: PointValue) => void;
+-};
+-
+-type RouteProps = BaseProps & {
+-  mode: "route";
+-  initialOrigin?: PointValue;
+-  initialDestination?: PointValue;
+-  initialTravelMode?: TravelMode;
+-  onConfirm?: (v: {
+-    origin: PointValue;
+-    destination: PointValue;
+-    travelMode: TravelMode;
+-    distanceText?: string;
+-    durationText?: string;
+-  }) => void;
+-};
+-
+-type Props = PointOnlyProps | RouteProps;
+-
+-const DEFAULT_CENTER: LatLng = { lat: 31.771959, lng: 35.217018 };
+-
+-export default function LocationRouteDialog(props: Props) {
+-  const { open, onClose, countries, size = "lg" } = props;
+-  const viewMode = props.viewMode ?? "edit";
+-
+-  const [busy, setBusy] = useState(false);
+-  const [loadingMap, setLoadingMap] = useState(false);
+-
+-  const [point, setPoint] = useState<PointValue | undefined>(
+-    props.mode === "point" && props.initialPoint ? props.initialPoint : undefined,
+-  );
+-
+-  const [origin, setOrigin] = useState<PointValue | undefined>(
+-    props.mode === "route" && props.initialOrigin ? props.initialOrigin : undefined,
+-  );
+-  const [destination, setDestination] = useState<PointValue | undefined>(
+-    props.mode === "route" && props.initialDestination ? props.initialDestination : undefined,
+-  );
+-  const [travelMode, setTravelMode] = useState<TravelMode>(
+-    props.mode === "route" ? props.initialTravelMode ?? "DRIVING" : "DRIVING",
+-  );
+-  const [distanceText, setDistanceText] = useState<string | undefined>(undefined);
+-  const [durationText, setDurationText] = useState<string | undefined>(undefined);
+-
+-  // Refs that mirror latest origin/destination to avoid stale closure during async geocoding
+-  const originRef = useRef<PointValue | undefined>(origin);
+-  const destinationRef = useRef<PointValue | undefined>(destination);
+-  useEffect(() => { originRef.current = origin; }, [origin]);
+-  useEffect(() => { destinationRef.current = destination; }, [destination]);
+-
+-  const mapRef = useRef<MapCanvasHandle | null>(null);
+-
+-  const center = useMemo<LatLng>(() => {
+-    if (props.mode === "point") {
+-      return point ? { lat: point.lat, lng: point.lng } : DEFAULT_CENTER;
+-    }
+-    return origin
+-      ? { lat: origin.lat, lng: origin.lng }
+-      : destination
+-      ? { lat: destination.lat, lng: destination.lng }
+-      : DEFAULT_CENTER;
+-  }, [props.mode, point, origin, destination]);
+-
+-  const ensureMaps = useCallback(async () => {
+-    setLoadingMap(true);
+-    try {
+-      await loadGoogleMaps();
+-    } finally {
+-      setLoadingMap(false);
+-    }
+-  }, []);
+-
+-  useEffect(() => {
+-    if (!open) return;
+-    ensureMaps();
+-  }, [open, ensureMaps]);
+-
+-  // Paint current state whenever open or state changes
+-  useEffect(() => {
+-    if (!open || !mapRef.current) return;
+-
+-    const paint = async () => {
+-      if (props.mode === "point") {
+-        mapRef.current.clearRoute();
+-        mapRef.current.clearAllMarkers();
+-        if (point) {
+-          mapRef.current.setSingleMarker(point);
+-          mapRef.current.setCenter(point);
+-        } else {
+-          mapRef.current.setCenter(center);
+-        }
+-        return;
+-      }
+-
+-      // route mode
+-      mapRef.current.clearRoute();
+-
+-      // Show both markers if we have them (always visible)
+-      mapRef.current.clearAllMarkers();
+-      if (origin) mapRef.current.setOriginMarker(origin);
+-      if (destination) mapRef.current.setDestinationMarker(destination);
+-
+-      if (origin && destination) {
+-        // Fit to endpoints immediately for snappy UX
+-        mapRef.current.fitToBounds([origin, destination]);
+-        await renderRoute(origin, destination, travelMode);
+-      } else if (origin || destination) {
+-        // If only one exists, center on it
+-        mapRef.current.setCenter(origin ?? destination!);
+-      } else {
+-        mapRef.current.setCenter(center);
+-      }
+-    };
+-
+-    // defer to next frame to ensure container is sized
+-    const id = requestAnimationFrame(paint);
+-    return () => cancelAnimationFrame(id);
+-    // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [open, point?.lat, point?.lng, origin?.lat, origin?.lng, destination?.lat, destination?.lng, travelMode]);
+-
+-  // Click-to-pick with immediate placement (avoid race with async reverseGeocode)
+-  const onMapClick = async (pos: LatLng) => {
+-    if (viewMode === "view") return;
+-
+-    // Read latest values from refs to avoid stale closure
+-    const curOrigin = originRef.current;
+-    const curDestination = destinationRef.current;
+-
+-    if (props.mode === "point") {
+-      // Immediately set marker, then resolve address
+-      const provisional: PointValue = { address: "", ...pos };
+-      setPoint(provisional);
+-      mapRef.current?.setSingleMarker(provisional);
+-      mapRef.current?.setCenter(provisional);
+-
+-      setBusy(true);
+-      try {
+-        const addr = (await reverseGeocode(pos.lat, pos.lng)) || "";
+-        setPoint((s) => (s ? { ...s, address: addr } : { address: addr, ...pos }));
+-      } finally {
+-        setBusy(false);
+-      }
+-      return;
+-    }
+-
+-    // ROUTE MODE
+-    if (!curOrigin) {
+-      const provisional: PointValue = { address: "", ...pos };
+-      originRef.current = provisional; // keep ref in sync immediately
+-      setOrigin(provisional);
+-      mapRef.current?.setOriginMarker(provisional);
+-
+-      setBusy(true);
+-      try {
+-        const addr = (await reverseGeocode(pos.lat, pos.lng)) || "";
+-        setOrigin((s) => (s ? { ...s, address: addr } : { address: addr, ...pos }));
+-        originRef.current = { address: addr, ...pos };
+-      } finally {
+-        setBusy(false);
+-      }
+-      return;
+-    }
+-
+-    // If we already have origin, set/replace destination
+-    const provisionalDest: PointValue = { address: "", ...pos };
+-    destinationRef.current = provisionalDest;
+-    setDestination(provisionalDest);
+-    mapRef.current?.setDestinationMarker(provisionalDest);
+-    mapRef.current?.fitToBounds([curOrigin, provisionalDest]);
+-
+-    setBusy(true);
+-    try {
+-      const addr = (await reverseGeocode(pos.lat, pos.lng)) || "";
+-      const finalizedDest: PointValue = { address: addr, ...pos };
+-      setDestination(finalizedDest);
+-      destinationRef.current = finalizedDest;
+-      await renderRoute(curOrigin, finalizedDest, travelMode);
+-    } finally {
+-      setBusy(false);
+-    }
+-  };
+-
+-  const onMarkerDragEnd = async (pos: LatLng) => {
+-    if (viewMode === "view") return;
+-
+-    setBusy(true);
+-    try {
+-      const addr = (await reverseGeocode(pos.lat, pos.lng)) || "";
+-      if (props.mode === "point") {
+-        const next = { address: addr, ...pos };
+-        setPoint(next);
+-      }
+-      // Note: the named markers are not draggable in this implementation.
+-    } finally {
+-      setBusy(false);
+-    }
+-  };
+-
+-  const onPickedFromSearch =
+-    (kind: "point" | "origin" | "destination") =>
+-    async (p: { address: string; lat?: number; lng?: number }) => {
+-      const lat = p.lat ?? null;
+-      const lng = p.lng ?? null;
+-      if (lat == null || lng == null) return;
+-
+-      const next = { address: p.address, lat, lng };
+-      if (kind === "point") {
+-        setPoint(next);
+-        mapRef.current?.setSingleMarker(next);
+-        mapRef.current?.setCenter(next);
+-      } else if (kind === "origin") {
+-        originRef.current = next;
+-        setOrigin(next);
+-        mapRef.current?.setOriginMarker(next);
+-        if (destinationRef.current) {
+-          mapRef.current?.fitToBounds([next, destinationRef.current]);
+-          await renderRoute(next, destinationRef.current, travelMode);
+-        } else {
+-          mapRef.current?.setCenter(next);
+-        }
+-      } else {
+-        destinationRef.current = next;
+-        setDestination(next);
+-        mapRef.current?.setDestinationMarker(next);
+-        if (originRef.current) {
+-          mapRef.current?.fitToBounds([originRef.current, next]);
+-          await renderRoute(originRef.current, next, travelMode);
+-        } else {
+-          mapRef.current?.setCenter(next);
+-        }
+-      }
+-    };
+-
+-  const renderRoute = async (o: PointValue, d: PointValue, tm: TravelMode) => {
+-    setBusy(true);
+-    try {
+-      const res = await mapRef.current?.showRoute({
+-        origin: { lat: o.lat, lng: o.lng },
+-        destination: { lat: d.lat, lng: d.lng },
+-        travelMode: (window as any).google?.maps.TravelMode[tm] ?? google.maps.TravelMode.DRIVING,
+-        suppressRendererMarkers: true, // keep our A/B markers visible
+-      });
+-      if (res?.routes[0]?.legs?.[0]) {
+-        const leg = res.routes[0].legs[0];
+-        setDistanceText(leg.distance?.text);
+-        setDurationText(leg.duration?.text);
+-      } else {
+-        setDistanceText(undefined);
+-        setDurationText(undefined);
+-      }
+-      return res ?? null;
+-    } finally {
+-      setBusy(false);
+-    }
+-  };
+-
+-  const swapRoute = async () => {
+-    if (!originRef.current || !destinationRef.current) return;
+-    const nextOrigin = destinationRef.current;
+-    const nextDestination = originRef.current;
+-
+-    originRef.current = nextOrigin;
+-    destinationRef.current = nextDestination;
+-
+-    setOrigin(nextOrigin);
+-    setDestination(nextDestination);
+-
+-    // Update markers immediately for visual feedback
+-    mapRef.current?.setOriginMarker(nextOrigin);
+-    mapRef.current?.setDestinationMarker(nextDestination);
+-
+-    mapRef.current?.fitToBounds([nextOrigin, nextDestination]);
+-    await renderRoute(nextOrigin, nextDestination, travelMode);
+-  };
+-
+-  const canConfirm = useMemo(() => {
+-    if (viewMode === "view") return true;
+-    if (props.mode === "point") return !!point?.address && point.lat != null && point.lng != null;
+-    return !!originRef.current && !!destinationRef.current;
+-  }, [viewMode, props.mode, point]);
+-
+-  const handleConfirm = () => {
+-    if (!props.onConfirm) return;
+-    if (props.mode === "point" && point) {
+-      props.onConfirm(point);
+-    } else if (props.mode === "route" && originRef.current && destinationRef.current) {
+-        props.onConfirm({
+-          origin: originRef.current,
+-          destination: destinationRef.current,
+-          travelMode,
+-          distanceText,
+-          durationText,
+-        });
+-    }
+-  };
+-
+-  return (
+-    <Dialog.Root open={open} onOpenChange={(e) => !e.open && onClose()} size={size}>
+-      <Dialog.Backdrop />
+-      <Dialog.Positioner>
+-        <Dialog.Content borderRadius="2xl" overflow="hidden" shadow="lg" borderWidth="1px" display="flex" flexDirection="column">
+-          <Flex align="center" justify="space-between" p={{ base: 3, sm: 4 }} borderBottomWidth="1px">
+-            <Dialog.Title fontSize="lg" fontWeight="semibold">
+-              {props.mode === "point" ? (viewMode === "view" ? "Location" : "Pick a location") : viewMode === "view" ? "Route" : "Plan a route"}
+-            </Dialog.Title>
+-            <Dialog.CloseTrigger asChild>
+-              <IconButton aria-label="Close" size="sm" variant="ghost" borderRadius="lg">
+-                <CloseIcon size={16} />
+-              </IconButton>
+-            </Dialog.CloseTrigger>
+-          </Flex>
+-
+-          <Box p={{ base: 3, sm: 4 }} flex="1" overflowY="auto" minH={{ base: "320px", sm: "380px" }}>
+-            <Flex direction="column" gap="3">
+-              {props.mode === "point" ? (
+-                <Field.Root>
+-                  <Field.Label>Search</Field.Label>
+-                  <AddressAutocomplete
+-                    value={point?.address ?? ""}
+-                    onChange={(v) => setPoint((s) => (s ? { ...s, address: v } : { address: v, ...DEFAULT_CENTER }))}
+-                    onPlaceSelected={onPickedFromSearch("point")}
+-                    countries={countries}
+-                    placeholder="Search for an address"
+-                    disabled={viewMode === "view"}
+-                  />
+-                </Field.Root>
+-              ) : (
+-                <>
+-                  <Flex gap="2" direction={{ base: "column", sm: "row" }} align="stretch">
+-                    <Box flex="1">
+-                      <Field.Root>
+-                        <Field.Label>Origin</Field.Label>
+-                        <AddressAutocomplete
+-                          value={origin?.address ?? ""}
+-                          onChange={(v) => setOrigin((s) => (s ? { ...s, address: v } : { address: v, ...DEFAULT_CENTER }))}
+-                          onPlaceSelected={onPickedFromSearch("origin")}
+-                          countries={countries}
+-                          placeholder="Search origin"
+-                          disabled={viewMode === "view"}
+-                        />
+-                      </Field.Root>
+-                    </Box>
+-                    <Box alignSelf={{ base: "stretch", sm: "end" }}>
+-                      <IconButton
+-                        aria-label="Swap"
+-                        onClick={swapRoute}
+-                        variant="subtle"
+-                        borderRadius="lg"
+-                        disabled={viewMode === "view" || !originRef.current || !destinationRef.current}
+-                      >
+-                        <SwapIcon size={18} />
+-                      </IconButton>
+-                    </Box>
+-                    <Box flex="1">
+-                      <Field.Root>
+-                        <Field.Label>Destination</Field.Label>
+-                        <AddressAutocomplete
+-                          value={destination?.address ?? ""}
+-                          onChange={(v) => setDestination((s) => (s ? { ...s, address: v } : { address: v, ...DEFAULT_CENTER }))}
+-                          onPlaceSelected={onPickedFromSearch("destination")}
+-                          countries={countries}
+-                          placeholder="Search destination"
+-                          disabled={viewMode === "view"}
+-                        />
+-                      </Field.Root>
+-                    </Box>
+-                  </Flex>
+-
+-                  <Flex gap="3" align="center" wrap="wrap">
+-                    <Field.Root>
+-                      <Field.Label>Travel mode</Field.Label>
+-                      <NativeSelect.Root width="200px" disabled={viewMode === "view"}>
+-                        <NativeSelect.Field
+-                          value={travelMode}
+-                          onChange={async (e) => {
+-                            const next = e.target.value as TravelMode;
+-                            setTravelMode(next);
+-                            if (originRef.current && destinationRef.current) {
+-                              mapRef.current?.fitToBounds([originRef.current, destinationRef.current]);
+-                              await renderRoute(originRef.current, destinationRef.current, next);
+-                            }
+-                          }}
+-                        >
+-                          <option value="DRIVING">Driving</option>
+-                          <option value="WALKING">Walking</option>
+-                          <option value="BICYCLING">Bicycling</option>
+-                          <option value="TRANSIT">Transit</option>
+-                        </NativeSelect.Field>
+-                        <NativeSelect.Indicator />
+-                      </NativeSelect.Root>
+-                    </Field.Root>
+-
+-                    <Separator orientation="vertical" height="8" />
+-
+-                    <Flex gap="6" align="center">
+-                      <Box>
+-                        <Text fontSize="xs" color="gray.500">Distance</Text>
+-                        <Text fontWeight="medium">{distanceText ?? "—"}</Text>
+-                      </Box>
+-                      <Box>
+-                        <Text fontSize="xs" color="gray.500">Duration</Text>
+-                        <Text fontWeight="medium">{durationText ?? "—"}</Text>
+-                      </Box>
+-                    </Flex>
+-                  </Flex>
+-                </>
+-              )}
+-
+-              <Box
+-                w="100%"
+-                h={{ base: "42vh", sm: "48vh", md: "52vh" }}
+-                minH="260px"
+-                maxH="62vh"
+-                rounded="md"
+-                borderWidth="1px"
+-                borderColor="gray.200"
+-                _dark={{ borderColor: "whiteAlpha.300", bg: "gray.900" }}
+-                overflow="hidden"
+-                position="relative"
+-                bg="gray.50"
+-              >
+-                {(loadingMap || busy) && (
+-                  <Flex position="absolute" inset={0} align="center" justify="center" bg="blackAlpha.200" zIndex={1}>
+-                    <HStack>
+-                      <Spinner size="sm" />
+-                      <Text fontSize="sm">{loadingMap ? "Loading map..." : "Loading..."}</Text>
+-                    </HStack>
+-                  </Flex>
+-                )}
+-                <MapCanvas
+-                  ref={mapRef}
+-                  initialCenter={center}
+-                  onClick={onMapClick}
+-                  onMarkerDragEnd={onMarkerDragEnd}
+-                  className="chakra-map"
+-                />
+-              </Box>
+-
+-              {props.mode === "point" && (
+-                <Flex gap="6" wrap="wrap">
+-                  <Box>
+-                    <Text fontWeight="medium">Latitude</Text>
+-                    <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>
+-                      {point?.lat != null ? point.lat.toFixed(6) : "Not set"}
+-                    </Text>
+-                  </Box>
+-                  <Box>
+-                    <Text fontWeight="medium">Longitude</Text>
+-                    <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>
+-                      {point?.lng != null ? point.lng.toFixed(6) : "Not set"}
+-                    </Text>
+-                  </Box>
+-                </Flex>
+-              )}
+-            </Flex>
+-          </Box>
+-
+-          <Flex p={{ base: 3, sm: 4 }} borderTopWidth="1px" bg="bg" justify="flex-end" gap="2">
+-            <Button variant="ghost" onClick={onClose}>Close</Button>
+-            {viewMode === "edit" && (
+-              <Button colorPalette="blue" borderRadius="xl" onClick={handleConfirm} disabled={!canConfirm}>
+-                {props.mode === "point" ? "Use this location" : "Use this route"}
+-              </Button>
+-            )}
+-          </Flex>
+-        </Dialog.Content>
+-      </Dialog.Positioner>
+-    </Dialog.Root>
+-  );
+-}
+diff --git a/frontend/src/components/common/MapCanvas.tsx b/frontend/src/components/common/MapCanvas.tsx
+deleted file mode 100644
+index f7e9f4e..0000000
+--- a/frontend/src/components/common/MapCanvas.tsx
++++ /dev/null
+@@ -1,315 +0,0 @@
+-"use client";
+-
+-import {
+-  forwardRef,
+-  useEffect,
+-  useImperativeHandle,
+-  useRef,
+-  useState,
+-} from "react";
+-import { loadGoogleMaps } from "@/utils/googleMaps";
+-
+-export type LatLng = { lat: number; lng: number };
+-
+-export type MapCanvasHandle = {
+-  setCenter: (pos: LatLng) => void;
+-  fitToBounds: (points: LatLng[]) => void;
+-
+-  // Single loose marker (legacy)
+-  setSingleMarker: (pos: LatLng) => void;
+-  clearSingleMarker: () => void;
+-
+-  // Named markers for double-location flows
+-  setOriginMarker: (pos: LatLng) => void;
+-  setDestinationMarker: (pos: LatLng) => void;
+-  clearOriginMarker: () => void;
+-  clearDestinationMarker: () => void;
+-  clearAllMarkers: () => void;
+-
+-  // Route
+-  showRoute: (opts: {
+-    origin: LatLng;
+-    destination: LatLng;
+-    travelMode?: google.maps.TravelMode;
+-    avoidTolls?: boolean;
+-    avoidHighways?: boolean;
+-    suppressRendererMarkers?: boolean; // default true → keep our markers visible
+-  }) => Promise<google.maps.DirectionsResult | null>;
+-  clearRoute: () => void;
+-};
+-
+-type Props = {
+-  initialCenter: LatLng;
+-  zoom?: number;
+-  className?: string;
+-  onMapReady?: (map: google.maps.Map) => void;
+-  onClick?: (pos: LatLng) => void;
+-  onMarkerDragEnd?: (pos: LatLng) => void; // applies to the "single" legacy marker only
+-  // Use MapOptions["gestureHandling"] to stay aligned with Google Maps typings
+-  gestureHandling?: google.maps.MapOptions["gestureHandling"];
+-};
+-
+-const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
+-  {
+-    initialCenter,
+-    zoom = 14,
+-    className,
+-    onMapReady,
+-    onClick,
+-    onMarkerDragEnd,
+-    gestureHandling = "greedy",
+-  },
+-  ref
+-) {
+-  const hostRef = useRef<HTMLDivElement | null>(null);
+-  const mapRef = useRef<google.maps.Map | null>(null);
+-
+-  // Markers
+-  const singleMarkerRef = useRef<google.maps.Marker | null>(null);
+-  const originMarkerRef = useRef<google.maps.Marker | null>(null);
+-  const destinationMarkerRef = useRef<google.maps.Marker | null>(null);
+-
+-  // Directions
+-  const dirRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+-
+-  const listenersRef = useRef<google.maps.MapsEventListener[]>([]);
+-  const [ready, setReady] = useState(false);
+-
+-  // Initialize the map **once** on mount.
+-  // IMPORTANT: Do NOT depend on props here (like initialCenter/zoom) or the map will be torn down and recreated,
+-  // wiping markers and routes after user actions.
+-  useEffect(() => {
+-    let cancelled = false;
+-
+-    (async () => {
+-      await loadGoogleMaps();
+-      if (cancelled || !hostRef.current) return;
+-
+-      const g = (window as any).google as typeof google;
+-      const map = new g.maps.Map(hostRef.current, {
+-        center: initialCenter,
+-        zoom,
+-        gestureHandling,
+-        streetViewControl: false,
+-        fullscreenControl: false,
+-        mapTypeControl: false,
+-      });
+-      mapRef.current = map;
+-
+-      listenersRef.current.push(
+-        map.addListener("click", (e) => {
+-          if (!e.latLng || !onClick) return;
+-          onClick({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+-        })
+-      );
+-
+-      setReady(true);
+-      onMapReady?.(map);
+-    })();
+-
+-    return () => {
+-      cancelled = true;
+-      try {
+-        listenersRef.current.forEach((l) => l.remove());
+-        listenersRef.current = [];
+-        singleMarkerRef.current?.setMap(null);
+-        singleMarkerRef.current = null;
+-        originMarkerRef.current?.setMap(null);
+-        originMarkerRef.current = null;
+-        destinationMarkerRef.current?.setMap(null);
+-        destinationMarkerRef.current = null;
+-        dirRendererRef.current?.setMap(null);
+-        dirRendererRef.current = null;
+-        mapRef.current = null;
+-        if (hostRef.current) hostRef.current.innerHTML = "";
+-      } catch {}
+-    };
+-    // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, []); // mount-only
+-
+-  // --- helpers (no "this" usage) ---
+-  const ensureOriginMarker = (pos: LatLng) => {
+-    const g = (window as any).google as typeof google;
+-    const m = mapRef.current;
+-    if (!m) return;
+-    if (!originMarkerRef.current) {
+-      originMarkerRef.current = new g.maps.Marker({
+-        map: m,
+-        position: pos,
+-        label: "A",
+-      });
+-    } else {
+-      originMarkerRef.current.setPosition(pos);
+-      originMarkerRef.current.setMap(m);
+-    }
+-  };
+-
+-  const ensureDestinationMarker = (pos: LatLng) => {
+-    const g = (window as any).google as typeof google;
+-    const m = mapRef.current;
+-    if (!m) return;
+-    if (!destinationMarkerRef.current) {
+-      destinationMarkerRef.current = new g.maps.Marker({
+-        map: m,
+-        position: pos,
+-        label: "B",
+-      });
+-    } else {
+-      destinationMarkerRef.current.setPosition(pos);
+-      destinationMarkerRef.current.setMap(m);
+-    }
+-  };
+-
+-  const fitPoints = (points: LatLng[]) => {
+-    const m = mapRef.current;
+-    const g = (window as any).google as typeof google;
+-    if (!m || points.length === 0) return;
+-    const b = new g.maps.LatLngBounds();
+-    points.forEach((p) => b.extend(p));
+-    m.fitBounds(b, 48);
+-  };
+-
+-  useImperativeHandle(ref, (): MapCanvasHandle => {
+-    return {
+-      setCenter(pos) {
+-        const m = mapRef.current;
+-        if (!m) return;
+-        m.setCenter(pos);
+-      },
+-
+-      fitToBounds(points) {
+-        fitPoints(points);
+-      },
+-
+-      // Legacy single marker (kept for backwards compat)
+-      setSingleMarker(pos) {
+-        const g = (window as any).google as typeof google;
+-        const m = mapRef.current;
+-        if (!m) return;
+-        // Clear route & named markers so it's obvious this is "single" mode
+-        dirRendererRef.current?.setMap(null);
+-        dirRendererRef.current = null;
+-        originMarkerRef.current?.setMap(null);
+-        destinationMarkerRef.current?.setMap(null);
+-
+-        if (!singleMarkerRef.current) {
+-          singleMarkerRef.current = new g.maps.Marker({
+-            map: m,
+-            position: pos,
+-            draggable: !!onMarkerDragEnd,
+-          });
+-          if (onMarkerDragEnd) {
+-            listenersRef.current.push(
+-              singleMarkerRef.current.addListener("dragend", () => {
+-                const p = singleMarkerRef.current!.getPosition();
+-                if (!p) return;
+-                onMarkerDragEnd({ lat: p.lat(), lng: p.lng() });
+-              })
+-            );
+-          }
+-        } else {
+-          singleMarkerRef.current.setPosition(pos);
+-          singleMarkerRef.current.setMap(m);
+-        }
+-        m.setCenter(pos);
+-      },
+-      clearSingleMarker() {
+-        singleMarkerRef.current?.setMap(null);
+-      },
+-
+-      // Named markers for origin/destination
+-      setOriginMarker(pos) {
+-        ensureOriginMarker(pos);
+-      },
+-      setDestinationMarker(pos) {
+-        ensureDestinationMarker(pos);
+-      },
+-      clearOriginMarker() {
+-        originMarkerRef.current?.setMap(null);
+-      },
+-      clearDestinationMarker() {
+-        destinationMarkerRef.current?.setMap(null);
+-      },
+-      clearAllMarkers() {
+-        singleMarkerRef.current?.setMap(null);
+-        originMarkerRef.current?.setMap(null);
+-        destinationMarkerRef.current?.setMap(null);
+-      },
+-
+-      async showRoute({
+-        origin,
+-        destination,
+-        travelMode = google.maps.TravelMode.DRIVING,
+-        avoidTolls,
+-        avoidHighways,
+-        suppressRendererMarkers = true,
+-      }) {
+-        const g = (window as any).google as typeof google;
+-        const m = mapRef.current;
+-        if (!m) return null;
+-
+-        // Keep our own A/B markers visible
+-        ensureOriginMarker(origin);
+-        ensureDestinationMarker(destination);
+-
+-        // Single marker shouldn't appear in route mode
+-        singleMarkerRef.current?.setMap(null);
+-
+-        const service = new g.maps.DirectionsService();
+-        const res = await service.route({
+-          origin,
+-          destination,
+-          travelMode,
+-          drivingOptions:
+-            travelMode === g.maps.TravelMode.DRIVING
+-              ? { departureTime: new Date() }
+-              : undefined,
+-          avoidTolls,
+-          avoidHighways,
+-          provideRouteAlternatives: false,
+-        });
+-
+-        if (!dirRendererRef.current) {
+-          dirRendererRef.current = new g.maps.DirectionsRenderer({
+-            map: m,
+-            suppressMarkers: suppressRendererMarkers,
+-            preserveViewport: true,
+-            //   preserveViewport: false,
+-            //   polylineOptions: {
+-            //     strokeOpacity: 0.9,
+-            //     strokeWeight: 6, // slightly thicker for visibility
+-            //   },
+-          });
+-        } else {
+-          dirRendererRef.current.setMap(m);
+-        }
+-        dirRendererRef.current.setDirections(res);
+-
+-        // Fit to route bounds (plus padding). Fallback to endpoints.
+-        const route = res.routes[0];
+-        if (route?.bounds) {
+-          m.fitBounds(route.bounds, 56);
+-        } else {
+-          fitPoints([origin, destination]);
+-        }
+-
+-        return res;
+-      },
+-
+-      clearRoute() {
+-        dirRendererRef.current?.setMap(null);
+-        dirRendererRef.current = null;
+-      },
+-    };
+-  }, [onMarkerDragEnd]);
+-
+-  return (
+-    <div
+-      ref={hostRef}
+-      className={className}
+-      style={{ width: "100%", height: "100%", opacity: ready ? 1 : 0.001 }}
+-    />
+-  );
+-});
+-
+-export default MapCanvas;
+diff --git a/frontend/src/components/common/MapPickerDialog.tsx b/frontend/src/components/common/MapPickerDialog.tsx
+deleted file mode 100644
+index cda1687..0000000
+--- a/frontend/src/components/common/MapPickerDialog.tsx
++++ /dev/null
+@@ -1,338 +0,0 @@
+-// // src/components/common/MapPickerDialog.tsx
+-// "use client";
+-
+-// import { useCallback, useEffect, useRef, useState } from "react";
+-// import { Box, Button, Dialog, Field, Flex, HStack, IconButton, Spinner, Text } from "@chakra-ui/react";
+-// import { X as CloseIcon } from "lucide-react";
+-// import AddressAutocomplete from "@/components/common/AddressAutocomplete";
+-// import { loadGoogleMaps, reverseGeocode } from "@/utils/googleMaps";
+-
+-// type MapPickerValue = { address: string; lat: number; lng: number };
+-// type Props = {
+-//   open: boolean;
+-//   onClose: () => void;
+-//   onConfirm: (v: MapPickerValue) => void;
+-//   initial?: { lat: number; lng: number; address?: string };
+-//   countries?: string;
+-// };
+-
+-// export default function MapPickerDialog({ open, onClose, onConfirm, initial, countries }: Props) {
+-//   const hostRef = useRef<HTMLDivElement | null>(null);
+-//   const mapRef = useRef<google.maps.Map | null>(null);
+-//   const markerRef = useRef<google.maps.Marker | null>(null);
+-//   const listenersRef = useRef<google.maps.MapsEventListener[]>([]);
+-
+-//   const [loadingMap, setLoadingMap] = useState(false);
+-//   const [busy, setBusy] = useState(false);
+-
+-//   const [lat, setLat] = useState<number>(initial?.lat ?? 31.771959);
+-//   const [lng, setLng] = useState<number>(initial?.lng ?? 35.217018);
+-//   const [address, setAddress] = useState<string>(initial?.address ?? "");
+-
+-//   const cleanupMap = useCallback(() => {
+-//     try {
+-//       listenersRef.current.forEach((l) => l.remove());
+-//       listenersRef.current = [];
+-//       markerRef.current?.setMap(null);
+-//       markerRef.current = null;
+-//       mapRef.current = null;
+-//       // IMPORTANT: clear host so we don’t reuse stale children
+-//       if (hostRef.current) hostRef.current.innerHTML = "";
+-//     } catch {}
+-//   }, []);
+-
+-//   const waitForSize = useCallback(async () => {
+-//     const el = hostRef.current;
+-//     if (!el) return;
+-//     const ready = () => {
+-//       const r = el.getBoundingClientRect();
+-//       return r.width > 0 && r.height > 0;
+-//     };
+-//     if (ready()) return;
+-
+-//     await new Promise<void>((resolve) => {
+-//       let done = false;
+-//       const ro =
+-//         typeof ResizeObserver !== "undefined"
+-//           ? new ResizeObserver(() => {
+-//               if (!done && ready()) {
+-//                 done = true;
+-//                 ro.disconnect();
+-//                 resolve();
+-//               }
+-//             })
+-//           : null;
+-
+-//       if (ro) ro.observe(el);
+-
+-//       const tick = () => {
+-//         if (!done && ready()) {
+-//           done = true;
+-//           ro?.disconnect();
+-//           resolve();
+-//         } else {
+-//           requestAnimationFrame(tick);
+-//         }
+-//       };
+-//       requestAnimationFrame(tick);
+-//     });
+-//   }, []);
+-
+-//   const setMarker = useCallback((g: typeof google, pos: google.maps.LatLngLiteral) => {
+-//     if (!mapRef.current) return;
+-//     if (!markerRef.current) {
+-//       markerRef.current = new g.maps.Marker({ position: pos, map: mapRef.current, draggable: true });
+-//       listenersRef.current.push(
+-//         markerRef.current.addListener("dragend", async () => {
+-//           const p = markerRef.current!.getPosition();
+-//           if (!p) return;
+-//           const next = { lat: p.lat(), lng: p.lng() };
+-//           setLat(next.lat);
+-//           setLng(next.lng);
+-//           setBusy(true);
+-//           try {
+-//             setAddress((await reverseGeocode(next.lat, next.lng)) || "");
+-//           } finally {
+-//             setBusy(false);
+-//           }
+-//         })
+-//       );
+-//     } else {
+-//       markerRef.current.setPosition(pos);
+-//     }
+-//     mapRef.current.setCenter(pos);
+-//   }, []);
+-
+-//   // Create a brand new map each OPEN
+-//   useEffect(() => {
+-//     if (!open) return;
+-
+-//     let cancelled = false;
+-//     (async () => {
+-//       setLoadingMap(true);
+-//       try {
+-//         await loadGoogleMaps();
+-//         await waitForSize();
+-//         if (cancelled || !hostRef.current) return;
+-
+-//         const g = (window as any).google as typeof google;
+-//         // fresh map each time
+-//         mapRef.current = new g.maps.Map(hostRef.current, {
+-//           center: { lat, lng },
+-//           zoom: 14,
+-//           gestureHandling: "greedy",
+-//           streetViewControl: false,
+-//           fullscreenControl: false,
+-//           mapTypeControl: false,
+-//         });
+-
+-//         listenersRef.current.push(
+-//           mapRef.current.addListener("click", async (e: google.maps.MapMouseEvent) => {
+-//             if (!e.latLng) return;
+-//             const pos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+-//             setLat(pos.lat);
+-//             setLng(pos.lng);
+-//             setMarker(g, pos);
+-//             setBusy(true);
+-//             try {
+-//               setAddress((await reverseGeocode(pos.lat, pos.lng)) || "");
+-//             } finally {
+-//               setBusy(false);
+-//             }
+-//           })
+-//         );
+-
+-//         setMarker(g, { lat, lng });
+-
+-//         requestAnimationFrame(() => {
+-//           if (!mapRef.current) return;
+-//           g.maps.event.trigger(mapRef.current, "resize");
+-//           mapRef.current.setCenter({ lat, lng });
+-//         });
+-//       } finally {
+-//         setLoadingMap(false);
+-//       }
+-//     })();
+-
+-//     return () => {
+-//       cancelled = true;
+-//     };
+-//     // eslint-disable-next-line react-hooks/exhaustive-deps
+-//   }, [open, lat, lng]);
+-
+-//   // HARD dispose when it closes (no key required)
+-//   useEffect(() => {
+-//     if (open) return;
+-//     cleanupMap();
+-//   }, [open, cleanupMap]);
+-
+-//   // safety on unmount
+-//   useEffect(() => cleanupMap, [cleanupMap]);
+-
+-//   const onPickedFromSearch = (p: { address: string; lat?: number; lng?: number }) => {
+-//     setAddress(p.address);
+-//     if (p.lat != null && p.lng != null) {
+-//       setLat(p.lat);
+-//       setLng(p.lng);
+-//       if (mapRef.current) {
+-//         const g = (window as any).google as typeof google;
+-//         setMarker(g, { lat: p.lat, lng: p.lng });
+-//       }
+-//     }
+-//   };
+-
+-//   const useMyLocation = async () => {
+-//     if (!navigator.geolocation) return;
+-//     try {
+-//       setBusy(true);
+-//       const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+-//         navigator.geolocation.getCurrentPosition(resolve, reject, {
+-//           enableHighAccuracy: true,
+-//           timeout: 10000,
+-//         })
+-//       );
+-//       const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+-//       setLat(next.lat);
+-//       setLng(next.lng);
+-//       setAddress((await reverseGeocode(next.lat, next.lng)) || "");
+-//       if (mapRef.current) {
+-//         const g = (window as any).google as typeof google;
+-//         setMarker(g, next);
+-//       }
+-//     } finally {
+-//       setBusy(false);
+-//     }
+-//   };
+-
+-//   const confirm = () => {
+-//     if (!address?.trim() || lat == null || lng == null) return;
+-//     onConfirm({ address: address.trim(), lat, lng });
+-//   };
+-
+-//   return (
+-//     <Dialog.Root open={open} onOpenChange={(e) => !e.open && onClose()} size="lg">
+-//       <Dialog.Backdrop />
+-//       <Dialog.Positioner>
+-//         <Dialog.Content
+-//           borderRadius="2xl"
+-//           overflow="hidden"
+-//           shadow="lg"
+-//           borderWidth="1px"
+-//           display="flex"
+-//           flexDirection="column"
+-//         >
+-//           <Flex align="center" justify="space-between" p={{ base: 3, sm: 4 }} borderBottomWidth="1px">
+-//             <Dialog.Title fontSize="lg" fontWeight="semibold">Pick a location</Dialog.Title>
+-//             <Dialog.CloseTrigger asChild>
+-//               <IconButton aria-label="Close" size="sm" variant="ghost" borderRadius="lg">
+-//                 <CloseIcon size={16} />
+-//               </IconButton>
+-//             </Dialog.CloseTrigger>
+-//           </Flex>
+-
+-//           <Box p={{ base: 3, sm: 4 }} flex="1" overflowY="auto" minH={{ base: "260px", sm: "320px" }}>
+-//             <Flex direction="column" gap="3">
+-//               <Field.Root>
+-//                 <Field.Label>Search</Field.Label>
+-//                 <AddressAutocomplete
+-//                   value={address}
+-//                   onChange={setAddress}
+-//                   onPlaceSelected={onPickedFromSearch}
+-//                   countries={countries}
+-//                   placeholder="Search for an address"
+-//                 />
+-//               </Field.Root>
+-
+-//               <Box
+-//                 w="100%"
+-//                 h={{ base: "42vh", sm: "48vh", md: "52vh" }}
+-//                 minH="240px"
+-//                 maxH="62vh"
+-//                 rounded="md"
+-//                 borderWidth="1px"
+-//                 borderColor="gray.200"
+-//                 _dark={{ borderColor: "whiteAlpha.300", bg: "gray.900" }}
+-//                 overflow="hidden"
+-//                 position="relative"
+-//                 bg="gray.50"
+-//               >
+-//                 {(loadingMap || busy) && (
+-//                   <Flex position="absolute" inset={0} align="center" justify="center" bg="blackAlpha.200" zIndex={1}>
+-//                     <HStack>
+-//                       <Spinner size="sm" />
+-//                       <Text fontSize="sm">{loadingMap ? "Loading map..." : "Loading..."}</Text>
+-//                     </HStack>
+-//                   </Flex>
+-//                 )}
+-//                 <div ref={hostRef} style={{ width: "100%", height: "100%" }} />
+-//               </Box>
+-
+-//               <Flex gap="6" wrap="wrap">
+-//                 <Box>
+-//                   <Text fontWeight="medium">Latitude</Text>
+-//                   <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>
+-//                     {lat != null ? lat.toFixed(6) : "Not set"}
+-//                   </Text>
+-//                 </Box>
+-//                 <Box>
+-//                   <Text fontWeight="medium">Longitude</Text>
+-//                   <Text fontSize="sm" color="gray.600" _dark={{ color: "gray.300" }}>
+-//                     {lng != null ? lng.toFixed(6) : "Not set"}
+-//                   </Text>
+-//                 </Box>
+-//               </Flex>
+-
+-//               <Button onClick={useMyLocation} variant="subtle" alignSelf={{ base: "stretch", sm: "flex-start" }}>
+-//                 Use my current location
+-//               </Button>
+-//             </Flex>
+-//           </Box>
+-
+-//           <Flex p={{ base: 3, sm: 4 }} borderTopWidth="1px" bg="bg" justify="flex-end" gap="2">
+-//             <Button variant="ghost" onClick={onClose}>Cancel</Button>
+-//             <Button borderRadius="xl" colorPalette="blue" onClick={confirm} disabled={!address?.trim()}>
+-//               Use this location
+-//             </Button>
+-//           </Flex>
+-//         </Dialog.Content>
+-//       </Dialog.Positioner>
+-//     </Dialog.Root>
+-//   );
+-// }
+-
+-
+-
+-"use client";
+-
+-// Backward-compatible wrapper: delegates to LocationRouteDialog in "point" mode.
+-import LocationRouteDialog, {
+-  type PointValue as MapPickerValue,
+-} from "@/components/common/LocationRouteDialog";
+-
+-type Props = {
+-  open: boolean;
+-  onClose: () => void;
+-  onConfirm: (v: MapPickerValue) => void;
+-  initial?: { lat: number; lng: number; address?: string };
+-  countries?: string;
+-};
+-
+-export default function MapPickerDialog({ open, onClose, onConfirm, initial, countries }: Props) {
+-  return (
+-    <LocationRouteDialog
+-      open={open}
+-      onClose={onClose}
+-      mode="point"
+-      viewMode="edit"
+-      countries={countries}
+-      initialPoint={
+-        initial
+-          ? { address: initial.address ?? "", lat: initial.lat, lng: initial.lng }
+-          : undefined
+-      }
+-      onConfirm={onConfirm}
+-    />
+-  );
+-}
+-
+-export type { MapPickerValue };
+diff --git a/frontend/src/pages/JobApplication/components/LandList.tsx b/frontend/src/pages/JobApplication/components/LandList.tsx
+index 477efeb..37d4bcd 100644
+--- a/frontend/src/pages/JobApplication/components/LandList.tsx
++++ b/frontend/src/pages/JobApplication/components/LandList.tsx
+@@ -15,7 +15,7 @@ import {
+   createListCollection,
+ } from "@chakra-ui/react";
+ import { Trash2 } from "lucide-react";
+-import MapPickerDialog from "@/components/common/MapPickerDialog";
++import MapPickerDialog from "@/components/common/SingleLocationPicker";
+ import type { LandInput } from "@/types/availableJobs";
+ import { LandShapeMapper } from "./LandShapeMapper";
+ 
+diff --git a/frontend/src/pages/MapExampleUsage.tsx b/frontend/src/pages/MapExampleUsage.tsx
+index 34f4b79..b94bf06 100644
+--- a/frontend/src/pages/MapExampleUsage.tsx
++++ b/frontend/src/pages/MapExampleUsage.tsx
+@@ -2,11 +2,11 @@
+ 
+ import { useState } from "react";
+ import { Box, Button, Flex, Text } from "@chakra-ui/react";
+-import LocationRouteDialog, {
++import RouteLocationDialog, {
+   type PointValue,
+   type TravelMode,
+-} from "@/components/common/LocationRouteDialog";
+-import MapPickerDialog from "@/components/common/MapPickerDialog";
++} from "@/components/common/RouteLocationPicker";
++import MapPickerDialog from "@/components/common/SingleLocationPicker";
+ 
+ export default function MapUsageExamples() {
+   // Example 1 — Single point picker
+@@ -65,7 +65,7 @@ export default function MapUsageExamples() {
+         </Text>
+         <Text fontSize="sm" color="gray.600">
+           Show a route between two addresses using{" "}
+-          <code>LocationRouteDialog</code>
++          <code>RouteLocationDialog</code>
+         </Text>
+         <Button mt={3} colorPalette="teal" onClick={() => setOpenRoute(true)}>
+           Plan a Route
+@@ -91,7 +91,7 @@ export default function MapUsageExamples() {
+           </Box>
+         )}
+ 
+-        <LocationRouteDialog
++        <RouteLocationDialog
+           open={openRoute}
+           onClose={() => setOpenRoute(false)}
+           mode="route"
+diff --git a/frontend/src/pages/Market/components/AddressShiftDrawer.tsx b/frontend/src/pages/Market/components/AddressShiftDrawer.tsx
+index 622edbe..959288e 100644
+--- a/frontend/src/pages/Market/components/AddressShiftDrawer.tsx
++++ b/frontend/src/pages/Market/components/AddressShiftDrawer.tsx
+@@ -18,7 +18,7 @@ import {
+ } from "@chakra-ui/react"
+ import { FiMapPin, FiRefreshCw, FiPlus, FiCheck, FiTrash2 } from "react-icons/fi"
+ import { toaster } from "@/components/ui/toaster"
+-import MapPickerDialog from "@/components/common/MapPickerDialog"
++import MapPickerDialog from "@/components/common/SingleLocationPicker"
+ import {
+   addCustomerAddress,
+   getAvailableShiftsByLC,
+diff --git a/frontend/src/pages/Orders/index.tsx b/frontend/src/pages/Orders/index.tsx
+index c51762d..d3e8a7b 100644
+--- a/frontend/src/pages/Orders/index.tsx
++++ b/frontend/src/pages/Orders/index.tsx
+@@ -35,7 +35,7 @@ import {
+   pickDeliveryPoint,
+ } from "./components/helpers";
+ import { MOCK_ORDERS } from "@/data/orders";
+-import LocationRouteDialog, { type PointValue } from "@/components/common/LocationRouteDialog";
++import RouteLocationDialog, { type PointValue } from "@/components/common/RouteLocationPicker";
+ 
+ type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
+ 
+@@ -419,7 +419,7 @@ export default function OrdersIndex() {
+         </ColorBlock>
+ 
+         {/* Map dialog */}
+-        <LocationRouteDialog
++        <RouteLocationDialog
+           key={mapKey}
+           open={mapOpen && !!dest}
+           onClose={() => setMapOpen(false)}
+diff --git a/frontend/src/pages/Profile/components/AddressesCard.tsx b/frontend/src/pages/Profile/components/AddressesCard.tsx
+index c553f66..3896044 100644
+--- a/frontend/src/pages/Profile/components/AddressesCard.tsx
++++ b/frontend/src/pages/Profile/components/AddressesCard.tsx
+@@ -12,7 +12,7 @@ import {
+   Text,
+ } from "@chakra-ui/react";
+ import { MapPin, Plus, Trash2 } from "lucide-react";
+-import MapPickerDialog from "@/components/common/MapPickerDialog";
++import MapPickerDialog from "@/components/common/SingleLocationPicker";
+ import type { Address } from "@/types/address";
+ 
+ const Meta = ({ children }: { children: React.ReactNode }) => (
+diff --git a/frontend/src/pages/Register/index.tsx b/frontend/src/pages/Register/index.tsx
+index 190cdf4..eb52da3 100644
+--- a/frontend/src/pages/Register/index.tsx
++++ b/frontend/src/pages/Register/index.tsx
+@@ -20,7 +20,7 @@ import {
+ } from "@chakra-ui/react";
+ import { toaster } from "@/components/ui/toaster";
+ import AddressAutocomplete from "@/components/common/AddressAutocomplete";
+-import MapPickerDialog from "@/components/common/MapPickerDialog";
++import MapPickerDialog from "@/components/common/SingleLocationPicker";
+ import { reverseGeocode } from "@/utils/googleMaps";
+ import { LocateFixed, Eye, EyeOff } from "lucide-react";
+ import { Tooltip } from "@/components/ui/tooltip";

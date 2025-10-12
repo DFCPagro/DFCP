@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
-import LocationRouteDialog, {
+import RouteLocationDialog, {
   type PointValue,
   type TravelMode,
-} from "@/components/common/LocationRouteDialog";
-import MapPickerDialog from "@/components/common/MapPickerDialog";
+} from "@/components/common/RouteLocationPicker";
+import MapPickerDialog from "@/components/common/SingleLocationPicker";
 
 export default function MapUsageExamples() {
   // Example 1 — Single point picker
@@ -65,7 +65,7 @@ export default function MapUsageExamples() {
         </Text>
         <Text fontSize="sm" color="gray.600">
           Show a route between two addresses using{" "}
-          <code>LocationRouteDialog</code>
+          <code>RouteLocationDialog</code>
         </Text>
         <Button mt={3} colorPalette="teal" onClick={() => setOpenRoute(true)}>
           Plan a Route
@@ -91,7 +91,7 @@ export default function MapUsageExamples() {
           </Box>
         )}
 
-        <LocationRouteDialog
+        <RouteLocationDialog
           open={openRoute}
           onClose={() => setOpenRoute(false)}
           mode="route"

@@ -15,7 +15,7 @@ import {
   createListCollection,
 } from "@chakra-ui/react";
 import { Trash2 } from "lucide-react";
-import MapPickerDialog from "@/components/common/MapPickerDialog";
+import MapPickerDialog from "@/components/common/SingleLocationPicker";
 import type { LandInput } from "@/types/availableJobs";
 import { LandShapeMapper } from "./LandShapeMapper";
 
