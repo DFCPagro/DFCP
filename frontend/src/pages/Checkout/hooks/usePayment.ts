@@ -5,9 +5,11 @@ import {
   type CreateOrderBody,
   type CreateOrderItemInput,
   type PaymentMethod,
-  type UnitMode,
 } from "@/types/orders";
+import type { UnitMode } from "@/types/market"; // or from orders if you re-export it there
 import { createOrder } from "@/api/orders";
+import type { Address } from "@/types/address";
+import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
 
 /* -------------------------------------------------------------------------- */
 /* Types expected from the new checkout state                                  */
@@ -18,44 +20,8 @@ export type CheckoutContext = {
   logisticsCenterId: string | null;
   deliveryDate: string | null; // ISO yyyy-mm-dd
   shiftName: string | null;
-  /** optional in the new flow; include if you have it */
-  address?: unknown | null;
-};
-
-export type SharedCartLine = {
-  key?: string;
-  stockId?: string;
-  itemId?: string;
-  id?: string;
-  quantity?: number;
-  quantityKg?: number;
-  units?: number;
-  unitMode?: UnitMode;
-
-  // pricing
-  unitPriceUsd?: number;
-  pricePerUnit?: number; // per KG in your backend definition
-  pricePerKg?: number;
-
-  // display
-  name?: string;
-  displayName?: string;
-  imageUrl?: string;
-  category?: string;
-  farmerName?: string;
-  farmName?: string;
-
-  // estimates
-  avgWeightPerUnitKg?: number;
-
-  // original nested item (from market)
-  item?: any;
-
-  // provenance (pass through if present)
-  sourceFarmerName?: string;
-  sourceFarmName?: string;
-  farmerOrderId?: string;
-  [k: string]: unknown;
+  /** selected delivery address (typed) */
+  address: Address | null;
 };
 
 export type MoneyTotals = {
@@ -66,7 +32,7 @@ export type MoneyTotals = {
 export function usePayment(deps: {
   context: CheckoutContext;
   cartLines: SharedCartLine[];
-  totals: MoneyTotals; // from the new hook; server is still source of truth
+  totals: MoneyTotals; // server is still source of truth
   onSuccess?: (orderId: string) => void;
 }) {
   /* -------------------------------- UI state ------------------------------- */
@@ -76,8 +42,8 @@ export function usePayment(deps: {
   type CardState = {
     holder: string;
     cardNumber: string;
-    expMonth: string; // keep as string for inputs; validate/convert on submit
-    expYear: string;
+    expMonth: string; // keep as string for inputs/selects; validate/convert on submit
+    expYear: string; // "YY" two digits (dropdown)
     cvc: string;
   };
   const [card, setCard] = useState<CardState>({
@@ -92,17 +58,49 @@ export function usePayment(deps: {
     []
   );
 
+  /* ------------------------------ Card validation ------------------------------ */
+  const isMonthInRange = (mm: string): boolean => {
+    if (!/^\d{2}$/.test(mm)) return false;
+    const n = Number(mm);
+    return n >= 1 && n <= 12;
+  };
+
+  const isYearInWindow = (yy: string, now = new Date()): boolean => {
+    if (!/^\d{2}$/.test(yy)) return false;
+    const currentFull = now.getFullYear();
+    const asFull = (two: number) => 2000 + two; // our YY is 20xx
+    const yyNum = Number(yy);
+    return asFull(yyNum) >= currentFull && asFull(yyNum) <= currentFull + 20;
+  };
+
+  const isExpiryValid = (mm: string, yy: string, now = new Date()): boolean => {
+    if (!isMonthInRange(mm) || !isYearInWindow(yy, now)) return false;
+
+    const currentFull = now.getFullYear();
+    const currentYY = currentFull % 100; // e.g., 25
+    const currentMM = now.getMonth() + 1; // 1..12
+
+    const m = Number(mm);
+    const y = Number(yy);
+
+    // valid if year is greater, or same year and month >= current month
+    return y > currentYY || (y === currentYY && m >= currentMM);
+  };
+
   const cardValid = useMemo(() => {
     if (method !== "card") return true;
-    const month = Number(card.expMonth);
-    const year = Number(card.expYear);
-    const cardNum = card.cardNumber.replace(/\s+/g, "");
+
+    const digitsOnly = card.cardNumber.replace(/\D+/g, "");
+    const monthOk = isMonthInRange(card.expMonth);
+    const yearOk = isYearInWindow(card.expYear);
+    const expiryOk = isExpiryValid(card.expMonth, card.expYear);
+
     return (
       card.holder.trim().length >= 2 &&
-      /^\d{12,19}$/.test(cardNum) &&
-      month >= 1 &&
-      month <= 12 &&
-      year >= new Date().getFullYear() &&
+      /^\d{12,19}$/.test(digitsOnly) && // allow 12–19 digits
+      monthOk &&
+      yearOk &&
+      expiryOk &&
       /^\d{3,4}$/.test(card.cvc)
     );
   }, [method, card]);
@@ -114,50 +112,50 @@ export function usePayment(deps: {
       // Identity
       const itemId: string =
         (line.itemId as string) ??
-        (line.id as string) ??
-        (line.item?.itemId as string) ??
-        (line.item?._id as string) ??
+        (line as any).id ??
+        (line as any).item?.itemId ??
+        (line as any).item?._id ??
         String(line.stockId ?? line.key ?? "");
 
       // Display
       const name: string | undefined =
         (line.name as string) ??
-        (line.displayName as string) ??
-        (line.item?.displayName as string) ??
-        (line.item?.name as string);
+        (line as any).displayName ??
+        (line as any).item?.displayName ??
+        (line as any).item?.name;
       const imageUrl: string | undefined =
         (line.imageUrl as string) ??
-        (line.item?.imageUrl as string) ??
-        (line.item?.img as string) ??
-        (line.item?.photo as string);
+        (line as any).item?.imageUrl ??
+        (line as any).item?.img ??
+        (line as any).item?.photo;
       const category: string | undefined =
-        (line.category as string) ?? (line.item?.category as string);
+        (line.category as string) ?? (line as any).item?.category;
 
-      // Pricing snapshot — prefer explicit per-KG price
+      // Pricing snapshot — prefer cart snapshot; backend interprets as per KG
       const pricePerUnit: number =
-        Number(line.unitPriceUsd ?? NaN) ||
+        Number((line as any).unitPriceUsd ?? NaN) ||
         Number(line.pricePerUnit ?? NaN) ||
-        Number(line.pricePerKg ?? NaN) ||
-        Number(line.item?.pricePerUnit ?? NaN) ||
+        Number((line as any).pricePerKg ?? NaN) ||
+        Number((line as any).item?.pricePerUnit ?? NaN) ||
         0;
 
       // Unit mode + quantities
       const unitMode: UnitMode | undefined =
         (line.unitMode as UnitMode | undefined) ??
-        (line.item?.unitMode as UnitMode | undefined);
+        ((line as any).item?.unitMode as UnitMode | undefined);
 
       const quantityKg: number | undefined =
-        (line.quantityKg as number | undefined) ??
-        (line.item?.originalCommittedQuantityKg as number | undefined);
+        ((line as any).quantityKg as number | undefined) ??
+        ((line as any).item?.originalCommittedQuantityKg as number | undefined);
 
       const units: number | undefined =
-        (line.units as number | undefined) ??
+        ((line as any).units as number | undefined) ??
         (line.quantity as number | undefined);
 
       // Estimates snapshot
       const estimatesSnapshot =
         (line as any).estimatesSnapshot ??
-        line.item?.estimatesSnapshot ??
+        (line as any).item?.estimatesSnapshot ??
         (line.avgWeightPerUnitKg
           ? { avgWeightPerUnitKg: Number(line.avgWeightPerUnitKg) || undefined }
           : undefined);
@@ -172,7 +170,7 @@ export function usePayment(deps: {
 
       return {
         itemId: String(itemId),
-        pricePerUnit, // per KG by backend definition
+        pricePerUnit,
         unitMode: unitMode ?? "kg",
         quantityKg:
           unitMode === "kg" || hasLegacyKg
@@ -183,11 +181,19 @@ export function usePayment(deps: {
         name,
         imageUrl,
         category,
-        // optional provenance passthrough
+        // provenance passthrough (prefer cart fields)
         sourceFarmerName:
-          (line as any).sourceFarmerName ?? line.item?.farmerName,
-        sourceFarmName: (line as any).sourceFarmName ?? line.item?.farmName,
-        farmerOrderId: (line as any).farmerOrderId,
+          (line as any).sourceFarmerName ??
+          (line as any).farmerName ??
+          (line as any).item?.farmerName,
+        sourceFarmName:
+          (line as any).sourceFarmName ??
+          (line as any).farmName ??
+          (line as any).item?.farmName,
+        farmerOrderId:
+          (line as any).farmerOrderId ??
+          (line as any).item?.farmerOrderId ??
+          (line as any).stockId,
       };
     },
     []
@@ -195,13 +201,113 @@ export function usePayment(deps: {
 
   const orderItems = useMemo<CreateOrderItemInput[]>(() => {
     return (deps.cartLines ?? []).map(mapCartLineToOrderItem).filter((it) => {
-      // drop invalids defensively
       return (
         !!it.itemId &&
         (Number(it.quantityKg ?? 0) > 0 || Number(it.units ?? 0) > 0)
       );
     });
   }, [deps.cartLines, mapCartLineToOrderItem]);
+
+  /* --------------- Backend expects legacy item shape → build it here --------------- */
+
+  type LegacyOrderItem = {
+    itemId: string;
+    name: string;
+    imageUrl?: string;
+    pricePerUnit: number;
+    category?: string;
+    sourceFarmerName: string;
+    sourceFarmName: string;
+    farmerOrderId: string;
+    quantity: number; // kg
+  };
+
+  function mapToLegacyItems(items: CreateOrderItemInput[]): LegacyOrderItem[] {
+    const acc = new Map<string, LegacyOrderItem>();
+
+    items.forEach((i, idx) => {
+      // quantity in KG
+      let quantity = 0;
+      if (i.unitMode === "kg") {
+        quantity = Number(i.quantityKg ?? 0);
+      } else {
+        const avg = Number(
+          (i as any).avgWeightPerUnitKg ??
+            i.estimatesSnapshot?.avgWeightPerUnitKg ??
+            0
+        );
+        const units = Number(i.units ?? 0);
+        quantity = units * avg;
+      }
+
+      if (!i.itemId) throw new Error(`Item #${idx + 1} is missing itemId`);
+      if (!(quantity > 0))
+        throw new Error(
+          `Item "${i.name ?? i.itemId}" has non-positive quantity`
+        );
+      if (!(i.pricePerUnit > 0))
+        throw new Error(
+          `Item "${i.name ?? i.itemId}" has invalid pricePerUnit`
+        );
+
+      // required provenance (now filled by the mapper above)
+      const farmerOrderId = String(
+        (i as any).farmerOrderId ??
+          (i as any).source?.farmerOrderId ??
+          (i as any).item?.farmerOrderId ??
+          ""
+      ).trim();
+
+      const sourceFarmerName = String(
+        (i as any).sourceFarmerName ??
+          (i as any).farmerName ??
+          (i as any).item?.farmerName ??
+          ""
+      ).trim();
+
+      const sourceFarmName = String(
+        (i as any).sourceFarmName ??
+          (i as any).farmName ??
+          (i as any).item?.farmName ??
+          ""
+      ).trim();
+
+      if (!farmerOrderId)
+        throw new Error(
+          `Item "${i.name ?? i.itemId}" is missing farmerOrderId`
+        );
+      if (!sourceFarmerName)
+        throw new Error(
+          `Item "${i.name ?? i.itemId}" is missing sourceFarmerName`
+        );
+      if (!sourceFarmName)
+        throw new Error(
+          `Item "${i.name ?? i.itemId}" is missing sourceFarmName`
+        );
+
+      const base: LegacyOrderItem = {
+        itemId: String(i.itemId),
+        name: String(i.name ?? ""),
+        imageUrl: i.imageUrl ? String(i.imageUrl) : undefined,
+        pricePerUnit: Number(i.pricePerUnit),
+        category: i.category ? String(i.category) : undefined,
+        sourceFarmerName,
+        sourceFarmName,
+        farmerOrderId,
+        quantity,
+      };
+
+      const key = `${base.farmerOrderId}::${base.itemId}::${base.pricePerUnit}`;
+      const existing = acc.get(key);
+      if (existing) {
+        existing.quantity += base.quantity;
+      } else {
+        acc.set(key, base);
+      }
+    });
+
+    return Array.from(acc.values());
+  }
 
   /* ------------------------------- Validation ------------------------------ */
 
@@ -211,9 +317,7 @@ export function usePayment(deps: {
     if (!context?.logisticsCenterId) return false;
     if (!context?.deliveryDate) return false;
     if (!context?.shiftName) return false;
-
-    // address is optional in the new flow; require only if you truly need it
-    // if (!context?.address) return false;
+    if (!context?.address) return false;
 
     if (!orderItems.length) return false;
 
@@ -230,7 +334,7 @@ export function usePayment(deps: {
       toaster.create({
         title: "Please fix missing details",
         description:
-          "Make sure AMS, logistics center, date, shift, and cart items are present.",
+          "Make sure AMS, logistics center, date, shift, address, and cart items are present.",
         type: "warning",
       });
       return;
@@ -238,19 +342,31 @@ export function usePayment(deps: {
 
     const { context } = deps;
 
-    // Build CreateOrderBody per your backend contract
-    const body: CreateOrderBody = {
+    let legacyItems: ReturnType<typeof mapToLegacyItems>;
+    try {
+      legacyItems = mapToLegacyItems(orderItems);
+    } catch (e: any) {
+      toaster.create({
+        title: "Invalid cart item",
+        description: e?.message ?? "Please review quantities and prices.",
+        type: "warning",
+      });
+      return;
+    }
+
+    const body = {
       amsId: context.amsId as string,
-      LogisticsCenterId: context.logisticsCenterId as string, // ✅ match the type's key
+      // rename to "logisticsCenterId" here if your backend expects lower-case
+      LogisticsCenterId: context.logisticsCenterId as string,
       deliveryDate: context.deliveryDate as string,
       shiftName: context.shiftName as string,
-      items: orderItems,
-      ...(context.address ? { deliveryAddress: context.address as any } : {}),
-    } as CreateOrderBody;
+      items: legacyItems,
+      deliveryAddress: context.address!,
+    };
 
     try {
       setSubmitting(true);
-      const order = await createOrder(body);
+      const order = await createOrder(body as unknown as CreateOrderBody);
       toaster.create({
         title: "Order placed",
         description: `Order #${order?._id ?? ""} created successfully.`,

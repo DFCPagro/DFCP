@@ -14,41 +14,42 @@ import {
 } from "@chakra-ui/react";
 import { FiArrowLeft, FiCheck, FiCreditCard, FiDollarSign, FiSmartphone } from "react-icons/fi";
 import { usePayment } from "../hooks/usePayment";
+import CardForm from "./CardForm";
+import { AddressSchema, type Address } from "@/types/address";
+import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
 
 /* ---------------------------------- types --------------------------------- */
 
-export type CartLineLike = {
-    quantity?: number;
-    quantityKg?: number;
-    units?: number;
-    unitMode?: "kg" | "unit" | "mixed";
-    unitPriceUsd?: number;
-    pricePerUnit?: number;
-    pricePerKg?: number;
-    estimatesSnapshot?: { avgWeightPerUnitKg?: number };
-    avgWeightPerUnitKg?: number;
-    item?: any;
-    [k: string]: unknown;
-};
 
 export type MoneyTotals = {
     itemCount: number;
     subtotal: number;
 };
 
+export type CheckoutContext = {
+    /** Region / AMS id */
+    amsId: string | null;
+    /** Logistics center id */
+    logisticsCenterId: string | null;
+    /** ISO yyyy-mm-dd */
+    deliveryDate: string | null;
+    /** e.g., "morning" | "afternoon" | "night" */
+    shiftName: string | null;
+
+    /** Optional: if you later resolve the human labels, keep placeholders here */
+    amsLabel?: string | null;
+    logisticsCenterLabel?: string | null;
+
+    /** Optional address object if you decide to resolve it in Checkout */
+    address: Address | null;
+};
+
 export type PaymentSectionProps = {
     // Delivery/order context (URL-driven)
-    context: {
-        amsId: string | null;
-        logisticsCenterId: string | null;
-        deliveryDate: string | null;
-        shiftName: string | null;
-        /** optional in new flow */
-        address?: unknown | null;
-    };
+    context: CheckoutContext;
 
     // Lines from shared cart
-    cartLines: CartLineLike[];
+    cartLines: SharedCartLine[];
 
     // Display totals (server is source of truth; we just show a preview)
     totals: MoneyTotals;
@@ -86,8 +87,9 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
     const showPaypal = method === "paypal";
 
     // For now, delivery & tax are zero in UI; backend computes final totals.
-    const deliveryFee = 15;
+    let deliveryFee = 5;
     const taxUsd = 0;
+    if (totals.subtotal > 100) deliveryFee = 0;
     const totalPrice = Math.round((totals.subtotal + deliveryFee + taxUsd) * 100) / 100;
 
     return (
@@ -142,77 +144,14 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
 
                         {/* Card form */}
                         {showCard && (
-                            <Stack gap={3}>
-                                <Field.Root>
-                                    <Field.Label>Cardholder name</Field.Label>
-                                    <Input
-                                        value={card.holder}
-                                        onChange={(e) => setCardField("holder", e.target.value)}
-                                        placeholder="Full name on card"
-                                        autoComplete="cc-name"
-                                    />
-                                </Field.Root>
-
-                                <Field.Root>
-                                    <Field.Label>Card number</Field.Label>
-                                    <Input
-                                        value={card.cardNumber}
-                                        onChange={(e) => {
-                                            // Keep digits + spaces; simple inline normalization
-                                            const next = e.target.value.replace(/[^\d\s]/g, "");
-                                            setCardField("cardNumber", next);
-                                        }}
-                                        inputMode="numeric"
-                                        placeholder="4242 4242 4242 4242"
-                                        autoComplete="cc-number"
-                                    />
-                                </Field.Root>
-
-                                <HStack gap={3}>
-                                    <Field.Root>
-                                        <Field.Label>Expiry month</Field.Label>
-                                        <Input
-                                            value={card.expMonth}
-                                            onChange={(e) => {
-                                                const v = e.target.value.replace(/[^\d]/g, "");
-                                                setCardField("expMonth", v.slice(0, 2));
-                                            }}
-                                            inputMode="numeric"
-                                            placeholder="MM"
-                                            autoComplete="cc-exp-month"
-                                        />
-                                    </Field.Root>
-
-                                    <Field.Root>
-                                        <Field.Label>Expiry year</Field.Label>
-                                        <Input
-                                            value={card.expYear}
-                                            onChange={(e) => {
-                                                const v = e.target.value.replace(/[^\d]/g, "");
-                                                setCardField("expYear", v.slice(0, 4));
-                                            }}
-                                            inputMode="numeric"
-                                            placeholder="YYYY"
-                                            autoComplete="cc-exp-year"
-                                        />
-                                    </Field.Root>
-
-                                    <Field.Root>
-                                        <Field.Label>CVC</Field.Label>
-                                        <Input
-                                            value={card.cvc}
-                                            onChange={(e) => {
-                                                const v = e.target.value.replace(/[^\d]/g, "");
-                                                setCardField("cvc", v.slice(0, 4));
-                                            }}
-                                            inputMode="numeric"
-                                            placeholder="CVC"
-                                            autoComplete="cc-csc"
-                                        />
-                                    </Field.Root>
-                                </HStack>
-                            </Stack>
+                            <CardForm
+                                value={card}
+                                onChange={setCardField}
+                                disabled={submitting}
+                                errors={undefined /* or hook-provided error object if you add validation later */}
+                            />
                         )}
+
 
                         {/* Wallet placeholders (demo) */}
                         {showGPay && (

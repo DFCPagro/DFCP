@@ -140,7 +140,7 @@ export default function MarketPage() {
     const newLine = marketItemToCartLine(item, clamped);
     const curr = getSharedCart().lines;
     const idx = curr.findIndex((l) => (l.key ?? l.stockId) === (newLine.key ?? newLine.stockId));
-
+    console.log("addToCart", { item });
     let next: SharedCartLine[];
     if (idx >= 0) {
       next = [...curr];
@@ -215,13 +215,14 @@ export default function MarketPage() {
     const qs = new URLSearchParams({
       amsId,
       logisticsCenterId,
-      address: addr.address ?? "",
+      addressJson: JSON.stringify(addr),
       deliveryDate,
       shift: shiftName,
     });
     console.log("checkout: navigate to /checkout with", Object.fromEntries(qs.entries()));
 
     navigate(`/checkout?${qs.toString()}`);
+
   }, [isActive, shift, selection, navigate]);
 
 

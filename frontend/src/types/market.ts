@@ -10,7 +10,12 @@ export const OptionalUrl = z.preprocess(
  * SHARED ENUMS
  * -------------------------------------------------------------------------- */
 
-export const ShiftNameSchema = z.enum(["morning", "afternoon", "evening", "night"]);
+export const ShiftNameSchema = z.enum([
+  "morning",
+  "afternoon",
+  "evening",
+  "night",
+]);
 export type ShiftName = z.infer<typeof ShiftNameSchema>;
 
 export const ItemStatusSchema = z.enum(["active", "soldout", "removed"]);
@@ -36,7 +41,7 @@ export const ItemEstimatesSchema = z.object({
 export const AvailableShiftFlatSchema = z.object({
   shift: ShiftNameSchema,
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  marketStockId: z.string(),        // mapped from BackendShiftRow.docId
+  marketStockId: z.string(), // mapped from BackendShiftRow.docId
   slotLabel: z.string().optional(), // mapped from BackendShiftRow.deliverySlotLabel
 });
 export type AvailableShiftFlat = z.infer<typeof AvailableShiftFlatSchema>;
@@ -68,7 +73,7 @@ export const MarketStockLineBackendSchema = z.object({
   farmerID: z.string(),
   farmerName: z.string(),
   farmName: z.string().optional(),
-  farmLogo: OptionalUrl,        // allows "", null, undefined → undefined, or a valid absolute URL
+  farmLogo: OptionalUrl, // allows "", null, undefined → undefined, or a valid absolute URL
 
   status: ItemStatusSchema.optional(), // default behavior handled server-side
   farmerOrderId: z.string().optional(),
@@ -77,7 +82,9 @@ export const MarketStockLineBackendSchema = z.object({
   unitMode: UnitModeSchema.optional(),
   estimates: ItemEstimatesSchema.optional(),
 });
-export type MarketStockLineBackend = z.infer<typeof MarketStockLineBackendSchema>;
+export type MarketStockLineBackend = z.infer<
+  typeof MarketStockLineBackendSchema
+>;
 
 export const MarketStockDocBackendSchema = z.object({
   _id: z.string(), // marketStockId
@@ -115,7 +122,7 @@ export const MarketStockLineSchema = z.object({
   farmerID: z.string(),
   farmerName: z.string(),
   farmName: z.string().optional(),
-  farmLogo: OptionalUrl,        // allows "", null, undefined → undefined, or a valid absolute URL
+  farmLogo: OptionalUrl, // allows "", null, undefined → undefined, or a valid absolute URL
 
   status: ItemStatusSchema.optional(),
   farmerOrderId: z.string().optional(),
@@ -168,10 +175,10 @@ export const MarketItemSchema = z.object({
   farmerId: z.string(), // farmerID -> farmerId
   farmerName: z.string(),
   farmName: z.string().optional(),
-  farmLogo: OptionalUrl,        // allows "", null, undefined → undefined, or a valid absolute URL
+  farmLogo: OptionalUrl, // allows "", null, undefined → undefined, or a valid absolute URL
 
   status: ItemStatusSchema.optional(),
-
+  farmerOrderId: z.string().nullable().optional(),
   /** NEW: passthrough of selling mode + available units if the API provides/derives it */
   unitMode: UnitModeSchema.optional(),
   availableUnitsEstimate: z.number().nonnegative().optional(),
@@ -202,7 +209,8 @@ export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
     pricePerUnit: ln.pricePerUnit,
 
     // Keep legacy top-level on the UI item
-    avgWeightPerUnitKg: ln.avgWeightPerUnitKg ?? ln.estimates?.avgWeightPerUnitKg ?? undefined,
+    avgWeightPerUnitKg:
+      ln.avgWeightPerUnitKg ?? ln.estimates?.avgWeightPerUnitKg ?? undefined,
 
     availableKg: ln.currentAvailableQuantityKg,
 
@@ -212,7 +220,7 @@ export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
     farmLogo: ln.farmLogo,
 
     status: ln.status,
-
+    farmerOrderId: ln.farmerOrderId, // normalize undefined → null for existing UI
     // NEW: passthroughs (optional, won’t affect existing UI)
     unitMode: ln.unitMode,
     availableUnitsEstimate: ln.estimates?.availableUnitsEstimate ?? undefined,
@@ -231,7 +239,7 @@ export type MarketItemList = z.infer<typeof MarketItemListSchema>;
 export const AvailableShiftLiteSchema = z.object({
   shift: ShiftNameSchema,
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  LCid: z.string(),                 // backend returns LCid for context
+  LCid: z.string(), // backend returns LCid for context
   slotLabel: z.string().optional(), // if/when backend adds deliverySlotLabel, we accept it
 });
 export type AvailableShiftLite = z.infer<typeof AvailableShiftLiteSchema>;

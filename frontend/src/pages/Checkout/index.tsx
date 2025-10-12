@@ -11,7 +11,7 @@ import PaymentSection from "./components/PaymentSection";
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { context, cartLines, totals, preflight, actions } = useCheckoutState();
-  console.log("CheckoutPage render", { context });
+  console.log("CheckoutPage render", { cartLines });
   const clearCart = actions.clear;
   const [step, setStep] = useState<1 | 2>(1);
 

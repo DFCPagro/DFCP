@@ -7,6 +7,9 @@ import {
   clearCart as clearSharedCart,
   subscribeCart,
 } from "@/utils/marketCart.shared";
+import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+
+import { AddressSchema, type Address } from "@/types/address";
 
 /* -----------------------------------------------------------------------------
  * Types
@@ -27,7 +30,7 @@ export type CheckoutContext = {
   logisticsCenterLabel?: string | null;
 
   /** Optional address object if you decide to resolve it in Checkout */
-  address?: unknown | null;
+  address: Address | null;
 };
 
 export type PreflightState = {
@@ -36,6 +39,7 @@ export type PreflightState = {
   hasShift: boolean;
   hasAmsId: boolean;
   hasLogisticsCenterId: boolean;
+  hasAddress: boolean;
   /** All checks passed */
   ok: boolean;
 };
@@ -45,20 +49,6 @@ export type MoneyTotals = {
   subtotal: number; // numeric only; format at render-time
 };
 
-export type SharedCartLine = {
-  key?: string;
-  stockId?: string;
-  quantity?: number;
-  // try common price fields your market lines may carry
-  unitPrice?: number;
-  pricePerKg?: number;
-  pricePerUnit?: number;
-  // display helpers
-  name?: string;
-  farmerName?: string;
-  [k: string]: unknown;
-};
-
 export type UseCheckoutState = {
   context: CheckoutContext;
   cartLines: SharedCartLine[];
@@ -66,7 +56,7 @@ export type UseCheckoutState = {
   preflight: PreflightState;
   actions: {
     /** Clears the shared cart (all tabs/pages) */
-    clear: () => Promise<void>;
+    clear: () => void;
     /** Re-reads the cart from storage (useful after external changes) */
     refresh: () => void;
   };
@@ -93,7 +83,23 @@ function parseParams(search: string): CheckoutContext {
   // shift param in URL → shiftName in context
   const shiftParam = (qs.get("shift") || "").trim();
   const shiftName = shiftParam || null;
-  const addressParam = (qs.get("address") || "").trim();
+
+  // NEW: addressJson → Address (validated/normalized)
+  let address: Address | null = null;
+  const rawAddressJson = qs.get("addressJson");
+  if (rawAddressJson) {
+    try {
+      const parsed = JSON.parse(rawAddressJson);
+      const res = AddressSchema.safeParse(parsed);
+      if (res.success) {
+        address = res.data;
+      } else {
+        console.warn("parseParams: invalid addressJson", res.error);
+      }
+    } catch (e) {
+      console.warn("parseParams: failed to parse addressJson", e);
+    }
+  }
 
   return {
     amsId,
@@ -102,29 +108,25 @@ function parseParams(search: string): CheckoutContext {
     shiftName,
     amsLabel: null,
     logisticsCenterLabel: null,
-    address: addressParam,
+    address,
   };
 }
 
 function computeTotals(lines: SharedCartLine[]): MoneyTotals {
-  let itemCount = 0;
-  let subtotal = 0;
-
-  for (const l of lines) {
-    const qty = Number(l.quantity ?? 0) || 0;
-    // prefer unitPrice, then pricePerKg, then pricePerUnit
-    const price =
-      Number(l.unitPrice ?? NaN) ||
-      Number(l.pricePerKg ?? NaN) ||
-      Number(l.pricePerUnit ?? NaN) ||
-      0;
-
-    itemCount += qty;
-    subtotal += qty * price;
-  }
-  // round to cents to avoid floating artifacts
-  subtotal = Math.round(subtotal * 100) / 100;
-
+  const subtotal = Number(
+    lines
+      .reduce((sum, l) => {
+        const p = Number(l?.pricePerUnit ?? 0) || 0;
+        const q = Number(l?.quantity ?? 0) || 0;
+        return sum + p * q;
+      }, 0)
+      .toFixed(2)
+  );
+  // keep your existing UI meaning for itemCount (sum of quantities)
+  const itemCount = lines.reduce(
+    (n, l) => n + (Number(l?.quantity ?? 0) || 0),
+    0
+  );
   return { itemCount, subtotal };
 }
 
@@ -137,6 +139,7 @@ function computePreflight(
   const hasShift = !!ctx.shiftName;
   const hasAmsId = !!ctx.amsId;
   const hasLogisticsCenterId = !!ctx.logisticsCenterId;
+  const hasAddress = !!ctx.address; // NEW
 
   return {
     hasCart,
@@ -144,12 +147,14 @@ function computePreflight(
     hasShift,
     hasAmsId,
     hasLogisticsCenterId,
+    hasAddress, // NEW
     ok:
       hasCart &&
       hasDeliveryDate &&
       hasShift &&
       hasAmsId &&
-      hasLogisticsCenterId,
+      hasLogisticsCenterId &&
+      hasAddress, // NEW
   };
 }
 
@@ -178,8 +183,8 @@ export function useCheckoutState(): UseCheckoutState {
     setCartLines(getSharedCart().lines ?? []);
   }, []);
 
-  const clear = useCallback(async () => {
-    await clearSharedCart();
+  const clear = useCallback(() => {
+    clearSharedCart();
     setCartLines([]);
     // optional: also write empty cart to storage explicitly
     setSharedCart({ lines: [] });

@@ -17,42 +17,50 @@ import type { MarketItem } from "@/types/market";
 
 export type CartLine = {
   /* identity (stable key for list rendering) */
-  key: string;              // e.g., `${stockId}` or fallback
+  key: string;
 
   /* server identity (optional but recommended for checkout preflight) */
-  docId?: string;           // market stock doc id
-  lineId?: string;          // subdocument id
-  stockId?: string;         // "<itemId>_<farmerID>"
+  docId?: string;
+  lineId?: string;
+  stockId?: string; // "<itemId>_<farmerId>"
   itemId: string;
 
   /* context (optional but recommended) */
-  date?: string;            // YYYY-MM-DD
+  date?: string; // YYYY-MM-DD
   shift?: "morning" | "afternoon" | "evening" | "night";
   logisticCenterId?: string;
   status?: "active" | "soldout" | "removed";
 
   /* display */
   name: string;
+  /** accepts "", null, undefined; normalized to undefined */
   imageUrl?: string;
   category?: string;
 
   /* provenance */
   farmerId?: string;
-  farmerName?: string;      // canonical
+  farmerName?: string;
   farmName?: string;
+  /** accepts "", null, undefined; normalized to undefined */
   farmLogo?: string;
   // Back-compat read fallback (deprecated):
   sourceFarmerName?: string;
   sourceFarmName?: string;
 
   /* pricing snapshot and qty */
-  pricePerUnit: number;     // USD snapshot at add-to-cart time
-  quantity: number;         // kg or units (float allowed)
-  avgWeightPerUnitKg?: number; // optional, if available
+  pricePerUnit: number; // snapshot at add-to-cart time
+  quantity: number; // kg or units (float allowed)
+
+  /* extra item data carried for UI/checkout logic */
+  avgWeightPerUnitKg?: number;
+  unitMode?: "kg" | "unit" | "mixed"; // from MarketItem.unitMode
+  availableUnitsEstimate?: number; // from MarketItem.availableUnitsEstimate
+  availableKg?: number; // from MarketItem.availableKg
+  farmerOrderId?: string | null; // passthrough if present
 
   /* optional meta */
-  unit?: "kg" | "unit";
-  addedAt?: string;         // ISO
+  unit?: "kg" | "unit"; // user's chosen unit for this line
+  addedAt?: string; // ISO
 };
 
 export type CartSnapshot = {
@@ -113,6 +121,13 @@ function looksLikeSnapshot(val: unknown): val is CartSnapshot {
   );
 }
 
+/** Convert "", null, undefined → undefined; pass through non-empty strings */
+function normalizeUrl(v: unknown): string | undefined {
+  if (v === "" || v === null || v === undefined) return undefined;
+  const s = String(v).trim();
+  return s || undefined;
+}
+
 /**
  * Try candidates first; if none hit, scan localStorage for a likely match.
  */
@@ -162,15 +177,27 @@ function normalizeLine(line: any): CartLine {
   const farmName = line?.farmName ?? line?.sourceFarmName ?? undefined;
 
   // Prefer explicit stockId; else use provided key if it matches; else derive best-effort
-  const stockId: string | undefined =
+  // Ensure stable stockId: prefer explicit, else from key hint, else derive from item+farmer
+  let stockId: string | undefined =
     typeof line?.stockId === "string" && line.stockId.trim()
       ? line.stockId
-      : (typeof line?.key === "string" && line.key.includes("_") ? line.key : undefined);
+      : typeof line?.key === "string" && line.key.includes("_")
+        ? line.key
+        : undefined;
+
+  if (!stockId) {
+    const itemId = typeof line?.itemId === "string" ? line.itemId : "";
+    const farmerId = typeof line?.farmerId === "string" ? line.farmerId : "";
+    if (itemId && farmerId) stockId = `${itemId}_${farmerId}`;
+  }
 
   const key: string =
     typeof line?.key === "string" && line.key.trim()
       ? line.key
-      : (stockId ?? line?.itemId ?? crypto.randomUUID?.() ?? String(Date.now()));
+      : (stockId ??
+        line?.itemId ??
+        crypto.randomUUID?.() ??
+        String(Date.now()));
 
   return {
     key,
@@ -185,13 +212,13 @@ function normalizeLine(line: any): CartLine {
     status: line?.status,
 
     name: String(line?.name ?? ""),
-    imageUrl: line?.imageUrl,
+    imageUrl: normalizeUrl(line?.imageUrl),
     category: line?.category,
 
     farmerId: line?.farmerId,
     farmerName,
     farmName,
-    farmLogo: line?.farmLogo,
+    farmLogo: normalizeUrl(line?.farmLogo),
     // keep legacy fields so older UIs that read them don't explode
     sourceFarmerName: line?.sourceFarmerName,
     sourceFarmName: line?.sourceFarmName,
@@ -199,10 +226,34 @@ function normalizeLine(line: any): CartLine {
     pricePerUnit: Number.isFinite(price) ? price : 0,
     quantity: Number.isFinite(qty) ? qty : 0,
     avgWeightPerUnitKg:
-      typeof line?.avgWeightPerUnitKg === "number" ? line.avgWeightPerUnitKg : undefined,
+      typeof line?.avgWeightPerUnitKg === "number"
+        ? line.avgWeightPerUnitKg
+        : undefined,
 
+    // carry richer item data when present (backward-safe)
+    unitMode:
+      line?.unitMode === "unit" || line?.unitMode === "mixed"
+        ? line.unitMode
+        : "kg",
+    availableUnitsEstimate:
+      typeof line?.availableUnitsEstimate === "number"
+        ? line.availableUnitsEstimate
+        : undefined,
+    availableKg:
+      typeof line?.availableKg === "number" ? line.availableKg : undefined,
+    farmerOrderId:
+      typeof line?.farmerOrderId === "string"
+        ? line.farmerOrderId
+        : line?.farmerOrderId === null
+          ? null
+          : undefined,
+
+    // user's chosen unit (defaults to kg)
     unit: line?.unit === "unit" ? "unit" : "kg",
-    addedAt: typeof line?.addedAt === "string" ? line.addedAt : new Date().toISOString(),
+    addedAt:
+      typeof line?.addedAt === "string"
+        ? line.addedAt
+        : new Date().toISOString(),
   };
 }
 
@@ -223,11 +274,13 @@ function normalizeSnapshot(raw: unknown): CartSnapshot {
 
 function computeTotals(lines: CartLine[]): CartTotals {
   const itemsSubtotal = Number(
-    lines.reduce((sum, l) => {
-      const p = Number(l.pricePerUnit) || 0;
-      const q = Number(l.quantity) || 0;
-      return sum + p * q;
-    }, 0).toFixed(2)
+    lines
+      .reduce((sum, l) => {
+        const p = Number(l.pricePerUnit) || 0;
+        const q = Number(l.quantity) || 0;
+        return sum + p * q;
+      }, 0)
+      .toFixed(2)
   );
   return {
     itemsSubtotal,
@@ -243,9 +296,12 @@ function computeTotals(lines: CartLine[]): CartTotals {
  * Make a cart line from a UI-flat MarketItem + user quantity.
  * Use this in the Market "Add to Cart" handler to guarantee consistent shape.
  */
-export function marketItemToCartLine(item: MarketItem, quantity: number): CartLine {
+export function marketItemToCartLine(
+  item: MarketItem,
+  quantity: number
+): CartLine {
   return normalizeLine({
-    key: item.stockId,                // stable & unique per farmer+item
+    key: item.stockId, // stable & unique per farmer+item
     docId: item.docId,
     lineId: item.lineId,
     stockId: item.stockId,
@@ -257,7 +313,7 @@ export function marketItemToCartLine(item: MarketItem, quantity: number): CartLi
     status: item.status,
 
     name: item.name,
-    imageUrl: item.imageUrl,
+    imageUrl: item.imageUrl, // normalizeLine will clean "", null → undefined
     category: item.category,
 
     farmerId: item.farmerId,
@@ -265,11 +321,18 @@ export function marketItemToCartLine(item: MarketItem, quantity: number): CartLi
     farmName: item.farmName,
     farmLogo: item.farmLogo,
 
-    pricePerUnit: item.pricePerUnit,  // USD
+    pricePerUnit: item.pricePerUnit,
     quantity,
     avgWeightPerUnitKg: item.avgWeightPerUnitKg,
 
-    unit: "kg",
+    // NEW: carry richer stock data
+    unitMode: item.unitMode,
+    availableUnitsEstimate: item.availableUnitsEstimate,
+    availableKg: item.availableKg,
+    farmerOrderId: (item as any).farmerOrderId ?? undefined, // present after your schema fix
+
+    // default user's chosen unit based on selling mode
+    unit: item.unitMode === "unit" ? "unit" : "kg",
     addedAt: new Date().toISOString(),
   });
 }

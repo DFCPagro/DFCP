@@ -15,41 +15,13 @@ import {
     FiCalendar,
     FiClock,
     FiHome,
-    FiMapPin,
     FiTruck,
     FiChevronRight,
 } from "react-icons/fi";
 
+import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+
 /* ---------------------------------- Types --------------------------------- */
-
-export type CartLineLike = {
-    key?: string;
-    stockId?: string;
-
-    // identity / display
-    name?: string;
-    displayName?: string;
-    imageUrl?: string;
-    category?: string;
-
-    // quantities
-    quantity?: number;       // legacy: kg
-    quantityKg?: number;     // kg
-    units?: number;          // count
-    unitMode?: "kg" | "unit" | "mixed";
-    estimatesSnapshot?: { avgWeightPerUnitKg?: number };
-    avgWeightPerUnitKg?: number;
-
-    // pricing (per KG)
-    unitPriceUsd?: number;
-    pricePerKg?: number;
-    pricePerUnit?: number;
-
-    // nested item (optional, from market)
-    item?: any;
-
-    [k: string]: unknown;
-};
 
 export type MoneyTotals = {
     itemCount: number;
@@ -58,7 +30,7 @@ export type MoneyTotals = {
 
 export type CheckoutSummaryProps = {
     // Order lines to confirm (from shared cart)
-    cartLines: CartLineLike[];
+    cartLines: SharedCartLine[];
 
     // Delivery context
     deliveryAddress?: any | null; // optional now
@@ -97,95 +69,45 @@ function formatDate(iso: string | null): string {
     }
 }
 
-function readPerKgPrice(l: CartLineLike): number {
-    return (
-        Number(l.unitPriceUsd ?? NaN) ||
-        Number(l.pricePerUnit ?? NaN) ||
-        Number(l.pricePerKg ?? NaN) ||
-        Number(l.item?.pricePerUnit ?? NaN) ||
-        0
-    );
+/** price per the selected unit (kg or unit), taken from the cart snapshot */
+function readUnitPrice(l: SharedCartLine): number {
+    return Number(l?.pricePerUnit ?? 0) || 0;
 }
 
-function readDisplayName(l: CartLineLike): string {
-    return (
-        (l.name as string) ??
-        (l.displayName as string) ??
-        (l.item?.displayName as string) ??
-        (l.item?.name as string) ??
-        "Item"
-    );
+function readDisplayName(l: SharedCartLine): string {
+    return (l.name as string) || "Item";
 }
 
-function readImageUrl(l: CartLineLike): string | undefined {
-    return (
-        (l.imageUrl as string | undefined) ??
-        (l.item?.imageUrl as string | undefined) ??
-        (l.item?.img as string | undefined) ??
-        (l.item?.photo as string | undefined)
-    );
+function readImageUrl(l: SharedCartLine): string | undefined {
+    return l.imageUrl || undefined;
 }
 
-function readCategory(l: CartLineLike): string | undefined {
-    return (l.category as string | undefined) ?? (l.item?.category as string | undefined);
+function readCategory(l: SharedCartLine): string | undefined {
+    return l.category || undefined;
 }
 
-function readUnitMode(l: CartLineLike): "kg" | "unit" | "mixed" {
-    return (l.unitMode as any) ?? (l.item?.unitMode as any) ?? "kg";
-}
+/** Quantity text and effective kg (for displaying an estimated conversion when unit=unit) */
+function computeDisplayQty(l: SharedCartLine): { text: string; effKg?: number } {
+    const unit = l.unit === "unit" ? "unit" : "kg";
+    const qty = Number(l.quantity ?? 0) || 0;
 
-function readAvgPerUnit(l: CartLineLike): number | undefined {
-    return (
-        Number(l.estimatesSnapshot?.avgWeightPerUnitKg ?? NaN) ||
-        Number(l.avgWeightPerUnitKg ?? NaN) ||
-        Number(l.item?.estimatesSnapshot?.avgWeightPerUnitKg ?? NaN) ||
-        undefined
-    );
-}
-
-function computeDisplayQty(l: CartLineLike): { text: string; effKg: number } {
-    const mode = readUnitMode(l);
-    const avgPerUnit = readAvgPerUnit(l);
-    const qtyLegacyKg = Number(l.quantity ?? NaN);
-    const qtyKg = Number(l.quantityKg ?? NaN);
-    const units = Number(l.units ?? NaN);
-
-    // Legacy fallback: if nothing explicit and legacy quantity present → treat as kg
-    const hasLegacyKg =
-        !l.unitMode && !l.quantityKg && Number.isFinite(qtyLegacyKg) && qtyLegacyKg > 0;
-
-    if (mode === "kg" || hasLegacyKg) {
-        const kg = Number.isFinite(qtyKg) ? qtyKg : qtyLegacyKg || 0;
-        return { text: Number.isFinite(kg) ? `${kg} kg` : "—", effKg: Number(kg || 0) };
+    if (unit === "kg") {
+        return { text: `${qty} kg`, effKg: qty };
     }
 
-    if (mode === "unit") {
-        if (Number.isFinite(units)) {
-            const base = `${units} unit${units === 1 ? "" : "s"}`;
-            if (Number.isFinite(avgPerUnit)) {
-                return {
-                    text: `${base} (~${avgPerUnit} kg/u)`,
-                    effKg: units * (avgPerUnit || 0),
-                };
-            }
-            return { text: base, effKg: 0 };
-        }
-        return { text: "—", effKg: 0 };
+    // unit === "unit"
+    const base = `${qty} unit${qty === 1 ? "" : "s"}`;
+    const avg = typeof l.avgWeightPerUnitKg === "number" ? l.avgWeightPerUnitKg : undefined;
+    if (typeof avg === "number") {
+        const estKg = Math.round(qty * avg * 100) / 100;
+        return { text: `${base} (~${avg} kg/u)`, effKg: estKg };
     }
+    return { text: base, effKg: undefined };
+}
 
-    // mixed
-    const kgPart = Number.isFinite(qtyKg) ? qtyKg : 0;
-    const unitPartKg =
-        Number.isFinite(units) && Number.isFinite(avgPerUnit) ? units * (avgPerUnit || 0) : 0;
-
-    const parts: string[] = [];
-    if (kgPart > 0) parts.push(`${kgPart} kg`);
-    if (Number.isFinite(units)) {
-        const unitTxt = `${units} unit${units === 1 ? "" : "s"}`;
-        parts.push(Number.isFinite(avgPerUnit) ? `${unitTxt} (~${avgPerUnit} kg/u)` : unitTxt);
-    }
-
-    return { text: parts.length ? parts.join(" + ") : "—", effKg: kgPart + unitPartKg };
+/** label suffix for price, based on selected unit */
+function priceSuffix(l: SharedCartLine): string {
+    return l.unit === "unit" ? " / unit" : " / kg";
 }
 
 function formatAddress(a: any): string {
@@ -213,16 +135,16 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
 
     const linesVM = useMemo(() => {
         return (cartLines ?? []).map((l, idx) => {
-            const price = readPerKgPrice(l);
-            const { text: qtyText, effKg } = computeDisplayQty(l);
-            const lineTotal = Math.round(price * effKg * 100) / 100;
+            const price = readUnitPrice(l);
+            const { text: qtyText } = computeDisplayQty(l);
+            const lineTotal = Math.round(price * (Number(l.quantity ?? 0) || 0) * 100) / 100;
 
             return {
-                key: String(l.key ?? l.stockId ?? idx),
+                key: String(l.key ?? l.stockId ?? l.itemId ?? idx),
                 name: readDisplayName(l),
                 imageUrl: readImageUrl(l),
                 category: readCategory(l),
-                pricePerKgText: `${formatCurrencyUSD(price)} / kg`,
+                unitPriceText: `${formatCurrencyUSD(price)}${priceSuffix(l)}`,
                 qtyText,
                 lineTotalText: formatCurrencyUSD(lineTotal),
             };
@@ -230,8 +152,9 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
     }, [cartLines]);
 
     // delivery & tax zero for now; server is source of truth
-    const deliveryFee = 15;
+    let deliveryFee = 5;
     const taxUsd = 0;
+    if (totals.subtotal > 100) deliveryFee = 0;
     const totalPrice = Math.round((totals.subtotal + deliveryFee + taxUsd) * 100) / 100;
 
     return (
@@ -280,18 +203,6 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                                 <Text>{shiftName ?? "—"}</Text>
                             </Box>
                         </HStack>
-
-                        <HStack gap={3}>
-                            <Icon as={FiMapPin} />
-                            <Box flex="1">
-                                <Text fontSize="sm" color="fg.muted">
-                                    Region / Center
-                                </Text>
-                                <Text>
-                                    AMS: {amsId ?? "—"} · LC: {logisticsCenterId ?? "—"}
-                                </Text>
-                            </Box>
-                        </HStack>
                     </Stack>
                 </Card.Body>
             </Card.Root>
@@ -326,7 +237,7 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                                             </Text>
                                         )}
                                         <Text fontSize="sm" color="fg.muted">{ln.qtyText}</Text>
-                                        <Text fontSize="sm" color="fg.muted">{ln.pricePerKgText}</Text>
+                                        <Text fontSize="sm" color="fg.muted">{ln.unitPriceText}</Text>
                                     </Box>
                                     <Text fontWeight="semibold">{ln.lineTotalText}</Text>
                                 </HStack>
