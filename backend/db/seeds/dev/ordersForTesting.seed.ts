@@ -32,14 +32,20 @@ const SHIFT_CONFIG = [
 ];
 type ShiftName = typeof SHIFT_CONFIG[number]["name"];
 
-// Fake farmers (randomized per item line)
+// Use your real farmer IDs for believable provenance (from your dataset memory)
 const FARMERS = [
-  { farmerId: new Types.ObjectId(), farmerName: "Levy Cohen",     farmName: "Galilee Greens" },
-  { farmerId: new Types.ObjectId(), farmerName: "Ayala Ben-David", farmName: "Sunrise Fields" },
-  { farmerId: new Types.ObjectId(), farmerName: "Yousef Haddad",  farmName: "Valley Harvest" },
-  { farmerId: new Types.ObjectId(), farmerName: "Maya Klein",     farmName: "Olive Ridge" },
-  { farmerId: new Types.ObjectId(), farmerName: "Tomer Azulay",   farmName: "Coastal Farm" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1e8"), farmerName: "Levy Cohen",     farmName: "Galilee Greens" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1e9"), farmerName: "Ayala Ben-David", farmName: "Sunrise Fields" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1ea"), farmerName: "Yousef Haddad",  farmName: "Valley Harvest" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1eb"), farmerName: "Maya Klein",     farmName: "Olive Ridge" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1ec"), farmerName: "Tomer Azulay",   farmName: "Coastal Farm" },
 ];
+
+// -----------------------------
+// Small math helpers (consistent rounding)
+// -----------------------------
+const r2 = (n: number) => Math.round(n * 100) / 100;    // cents
+const r3 = (n: number) => Math.round(n * 1000) / 1000;  // kg precision
 
 // -----------------------------
 // Time helpers
@@ -99,11 +105,11 @@ async function sampleItems(n: number) {
   return docs;
 }
 
+// Matches your AddressSchema (address, alt, lnt, logisticCenterId)
 function makeDeliveryAddress(logisticCenterId: string) {
-  // Keep this consistent with your AddressSchema (you mentioned you've used this in previous seeds).
   return {
-    lnt: 35.571,
-    alt: 33.207,
+    lnt: 35.571, // longitude
+    alt: 33.207, // latitude
     address: "123 Market St, Haifa, Israel",
     logisticCenterId,
   };
@@ -123,20 +129,20 @@ function categoryFromItem(it: any) {
 
 function pricePerKgFromItem(it: any) {
   const p = Number(it?.price?.a);
-  return Number.isFinite(p) && p > 0 ? p : Math.round(rand(6, 24) * 100) / 100; // fallback
+  return Number.isFinite(p) && p > 0 ? p : r2(rand(6, 24)); // defensive fallback
 }
 
 function avgUnitKgFromItem(it: any) {
   const gr = Number(it?.avgWeightPerUnitGr);
-  if (Number.isFinite(gr) && gr > 0) return Math.round((gr / 1000) * 1000) / 1000;
+  if (Number.isFinite(gr) && gr > 0) return r3(gr / 1000);  // grams → kg (3dp)
   return 0; // no avg known
 }
 
 function stdDevKgFromItem(it: any, avgKg: number) {
   const sdGr = Number(it?.sdWeightPerUnitGr);
-  if (Number.isFinite(sdGr) && sdGr > 0) return Math.round((sdGr / 1000) * 1000) / 1000;
+  if (Number.isFinite(sdGr) && sdGr > 0) return r3(sdGr / 1000);
   // plausible fallback when avg known
-  if (avgKg > 0) return Math.round(Math.max(0.01, avgKg * 0.15) * 1000) / 1000;
+  if (avgKg > 0) return r3(Math.max(0.01, avgKg * 0.15));
   return null;
 }
 
@@ -154,16 +160,15 @@ function decideUnitModeFromItem(it: any): UnitMode {
 }
 
 function randomQuantityKg() {
-  // 0.3–3.5 kg
-  return Math.round(rand(0.3, 3.5) * 100) / 100;
+  // 0.35–3.2 kg, rounded to 2dp (UI-friendly)
+  return r2(rand(0.35, 3.2));
 }
-
 function randomUnits() {
   // 1–8 units
   return randInt(1, 8);
 }
 
-/** Create order lines that always pass OrderItemSchema validation */
+/** Create order lines that always pass OrderItemSchema validation and mirror model math */
 function makeOrderItems(fromItems: any[]) {
   const count = randInt(2, Math.min(5, fromItems.length));
   const chosen = [...fromItems].sort(() => Math.random() - 0.5).slice(0, count);
@@ -178,19 +183,19 @@ function makeOrderItems(fromItems: any[]) {
     let quantityKg = 0;
     let units = 0;
 
-    // unit stats
-    const avgKg = avgUnitKgFromItem(it);              // 0 when unknown
-    const stdDevKg = stdDevKgFromItem(it, avgKg);     // null/number
+    // unit stats (grams → kg once, 3dp)
+    const avgKg = avgUnitKgFromItem(it);          // 0 means unknown
+    const stdDevKg = stdDevKgFromItem(it, avgKg); // null or 3dp number
 
     if (unitMode === "kg") {
       quantityKg = randomQuantityKg();
       units = 0;
     } else if (unitMode === "unit") {
-      // must ensure units > 0 and avg > 0
-      units = randomUnits();
-      quantityKg = 0;
-      if (!(avgKg > 0)) {
-        // guard: if somehow item had byUnit true but no avg, fallback to kg to pass validation
+      if (avgKg > 0) {
+        units = randomUnits();
+        quantityKg = 0;
+      } else {
+        // guard: if item has byUnit without avg, fallback to kg to pass validation
         quantityKg = randomQuantityKg();
         units = 0;
       }
@@ -209,14 +214,18 @@ function makeOrderItems(fromItems: any[]) {
     const estimatesSnapshot =
       units > 0 && avgKg > 0
         ? {
-            avgWeightPerUnitKg: avgKg,
-            stdDevKg: stdDevKg ?? null,
+            avgWeightPerUnitKg: avgKg,     // 3dp
+            stdDevKg: stdDevKg ?? null,    // 3dp or null
           }
         : undefined;
 
-    // UI helper: derived unit price = pricePerKg * avg (rounded) when units used
+    // UI helper: derived unit price = pricePerKg * avg (rounded to cents)
     const derivedUnitPrice =
-      units > 0 && avgKg > 0 ? Math.round(pricePerKg * avgKg * 100) / 100 : null;
+      units > 0 && avgKg > 0 ? r2(pricePerKg * avgKg) : null;
+
+    // (Optional) sanity: estimated kg like the model does (3dp)
+    // const estimatedKg = r3((quantityKg || 0) + (units || 0) * (avgKg || 0));
+    // console.log(`[seed] ${itemDisplayName(it)} -> estKg=${estimatedKg} (mode=${unitMode}, kg=${quantityKg}, units=${units}, avg=${avgKg})`);
 
     return {
       // --- required by OrderItemSchema ---
@@ -226,16 +235,17 @@ function makeOrderItems(fromItems: any[]) {
       category: categoryFromItem(it),
 
       // Per-KG snapshot fields
-      pricePerUnit: pricePerKg,        // used by current totals
-      pricePerKg: pricePerKg,          // explicit per-KG snapshot (safe if your schema has it)
-      derivedUnitPrice,                // optional UI helper (ignored if schema doesn't define)
+      pricePerUnit: pricePerKg,  // legacy per-KG used by totals
+      pricePerKg,                // explicit per-KG snapshot
+
+      derivedUnitPrice,          // optional UI helper
 
       unitMode,
       quantityKg,
       units,
       estimatesSnapshot,
 
-      // Final weights left undefined (set during packing flow)
+      // Final weights left undefined (packing flow will set)
       finalWeightKg: undefined,
       finalizedAt: undefined,
       finalizedBy: undefined,
@@ -244,7 +254,7 @@ function makeOrderItems(fromItems: any[]) {
       sourceFarmerName: farmer.farmerName,
       sourceFarmName: farmer.farmName,
 
-      // random link for seed (not a real FO)
+      // random FO link for seed (synthetic)
       farmerOrderId: new Types.ObjectId(),
     };
   });
