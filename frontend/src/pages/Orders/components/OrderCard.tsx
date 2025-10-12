@@ -14,7 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { MapPin } from "lucide-react";
 import ItemList from "@/components/common/ItemList";
-import type { OrderRowAPI } from "@/types/orders";
+import type { OrderRowAPI } from "../../../types/orders";
 import OrderTimeline from "./OrderTimeline";
 import {
   STATUS_EMOJI,
@@ -52,8 +52,12 @@ export default function OrderCard({
   const statusLabel = STATUS_LABEL[ui];
   const onlyDelivery = isOldStatus((order as any).status);
   const deliveryTime = formatDeliveryTime(order);
-  const rows = toItemRows((order as any).items ?? []);
-  const currency = pickCurrency((order as any).items ?? []) ?? "$";
+
+  // rows mapped for ItemList; add currency symbol per row
+  const currency = pickCurrency((order as any).items ?? []) ?? "₪";
+  const rowsBase = toItemRows((order as any).items ?? []);
+  const rows = rowsBase.map((r: any) => ({ ...r, currencySymbol: currency }));
+
   const dest = pickDeliveryPoint(order);
 
   return (
@@ -144,7 +148,7 @@ export default function OrderCard({
       {isOpen && (
         <VStack align="stretch" mt={3} gap={3}>
           {rows.length ? (
-            <ItemList items={rows} currency={currency} />
+            <ItemList items={rows} />
           ) : (
             <Text color="gray.600">No items attached.</Text>
           )}

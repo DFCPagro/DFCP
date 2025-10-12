@@ -160,7 +160,7 @@ export default function AppRoutes() {
         </Route>
 
         {/* --- Authenticated, no FOOTER + wider --- */}
-        <Route element={<AuthGuard><AppShell showFooter={false} maxW="5xl" /></AuthGuard>}>
+        <Route element={<AuthGuard><AppShell showFooter={true} maxW="5xl" /></AuthGuard>}>
           <Route path={PATHS.profile} element={<Profile />} />
         </Route>
 

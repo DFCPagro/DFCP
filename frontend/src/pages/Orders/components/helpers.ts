@@ -1,5 +1,6 @@
 // pages/orders/components/helpers.ts
 import type { OrderRowAPI } from "@/types/orders";
+import type { ItemRow } from "@/components/common/ItemList";
 
 export type UIStatus =
   | "pending"
@@ -178,32 +179,83 @@ export function formatDeliveryTime(o: any) {
   return `${fmtDateYY(d)} ${range}`;
 }
 
-// ---- items helpers ----
-export type ItemRow = {
-  id: string;
-  name: string;
-  farmer: string;
-  imageUrl?: string;
-  qty: number;
-  unitLabel: string;
-  unitPrice: number;
-  currency?: string;
-};
-export function toItemRows(items: any[]): ItemRow[] {
-  return (items ?? []).map(
-    (it: any, idx: number): ItemRow => ({
-      id: it.id ?? it.productId ?? String(idx),
-      name:
-        it.name ?? it.displayName ?? it.productName ?? it.productId ?? "item",
-      farmer: it.farmerName ?? it.farmer ?? "—",
-      imageUrl: it.imageUrl ?? it.image ?? undefined,
-      qty: Number(it.quantity ?? it.qty ?? 0),
-      unitLabel: it.unit ?? it.unitLabel ?? "kg",
-      unitPrice: Number(it.unitPrice ?? it.pricePerUnit ?? it.price ?? 0),
-      currency: it.currency ?? undefined,
-    })
-  );
+// ---- Item rows for ItemList (farm + ≈metrics) ----
+export function toItemRows(lines: any[]): ItemRow[] {
+  return (lines ?? []).map((line: any, i: number) => {
+    const title =
+      firstStr(
+        line?.name,
+        line?.displayName,
+        line?.item?.name,
+        line?.item?.displayName
+      ) ?? "Item";
+
+    const imageUrl =
+      firstStr(line?.imageUrl, line?.item?.imageUrl, line?.photoUrl) ?? undefined;
+
+    const category = firstStr(line?.category, line?.item?.category) ?? "";
+
+    // provenance
+    const farmerName = firstStr(
+      line?.sourceFarmerName,
+      line?.farmerName,
+      line?.farmer?.name
+    );
+    const farmName = firstStr(
+      line?.sourceFarmName,
+      line?.farmName,
+      line?.farmer?.farmName
+    );
+    const farmLogo =
+      firstStr(line?.sourceFarmLogo, line?.farmLogo, line?.farmer?.logo) ??
+      undefined;
+
+    // pricing & requested amounts
+    const pricePerUnit = toNum(line?.pricePerUnit); // per KG
+    const unitMode =
+      (line?.unitMode as "kg" | "unit" | "mixed") ?? ("kg" as const);
+    const qtyKg = toNumUndef(line?.quantityKg);
+    const qtyUnits = toIntUndef(line?.units);
+
+    // snapshot for unit conversions
+    const avgWeightPerUnitKg = toNumUndef(
+      line?.estimatesSnapshot?.avgWeightPerUnitKg ??
+        line?.estimates?.avgWeightPerUnitKg
+    );
+
+    // derive ≈units if not present
+    const availableUnitsEstimate =
+      toIntUndef(line?.availableUnitsEstimate) ??
+      (avgWeightPerUnitKg && qtyKg
+        ? Math.round(qtyKg / avgWeightPerUnitKg)
+        : undefined);
+
+    const subtitle =
+      farmerName || farmName
+        ? [farmerName, farmName].filter(Boolean).join(" • ")
+        : undefined;
+
+    return {
+      id: line?._id ?? line?.id ?? String(i),
+
+      title,
+      subtitle,
+      imageUrl,
+      category,
+      farmLogo,
+      farmName,
+
+      // numbers ItemList uses to show ≈kg, ≈units, ≈price/kg, price/unit
+      pricePerUnit,
+      unitMode,
+      qtyKg,
+      qtyUnits,
+      avgWeightPerUnitKg,
+      availableUnitsEstimate,
+    } as ItemRow;
+  });
 }
+
 export function pickCurrency(items: any[]): string | undefined {
   for (const it of items ?? []) if (it?.currency) return it.currency;
   return undefined;
@@ -271,8 +323,7 @@ export function getDeliveryCoord(o: any): LatLng | null {
   return lat2 != null && lng2 != null ? { lat: lat2, lng: lng2 } : null;
 }
 function mockPointFor(id: string): LatLng {
-  const seed =
-    id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
+  const seed = id.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 1000;
   const dLat = ((seed % 80) - 40) / 1000;
   const dLng = (((seed / 10) | 0) % 80 - 40) / 1000;
   return {
@@ -282,4 +333,22 @@ function mockPointFor(id: string): LatLng {
 }
 export function pickDeliveryPoint(o: OrderRowAPI): LatLng {
   return getDeliveryCoord(o as any) ?? mockPointFor(o.id);
+}
+
+// ---------- local helpers ----------
+function firstStr(...vals: any[]): string | undefined {
+  for (const v of vals) if (typeof v === "string" && v.trim()) return v;
+  return undefined;
+}
+function toNum(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+function toNumUndef(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+function toIntUndef(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : undefined;
 }

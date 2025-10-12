@@ -17,9 +17,9 @@ import {
 } from "@chakra-ui/react";
 
 import AuthGuard from "@/guards/AuthGuard";
-import CartIconButton from "@/components/common/CartIconButton";
+import { CartFAB } from "../Market/components/CartFAB";
 import { fetchOrders } from "@/api/orders";
-import type { OrderRowAPI } from "@/types/orders";
+import type { OrderRowAPI } from "../../types/orders";
 import Section from "./components/Section";
 import OrderCard from "./components/OrderCard";
 import {
@@ -39,6 +39,21 @@ import LocationRouteDialog, { type PointValue } from "@/components/common/Locati
 
 type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
 
+// Backend-canonical statuses
+const BE_STATUSES = [
+  "pending",
+  "confirmed",
+  "farmer",
+  "in-transit",
+  "packing",
+  "ready_for_pickUp",
+  "out_for_delivery",
+  "delivered",
+  "received",
+  "canceled",
+  "problem",
+] as const;
+
 function ColorBlock({
   children,
   light,
@@ -55,6 +70,16 @@ function ColorBlock({
   );
 }
 
+function labelForStatus(s: string): string {
+  const ui = normalizeStatus(s) as UIStatus;
+  const fromMap = (STATUS_LABEL as any)?.[ui];
+  if (fromMap) return fromMap;
+  return s
+    .replace(/_/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default function OrdersIndex() {
   const nav = useNavigate();
 
@@ -62,7 +87,8 @@ export default function OrdersIndex() {
   const [loading, setLoading] = useState(false);
   const [limit, setLimit] = useState(50);
 
-  const [statusFilter, setStatusFilter] = useState<"ALL" | UIStatus>("ALL");
+  // use string to tolerate BE vs UI variants; normalize for comparisons
+  const [statusFilter, setStatusFilter] = useState<"ALL" | string>("ALL");
   const [dateFilter, setDateFilter] = useState<DateFilter>("ALL");
   const [customFrom, setCustomFrom] = useState<string>("");
   const [customTo, setCustomTo] = useState<string>("");
@@ -113,7 +139,11 @@ export default function OrdersIndex() {
     const byStatus =
       statusFilter === "ALL"
         ? base
-        : base.filter((o) => normalizeStatus((o as any).status) === statusFilter);
+        : base.filter(
+            (o) =>
+              normalizeStatus((o as any).status) ===
+              normalizeStatus(statusFilter as string)
+          );
 
     if (dateFilter === "ALL") return byStatus;
 
@@ -163,7 +193,10 @@ export default function OrdersIndex() {
 
   // -------- MAP DERIVED VALUES --------
   const uiForMap = useMemo<UIStatus>(
-    () => (orderForMap ? (normalizeStatus((orderForMap as any).status) as UIStatus) : "pending"),
+    () =>
+      orderForMap
+        ? (normalizeStatus((orderForMap as any).status) as UIStatus)
+        : "pending",
     [orderForMap]
   );
 
@@ -180,7 +213,10 @@ export default function OrdersIndex() {
 
     const a: any = (orderForMap as any).deliveryAddress;
     const label =
-      (typeof a === "string" && a) || a?.address || a?.label || `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+      (typeof a === "string" && a) ||
+      a?.address ||
+      a?.label ||
+      `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
 
     return { address: label, lat: p.lat, lng: p.lng };
   }, [orderForMap, mapPoint]);
@@ -208,7 +244,7 @@ export default function OrdersIndex() {
           <HStack gap={3} align="center">
             <Heading size="2xl" fontWeight="extrabold">My Orders</Heading>
             <span style={{ flex: 1 }} />
-            <CartIconButton />
+            <CartFAB onClick={() => nav("/cart")} />
           </HStack>
 
           <Box h={3} />
@@ -218,7 +254,7 @@ export default function OrdersIndex() {
               <select
                 id="status-filter"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
+                onChange={(e) => setStatusFilter(e.target.value)}
                 style={{
                   padding: "8px 10px",
                   borderRadius: "8px",
@@ -227,23 +263,10 @@ export default function OrdersIndex() {
                   background: "var(--chakra-colors-white, #fff)",
                 }}
               >
-                {(
-                  [
-                    "ALL",
-                    "pending",
-                    "confirmed",
-                    "farmer",
-                    "intransit",
-                    "packing",
-                    "ready_for_pickup",
-                    "out_for_delivery",
-                    "delivered",
-                    "received",
-                    "cancelled",
-                  ] as const
-                ).map((s) => (
-                  <option key={s} value={s as any}>
-                    {s === "ALL" ? "All" : STATUS_LABEL[s as UIStatus]}
+                <option value="ALL">All</option>
+                {BE_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {labelForStatus(s)}
                   </option>
                 ))}
               </select>
