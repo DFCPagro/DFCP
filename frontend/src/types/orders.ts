@@ -1,5 +1,5 @@
 // src/types/order.ts
-// Frontend types aligned 1:1 with backend src/models/order.model.ts
+// Frontend types aligned to backend src/models/order.model.ts
 
 import type { Address } from "@/types/address";
 
@@ -20,59 +20,84 @@ export type OrderStatus =
 
 export type UnitMode = "kg" | "unit" | "mixed";
 
+export type PaymentMethod = "card" | "google_pay" | "paypal";
 /* --------------------------------- Create --------------------------------- */
-/** Snapshot used when ordering in unit/mixed modes. */
+/**
+ * What Checkout should POST to the backend create-order endpoint.
+ * Names/casing mirror the backend schema exactly.
+ */
 export type EstimatesSnapshot = {
   avgWeightPerUnitKg?: number | null;
   stdDevKg?: number | null;
 };
 
 export type CreateOrderItemInput = {
-  /** Item reference (ObjectId as string). */
+  /** Item reference (required) */
   itemId: string;
 
-  /** Price per KG at order time. */
+  /**
+   * Price per KG (USD) snapshot at time of ordering.
+   * The backend schema requires pricePerUnit and treats it as per-KG.
+   */
   pricePerUnit: number;
 
-  /** "kg" | "unit" | "mixed". */
+  /** "kg" | "unit" | "mixed" (backend validates combinations below) */
   unitMode: UnitMode;
 
-  /** For kg or mixed modes. */
+  /** For kg or mixed modes */
   quantityKg?: number;
 
-  /** For unit or mixed modes. */
+  /** For unit or mixed modes */
   units?: number;
 
   /**
-   * Required by backend validation when:
-   *  - unitMode="unit", or
-   *  - unitMode="mixed" and units > 0.
+   * Required by backend validation when unitMode is "unit" or when "mixed" with units > 0.
+   * When present, must be > 0.
    */
-  estimatesSnapshot?: EstimatesSnapshot;
+  estimatesSnapshot?: {
+    avgWeightPerUnitKg?: number | null;
+    stdDevKg?: number | null;
+  };
 
-  /** Optional hints; backend usually derives these. */
+  /** Optional UI hints (backend schema has these fields on lines, but backend can also derive them) */
   name?: string;
   imageUrl?: string;
   category?: string;
 
-  /** Optional; backend usually derives these provenance fields. */
+  /** Provenance fields (the backend populates these from AMS/farmer orders; allow optional here) */
   sourceFarmerName?: string;
   sourceFarmName?: string;
   farmerOrderId?: string;
 };
 
 export type CreateOrderBody = {
-  deliveryAddress: Address;      // required
-  deliveryDate: string;          // ISO date/time
-  shiftName: string;             // required
+  /** Full address object as per AddressSchema (backend requires deliveryAddress) */
+  deliveryAddress: Address;
 
-  /** Note casing: capital L matches backend. */
+  /** ISO date (YYYY-MM-DD or full ISO). Backend stores as Date. */
+  deliveryDate: string;
+
+  /** e.g., "morning" (backend requires string) */
+  shiftName: string;
+
+  /**
+   * IMPORTANT: Casing matches schema (`LogisticsCenterId` with capital L).
+   * Mongoose expects ObjectId; send string id.
+   */
   LogisticsCenterId: string;
-  amsId: string;                 // one AMS per order
 
-  items: CreateOrderItemInput[]; // non-empty
+  /**
+   * One AMS per order; same amsId for all lines. Mongoose expects ObjectId; send string id.
+   */
+  amsId: string;
 
-  /** Optional override; backend default 0.10, range [0, 0.5]. */
+  /** At least one item (backend enforces non-empty array) */
+  items: CreateOrderItemInput[];
+
+  /**
+   * Optional override for per-order tolerance (default 0.10 on backend, 0–0.5).
+   * If not set, backend uses default.
+   */
   tolerancePct?: number;
 };
 
@@ -80,25 +105,25 @@ export type CreateOrderBody = {
 
 export type OrderItem = {
   itemId: string;
-
-  // Display
   name: string;
   imageUrl?: string;
   category?: string;
 
-  // Pricing & requested amounts
-  pricePerUnit: number;   // per KG
+  pricePerUnit: number; // per KG
   unitMode: UnitMode;
+
   quantityKg?: number;
   units?: number;
 
-  // Snapshot for unit conversions
-  estimatesSnapshot?: EstimatesSnapshot;
+  estimatesSnapshot?: {
+    avgWeightPerUnitKg?: number | null;
+    stdDevKg?: number | null;
+  };
 
-  // Packing / final
+  // Finalization (after packing)
   finalWeightKg?: number;
-  finalizedAt?: string;   // ISO
-  finalizedBy?: string;   // user id
+  finalizedAt?: string;
+  finalizedBy?: string;
 
   // Provenance
   sourceFarmerName: string;
@@ -106,23 +131,15 @@ export type OrderItem = {
   farmerOrderId: string;
 };
 
-export type AuditEntry = {
-  userId?: string;
-  action: string;
-  note?: string;
-  meta?: Record<string, any>;
-  timestamp?: string; // backend pushes { timestamp: Date }
-};
-
 export type Order = {
   _id: string;
   customerId: string;
 
   deliveryAddress: Address;
-  deliveryDate: string; // ISO
+  deliveryDate: string; // ISO string
   shiftName: string;
 
-  /** Casing kept exactly as in schema. */
+  /** Note: casing kept exactly as in schema */
   LogisticsCenterId: string;
   amsId: string;
 
@@ -130,53 +147,48 @@ export type Order = {
 
   // Estimated totals (pre-packing)
   itemsSubtotal: number;
-  deliveryFee: number;        // backend default: 15
+  deliveryFee: number; // backend default: 15 (USD)
   totalPrice: number;
   totalOrderWeightKg: number;
 
-  // Final totals (post-packing)
+  // Final totals (post-packing) – optional until finalized
   finalItemsSubtotal?: number;
   finalTotalPrice?: number;
   finalOrderWeightKg?: number;
 
   // Per-order tolerance
-  tolerancePct: number;       // default 0.10
+  tolerancePct: number; // default 0.10
 
   status: OrderStatus;
 
   assignedDelivererId?: string;
   customerDeliveryId?: string;
 
-  // Audit trail
-  historyAuditTrail: AuditEntry[];
+  // Audit
+  historyAuditTrail: Array<{
+    userId?: string;
+    action: string;
+    note?: string;
+    meta?: Record<string, any>;
+    createdAt?: string;
+  }>;
 
   createdAt: string;
   updatedAt: string;
 };
 
-/** Typical API envelope from create endpoint. */
-export type CreateOrderResponse = { data: Order };
-
-/* ------------------------------- UI helpers --------------------------------
- * Front-only light row used by lists/cards. Not a backend contract.
- * Keep optional extras here to avoid polluting server-aligned types.
- */
-export type OrderRowAPI = {
-  id: string;               // local/ui id or order _id
-  orderId: string;          // human-readable number if present
-  status: OrderStatus;
-
-  createdAt: string;
-  deliveryDate?: string | null;
-  shiftName?: string | null;     // e.g., "morning"
-  deliverySlot?: string | null;  // legacy alias for shift
-
-  deliveryAddress?: Address | null;
-
-  items: OrderItem[];
-
-  // UI-only hints
-  currencySymbol?: string;
-  acceptedAt?: string | null;
+/** Typical API envelope if your controllers wrap data */
+export type CreateOrderResponse = {
+  data: Order;
 };
-export * from "./orders";
+
+export type OrderRowAPI = {
+  id: string;
+  orderId: string;
+  status: OrderStatus;
+  deliverySlot?: string | null;
+  createdAt: string;
+  items: OrderItem[];
+  // optional extra fields you might add later:
+  // consumerName?: string;
+};
