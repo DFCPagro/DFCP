@@ -3,7 +3,7 @@
  *  - 3 past orders with status "received"
  *  - 1 future order (next shift) with status "packing"
  * AMS: DO NOT create AMS docs. Assign a unique random amsId per (date, shift).
- * Item price: take price.a from Item document.
+ * Item price: take price.a (per KG) from Item document.
  *
  * Run:
  *   $env:MONGO_URI="mongodb+srv://user:pass@cluster/mydb"
@@ -100,7 +100,7 @@ async function sampleItems(n: number) {
 }
 
 function makeDeliveryAddress(logisticCenterId: string) {
-  // Keep in sync with your AddressSchema. This matches previous seeds you shared.
+  // Keep this consistent with your AddressSchema (you mentioned you've used this in previous seeds).
   return {
     lnt: 35.571,
     alt: 33.207,
@@ -110,7 +110,6 @@ function makeDeliveryAddress(logisticCenterId: string) {
 }
 
 function itemDisplayName(it: any) {
-  // adapt to your Item fields (type/variety or name)
   if (it?.type && it?.variety) return `${it.type} ${it.variety}`;
   if (it?.displayName) return it.displayName;
   return it?.type || it?.variety || it?.name || "Fresh Produce";
@@ -122,25 +121,36 @@ function categoryFromItem(it: any) {
   return "";
 }
 
-function priceFromItemA(it: any) {
+function pricePerKgFromItem(it: any) {
   const p = Number(it?.price?.a);
-  return !isNaN(p) && p > 0 ? p : Math.round(rand(6, 24) * 100) / 100; // fallback
+  return Number.isFinite(p) && p > 0 ? p : Math.round(rand(6, 24) * 100) / 100; // fallback
 }
 
-// Estimates: try to pull from item avgWeightPerUnitGr, else create a plausible value
 function avgUnitKgFromItem(it: any) {
   const gr = Number(it?.avgWeightPerUnitGr);
   if (Number.isFinite(gr) && gr > 0) return Math.round((gr / 1000) * 1000) / 1000;
-  // fallback range 0.12kg–1.4kg
-  return Math.round(rand(0.12, 1.4) * 1000) / 1000;
+  return 0; // no avg known
+}
+
+function stdDevKgFromItem(it: any, avgKg: number) {
+  const sdGr = Number(it?.sdWeightPerUnitGr);
+  if (Number.isFinite(sdGr) && sdGr > 0) return Math.round((sdGr / 1000) * 1000) / 1000;
+  // plausible fallback when avg known
+  if (avgKg > 0) return Math.round(Math.max(0.01, avgKg * 0.15) * 1000) / 1000;
+  return null;
 }
 
 type UnitMode = "kg" | "unit" | "mixed";
-function pickUnitMode(): UnitMode {
-  const r = Math.random();
-  if (r < 0.45) return "kg";
-  if (r < 0.80) return "unit";
-  return "mixed";
+
+/** Decide unitMode from Item.sellModes + presence of avg */
+function decideUnitModeFromItem(it: any): UnitMode {
+  const byKg = it?.sellModes?.byKg !== false; // default true
+  const byUnit = !!it?.sellModes?.byUnit;
+  const hasAvg = Number.isFinite(it?.avgWeightPerUnitGr) && it.avgWeightPerUnitGr > 0;
+
+  if (byUnit && byKg && hasAvg) return "mixed";
+  if (byUnit && hasAvg) return "unit";
+  return "kg";
 }
 
 function randomQuantityKg() {
@@ -153,35 +163,60 @@ function randomUnits() {
   return randInt(1, 8);
 }
 
+/** Create order lines that always pass OrderItemSchema validation */
 function makeOrderItems(fromItems: any[]) {
   const count = randInt(2, Math.min(5, fromItems.length));
   const chosen = [...fromItems].sort(() => Math.random() - 0.5).slice(0, count);
 
   return chosen.map((it) => {
     const farmer = pickOne(FARMERS);
-    const mode = pickUnitMode();
 
-    // establish defaults
+    const pricePerKg = pricePerKgFromItem(it);
+    const unitMode: UnitMode = decideUnitModeFromItem(it);
+
+    // establish amounts per mode
     let quantityKg = 0;
     let units = 0;
-    const avgKg = avgUnitKgFromItem(it);
-    const stdDevKg = Math.round(rand(0.01, Math.max(0.02, avgKg * 0.15)) * 1000) / 1000;
 
-    if (mode === "kg") {
+    // unit stats
+    const avgKg = avgUnitKgFromItem(it);              // 0 when unknown
+    const stdDevKg = stdDevKgFromItem(it, avgKg);     // null/number
+
+    if (unitMode === "kg") {
       quantityKg = randomQuantityKg();
       units = 0;
-    } else if (mode === "unit") {
+    } else if (unitMode === "unit") {
+      // must ensure units > 0 and avg > 0
       units = randomUnits();
       quantityKg = 0;
-    } else {
-      // mixed: both may be positive
-      quantityKg = Math.random() < 0.7 ? randomQuantityKg() : 0;
-      units = Math.random() < 0.7 ? randomUnits() : 0;
-      if (quantityKg === 0 && units === 0) {
-        // ensure at least one
+      if (!(avgKg > 0)) {
+        // guard: if somehow item had byUnit true but no avg, fallback to kg to pass validation
         quantityKg = randomQuantityKg();
+        units = 0;
       }
+    } else {
+      // mixed: at least one positive; if units > 0 we need avg > 0
+      quantityKg = Math.random() < 0.7 ? randomQuantityKg() : 0;
+      if (avgKg > 0 && Math.random() < 0.7) {
+        units = randomUnits();
+      } else {
+        units = 0;
+      }
+      if (quantityKg === 0 && units === 0) quantityKg = randomQuantityKg();
     }
+
+    // snapshot used by order model; include only if units > 0
+    const estimatesSnapshot =
+      units > 0 && avgKg > 0
+        ? {
+            avgWeightPerUnitKg: avgKg,
+            stdDevKg: stdDevKg ?? null,
+          }
+        : undefined;
+
+    // UI helper: derived unit price = pricePerKg * avg (rounded) when units used
+    const derivedUnitPrice =
+      units > 0 && avgKg > 0 ? Math.round(pricePerKg * avgKg * 100) / 100 : null;
 
     return {
       // --- required by OrderItemSchema ---
@@ -190,15 +225,15 @@ function makeOrderItems(fromItems: any[]) {
       imageUrl: it?.imageUrl || "",
       category: categoryFromItem(it),
 
-      pricePerUnit: priceFromItemA(it), // per KG
+      // Per-KG snapshot fields
+      pricePerUnit: pricePerKg,        // used by current totals
+      pricePerKg: pricePerKg,          // explicit per-KG snapshot (safe if your schema has it)
+      derivedUnitPrice,                // optional UI helper (ignored if schema doesn't define)
 
-      unitMode: mode,
+      unitMode,
       quantityKg,
       units,
-      estimatesSnapshot: {
-        avgWeightPerUnitKg: units > 0 ? avgKg : null,
-        stdDevKg: units > 0 ? stdDevKg : null,
-      },
+      estimatesSnapshot,
 
       // Final weights left undefined (set during packing flow)
       finalWeightKg: undefined,
@@ -208,7 +243,9 @@ function makeOrderItems(fromItems: any[]) {
       // provenance
       sourceFarmerName: farmer.farmerName,
       sourceFarmName: farmer.farmName,
-      farmerOrderId: new Types.ObjectId(), // random link for seed
+
+      // random link for seed (not a real FO)
+      farmerOrderId: new Types.ObjectId(),
     };
   });
 }
@@ -216,9 +253,7 @@ function makeOrderItems(fromItems: any[]) {
 // -----------------------------
 // AMS ID manager (no DB writes)
 // -----------------------------
-// Keep a unique random ObjectId per (date, shift)
 const amsIdByKey = new Map<string, Types.ObjectId>();
-
 function getAmsIdForKey(ymd: string, shift: ShiftName): Types.ObjectId {
   const key = `${ymd}__${shift}`;
   let id = amsIdByKey.get(key);
@@ -258,7 +293,7 @@ async function seed() {
         LogisticsCenterId: new Types.ObjectId(LC_ID),
         amsId,
         items,
-        status: "received", // matches enum
+        status: "received",
         assignedDelivererId: null,
         customerDeliveryId: null,
         historyAuditTrail: [],

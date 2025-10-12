@@ -35,7 +35,9 @@ const DEFAULT_TOLERANCE = 0.10; // 10%
 
 /**
  * Order line:
- * - pricePerUnit is price per KG (aligned with AMS)
+ * - pricePerUnit is price per KG (aligned with AMS; kept for backward compatibility)
+ * - pricePerKg is an explicit snapshot of Item.price.a (same value as pricePerUnit)
+ * - derivedUnitPrice is optional (UI-only helper) when unit/mixed — derived or overridden per-unit price
  * - Estimated effective kg = quantityKg + units * estimatesSnapshot.avgWeightPerUnitKg
  * - Final pricing/weights use finalWeightKg when present (after packing)
  */
@@ -47,7 +49,14 @@ const OrderItemSchema = new Schema(
     imageUrl: { type: String, default: "" },
     category: { type: String, default: "" },
 
+    // Legacy field name used throughout billing math (per KG):
     pricePerUnit: { type: Number, required: true, min: 0 }, // per KG
+
+    // NEW: explicit snapshot of price per KG (same as pricePerUnit) for clarity/analytics
+    pricePerKg: { type: Number, required: true, min: 0 }, // mirrors price.a
+
+    // NEW: optional UI helper — per-unit price shown when unit/mixed (can be derived or overridden)
+    derivedUnitPrice: { type: Number, default: null, min: 0 },
 
     unitMode: { type: String, enum: UNIT_MODES, required: true, default: "kg" },
 
@@ -58,7 +67,7 @@ const OrderItemSchema = new Schema(
     // Snapshot from AMS for unit conversion:
     estimatesSnapshot: {
       avgWeightPerUnitKg: { type: Number, default: null, min: 0 },
-      stdDevKg: { type: Number, default: null, min: 0 },
+      stdDevKg: { type: Number, default: null, min: 0 }, // keep name to avoid breaking other code
     },
 
     // PACKING / FINAL (actual net packed kg):
@@ -105,15 +114,21 @@ OrderItemSchema.pre("validate", function (next) {
     }
   } else if (line.unitMode === "unit") {
     if (!(line.units > 0)) return next(new Error("For unitMode='unit', units must be > 0."));
-    if (!Number.isFinite(line.estimatesSnapshot?.avgWeightPerUnitKg) || !(line.estimatesSnapshot.avgWeightPerUnitKg > 0)) {
+    if (
+      !Number.isFinite(line.estimatesSnapshot?.avgWeightPerUnitKg) ||
+      !(line.estimatesSnapshot.avgWeightPerUnitKg > 0)
+    ) {
       return next(new Error("For unitMode='unit', estimatesSnapshot.avgWeightPerUnitKg must be > 0."));
     }
   } else if (line.unitMode === "mixed") {
     if (!((line.quantityKg > 0) || (line.units > 0))) {
       return next(new Error("For unitMode='mixed', at least one of quantityKg or units must be > 0."));
     }
-    if ((line.units > 0) &&
-        (!Number.isFinite(line.estimatesSnapshot?.avgWeightPerUnitKg) || !(line.estimatesSnapshot.avgWeightPerUnitKg > 0))) {
+    if (
+      (line.units > 0) &&
+      (!Number.isFinite(line.estimatesSnapshot?.avgWeightPerUnitKg) ||
+        !(line.estimatesSnapshot.avgWeightPerUnitKg > 0))
+    ) {
       return next(new Error("For unitMode='mixed' with units > 0, estimatesSnapshot.avgWeightPerUnitKg must be > 0."));
     }
   }

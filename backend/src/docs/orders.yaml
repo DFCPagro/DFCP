@@ -1,307 +1,211 @@
-openapi: 3.0.3
-info:
-  title: Orders APIs
-  version: "1.0.0"
-
-tags:
-  - name: Orders
-    description: Customer order creation and listing
-
 paths:
   /orders:
     post:
-      tags: [Orders]
-      summary: Create an order for the authenticated customer
-      description: >
-        Reserves stock atomically on the related AvailableMarketStock (AMS) lines.
-        Supports **legacy items** (pure kg with `quantity`) and **new items**
-        with `unitMode`, `quantityKg`, `units`, and an optional `estimatesSnapshot.avgWeightPerUnitKg`.
-      security: [{ bearerAuth: [] }]
+      summary: Create a new customer order
+      description: |
+        Creates an order for the authenticated customer based on the provided AvailableMarketStock (AMS) document.
+
+        The system automatically:
+        - Reserves stock from AMS per item using **conservative unit-to-kg conversion** (with bundle alignment, z-score and shrinkage from AMS).
+        - Creates the order with normalized `unitMode`, `quantityKg`, and `units`.
+        - Links each FarmerOrder and logs an audit trail entry.
+
+        Each item is reserved as follows:
+        - `quantityKg` is reserved 1:1 in kilograms.
+        - `units` are reserved using AMS' conservative `adjustAvailableQtyByUnitsAtomic()` logic.
+        - For `mixed` items, both kg and units are reserved.
+
+      tags:
+        - Orders
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateOrderRequest"
-            examples:
-              legacyKgOnly:
-                summary: Legacy item shape (quantity in kg)
-                value:
-                  amsId: "6703f4f7c9b5f3a7b3a9d123"
-                  logisticsCenterId: "66e007000000000000000001"
-                  deliveryDate: "2025-10-07"
-                  deliveryAddress:
-                    lnt: 35.503
-                    alt: 33.02
-                    address: "Kiryat Shmona, Israel"
+              type: object
+              required:
+                - amsId
+                - logisticsCenterId
+                - deliveryAddress
+                - deliveryDate
+                - items
+              properties:
+                amsId:
+                  type: string
+                  description: ObjectId of the AvailableMarketStock document.
+                logisticsCenterId:
+                  type: string
+                  description: ObjectId of the Logistics Center handling the order.
+                deliveryAddress:
+                  type: object
+                  description: Address object of the delivery destination.
+                  properties:
+                    label: { type: string }
+                    city: { type: string }
+                    street: { type: string }
+                    buildingNumber: { type: string }
+                    zipCode: { type: string }
+                    lat: { type: number }
+                    lng: { type: number }
+                deliveryDate:
+                  type: string
+                  format: date
+                  example: "2025-10-13"
+                items:
+                  type: array
+                  minItems: 1
                   items:
-                    - itemId: "68960284330bf1699eee8955"
-                      name: "Lettuce Romaine"
-                      imageUrl: "https://cdn.example.com/items/lettuce.jpg"
-                      pricePerUnit: 12.9
-                      category: "vegetables"
-                      sourceFarmerName: "Yousef Haddad"
-                      sourceFarmName: "Haddad Fields"
-                      farmerOrderId: "6703f2e4c9b5f3a7b3a9d101"
-                      quantity: 2.5
-              mixedUnits:
-                summary: New shape with unitMode + units + avg snapshot
-                value:
-                  amsId: "6703f4f7c9b5f3a7b3a9d123"
-                  logisticsCenterId: "66e007000000000000000001"
-                  deliveryDate: "2025-10-07"
-                  deliveryAddress:
-                    lnt: 35.503
-                    alt: 33.02
-                    address: "Kiryat Shmona, Israel"
-                  items:
-                    - itemId: "68960284330bf1699eee8950"
-                      name: "Apple Fuji"
-                      imageUrl: "https://cdn.example.com/items/apple-fuji.jpg"
-                      pricePerUnit: 8.9
-                      category: "fruits"
-                      sourceFarmerName: "Levy Cohen"
-                      sourceFarmName: "Levy Orchard"
-                      farmerOrderId: "6703f2e4c9b5f3a7b3a9d777"
-                      unitMode: "mixed"
-                      quantityKg: 1.2
-                      units: 3
+                    type: object
+                    required:
+                      - itemId
+                      - farmerOrderId
+                      - sourceFarmerName
+                      - sourceFarmName
+                    properties:
+                      itemId:
+                        type: string
+                        description: The Item ObjectId.
+                      farmerOrderId:
+                        type: string
+                        description: The FarmerOrder ObjectId.
+                      sourceFarmerName:
+                        type: string
+                      sourceFarmName:
+                        type: string
+                      name:
+                        type: string
+                      imageUrl:
+                        type: string
+                      category:
+                        type: string
+                      pricePerUnit:
+                        type: number
+                        description: Snapshot of per-KG price (from AMS or payload).
+                      unitMode:
+                        type: string
+                        enum: [kg, unit, mixed]
+                        default: kg
+                      quantityKg:
+                        type: number
+                        minimum: 0
+                        description: Amount requested in kilograms (for kg or mixed).
+                      units:
+                        type: number
+                        minimum: 0
+                        description: Amount requested in units (for unit or mixed).
                       estimatesSnapshot:
-                        avgWeightPerUnitKg: 0.18
+                        type: object
+                        properties:
+                          avgWeightPerUnitKg: { type: number }
+                          stdDevKg: { type: number }
       responses:
         "201":
-          description: Order created
+          description: Order created successfully.
           content:
             application/json:
               schema:
                 type: object
-                required: [data]
                 properties:
-                  data:
-                    $ref: "#/components/schemas/Order"
+                  _id:
+                    type: string
+                    description: The new Order ObjectId.
+                  customerId:
+                    type: string
+                  amsId:
+                    type: string
+                  shiftName:
+                    type: string
+                    example: "morning"
+                  deliveryDate:
+                    type: string
+                    format: date
+                  deliveryAddress:
+                    $ref: "#/components/schemas/Address"
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        itemId: { type: string }
+                        name: { type: string }
+                        unitMode: { type: string, enum: [kg, unit, mixed] }
+                        quantityKg: { type: number }
+                        units: { type: number }
+                        pricePerKg: { type: number }
+                        pricePerUnit: { type: number }
+                        derivedUnitPrice: { type: number, nullable: true }
+                        estimatesSnapshot:
+                          type: object
+                          properties:
+                            avgWeightPerUnitKg: { type: number }
+                            stdDevKg: { type: number }
+                        sourceFarmerName: { type: string }
+                        sourceFarmName: { type: string }
+                        farmerOrderId: { type: string }
+                  itemsSubtotal: { type: number }
+                  deliveryFee: { type: number }
+                  totalPrice: { type: number }
+                  totalOrderWeightKg: { type: number }
         "400":
-          description: Validation error or reservation issues
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorWithDetails"
-              examples:
-                zod:
-                  value:
-                    error: "ValidationError"
-                    details:
-                      - path: ["items", 0, "itemId"]
-                        message: "Required"
-                notEnoughQty:
-                  value:
-                    error: "BadRequest"
-                    details: ["Not enough available quantity to reserve"]
-                missingAvgForUnits:
-                  value:
-                    error: "BadRequest"
-                    details:
-                      - "Missing avgWeightPerUnitKg for item 68960284330bf1699eee8950 while units > 0."
-        "401": { description: Unauthorized }
+          description: Bad Request — missing AMS line, invalid quantities, or stock unavailable.
         "404":
-          description: Not found (AMS or line)
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorWithDetails"
-              examples:
-                amsNotFound:
-                  value: { error: "NotFound", details: ["AvailableMarketStock not found"] }
-                lineNotFound:
-                  value: { error: "NotFound", details: ["Document not found or lineId invalid"] }
-        "500": { description: ServerError }
+          description: AMS or FarmerOrder not found.
+        "500":
+          description: Internal server error during transaction.
 
   /orders/my:
     get:
-      tags: [Orders]
-      summary: List my latest orders
-      description: Returns the most recent orders for the authenticated user (default 15, hard-capped at 15).
-      security: [{ bearerAuth: [] }]
+      summary: Get customer’s recent orders
+      description: |
+        Returns up to the 15 most recent orders placed by the authenticated customer.
+      tags:
+        - Orders
+      security:
+        - bearerAuth: []
       parameters:
-        - in: query
-          name: limit
-          schema: { type: integer, minimum: 1, maximum: 15, default: 15 }
-          required: false
-          description: Number of recent orders to return (max 15)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 15
+            default: 15
+          description: Maximum number of orders to return.
       responses:
         "200":
-          description: Array of recent orders
+          description: List of recent orders.
           content:
             application/json:
               schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: "#/components/schemas/Order" }
-        "401": { description: Unauthorized }
-        "500": { description: ServerError }
-
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-
-  schemas:
-    # ---------- Request Shapes ----------
-    CreateOrderRequest:
-      type: object
-      required: [amsId, logisticsCenterId, deliveryAddress, items]
-      properties:
-        amsId:
-          type: string
-          description: AMS document id to reserve against
-        logisticsCenterId:
-          type: string
-        deliveryDate:
-          type: string
-          description: ISO date (YYYY-MM-DD or ISO datetime)
-        deliveryAddress:
-          $ref: "#/components/schemas/Address"
-        items:
-          type: array
-          minItems: 1
-          items:
-            oneOf:
-              - $ref: "#/components/schemas/LegacyOrderItem"
-              - $ref: "#/components/schemas/NewOrderItem"
-
-    Address:
-      type: object
-      required: [lnt, alt, address]
-      properties:
-        lnt: { type: number, description: "Longitude" }
-        alt: { type: number, description: "Latitude" }
-        address: { type: string }
-
-    # Legacy item = pure kg order with 'quantity'
-    LegacyOrderItem:
-      type: object
-      required: [itemId, name, pricePerUnit, sourceFarmerName, sourceFarmName, farmerOrderId, quantity]
-      properties:
-        itemId: { type: string }
-        name: { type: string }
-        imageUrl: { type: string, nullable: true }
-        pricePerUnit:
-          type: number
-          description: Price per KG (from Item.price.a)
-        category: { type: string }
-        sourceFarmerName: { type: string }
-        sourceFarmName: { type: string }
-        farmerOrderId: { type: string }
-        quantity:
-          type: number
-          description: Legacy kg quantity (treated as `quantityKg`)
-          minimum: 0.001
-
-    # New item = unitMode + quantityKg + units (+ avg snapshot for units)
-    NewOrderItem:
-      type: object
-      required:
-        [itemId, name, pricePerUnit, sourceFarmerName, sourceFarmName, farmerOrderId]
-      properties:
-        itemId: { type: string }
-        name: { type: string }
-        imageUrl: { type: string, nullable: true }
-        pricePerUnit:
-          type: number
-          description: Price per KG (from Item.price.a)
-        category: { type: string }
-        sourceFarmerName: { type: string }
-        sourceFarmName: { type: string }
-        farmerOrderId: { type: string }
-        unitMode:
-          type: string
-          enum: [kg, unit, mixed]
-          default: kg
-        quantityKg:
-          type: number
-          minimum: 0
-          description: "Can be 0 when using only units"
-        units:
-          type: integer
-          minimum: 0
-          description: "Required > 0 if using unit/mixed and no quantityKg"
-        estimatesSnapshot:
-          type: object
-          properties:
-            avgWeightPerUnitKg:
-              type: number
-              minimum: 0
-              description: >
-                Necessary when `units > 0` in `unit|mixed`. If omitted, server
-                tries AMS estimates; if still missing, request is rejected.
-
-    # ---------- Response Models (minimal but aligned with your service) ----------
-    Order:
-      type: object
-      description: Minimal order projection as returned by service (lean docs on list; full JSON on create)
-      properties:
-        _id: { type: string }
-        customerId: { type: string }
-        amsId: { type: string }
-        LogisticsCenterId: { type: string }
-        deliveryDate:
-          type: string
-          description: ISO string or date
-        deliveryAddress:
-          $ref: "#/components/schemas/Address"
-        shiftName:
-          type: string
-          enum: [morning, afternoon, evening, night]
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/OrderLine"
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-
-    OrderLine:
-      type: object
-      properties:
-        itemId: { type: string }
-        name: { type: string }
-        imageUrl: { type: string }
-        pricePerUnit:
-          type: number
-          description: Price per KG at order time (snapshot)
-        unitMode:
-          type: string
-          enum: [kg, unit, mixed]
-        quantityKg:
-          type: number
-          description: Estimated/requested kg component
-        units:
-          type: integer
-          description: Requested units component
-        estimatesSnapshot:
-          type: object
-          properties:
-            avgWeightPerUnitKg: { type: number }
-        category: { type: string }
-        sourceFarmerName: { type: string }
-        sourceFarmName: { type: string }
-        farmerOrderId: { type: string }
-        # Optional fields present after packing/finalization
-        finalWeightKg:
-          type: number
-          nullable: true
-        # Some implementations expose a method; here we model the stored snapshot only.
-
-    # ---------- Errors ----------
-    ErrorWithDetails:
-      type: object
-      properties:
-        error:
-          type: string
-          example: "BadRequest"
-        details:
-          type: array
-          items: { type: string }
+                type: array
+                items:
+                  type: object
+                  properties:
+                    _id: { type: string }
+                    amsId: { type: string }
+                    shiftName: { type: string }
+                    status: { type: string }
+                    deliveryDate: { type: string, format: date }
+                    itemsSubtotal: { type: number }
+                    totalPrice: { type: number }
+                    totalOrderWeightKg: { type: number }
+                    items:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name: { type: string }
+                          category: { type: string }
+                          unitMode: { type: string, enum: [kg, unit, mixed] }
+                          quantityKg: { type: number }
+                          units: { type: number }
+                          pricePerKg: { type: number }
+                          derivedUnitPrice: { type: number, nullable: true }
+                          sourceFarmerName: { type: string }
+                          sourceFarmName: { type: string }
+        "401":
+          description: Unauthorized — missing or invalid token.
+        "500":
+          description: Internal server error.
