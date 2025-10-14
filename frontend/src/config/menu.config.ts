@@ -9,6 +9,7 @@
  */
 
 import type { MenuRegistry, MenuItem, Mode } from "@/types/menu";
+import { focusManager } from "@tanstack/react-query";
 
 /* ------------------------ Customer menu ------------------------ */
 export const noUserMenu: MenuRegistry["noUser"] = [
@@ -115,7 +116,38 @@ const workPicker: ReadonlyArray<MenuItem> = [
     path: ""
   },
  
-]
+] as const;
+
+const workFManager: ReadonlyArray<MenuItem> = [
+  {
+    type: "link",
+    key: "dashboard",
+    label: "dashboard",
+    path: ""
+  },
+ 
+] as const;
+
+
+const workTManager: ReadonlyArray<MenuItem> = [
+  {
+    type: "link",
+    key: "dashboard",
+    label: "dashboard",
+    path: ""
+  },
+ 
+] as const;
+
+const workCSManager: ReadonlyArray<MenuItem> = [
+  {
+    type: "link",
+    key: "dashboard",
+    label: "dashboard",
+    path: ""
+  },
+ 
+] as const;
 /* ------------------------ Registry export ------------------------ */
 
 export const MENUS: MenuRegistry = {
@@ -128,6 +160,9 @@ export const MENUS: MenuRegistry = {
     deliverer: workDeliverer,
     industrialDeliverer: workDeliverer,
     picker: workPicker,
+    fManager: workFManager,
+    tManager: workTManager,
+    csManager: workCSManager,
     // You can add more roles at runtime:
     // supervisor: [...],
   },

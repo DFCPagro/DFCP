@@ -323,7 +323,7 @@
     "season": "March-June",
     "sellModes": {
       "byKg": true,
-      "byUnit": false,
+      "byUnit": true,
       "unitBundleSize": 1
     },
     "tolerance": "0.02",
@@ -406,7 +406,7 @@
     "season": "March-June",
     "sellModes": {
       "byKg": true,
-      "byUnit": false,
+      "byUnit": true,
       "unitBundleSize": 1
     },
     "tolerance": "0.02",
@@ -489,7 +489,7 @@
     "season": "November-February",
     "sellModes": {
       "byKg": true,
-      "byUnit": false,
+      "byUnit": true,
       "unitBundleSize": 1
     },
     "tolerance": "0.02",
@@ -571,7 +571,7 @@
     "sdWeightPerUnitGr": 80,
     "season": "November-February",
     "sellModes": {
-      "byKg": false,
+      "byKg": true,
       "byUnit": true,
       "unitBundleSize": 1
     },
@@ -654,7 +654,7 @@
     "sdWeightPerUnitGr": 8,
     "season": "November-February",
     "sellModes": {
-      "byKg": false,
+      "byKg": true,
       "byUnit": true,
       "unitBundleSize": 1
     },
@@ -738,7 +738,7 @@
     "season": "July-October",
     "sellModes": {
       "byKg": true,
-      "byUnit": false,
+      "byUnit": true,
       "unitBundleSize": 1
     },
     "tolerance": "0.02",
@@ -821,7 +821,7 @@
     "season": "July-October",
     "sellModes": {
       "byKg": true,
-      "byUnit": false,
+      "byUnit": true,
       "unitBundleSize": 1
     },
     "tolerance": "0.02",

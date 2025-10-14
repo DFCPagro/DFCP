@@ -1,9 +1,10 @@
+// scripts/seeds/seed.ams.ts
 /**
  * Seed: next TWO AMS docs (empty), then for each shift:
- *   - pick 5 items
+ *   - pick 5 items (full Item docs)
  *   - create 5 farmer orders for Farmer 1 (one per item) AND the same 5 for Farmer 2
  *   - random committed kg per farmer order
- *   - set farmerStatus="ok" and add to AMS with unitMode + estimates
+ *   - set farmerStatus="ok" and add to AMS (service derives unitMode + estimates)
  *
  * Run (PowerShell):
  *   $env:MONGO_URI="mongodb+srv://user:pass@cluster/mydb"
@@ -14,25 +15,23 @@ import "dotenv/config";
 import mongoose, { Types } from "mongoose";
 
 import { connectDB, disconnectDB } from "../../../src/db/connect";
-import { listItems } from "../../../src/services/items.service";
 import {
   addItemToAvailableMarketStock,
   getAvailableMarketStockByKey,
 } from "../../../src/services/availableMarketStock.service";
 import { AvailableMarketStockModel } from "../../../src/models/availableMarketStock.model";
 import { FarmerOrder } from "../../../src/models/farmerOrder.model";
-import { Item } from "../../../src/models/Item.model";
+import ItemModel from "../../../src/models/Item.model";
 import { getContactInfoByIdService } from "../../../src/services/user.service";
-import { buildAmsItemFromItem } from "../../../src/services/amsLine.builder";
 
 // -----------------------------
 // Config
 // -----------------------------
 const TZ = "Asia/Jerusalem";
-const STATIC_LC_ID = "66e007000000000000000001";            // LC _id (hex string)
-const FARMER_MANAGER_ID = "66f2aa000000000000000005";        // createdBy/updatedBy
+const STATIC_LC_ID = "66e007000000000000000001";     // LC _id (hex string)
+const FARMER_MANAGER_ID = "66f2aa000000000000000005"; // createdBy/updatedBy
 
-// static *user* IDs for two farmers (assumed == Farmer._id)
+// two *user* IDs for farmers (assuming == Farmer._id; change if needed)
 const Farmer1_ID = "66f2aa000000000000000008";
 const Farmer2_ID = "66f2aa00000000000000002a";
 
@@ -46,7 +45,7 @@ const SHIFT_CONFIG = [
 const ITEMS_PER_SHIFT = 5;
 
 // -----------------------------
-// Utilities
+// Helpers
 // -----------------------------
 function fmtYMD(date: Date, timeZone: string): string {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
@@ -93,9 +92,7 @@ function isEggs(item: any): boolean {
   return t.includes("egg") || v.includes("egg") || c.includes("egg");
 }
 
-// -----------------------------
-// AMS helpers
-// -----------------------------
+// AMS doc helpers
 async function ensureEmptyAMS(LCid: string, dateYMD: string, shift: "morning" | "afternoon" | "evening" | "night") {
   let doc = await getAvailableMarketStockByKey({ LCid, date: dateYMD, shift });
   if (!doc) {
@@ -124,21 +121,24 @@ async function ensureAMSId(LCid: string, dateYMD: string, shift: "morning" | "af
   return String(created._id);
 }
 
-// -----------------------------
-// Items pool
-// -----------------------------
-async function pickRandomItems(n: number) {
-  const pool = await listItems({}, { limit: 200, page: 1, sort: "-updatedAt", lean: true });
-  const arr = pool.items || [];
+// items pool — full documents (lean)
+async function pickRandomItemDocs(n: number) {
+  const arr = await ItemModel.find({}, null, { sort: { updatedAt: -1 }, lean: true });
   if (arr.length < n) throw new Error(`Not enough items in DB to sample ${n}. Found: ${arr.length}`);
+
   const chosen: any[] = [];
   const used = new Set<number>();
   while (chosen.length < n) {
-    const idx = randInt(0, arr.length - 1);
+    const idx = Math.floor(Math.random() * arr.length);
     if (!used.has(idx)) { used.add(idx); chosen.push(arr[idx]); }
   }
-  return chosen;
+  return chosen; // full docs
 }
+
+// summary typing helpers
+const UNIT_MODES = ["kg", "unit", "mixed"] as const;
+type UnitMode = typeof UNIT_MODES[number];
+const isUnitMode = (v: any): v is UnitMode => v === "kg" || v === "unit" || v === "mixed";
 
 // -----------------------------
 // Seed
@@ -147,12 +147,16 @@ async function seed() {
   const conn = await connectDB();
   console.log(`🔌 Connected to ${conn.name}`);
 
+  // ------- summary trackers -------
+  const summary = {
+    byShift: new Map<string, { amsDocId: string; lines: number; byMode: Record<UnitMode, number> }>(),
+    farmerOrders: { total: 0, byFarmer: new Map<string, number>() },
+  };
+
   try {
     // fetch farmer display data once (by *user* id)
     const f1 = await getContactInfoByIdService(Farmer1_ID);
     const f2 = await getContactInfoByIdService(Farmer2_ID);
-
-    // For FarmerOrder.farmerId we assume Farmer _id == User _id; adjust if different.
     const FARMERS = [
       { farmerUserId: Farmer1_ID, farmerId: new Types.ObjectId(Farmer1_ID), farmerName: f1.name, farmName: f1.farmName || "freshy fresh", farmLogo: f1.farmLogo ?? null },
       { farmerUserId: Farmer2_ID, farmerId: new Types.ObjectId(Farmer2_ID), farmerName: f2.name, farmName: f2.farmName || "freshy fresh", farmLogo: f2.farmLogo ?? null },
@@ -167,43 +171,35 @@ async function seed() {
       await ensureEmptyAMS(STATIC_LC_ID, s.ymd, s.name);
     }
 
-    // 3) Pick 5 random items
-    const items = await pickRandomItems(ITEMS_PER_SHIFT);
+    // 3) Pick 5 random items (full docs)
+    const items = await pickRandomItemDocs(ITEMS_PER_SHIFT);
     console.log("[Items] Selected:", items.map((it: any) => ({ id: String(it._id), type: it.type, variety: it.variety })));
 
-
-    // 4) For each shift: for each item, create an FO for Farmer1 AND for Farmer2
+    // 4) For each shift: for each item, create FO for Farmer1 AND Farmer2, then push to AMS
     for (const s of next2) {
       const key = `${s.ymd} ${s.name}`;
-      console.log(`[Shift] ${key}: creating farmer orders & AMS lines…`);
+      console.log(`\n[Shift] ${key}: creating farmer orders & AMS lines…`);
 
       const amsId = await ensureAMSId(STATIC_LC_ID, s.ymd, s.name);
 
-      for (const item of items) {
-        // Enrich from Item collection for AMS line + price
-        const itemDoc: any = await Item.findById(item._id).lean();
-        if (!itemDoc) {
-          console.warn(`[WARN] Item not found: ${String(item._id)} — skipping`);
-          continue;
-        }
-
-        // price per KG (your AMS uses pricePerUnit as per-KG)
-        const pricePerKg = Number(itemDoc?.price?.a ?? itemDoc?.priceA ?? itemDoc?.price?.kg ?? NaN);
+      for (const itemDoc of items) {
+        // sanity: need base price per KG
+        const pricePerKg = Number(itemDoc?.price?.a);
         if (!Number.isFinite(pricePerKg) || pricePerKg < 0) {
-          console.warn(`[WARN] Missing/invalid pricePerKg for item ${String(item._id)} — skipping`);
+          console.warn(`[WARN] Missing/invalid price.a for item ${String(itemDoc._id)} — skipping`);
           continue;
         }
 
         // both farmers get this item (2 orders per item)
         for (const farmer of FARMERS) {
-          const committedKg = isEggs(item) ? 80 : randInt(50, 80);
+          const committedKg = isEggs(itemDoc) ? 80 : randInt(50, 80);
 
-          // Create FarmerOrder (aligned with model: ObjectId fields)
+          // Create FarmerOrder per model (farmerStatus = "ok")
           const created = await FarmerOrder.create({
             createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
             updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
 
-            itemId: new Types.ObjectId(item._id),
+            itemId: new Types.ObjectId(itemDoc._id),
             type: String(itemDoc.type || "Unknown"),
             variety: String(itemDoc.variety || ""),
             pictureUrl: String(itemDoc?.imageUrl ?? "https://example.com/placeholder.jpg"),
@@ -223,64 +219,69 @@ async function seed() {
 
             orders: [],
             containers: [],
-
             historyAuditTrail: [],
           });
 
-          // Build AMS item using your builder (returns schema-aligned shape)
-          const amsLine = buildAmsItemFromItem({
-            item: itemDoc,
-            farmer: {
-              id: created.farmerId,
-              name: created.farmerName,
-              farmName: created.farmName,
-              farmLogo: farmer.farmLogo ?? undefined,
-            },
-            committedKg,
-            unitConfig: { zScore: 1.28, shrinkagePct: 0.02 }, // optional tuning
-          });
+          summary.farmerOrders.total += 1;
+          summary.farmerOrders.byFarmer.set(
+            farmer.farmerName,
+            (summary.farmerOrders.byFarmer.get(farmer.farmerName) ?? 0) + 1
+          );
 
-          // Attach FarmerOrder link
-          (amsLine as any).farmerOrderId = created._id;
+          // Push to AMS (service computes unitMode + pricePerUnit + estimates)
+          const displayName = itemDoc.variety ? `${itemDoc.type} ${itemDoc.variety}` : itemDoc.type;
 
-          // Ensure per-KG price is set under pricePerUnit (builder already does; keep defensively)
-          (amsLine as any).pricePerUnit = pricePerKg;
-
-          // Push to AMS via service
-          // NOTE: If your service interface expects strings for some fields, coerce below
           await addItemToAvailableMarketStock({
             docId: amsId,
             item: {
-              // string coercions for maximal TS compatibility with service signature
-              itemId: String((amsLine as any).itemId),
-              displayName: (amsLine as any).displayName,
-              imageUrl: (amsLine as any).imageUrl ?? null,
-              category: (amsLine as any).category,
-              pricePerUnit: Number((amsLine as any).pricePerUnit),
+              itemId: String(itemDoc._id),
+              displayName,
+              imageUrl: itemDoc.imageUrl ?? null,
+              category: itemDoc.category,
 
-              originalCommittedQuantityKg: Number((amsLine as any).originalCommittedQuantityKg),
-              currentAvailableQuantityKg: Number((amsLine as any).currentAvailableQuantityKg),
+              // DO NOT send pricePerUnit/unitMode/estimates (service derives them)
 
-              farmerOrderId: String((amsLine as any).farmerOrderId),
-              farmerID: String((amsLine as any).farmerID),
-              farmerName: (amsLine as any).farmerName,
-              farmName: (amsLine as any).farmName,
-              farmLogo: (amsLine as any).farmLogo ?? null,
+              originalCommittedQuantityKg: committedKg,
+              currentAvailableQuantityKg: committedKg,
 
-              unitMode: (amsLine as any).unitMode,     // "kg" | "unit" | "mixed"
-              estimates: (amsLine as any).estimates,   // { avgWeightPerUnitKg?, stdDevKg?, availableUnitsEstimate? }
+              farmerOrderId: String(created._id),
+              farmerID: String(farmer.farmerId),
+              farmerName: farmer.farmerName,
+              farmName: farmer.farmName,
+              farmLogo: farmer.farmLogo ?? null,
 
-              status: (amsLine as any).status ?? "active",
-            } as any, // <-- cast in case the service's TS type hasn't been widened yet
+              status: "active",
+            },
           });
         }
       }
 
-      // Verify AMS items count (should be 10 per shift: 5 items × 2 farmers)
-      const d = await getAvailableMarketStockByKey({ LCid: STATIC_LC_ID, date: s.ymd, shift: s.name });
-      console.log(`[VERIFY] ${key}: AMS ${d?._id?.toString()} items=${d?.items?.length ?? 0}`);
+      // summary snapshot for this shift
+      const doc = await getAvailableMarketStockByKey({ LCid: STATIC_LC_ID, date: s.ymd, shift: s.name });
+      const byMode: Record<UnitMode, number> = { kg: 0, unit: 0, mixed: 0 };
+      for (const it of (doc?.items ?? [])) {
+        const m = (it as any).unitMode;
+        if (isUnitMode(m)) byMode[m] += 1;
+      }
+      summary.byShift.set(key, {
+        amsDocId: String(doc?._id ?? ""),
+        lines: doc?.items?.length ?? 0,
+        byMode,
+      });
     }
 
+    // -------- summary output --------
+    console.log("\n===== SEED SUMMARY =====");
+    for (const [shiftKey, info] of summary.byShift) {
+      console.log(
+        `• ${shiftKey} | AMS: ${info.amsDocId} | lines: ${info.lines} | modes => kg:${info.byMode.kg} unit:${info.byMode.unit} mixed:${info.byMode.mixed}`
+      );
+    }
+    console.log(`FarmerOrders created: ${summary.farmerOrders.total}`);
+    for (const [farmerName, count] of summary.farmerOrders.byFarmer) {
+      console.log(`  - ${farmerName}: ${count}`);
+    }
+    console.log("Farmer status set to 'ok' for all created FarmerOrders.");
     console.log("✅ Done.");
   } finally {
     await disconnectDB().catch(() => {});

@@ -8,6 +8,9 @@ export const DEFAULT_LANDINGS = {
     farmer: "/farmer/crops",
     manager: "/manager/orders/active",
     deliverer: "/deliverer/schedule",
+    fManager: "/fManager/dashboard",
+    tManager: "/tManager/dashboard",
+    csManager: "/csManager/dashboard",
   },
 } as const;
 

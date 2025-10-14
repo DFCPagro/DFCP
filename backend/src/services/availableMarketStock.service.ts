@@ -7,6 +7,7 @@ import {
   SHIFT_NAMES,
 } from "../models/availableMarketStock.model";
 import ItemModel from "../models/Item.model";
+import {getItemByItemId} from "./items.service"; 
 import { getNextAvailableShifts, getShiftConfigByKey } from "./shiftConfig.service";
 import { normalizeWindow } from "../utils/time";
 
@@ -362,7 +363,7 @@ export async function adjustAvailableQtyByUnitsAtomic(params: {
 
 /* ------------------------------ add/update/remove ------------------------------ */
 
-// In: src/services/availableMarketStock.service.ts
+
 // Requires: conservativeUnitsFromKg helper defined elsewhere in this file.
 
 export async function addItemToAvailableMarketStock(params: {
@@ -373,7 +374,7 @@ export async function addItemToAvailableMarketStock(params: {
     imageUrl?: string | null;
     category: string;
 
-    // Optional: only used as a hard override, otherwise computed
+    // Caller-sent pricePerUnit is ignored (see below)
     pricePerUnit?: number | null;
 
     originalCommittedQuantityKg: number;
@@ -389,14 +390,21 @@ export async function addItemToAvailableMarketStock(params: {
   };
 }) {
   const { docId } = params;
-  // Strip any accidental unitMode/estimates from callers
   const { unitMode: _ignoreUM, estimates: _ignoreEst, ...item } = params.item as any;
 
-  // 1) Fetch authoritative data from Items
+  // 0) Ensure AMS exists
+  const amsDoc = await AvailableMarketStockModel.findById(docId, { _id: 1 }).lean();
+  if (!amsDoc) {
+    throw new Error(`AvailableMarketStock not found for docId=${docId}`);
+  }
+
+  // 1) Fetch authoritative Item fields
   const it = await ItemModel.findById(item.itemId, {
     price: 1,
     pricePerUnitOverride: 1,
     sellModes: 1,
+    unitMode: 1, // legacy
+    mode: 1,     // legacy
     avgWeightPerUnitGr: 1,
     sdWeightPerUnitGr: 1,
     imageUrl: 1,
@@ -411,42 +419,40 @@ export async function addItemToAvailableMarketStock(params: {
 
   const pricePerKg: number = (it as any).price.a;
 
-  const byUnit: boolean = !!(it as any).sellModes?.byUnit;
-  const byKg: boolean = (it as any).sellModes?.byKg !== false; // default true
-  const unitBundleSize: number = Math.max(1, (it as any).sellModes?.unitBundleSize ?? 1);
+  // 2) Determine selling mode (new + legacy fallback)
+  let byUnit: boolean = !!(it as any).sellModes?.byUnit;
+  let byKg: boolean = (it as any).sellModes?.byKg !== false; // default true
+  let unitBundleSize: number = Math.max(1, (it as any).sellModes?.unitBundleSize ?? 1);
 
-  const avgGr: number | null = (it as any).avgWeightPerUnitGr ?? null; // grams
-  const sdGr: number = (it as any).sdWeightPerUnitGr ?? 0;             // grams
+  if (!(it as any).sellModes) {
+    const legacy = String((it as any).unitMode ?? (it as any).mode ?? "").toLowerCase();
+    if (legacy === "mixed") { byKg = true; byUnit = true; }
+    else if (legacy === "unit") { byKg = false; byUnit = true; }
+    else if (legacy === "kg") { byKg = true; byUnit = false; }
+  }
 
-  // 2) Determine unitMode from sellModes
   let unitMode: "kg" | "unit" | "mixed" = "kg";
   if (byUnit && byKg) unitMode = "mixed";
   else if (byUnit) unitMode = "unit";
 
-  // 3) Compute pricePerUnit ONLY for unit/mixed
+  // 3) Compute pricePerUnit ONLY from Item (ignore caller)
+  const avgGr: number | null = (it as any).avgWeightPerUnitGr ?? null; // grams
+  const sdGr: number = (it as any).sdWeightPerUnitGr ?? 0;             // grams
   const hasAvg = typeof avgGr === "number" && avgGr > 0;
-  let pricePerUnit: number | null =
-    unitMode === "unit" || unitMode === "mixed" ? null : null;
 
+  let pricePerUnit: number | null = null;
   if (unitMode === "unit" || unitMode === "mixed") {
-    if (item.pricePerUnit != null && Number.isFinite(item.pricePerUnit)) {
-      pricePerUnit = Number(item.pricePerUnit); // hard override from caller (if you want to allow)
-    } else {
-      const override = (it as any).pricePerUnitOverride;
-      if (typeof override === "number" && override >= 0) {
-        pricePerUnit = override;
-      } else if (hasAvg) {
-        pricePerUnit = pricePerKg * (avgGr! / 1000);
-      } else {
-        pricePerUnit = null; // no avg → can't compute meaningful unit price
-      }
-    }
+    const override = (it as any).pricePerUnitOverride;
+    if (typeof override === "number" && override >= 0) {
+      pricePerUnit = override;
+    } else if (hasAvg) {
+      pricePerUnit = pricePerKg * (avgGr! / 1000);
+    } // else null
   }
 
-  // 4) Estimates (grams → kg once)
+  // 4) Estimates (grams → kg)
   const avgWeightPerUnitKg = hasAvg ? avgGr! / 1000 : null;
   const sdKg = sdGr > 0 ? sdGr / 1000 : 0;
-
   const zScore = 1.28;
   const shrinkagePct = 0.02;
 
@@ -462,15 +468,15 @@ export async function addItemToAvailableMarketStock(params: {
     );
   }
 
-  // 5) Build payload aligned to AMS schema (now with pricePerKg always present)
+  // 5) Payload — prefer authoritative category/image from Item
   const payload: any = {
     itemId: new Types.ObjectId(item.itemId),
     displayName: item.displayName,
-    imageUrl: item.imageUrl ?? null,
-    category: item.category,
+    imageUrl: it?.imageUrl ?? item.imageUrl ?? null,
+    category: it?.category ?? item.category,
 
-    pricePerKg,                 // <-- always
-    pricePerUnit,               // <-- null unless unit/mixed (and computable/overridden)
+    pricePerKg,
+    pricePerUnit,
 
     originalCommittedQuantityKg: item.originalCommittedQuantityKg,
     currentAvailableQuantityKg: item.currentAvailableQuantityKg,
@@ -485,9 +491,9 @@ export async function addItemToAvailableMarketStock(params: {
     unitMode, // "kg" | "unit" | "mixed"
 
     estimates: {
-      avgWeightPerUnitKg,       // e.g., 0.18 for 180g
-      sdKg,                     // 0 if missing
-      availableUnitsEstimate,   // conservative, bundle-aligned integer, or null
+      avgWeightPerUnitKg,
+      sdKg,
+      availableUnitsEstimate,
       unitBundleSize,
       zScore,
       shrinkagePct,
@@ -503,6 +509,9 @@ export async function addItemToAvailableMarketStock(params: {
     { new: true }
   );
 
+  // (defensive) handle race — shouldn't happen because we checked above
+  if (!updated) throw new Error(`Failed to update AvailableMarketStock ${docId}`);
+
   const newLine = (updated as any)?.items?.at?.(-1);
   if (newLine?._id) {
     console.log("AMS addItem> saved", {
@@ -517,6 +526,7 @@ export async function addItemToAvailableMarketStock(params: {
 
   return updated;
 }
+
 
 
 export async function updateItemQtyStatusAtomic(params: {
