@@ -98,6 +98,21 @@ ItemSchema.virtual("pricePerUnit").get(function (this: any) {
   return this.price.a * (this.avgWeightPerUnitGr / 1000); // derived from price per KG
 });
 
+// Put near other virtuals
+type UnitMode = "kg" | "unit" | "mixed";
+function deriveUnitMode(byKg?: boolean, byUnit?: boolean): UnitMode {
+  const kg = byKg !== false;   // default true if undefined
+  const unit = !!byUnit;       // default false if undefined
+  if (kg && unit) return "mixed";
+  if (unit) return "unit";
+  return "kg";
+}
+
+ItemSchema.virtual("unitMode").get(function (this: any): UnitMode {
+  return deriveUnitMode(this.sellModes?.byKg, this.sellModes?.byUnit);
+});
+
+
 // --- hooks ---
 ItemSchema.pre("save", function (next) {
   (this as any).lastUpdated = new Date();
@@ -109,14 +124,64 @@ ItemSchema.pre("findOneAndUpdate", function (next) {
   next();
 });
 
+
+/*
+→ Enforces sane defaults and cleans data before saving
+→ Makes sure you never have an invalid combination (like both false, or negative bundle size, etc.)
+*/
+
 ItemSchema.pre("validate", function (next) {
   const doc = this as any;
+
+  // ---- sellModes guardrails ----
+  const byKg = doc.sellModes?.byKg !== false;       // default true
+  const byUnit = !!doc.sellModes?.byUnit;           // default false
+
+  // Ensure at least one mode is enabled
+  if (!byKg && !byUnit) {
+    doc.sellModes = {
+      ...(doc.sellModes || {}),
+      byKg: true,
+      byUnit: false,
+      unitBundleSize: Math.max(1, doc.sellModes?.unitBundleSize ?? 1),
+    };
+  }
+
+  // Unit sales sanity: bundle >= 1
+  if (byUnit) {
+    if (!doc.sellModes) doc.sellModes = {};
+    if (!Number.isFinite(doc.sellModes.unitBundleSize) || doc.sellModes.unitBundleSize < 1) {
+      doc.sellModes.unitBundleSize = 1;
+    }
+  }
+
+  // ---- friendly nudge (optional) ----
+  // If by-unit is enabled but no override AND no avgWeight, pricePerUnit will be null.
+  // This does not block the save; it only warns in dev/when enabled.
+  // You can disable via ITEM_WARN_WEIGHT_MISSING=0 env var.
+  //ps doesnt block the save it just warns in dev when enabled
+  const SHOULD_WARN =
+    process.env.NODE_ENV !== "production" && // only warn outside prod by default
+    (process.env.ITEM_WARN_WEIGHT_MISSING ?? "1") !== "0"; // can disable via env
+
+  if (SHOULD_WARN && byUnit && doc.pricePerUnitOverride == null && !doc.avgWeightPerUnitGr) {
+    // keep it short & useful
+    console.warn(
+      `[Item] byUnit enabled but avgWeightPerUnitGr missing (pricePerUnit will be null):`,
+      { id: String(doc._id || ""), type: doc.type, variety: doc.variety ?? "" }
+    );
+  }
+
+  // legacy qualityStandards compatibility (your existing bit)
   const qs = doc.qualityStandards;
   if (qs && !qs.weightPerUnit && qs.weightPerUnitG) {
     qs.weightPerUnit = qs.weightPerUnitG;
   }
+
+  (this as any).lastUpdated = new Date();
   next();
 });
+
 
 // --- indexes ---
 ItemSchema.index({ category: 1, type: 1, variety: 1 });
