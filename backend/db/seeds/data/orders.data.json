@@ -1,0 +1,1787 @@
+[
+  {
+    "_id": "9e1d14c0ecb64fb068009f62",
+    "customerId": "66f2aa00000000000000000a",
+    "deliveryAddress": {
+      "lnt": 35.0,
+      "alt": 31.9,
+      "address": "Modiin, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "afternoon",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "8feed402ff7639d9671342c9",
+    "items": [
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Item",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.45,
+        "unitMode": "mixed",
+        "quantityKg": 0.87,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.18,
+          "stdDevKg": 0.027
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "47dc273e04232adae78e5dd3"
+      },
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.5,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "f290716e5e11fae8b33c9f3a"
+      },
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Item",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.94,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.005,
+          "stdDevKg": 0.001
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "4dd7f4e04e355de606436395"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 1.86,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "df42c911a40c7245463f3ef3"
+      },
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Item",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "category": "fruit",
+        "pricePerUnit": 20.0,
+        "pricePerKg": 20.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 0.53,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.018,
+          "stdDevKg": 0.003
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "a80d62f696d7f51ae0cbf29b"
+      }
+    ],
+    "itemsSubtotal": 85.13,
+    "deliveryFee": 5.0,
+    "totalPrice": 90.13,
+    "totalOrderWeightKg": 14.54,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.131947+03:00",
+    "updatedAt": "2025-10-14T15:06:41.131957+03:00"
+  },
+  {
+    "_id": "1d9181cde9163a1531381995",
+    "customerId": "66f2aa00000000000000000c",
+    "deliveryAddress": {
+      "lnt": 34.98,
+      "alt": 32.82,
+      "address": "Herzliya, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "afternoon",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "8feed402ff7639d9671342c9",
+    "items": [
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 0.81,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "2e400be0900938a0b549c00c"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 0.88,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "326020f2cb3293a622605501"
+      },
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Item",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 0.94,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.005,
+          "stdDevKg": 0.001
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "3ab74e13cbddd73b199ec82d"
+      },
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Item",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "category": "fruit",
+        "pricePerUnit": 20.0,
+        "pricePerKg": 20.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.71,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.018,
+          "stdDevKg": 0.003
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "b0565ed728cdf62c4ddfdf65"
+      },
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Item",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.54,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.12,
+          "stdDevKg": 0.018
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "57bb17c08221f3eebe0d2909"
+      }
+    ],
+    "itemsSubtotal": 84.14,
+    "deliveryFee": 5.0,
+    "totalPrice": 89.14,
+    "totalOrderWeightKg": 11.29,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.132159+03:00",
+    "updatedAt": "2025-10-14T15:06:41.132163+03:00"
+  },
+  {
+    "_id": "491c71c34d82f4be71a9fead",
+    "customerId": "66f2aa00000000000000000b",
+    "deliveryAddress": {
+      "lnt": 34.77,
+      "alt": 32.05,
+      "address": "Bat Yam, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "afternoon",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "8feed402ff7639d9671342c9",
+    "items": [
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Item",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "category": "fruit",
+        "pricePerUnit": 20.0,
+        "pricePerKg": 20.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.07,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.018,
+          "stdDevKg": 0.003
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "b53d6b7c1c3e7dd15bdf929d"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 0.54,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "d97a800b0e6ebf356392cc36"
+      },
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Item",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.49,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.003,
+          "stdDevKg": 0.0
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "b07bf55a93c4c82da8015b90"
+      },
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Item",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.45,
+        "unitMode": "mixed",
+        "quantityKg": 1.8,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.18,
+          "stdDevKg": 0.027
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "1158788521c7de7a978df9c8"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Item",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "category": "vegetable",
+        "pricePerUnit": 3.5,
+        "pricePerKg": 3.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.54,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.05,
+          "stdDevKg": 0.007
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "8310138842f8bd1bd4e6dccd"
+      }
+    ],
+    "itemsSubtotal": 54.68,
+    "deliveryFee": 5.0,
+    "totalPrice": 59.68,
+    "totalOrderWeightKg": 10.2,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.132319+03:00",
+    "updatedAt": "2025-10-14T15:06:41.132323+03:00"
+  },
+  {
+    "_id": "1a77b84c23fa5f907839a48e",
+    "customerId": "66f2aa000000000000000007",
+    "deliveryAddress": {
+      "lnt": 34.959,
+      "alt": 32.82,
+      "address": "Netanya, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "afternoon",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "8feed402ff7639d9671342c9",
+    "items": [
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.75,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "123ec41369828eaafecc5a85"
+      },
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Item",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 0.94,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.12,
+          "stdDevKg": 0.018
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "a2f56997ab2a80f6b6eaedab"
+      },
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Item",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.07,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.003,
+          "stdDevKg": 0.0
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "7672b922cf1bad8780f78e2a"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 1.9,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "2ff09d758180bf1fb9434f66"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 1.15,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "c9521ef2458ea396119cb8ff"
+      }
+    ],
+    "itemsSubtotal": 68.27,
+    "deliveryFee": 5.0,
+    "totalPrice": 73.27,
+    "totalOrderWeightKg": 13.81,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.132462+03:00",
+    "updatedAt": "2025-10-14T15:06:41.132466+03:00"
+  },
+  {
+    "_id": "51c068930a1309b77b2d334d",
+    "customerId": "66f2aa00000000000000000d",
+    "deliveryAddress": {
+      "lnt": 35.1,
+      "alt": 31.9,
+      "address": "Rehovot, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "afternoon",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "8feed402ff7639d9671342c9",
+    "items": [
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Item",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "category": "vegetable",
+        "pricePerUnit": 3.5,
+        "pricePerKg": 3.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.12,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.05,
+          "stdDevKg": 0.007
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "f2764a7715648c5e35171ac3"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 1.82,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "b8d80f889c3e406575391651"
+      },
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Item",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.45,
+        "unitMode": "mixed",
+        "quantityKg": 1.16,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.18,
+          "stdDevKg": 0.027
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "8f99a78bbca4ebb44c0af658"
+      },
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Item",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.17,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.005,
+          "stdDevKg": 0.001
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "fda1ca53632ffb84a69d2d19"
+      },
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Item",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.69,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.003,
+          "stdDevKg": 0.0
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "1a7cdfe01f70736478e74498"
+      }
+    ],
+    "itemsSubtotal": 38.69,
+    "deliveryFee": 5.0,
+    "totalPrice": 43.69,
+    "totalOrderWeightKg": 10.82,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.132609+03:00",
+    "updatedAt": "2025-10-14T15:06:41.132612+03:00"
+  },
+  {
+    "_id": "70c0c7caaafb62994ab30f33",
+    "customerId": "66f2aa000000000000000009",
+    "deliveryAddress": {
+      "lnt": 34.9,
+      "alt": 32.1,
+      "address": "Holon, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "evening",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "33fde708edad13b6924e6335",
+    "items": [
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 1.86,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "6fdecf12c8fd796ba51e91dc"
+      },
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Item",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.45,
+        "unitMode": "mixed",
+        "quantityKg": 1.36,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.18,
+          "stdDevKg": 0.027
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "0e63bba25b708bc4bad0a26b"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 1.87,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "a00575f60b6a1bc093703eb6"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 1.7,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "76a8f1e1de65ec7bcf8ae9b1"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Item",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "category": "vegetable",
+        "pricePerUnit": 3.5,
+        "pricePerKg": 3.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.8,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.05,
+          "stdDevKg": 0.007
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "52da974f03353d305b75e4bf"
+      }
+    ],
+    "itemsSubtotal": 73.68,
+    "deliveryFee": 5.0,
+    "totalPrice": 78.68,
+    "totalOrderWeightKg": 15.95,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.132898+03:00",
+    "updatedAt": "2025-10-14T15:06:41.132901+03:00"
+  },
+  {
+    "_id": "dcd111e9d6904bc71c6159a2",
+    "customerId": "66f2aa00000000000000000b",
+    "deliveryAddress": {
+      "lnt": 34.77,
+      "alt": 32.05,
+      "address": "Bat Yam, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "evening",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "33fde708edad13b6924e6335",
+    "items": [
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Item",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 0.79,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.003,
+          "stdDevKg": 0.0
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "7696f3fefc5f190c6d11b96e"
+      },
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.32,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "cb59f0147ecfe29479ab6c26"
+      },
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Item",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "category": "fruit",
+        "pricePerUnit": 20.0,
+        "pricePerKg": 20.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.29,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.018,
+          "stdDevKg": 0.003
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "463f0842fbe28047acd3364f"
+      },
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Item",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.45,
+        "unitMode": "mixed",
+        "quantityKg": 0.99,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.18,
+          "stdDevKg": 0.027
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "26b602bf7d042cd9dfc0c37b"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 1.03,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "64a45f5ee0a385949ee7b700"
+      }
+    ],
+    "itemsSubtotal": 52.29,
+    "deliveryFee": 5.0,
+    "totalPrice": 57.29,
+    "totalOrderWeightKg": 8.52,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.133032+03:00",
+    "updatedAt": "2025-10-14T15:06:41.133035+03:00"
+  },
+  {
+    "_id": "7a2be40f91da512a9c76184a",
+    "customerId": "66f2aa00000000000000000d",
+    "deliveryAddress": {
+      "lnt": 35.1,
+      "alt": 31.9,
+      "address": "Rehovot, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "evening",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "33fde708edad13b6924e6335",
+    "items": [
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 1.26,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "16e4d6e75160acf64a7cb393"
+      },
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Item",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.85,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.12,
+          "stdDevKg": 0.018
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "a772b13fe3f2ad1ccffbaa40"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Item",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "category": "vegetable",
+        "pricePerUnit": 3.5,
+        "pricePerKg": 3.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.99,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.05,
+          "stdDevKg": 0.007
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "57ba8690de00747c3774431e"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 1.35,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "948864424ad530175cdead2c"
+      },
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Item",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "category": "fruit",
+        "pricePerUnit": 20.0,
+        "pricePerKg": 20.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.89,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.018,
+          "stdDevKg": 0.003
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "84e6f1c15d635ff3cab30872"
+      }
+    ],
+    "itemsSubtotal": 122.24,
+    "deliveryFee": 5.0,
+    "totalPrice": 127.24,
+    "totalOrderWeightKg": 17.06,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.133193+03:00",
+    "updatedAt": "2025-10-14T15:06:41.133196+03:00"
+  },
+  {
+    "_id": "241808fc580e988c2ef8d82b",
+    "customerId": "66f2aa00000000000000001a",
+    "deliveryAddress": {
+      "lnt": 35.1,
+      "alt": 31.9,
+      "address": "Rehovot, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "evening",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "33fde708edad13b6924e6335",
+    "items": [
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Item",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.88,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.005,
+          "stdDevKg": 0.001
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "2e1180cf6841ec712cecbe3d"
+      },
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Item",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 0.57,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.003,
+          "stdDevKg": 0.0
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "a125de340729cf610dfc30ea"
+      },
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Item",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.91,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.12,
+          "stdDevKg": 0.018
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "7722dda300601b6eafbb4932"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 1.22,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "73ec5fa7d40f27d829eddfbb"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Item",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "category": "vegetable",
+        "pricePerUnit": 3.5,
+        "pricePerKg": 3.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 0.99,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.05,
+          "stdDevKg": 0.007
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "6c581bbb4fb619a112987531"
+      }
+    ],
+    "itemsSubtotal": 23.75,
+    "deliveryFee": 5.0,
+    "totalPrice": 28.75,
+    "totalOrderWeightKg": 8.01,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.133344+03:00",
+    "updatedAt": "2025-10-14T15:06:41.133347+03:00"
+  },
+  {
+    "_id": "a61008b85b589447133b96c4",
+    "customerId": "66f2aa00000000000000000c",
+    "deliveryAddress": {
+      "lnt": 34.98,
+      "alt": 32.82,
+      "address": "Herzliya, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "evening",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "33fde708edad13b6924e6335",
+    "items": [
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Item",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.12,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.12,
+          "stdDevKg": 0.018
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "4ff300563c568ad70c5ff0f0"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 0.72,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "efdadb483091746e053af721"
+      },
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.62,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "f2e68dfee37650afee838132"
+      },
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Item",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.23,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.005,
+          "stdDevKg": 0.001
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "c5c83ea22477b76f4b0ffe80"
+      },
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Item",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.64,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.003,
+          "stdDevKg": 0.0
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "bcd62b3106638cb147d645de"
+      }
+    ],
+    "itemsSubtotal": 32.38,
+    "deliveryFee": 5.0,
+    "totalPrice": 37.38,
+    "totalOrderWeightKg": 9.76,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.133497+03:00",
+    "updatedAt": "2025-10-14T15:06:41.133500+03:00"
+  },
+  {
+    "_id": "7823d59f7f1d9b3d2ee2c389",
+    "customerId": "66f2aa00000000000000000a",
+    "deliveryAddress": {
+      "lnt": 35.0,
+      "alt": 31.9,
+      "address": "Modiin, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "night",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "7f24c9bffe9be06e07e63e1c",
+    "items": [
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Item",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.45,
+        "unitMode": "mixed",
+        "quantityKg": 1.06,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.18,
+          "stdDevKg": 0.027
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "7bcb524b4bc8f5568056a238"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 0.99,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "5492884a1777971808869a9e"
+      },
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.28,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "2a3a97d6249a6f94915d29fa"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 1.36,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "1e4099c1f079c152ec69dd5b"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Item",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "category": "vegetable",
+        "pricePerUnit": 3.5,
+        "pricePerKg": 3.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.72,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.05,
+          "stdDevKg": 0.007
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "ab7ba3c990b073a9aaabcfa5"
+      }
+    ],
+    "itemsSubtotal": 65.96,
+    "deliveryFee": 5.0,
+    "totalPrice": 70.96,
+    "totalOrderWeightKg": 14.1,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.133750+03:00",
+    "updatedAt": "2025-10-14T15:06:41.133761+03:00"
+  },
+  {
+    "_id": "0235462a6b01805b24218a33",
+    "customerId": "66f2aa00000000000000000b",
+    "deliveryAddress": {
+      "lnt": 34.77,
+      "alt": 32.05,
+      "address": "Bat Yam, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "night",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "7f24c9bffe9be06e07e63e1c",
+    "items": [
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Item",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "category": "fruit",
+        "pricePerUnit": 20.0,
+        "pricePerKg": 20.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.38,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.018,
+          "stdDevKg": 0.003
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "45c3019feb87ae24ddd45214"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 1.23,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "4be5f939af640c38be6ac50f"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 1.8,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "95cb01c44e6e60e013be694c"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 1.85,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "89a0ac13e9a57e12326f8417"
+      },
+      {
+        "itemId": "f68140ef8273c40bbae48b98",
+        "name": "Item",
+        "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 0.66,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.003,
+          "stdDevKg": 0.0
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "a2b7861d520cf4e2a014b1e4"
+      }
+    ],
+    "itemsSubtotal": 94.38,
+    "deliveryFee": 5.0,
+    "totalPrice": 99.38,
+    "totalOrderWeightKg": 13.36,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.133951+03:00",
+    "updatedAt": "2025-10-14T15:06:41.133955+03:00"
+  },
+  {
+    "_id": "4ac8d62298e345d025bb7f26",
+    "customerId": "66f2aa000000000000000007",
+    "deliveryAddress": {
+      "lnt": 34.959,
+      "alt": 32.82,
+      "address": "Netanya, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "night",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "7f24c9bffe9be06e07e63e1c",
+    "items": [
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.51,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "6d4ff2838281c9c102c29f4c"
+      },
+      {
+        "itemId": "39bd70c4db17647c60d33c8f",
+        "name": "Item",
+        "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 7.0,
+        "pricePerKg": 7.0,
+        "derivedUnitPrice": 4.2,
+        "unitMode": "mixed",
+        "quantityKg": 1.96,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.6,
+          "stdDevKg": 0.09
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "ded8894e6a41136d014326fe"
+      },
+      {
+        "itemId": "db63c0177cfae45a8385313a",
+        "name": "Item",
+        "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+        "category": "fruit",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.45,
+        "unitMode": "mixed",
+        "quantityKg": 1.61,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.18,
+          "stdDevKg": 0.027
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "99e98253396854567654e8d7"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 1.57,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "c7fcd4f84b7ab66cb2de731d"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 0.59,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "e77913541e3f0ac30aff7c89"
+      }
+    ],
+    "itemsSubtotal": 81.13,
+    "deliveryFee": 5.0,
+    "totalPrice": 86.13,
+    "totalOrderWeightKg": 16.34,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.134154+03:00",
+    "updatedAt": "2025-10-14T15:06:41.134159+03:00"
+  },
+  {
+    "_id": "d27506010fefc42dba2c7881",
+    "customerId": "66f2aa00000000000000000c",
+    "deliveryAddress": {
+      "lnt": 34.98,
+      "alt": 32.82,
+      "address": "Herzliya, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "night",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "7f24c9bffe9be06e07e63e1c",
+    "items": [
+      {
+        "itemId": "885df3d97431436c3a205ff3",
+        "name": "Item",
+        "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.43,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.07,
+          "stdDevKg": 0.011
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "38301bb8a957b92243231d19"
+      },
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Item",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.49,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.12,
+          "stdDevKg": 0.018
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "38925b5d4ab5eac55cac6684"
+      },
+      {
+        "itemId": "30eb71d9a20cb517be34112f",
+        "name": "Item",
+        "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
+        "category": "fruit",
+        "pricePerUnit": 20.0,
+        "pricePerKg": 20.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 0.89,
+        "units": 8,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.018,
+          "stdDevKg": 0.003
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "8e33e64f765db4c9808c6cac"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 0.59,
+        "units": 9,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "9bab7b15a922f4b0e330c219"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 1.57,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "5811fdf5160677970eb77aa8"
+      }
+    ],
+    "itemsSubtotal": 50.2,
+    "deliveryFee": 5.0,
+    "totalPrice": 55.2,
+    "totalOrderWeightKg": 9.36,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.134316+03:00",
+    "updatedAt": "2025-10-14T15:06:41.134319+03:00"
+  },
+  {
+    "_id": "492a3d4cfa8eefbc98b79baa",
+    "customerId": "66f2aa00000000000000001a",
+    "deliveryAddress": {
+      "lnt": 35.1,
+      "alt": 31.9,
+      "address": "Rehovot, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    "deliveryDate": "2025-10-14",
+    "shiftName": "night",
+    "LogisticsCenterId": "66e007000000000000000001",
+    "amsId": "7f24c9bffe9be06e07e63e1c",
+    "items": [
+      {
+        "itemId": "497bb3e65bf348533160cec0",
+        "name": "Item",
+        "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.01,
+        "unitMode": "mixed",
+        "quantityKg": 1.8,
+        "units": 7,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.005,
+          "stdDevKg": 0.001
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "972b544d1aa94769495f788a"
+      },
+      {
+        "itemId": "6873f67b8027abff0fdb32f3",
+        "name": "Item",
+        "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
+        "category": "fruit",
+        "pricePerUnit": 3.0,
+        "pricePerKg": 3.0,
+        "derivedUnitPrice": 0.36,
+        "unitMode": "mixed",
+        "quantityKg": 1.85,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.12,
+          "stdDevKg": 0.018
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "951aa8abc4524a04cfbd0d8c"
+      },
+      {
+        "itemId": "ad126949daa1c7dd61ffcc4c",
+        "name": "Item",
+        "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+        "category": "vegetable",
+        "pricePerUnit": 2.5,
+        "pricePerKg": 2.5,
+        "derivedUnitPrice": 0.04,
+        "unitMode": "mixed",
+        "quantityKg": 0.72,
+        "units": 10,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.015,
+          "stdDevKg": 0.002
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Lahavim Valley Organics",
+        "farmerOrderId": "de8dbd3d31bf3a5965fb081e"
+      },
+      {
+        "itemId": "fa56428339a4f47db7d15600",
+        "name": "Item",
+        "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+        "category": "vegetable",
+        "pricePerUnit": 3.5,
+        "pricePerKg": 3.5,
+        "derivedUnitPrice": 0.18,
+        "unitMode": "mixed",
+        "quantityKg": 1.36,
+        "units": 5,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.05,
+          "stdDevKg": 0.007
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "5e5a68e2f45fd360437c2f0c"
+      },
+      {
+        "itemId": "bb87115ed0ab8a728b7d9622",
+        "name": "Item",
+        "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
+        "category": "fruit",
+        "pricePerUnit": 5.0,
+        "pricePerKg": 5.0,
+        "derivedUnitPrice": 1.0,
+        "unitMode": "mixed",
+        "quantityKg": 0.89,
+        "units": 6,
+        "estimatesSnapshot": {
+          "avgWeightPerUnitKg": 0.2,
+          "stdDevKg": 0.03
+        },
+        "sourceFarmerName": "Unknown Farmer",
+        "sourceFarmName": "Negev Sunrise Farm",
+        "farmerOrderId": "c7c57f1b682cff6df77553b6"
+      }
+    ],
+    "itemsSubtotal": 31.47,
+    "deliveryFee": 5.0,
+    "totalPrice": 36.47,
+    "totalOrderWeightKg": 8.97,
+    "status": "pending",
+    "historyAuditTrail": [],
+    "createdAt": "2025-10-14T15:06:41.134470+03:00",
+    "updatedAt": "2025-10-14T15:06:41.134473+03:00"
+  }
+]
