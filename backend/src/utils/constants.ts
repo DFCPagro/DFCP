@@ -1,4 +1,4 @@
-export const roles = ['customer', 'farmer', 'picker', 'sorter', 'deliverer','industrialDeliverer', 'tManager', 'fManager', 'opManager', 'admin'] as const;
+export const roles = ['customer', 'farmer', 'picker', 'sorter', 'deliverer','industrialDeliverer', 'tManager', 'fManager', 'opManager', 'admin','csManager'] as const;
 export type Role = typeof roles[number];
 
 /** ---------------------------

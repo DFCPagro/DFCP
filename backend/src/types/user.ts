@@ -1,5 +1,5 @@
 // Keep frontend roles aligned with backend
-export type Role = "admin" | "customer" | "staff" | "fmanager" |"tManager";
+export type Role = "admin" | "customer" | "staff" | "fmanager" |"tManager"|"opManager" | "csManager" | "deliverer" | "industrialDeliverer"|"csManager" | "fManager";
 
 export interface IUser {
   _id: string;

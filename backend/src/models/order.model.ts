@@ -339,6 +339,13 @@ OrderSchema.methods.applyPackingWeights = function (
   this.recalcFinalTotals();
 };
 
+OrderSchema.index({
+  LogisticsCenterId: 1,
+  shiftName: 1,
+  deliveryDate: 1,
+  status: 1,
+});
+
 // Keep both totals up to date on validate/save
 OrderSchema.pre("validate", function (next) {
   const doc = this as HydratedDocument<Order> & OrderMethods;

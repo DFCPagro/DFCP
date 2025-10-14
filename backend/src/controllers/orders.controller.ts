@@ -8,6 +8,8 @@ import { Role } from "../utils/constants";
 
 import { createOrderForCustomer,
   listOrdersForCustomer, 
+  ordersSummarry,
+  listOrdersForShift,
 
 } from "../services/order.service";
 
@@ -79,6 +81,66 @@ export async function getMyOrders(req: Request, res: Response) {
       return res.status(err.statusCode).json({ error: err.message });
     }
     console.error("[getMyOrders] error:", err);
+    return res.status(500).json({ error: "ServerError" });
+  }
+}
+
+export async function getOrdersSummary(req: Request, res: Response) {
+  try {
+    const logisticCenterId = String(req.query.lc || req.query.logisticCenterId || "");
+    if (!logisticCenterId) throw new ApiError(400, "Missing query param ?lc=<logisticCenterId>");
+
+    const countRaw = req.query.count ? Number(req.query.count) : 5;
+    const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.min(10, Math.floor(countRaw)) : 5;
+
+    const data = await ordersSummarry({ logisticCenterId, count });
+    return res.status(200).json({ data });
+  } catch (err: any) {
+    if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
+    console.error("[getOrdersSummary] error:", err);
+    return res.status(500).json({ error: "ServerError" });
+  }
+}
+
+
+export async function getOrdersForShift(req: Request, res: Response) {
+  try {
+    const logisticCenterId = String(req.query.lc || req.query.logisticCenterId || "");
+    const date = String(req.query.date || ""); // yyyy-LL-dd in LC timezone
+    const shiftName = String(req.query.shift || req.query.shiftName || "");
+
+    if (!logisticCenterId) throw new ApiError(400, "Missing query param ?lc=<logisticCenterId>");
+    if (!date) throw new ApiError(400, "Missing query param ?date=YYYY-MM-DD");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new ApiError(400, "Invalid date format, expected YYYY-MM-DD");
+    if (!["morning", "afternoon", "evening", "night"].includes(shiftName))
+      throw new ApiError(400, "Invalid shift; expected one of: morning|afternoon|evening|night");
+
+    const status = req.query.status ? String(req.query.status) : undefined; // optional filter
+    const pageRaw = req.query.page ? Number(req.query.page) : 1;
+    const limitRaw = req.query.limit ? Number(req.query.limit) : 50;
+    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(200, Math.floor(limitRaw)) : 50;
+
+    // optional comma-separated field projection, e.g. fields=_id,status,customerId,totalPrice
+    const fields =
+      typeof req.query.fields === "string" && req.query.fields.trim().length
+        ? req.query.fields.split(",").map((s) => s.trim()).filter(Boolean)
+        : undefined;
+
+    const data = await listOrdersForShift({
+      logisticCenterId,
+      date,
+      shiftName: shiftName as any,
+      status,
+      page,
+      limit,
+      fields,
+    });
+
+    return res.status(200).json({ data });
+  } catch (err: any) {
+    if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
+    console.error("[getOrdersForShift] error:", err);
     return res.status(500).json({ error: "ServerError" });
   }
 }

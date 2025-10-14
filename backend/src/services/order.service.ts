@@ -4,8 +4,13 @@ import Order from "../models/order.model";
 import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
 import { CreateOrderInput } from "../validations/orders.validation";
 import { adjustAvailableQtyAtomic, adjustAvailableQtyByUnitsAtomic } from "./availableMarketStock.service";
+import ShiftConfig from "../models/shiftConfig.model";
+import { DateTime } from "luxon";
+import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
 
 import { addOrderIdToFarmerOrder } from "./farmerOrder.service";
+
+type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
 type IdLike = string | Types.ObjectId;
 const toOID = (v: IdLike) => (v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v)));
@@ -256,4 +261,190 @@ export async function listOrdersForCustomer(userId: IdLike, limit = 15) {
     .exec();
 
   return docs;
+}
+
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Orders summary (for admin dashboard) - latest orders for a given logistics center
+// ───────────────────────────────────────────────────────────────────────────────
+type OrdersSummaryParams = {
+  logisticCenterId: string;
+  count?: number; // next N shifts (default 5)
+};
+
+type SummaryEntry = {
+  date: string;              // yyyy-LL-dd in LC tz
+  shiftName: "morning" | "afternoon" | "evening" | "night";
+  orderIds: string[];
+  count: number;
+  problemCount: number;
+};
+
+const dayRangeUtc = (tz: string, ymd: string) => {
+  const start = DateTime.fromFormat(ymd, "yyyy-LL-dd", { zone: tz }).startOf("day");
+  const end = start.plus({ days: 1 });
+  return { startUTC: start.toUTC().toJSDate(), endUTC: end.toUTC().toJSDate() };
+};
+
+export async function ordersSummarry(params: OrdersSummaryParams) {
+  const { logisticCenterId, count = 5 } = params;
+
+  // find timezone for LC (reuse your pattern from getNextAvailableShifts)
+  const anyCfg = await ShiftConfig
+    .findOne({ logisticCenterId }, { timezone: 1 })
+    .lean<{ timezone?: string }>()
+    .exec();
+
+  if (!anyCfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  const tz = anyCfg.timezone || "Asia/Jerusalem";
+
+  // current shift (name) in tz
+  const currentShiftName = await getCurrentShift();
+  if (currentShiftName === "none") {
+    // no active shift now — still return next N shifts only
+    const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
+    const summaries = await Promise.all(
+      nextShifts.map(async (s) => {
+        const { startUTC, endUTC } = dayRangeUtc(tz, s.date);
+        const docs = await Order.find(
+          {
+            LogisticsCenterId: new Types.ObjectId(logisticCenterId),
+            shiftName: s.name,
+            deliveryDate: { $gte: startUTC, $lt: endUTC },
+          },
+          { _id: 1, status: 1 }
+        ).lean().exec();
+
+        const ids = docs.map(d => String(d._id));
+        const problemCount = docs.filter(d => d.status === "problem").length;
+
+        return {
+          date: s.date,
+          shiftName: s.name,
+          orderIds: ids,
+          count: ids.length,
+          problemCount,
+        } as SummaryEntry;
+      })
+    );
+
+    return {
+      current: null,
+      next: summaries,
+      tz,
+      lc: logisticCenterId,
+    };
+  }
+
+  // current date (today in tz)
+  const todayYmd = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
+
+  // next N shifts after now
+  const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
+
+  // build the 1 (current) + N (next) targets
+  const targets: Array<{ date: string; name: SummaryEntry["shiftName"] }> = [
+    { date: todayYmd, name: currentShiftName as any },
+    ...nextShifts.map(s => ({ date: s.date, name: s.name })),
+  ];
+
+  // query each window in parallel
+  const results = await Promise.all(
+    targets.map(async (t) => {
+      const { startUTC, endUTC } = dayRangeUtc(tz, t.date);
+      const docs = await Order.find(
+        {
+          LogisticsCenterId: new Types.ObjectId(logisticCenterId),
+          shiftName: t.name,
+          deliveryDate: { $gte: startUTC, $lt: endUTC },
+        },
+        { _id: 1, status: 1 }
+      ).lean().exec();
+
+      const ids = docs.map(d => String(d._id));
+      const problemCount = docs.filter(d => d.status === "problem").length;
+
+      return {
+        date: t.date,
+        shiftName: t.name,
+        orderIds: ids,
+        count: ids.length,
+        problemCount,
+      } as SummaryEntry;
+    })
+  );
+
+  const [current, ...next] = results;
+  return {
+    current,
+    next,
+    tz,
+    lc: logisticCenterId,
+  };
+}
+
+export async function listOrdersForShift(params: {
+  logisticCenterId: string;
+  date: string;                // yyyy-LL-dd in LC timezone
+  shiftName: ShiftName;
+  status?: string;             // optional filter by status
+  page?: number;               // default 1
+  limit?: number;              // default 50
+  fields?: string[];           // optional projection
+}) {
+  const {
+    logisticCenterId,
+    date,
+    shiftName,
+    status,
+    page = 1,
+    limit = 50,
+    fields,
+  } = params;
+
+  // Resolve timezone for this LC (same approach as summary)
+  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 }).lean().exec();
+  if (!cfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  const tz = cfg.timezone || "Asia/Jerusalem";
+
+  // Convert date (in LC tz) to UTC day window
+  const start = DateTime.fromFormat(date, "yyyy-LL-dd", { zone: tz }).startOf("day");
+  if (!start.isValid) throw new Error(`Invalid date '${date}', expected yyyy-LL-dd`);
+  const end = start.plus({ days: 1 });
+
+  const q: any = {
+    LogisticsCenterId: new Types.ObjectId(logisticCenterId),
+    shiftName,
+    deliveryDate: { $gte: start.toUTC().toJSDate(), $lt: end.toUTC().toJSDate() },
+  };
+  if (status) q.status = status;
+
+  const projection =
+    Array.isArray(fields) && fields.length
+      ? fields.reduce((acc, f) => ((acc[f] = 1), acc), {} as Record<string, 1>)
+      : undefined;
+
+  const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+
+  const [items, total] = await Promise.all([
+    Order.find(q, projection).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+    Order.countDocuments(q),
+  ]);
+
+  const problemCount = await Order.countDocuments({ ...q, status: "problem" });
+
+  return {
+    meta: {
+      lc: logisticCenterId,
+      date,
+      shiftName,
+      tz,
+      page,
+      limit,
+      total,
+      problemCount,
+      pages: Math.ceil(total / Math.max(1, limit)),
+    },
+    items, // array of orders (projected if fields provided)
+  };
 }
