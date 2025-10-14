@@ -15,48 +15,15 @@ import {
 } from "@chakra-ui/react";
 import { FiTrash2, FiX } from "react-icons/fi";
 import { toaster } from "@/components/ui/toaster";
-// If you already have a shared confirm dialog component, feel free to swap:
-// import ConfirmDialog from "./ConfirmDialog";
+import type { CartLine } from "@/utils/marketCart.shared"; // ✅ shared, canonical line type
 
 /* -------------------------------------------------------------------------- */
-/*                                    Types                                   */
+/*                                   Props                                    */
 /* -------------------------------------------------------------------------- */
-
-export type CartLine = {
-  // identity fields (not all guaranteed, so we fall back carefully)
-  stockId?: string;         // <itemId>_<farmerId> (canonical)
-  id?: string;
-  lineId?: string;
-  itemId?: string;
-  farmerId?: string;
-
-  // display
-  name?: string;
-  displayName?: string;
-  imageUrl?: string;
-  farmerName?: string;
-  farmName?: string;
-
-  // pricing & qty (canonical + legacy fallbacks)
-  pricePerUnit?: number;    // canonical
-  unitPrice?: number;       // legacy fallback
-  price?: number;           // legacy fallback
-
-  quantity?: number;        // canonical (kg)
-  qtyKg?: number;           // legacy
-  qty?: number;             // legacy (units)
-
-  // extra for ≈ units display
-  avgWeightPerUnitKg?: number;
-
-  // any other fields are ignored
-  [key: string]: any;
-};
 
 export type CartDrawerProps = {
   isOpen: boolean;
   onClose: () => void;
-
   items: CartLine[];
 
   /** remove a single line by a stable key */
@@ -65,8 +32,8 @@ export type CartDrawerProps = {
   /** clear the cart */
   onClear?: () => void;
 
-  /** change quantity (kg) for a line identified by its stable key */
-  onChangeQty?: (key: string, nextQuantityKg: number) => void;
+  /** change quantity (UNITS) for a line identified by its stable key */
+  onChangeQty?: (key: string, nextUnits: number) => void;
 
   /** proceed to checkout */
   onCheckout?: () => void;
@@ -78,58 +45,40 @@ export type CartDrawerProps = {
 
 /** Stable key so same product from different farmers NEVER merges */
 function getLineKey(line: CartLine): string {
-  // 1) Canonical: stockId = "<itemId>_<farmerId>"
+  // Prefer canonical `key` if provided by the store; then stockId; else compose
+  if (line.key && typeof line.key === "string") return line.key;
   if (line.stockId && typeof line.stockId === "string") return line.stockId;
 
-  // 2) Explicit ids
-  if (line.id && typeof line.id === "string") return line.id;
-  if (line.lineId && typeof line.lineId === "string") return line.lineId;
-
   // 3) Compose minimal identity (product + farmer)
-  const item = line.itemId ?? "item";
-  const farmer = line.farmerId ?? "farmer";
+  const item = (line as any).itemId ?? "item";
+  const farmer = (line as any).farmerId ?? "farmer";
   return `${item}|${farmer}`;
 }
 
 function getUnitPrice(line: CartLine): number {
-  const cand = line.pricePerUnit ?? line.unitPrice ?? line.price ?? 0;
+  const cand = (line as any).pricePerUnit ?? 0;
   const n = Number(cand);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-function getQty(line: CartLine): number {
-  const cand = line.quantity ?? line.qtyKg ?? line.qty ?? 0;
-  const n = Number(cand);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
+function getUnits(line: CartLine): number {
+  const n = Number(line.quantity);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
 }
 
 function getName(line: CartLine): string {
-  return (line.name ?? line.displayName ?? "Item");
+  return (line.name ?? (line as any).displayName ?? "Item");
 }
 
 function formatMoneyUSD(val: number): string {
-  // keep formatting minimal; adapt to your currency if needed
-  return `$${val.toFixed(2)}`;
+  return `$${(Number(val) || 0).toFixed(2)}`;
 }
 
-/** Step policy: one unit if avgWeightPerUnitKg is known, else 0.25 kg */
-function getStep(line: CartLine): number {
-  const step = Number(line.avgWeightPerUnitKg);
-  return Number.isFinite(step) && step > 0 ? step : 0.25;
+function getAvgUnitKg(line: CartLine): number {
+  const cand = (line as any).avgWeightPerUnitKg;
+  const n = Number(cand);
+  return Number.isFinite(n) && n > 0 ? n : 0.02; // ✅ fallback per your spec
 }
-
-/** Approximate units from kg and avgWeightPerUnitKg (rounded) */
-function getApproxUnits(line: CartLine, qtyKg: number): number | null {
-  const avg = Number(line.avgWeightPerUnitKg);
-  if (!Number.isFinite(avg) || avg <= 0) return null;
-  return Math.max(1, Math.round(qtyKg / avg));
-}
-
-function clampQty(n: number): number {
-  if (!Number.isFinite(n)) return 0;
-  return n < 0 ? 0 : Number(n.toFixed(3)); // keep 3dp to avoid float noise
-}
-
 
 /* -------------------------------------------------------------------------- */
 /*                              Inline Confirm (UX)                            */
@@ -150,14 +99,10 @@ function useConfirm() {
 
   const ConfirmDialogInline = (
     <Dialog.Root open={open} onOpenChange={(e) => !e.open && setOpen(false)}>
-      <Portal> {/* 👈 render outside the Drawer to escape its stacking/focus */}
+      <Portal>
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content
-            // make sure it stacks above the Drawer
-            // (Drawer is already high; 10000 is safe. Adjust if you have a token.)
-            style={{ zIndex: 10000 }}
-          >
+          <Dialog.Content style={{ zIndex: 10000 }}>
             <Dialog.Header>
               <Dialog.Title>{pending?.title ?? "Confirm"}</Dialog.Title>
               <Dialog.CloseTrigger asChild>
@@ -215,15 +160,23 @@ function CartDrawerBase({
 }: CartDrawerProps) {
   const { ask, ConfirmDialogInline } = useConfirm();
 
+  // Money subtotal
   const subtotal = useMemo(
-    () => items.reduce((sum, l) => sum + getUnitPrice(l) * getQty(l), 0),
+    () => items.reduce((sum, l) => sum + getUnitPrice(l) * getUnits(l), 0),
     [items]
   );
 
-  const totalQty = useMemo(
-    () => items.reduce((sum, l) => sum + getQty(l), 0),
-    [items]
-  );
+  // Units / Weight totals
+  const { totalUnits, totalApproxKg } = useMemo(() => {
+    let units = 0;
+    let kg = 0;
+    for (const l of items) {
+      const u = getUnits(l);
+      units += u;
+      kg += u * getAvgUnitKg(l);
+    }
+    return { totalUnits: units, totalApproxKg: kg };
+  }, [items]);
 
   const handleRemove = useCallback(
     (line: CartLine) => {
@@ -267,13 +220,13 @@ function CartDrawerBase({
 
   return (
     <>
-      {/* Inline confirm dialog (swap for your shared <ConfirmDialog> if you want) */}
+      {/* Inline confirm dialog */}
       {ConfirmDialogInline}
 
       <Drawer.Root open={isOpen} onOpenChange={(e) => !e.open && onClose()} size="md" placement="start">
         <Drawer.Backdrop />
         <Drawer.Positioner>
-          <Drawer.Content >
+          <Drawer.Content>
             <Drawer.Header>
               <HStack justify="space-between" width="full">
                 <Text fontWeight="semibold">Your Cart</Text>
@@ -293,11 +246,16 @@ function CartDrawerBase({
                     </Box>
                   ) : (
                     items.map((line) => {
-                      const key = getLineKey(line); // <<<<<< KEY uses stockId first
-                      const qty = getQty(line);
+                      const key = getLineKey(line);
+                      const units = getUnits(line);
                       const price = getUnitPrice(line);
-                      const lineTotal = price * qty;
-                      // console.log("Cart item:", line);
+                      const lineTotal = price * units;
+                      const perUnitKg = getAvgUnitKg(line);
+                      const approxKg = units * perUnitKg;
+
+                      const canDec = units > 1;         // 1..50
+                      const canInc = units < 50;
+
                       return (
                         <Box key={key} p="3" borderWidth="1px" rounded="lg">
                           <HStack align="flex-start" justify="space-between">
@@ -311,11 +269,7 @@ function CartDrawerBase({
                                   rounded="md"
                                 />
                               ) : (
-                                <Box
-                                  boxSize="56px"
-                                  rounded="md"
-                                  bg="bg.subtle"
-                                />
+                                <Box boxSize="56px" rounded="md" bg="bg.subtle" />
                               )}
                               <Stack gap="1">
                                 <Text fontWeight="medium">{getName(line)}</Text>
@@ -324,22 +278,26 @@ function CartDrawerBase({
                                     {line.farmerName}
                                   </Text>
                                 )}
+
                                 <HStack gap="3" align="center" wrap="wrap">
-                                  {/* Quantity controls (kg) */}
+                                  {/* Quantity controls (UNITS) */}
                                   <HStack gap="2" align="center">
-                                    <Text fontSize="sm" color="fg.muted">Qty:</Text>
+                                    <Text fontSize="sm" color="fg.muted">Units:</Text>
                                     <IconButton
-                                      aria-label="Decrease quantity"
+                                      aria-label="Decrease units"
                                       size="xs"
                                       variant="outline"
+                                      disabled={!canDec}
                                       onClick={() => {
-                                        const step = getStep(line);
-                                        const next = clampQty(qty - step);
-                                        const key = getLineKey(line);
+                                        const next = units - 1;
                                         if (next <= 0) {
-                                          // treat as remove
                                           onRemove?.(key);
-                                          toaster.create({ title: "Removed from cart", description: getName(line), type: "success", duration: 2500 });
+                                          toaster.create({
+                                            title: "Removed from cart",
+                                            description: getName(line),
+                                            type: "success",
+                                            duration: 2500,
+                                          });
                                         } else {
                                           onChangeQty?.(key, next);
                                         }
@@ -347,15 +305,14 @@ function CartDrawerBase({
                                     >
                                       –
                                     </IconButton>
-                                    <Text fontSize="sm" color="fg.muted">{qty.toFixed(2)} kg</Text>
+                                    <Text fontSize="sm" color="fg.muted">{units}</Text>
                                     <IconButton
-                                      aria-label="Increase quantity"
+                                      aria-label="Increase units"
                                       size="xs"
                                       variant="outline"
+                                      disabled={!canInc}
                                       onClick={() => {
-                                        const step = getStep(line);
-                                        const next = clampQty(qty + step);
-                                        const key = getLineKey(line);
+                                        const next = units + 1;
                                         onChangeQty?.(key, next);
                                       }}
                                     >
@@ -363,22 +320,14 @@ function CartDrawerBase({
                                     </IconButton>
                                   </HStack>
 
-                                  {/* Approx units (if avgWeightPerUnitKg available) */}
-                                  {(() => {
-                                    const approx = getApproxUnits(line, qty);
-                                    if (approx == null) return null;
-                                    return (
-                                      <>
-                                        <Separator orientation="vertical" />
-                                        <Text fontSize="sm" color="fg.muted">≈ {approx} units</Text>
-                                      </>
-                                    );
-                                  })()}
+                                  {/* On the side: ≈ weight */}
+                                  <Separator orientation="vertical" />
+                                  <Text fontSize="sm" color="fg.muted">≈ {approxKg.toFixed(2)} kg</Text>
 
                                   <Separator orientation="vertical" />
 
-                                  {/* Unit price (per kg) */}
-                                  <Text fontSize="sm" color="fg.muted">Price/kg: {formatMoneyUSD(price)}</Text>
+                                  {/* Price per unit */}
+                                  <Text fontSize="sm" color="fg.muted">Price/unit: {formatMoneyUSD(price)}</Text>
                                 </HStack>
                               </Stack>
                             </HStack>
@@ -409,8 +358,12 @@ function CartDrawerBase({
                 {/* Totals */}
                 <Stack gap="1">
                   <HStack justify="space-between">
-                    <Text color="fg.muted">Total kg</Text>
-                    <Text>{totalQty.toFixed(2)}</Text>
+                    <Text color="fg.muted">Total units</Text>
+                    <Text>{totalUnits}</Text>
+                  </HStack>
+                  <HStack justify="space-between">
+                    <Text color="fg.muted">Total approx weight</Text>
+                    <Text>{totalApproxKg.toFixed(2)} kg</Text>
                   </HStack>
                   <HStack justify="space-between">
                     <Text fontWeight="medium">Subtotal</Text>

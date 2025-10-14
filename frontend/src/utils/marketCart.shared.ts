@@ -228,7 +228,7 @@ function normalizeLine(line: any): CartLine {
     avgWeightPerUnitKg:
       typeof line?.avgWeightPerUnitKg === "number"
         ? line.avgWeightPerUnitKg
-        : undefined,
+        : 0.02,
 
     // carry richer item data when present (backward-safe)
     unitMode:
@@ -323,16 +323,17 @@ export function marketItemToCartLine(
 
     pricePerUnit: item.pricePerUnit,
     quantity,
-    avgWeightPerUnitKg: item.avgWeightPerUnitKg,
+    // default to 0.02 kg per unit when missing
+    avgWeightPerUnitKg: item.avgWeightPerUnitKg ?? 0.02,
 
-    // NEW: carry richer stock data
-    unitMode: item.unitMode,
+    // carry richer stock data (default unitMode to "unit" when absent)
+    unitMode: item.unitMode ?? "unit",
     availableUnitsEstimate: item.availableUnitsEstimate,
     availableKg: item.availableKg,
-    farmerOrderId: (item as any).farmerOrderId ?? undefined, // present after your schema fix
+    farmerOrderId: (item as any).farmerOrderId ?? undefined,
 
-    // default user's chosen unit based on selling mode
-    unit: item.unitMode === "unit" ? "unit" : "kg",
+    // default user's chosen unit based on selling mode (units-first)
+    unit: (item.unitMode ?? "unit") === "unit" ? "unit" : "kg",
     addedAt: new Date().toISOString(),
   });
 }

@@ -24,6 +24,7 @@ import {
   marketItemToCartLine,
   type CartLine as SharedCartLine,
 } from "@/utils/marketCart.shared";
+import type { MarketItem } from "@/types/market"; // ✅ units-only typing
 import { getCustomerAddresses } from "@/api/market";
 
 // --------------------------- Local cart adapter ---------------------------
@@ -135,30 +136,37 @@ export default function MarketPage() {
   );
 
 
-  const addToCart = useCallback((item: any, qty: number) => {
-    const clamped = Math.max(0.25, Math.min(50, Number(qty) || 1)); // keep a sane range; min quarter kg
-    const newLine = marketItemToCartLine(item, clamped);
+  const addToCart = useCallback((item: MarketItem, qtyUnits: number) => {
+    // ✅ units-only: whole numbers, 1..50
+    const deltaUnits = Math.max(1, Math.min(50, Math.floor(Number(qtyUnits) || 1)));
+
+    const newLine = marketItemToCartLine(item, deltaUnits); // shared builder
     const curr = getSharedCart().lines;
     const idx = curr.findIndex((l) => (l.key ?? l.stockId) === (newLine.key ?? newLine.stockId));
-    console.log("addToCart", { item });
+
     let next: SharedCartLine[];
     if (idx >= 0) {
       next = [...curr];
-      const prevQty = Number(next[idx].quantity ?? 0);
-      next[idx] = { ...next[idx], quantity: prevQty + clamped };
+      const prevUnits = Number(next[idx].quantity ?? 0);
+      next[idx] = { ...next[idx], quantity: prevUnits + deltaUnits };
     } else {
       next = [...curr, newLine];
     }
+
     setSharedCart({ lines: next });
     setCartLines(next);
 
+    const approxPerUnit = item.avgWeightPerUnitKg ?? 0.02;
+    const approxAddedKg = deltaUnits * approxPerUnit;
+
     toaster.create({
       title: "Added to cart",
-      description: `${clamped} kg × ${item?.name ?? "Item"}${item?.farmerName ? ` • ${item.farmerName}` : ""}`,
+      description: `${deltaUnits} unit${deltaUnits > 1 ? "s" : ""} × ${item?.name ?? "Item"}${item?.farmerName ? ` • ${item.farmerName}` : ""} • ≈ ${approxAddedKg.toFixed(2)} kg`,
       type: "success",
       duration: 2500,
     });
   }, []);
+
 
   const removeLineByKey = useCallback((key: string) => {
     const curr = getSharedCart().lines;
@@ -251,21 +259,25 @@ export default function MarketPage() {
     setLocalPage(p);
   }, [setPage, setLocalPage]);
 
-  const handleChangeQty = useCallback((key: string, nextQtyKg: number) => {
+  const handleChangeQty = useCallback((key: string, nextUnitsRaw: number) => {
     const curr = getSharedCart().lines;
     const idx = curr.findIndex((l) => (l.key ?? l.stockId) === key);
     if (idx < 0) return;
 
+    // ✅ units-only: whole numbers, 1..50 (<=0 removes)
+    const nextUnits = Math.floor(Number(nextUnitsRaw) || 0);
+
     let next: SharedCartLine[];
-    if (nextQtyKg <= 0) {
+    if (nextUnits <= 0) {
       next = curr.filter((_, i) => i !== idx);
     } else {
       next = [...curr];
-      next[idx] = { ...next[idx], quantity: nextQtyKg };
+      next[idx] = { ...next[idx], quantity: Math.min(50, Math.max(1, nextUnits)) };
     }
     setSharedCart({ lines: next });
     setCartLines(next);
   }, []);
+
 
   // ---- Derived: page items filtered with search predicate from index ----
   // (Optional: if you want matchFilter to apply before paging, move it into useMarketItems via its options)
