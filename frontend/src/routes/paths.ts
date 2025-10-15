@@ -46,5 +46,9 @@ export const PATHS = {
   aggregationView: "/ag/:token",
   containerView: "/c/:barcode",
 
+
+  // csManager pages
+  csManagerDashboard: "/csManager/dashboard",
+
   notFound: "/404",
 } as const;

@@ -117,3 +117,11 @@ export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
 
   return items as OrderRowAPI[];
 }
+
+
+export async function getOrdersSummary(payload: any) {
+   const res =await api.get("/api/orders/summary", { params: payload });
+    return res?.data?.data ?? res?.data;
+  const windows = (payload?.windows ?? []).slice(0, 6);
+  return windows.map((w: any, i: number) => ({ dateISO: w.dateISO, shift: w.shift, total: 12 + i * 2, problem: i % 3 }));
+}

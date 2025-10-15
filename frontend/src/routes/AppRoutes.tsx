@@ -33,6 +33,7 @@ const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
+const CSManagerDashboard = lazy(() => import("@/pages/csManagerDashboard"));
 
 
 
@@ -152,6 +153,17 @@ export default function AppRoutes() {
             }
           />
         </Route>
+
+          {/* CS Manager-only */}
+  <Route
+    path={PATHS.csManagerDashboard}
+    element={
+      <RoleGuard allow={["csManager", "admin"]}>
+        <CSManagerDashboard />
+      </RoleGuard>
+    }
+  />
+
 
         {/* --- Authenticated, no FOOTER --- */}
         <Route element={<AuthGuard><AppShell showFooter={false} /></AuthGuard>}>

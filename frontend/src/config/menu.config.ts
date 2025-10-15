@@ -139,15 +139,15 @@ const workTManager: ReadonlyArray<MenuItem> = [
  
 ] as const;
 
+// in your central registry file
 const workCSManager: ReadonlyArray<MenuItem> = [
-  {
-    type: "link",
-    key: "dashboard",
-    label: "dashboard",
-    path: ""
-  },
- 
+  { type: "link", key: "cs-dashboard", label: "Dashboard", path: "/csManager/dashboard" },
+  { type: "link", key: "cs-orders", label: "All Orders", path: "/csManager/orders" },
+  { type: "link", key: "cs-reports", label: "Reports Inbox", path: "/csManager/reports" },
+  { type: "link", key: "cs-customers", label: "Customers", path: "/csManager/customers" },
+  { type: "link", key: "cs-analytics", label: "Analytics", path: "/csManager/analytics" },
 ] as const;
+
 /* ------------------------ Registry export ------------------------ */
 
 export const MENUS: MenuRegistry = {
