@@ -321,7 +321,6 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
         return {
           date: s.date,
           shiftName: s.name,
-          orderIds: ids,
           count: ids.length,
           problemCount,
         } as SummaryEntry;
@@ -367,7 +366,6 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
       return {
         date: t.date,
         shiftName: t.name,
-        orderIds: ids,
         count: ids.length,
         problemCount,
       } as SummaryEntry;

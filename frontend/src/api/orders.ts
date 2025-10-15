@@ -119,9 +119,33 @@ export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
 }
 
 
-export async function getOrdersSummary(payload: any) {
-   const res =await api.get("/api/orders/summary", { params: payload });
-    return res?.data?.data ?? res?.data;
-  const windows = (payload?.windows ?? []).slice(0, 6);
-  return windows.map((w: any, i: number) => ({ dateISO: w.dateISO, shift: w.shift, total: 12 + i * 2, problem: i % 3 }));
+type LCWindow = {
+  date: string;
+  shiftName: "morning" | "afternoon" | "evening" | "night";
+  count: number;
+  problemCount: number;
+};
+type LCSummaryResponse = {
+  current: LCWindow | null;
+  next: LCWindow[];
+  tz: string;
+  lc: string;
+};
+
+// maps server shape -> UI rows for your dashboard
+export async function getOrdersSummaryFromLC(lcId: string, count = 6) {
+  // your controller accepts ?lc=... OR ?logisticCenterId=...
+  const { data } = await api.get<{ data: LCSummaryResponse }>("/orders/summary", {
+    params: { lc: lcId, count },
+  });
+
+  const payload = data?.data; // unwrap envelope
+  const windows = [payload.current, ...(payload.next ?? [])].filter(Boolean) as LCWindow[];
+
+  return windows.map((w) => ({
+    dateISO: w.date,                // "yyyy-LL-dd"
+    shift: w.shiftName as any,      // cast to your ShiftName union if needed
+    total: w.count,
+    problem: w.problemCount,
+  }));
 }

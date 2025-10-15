@@ -87,7 +87,8 @@ export async function getMyOrders(req: Request, res: Response) {
 
 export async function getOrdersSummary(req: Request, res: Response) {
   try {
-    const logisticCenterId = String(req.query.lc || req.query.logisticCenterId || "");
+    //const logisticCenterId = String(req.query.lc || req.query.logisticCenterId || "");
+    const logisticCenterId="66e007000000000000000001"
     if (!logisticCenterId) throw new ApiError(400, "Missing query param ?lc=<logisticCenterId>");
 
     const countRaw = req.query.count ? Number(req.query.count) : 5;
