@@ -56,7 +56,9 @@ export default function Login() {
         case "farmer":
           to = PATHS.farmerDashboard;
           break;
-
+case "picker":
+          to = PATHS.pickerDashboard;
+          break;
         case "driver":                // if your backend uses "deliverer"/"industrialDeliverer", include them:
         case "deliverer":
         case "industrialDeliverer":

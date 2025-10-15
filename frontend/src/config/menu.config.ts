@@ -113,7 +113,7 @@ const workPicker: ReadonlyArray<MenuItem> = [
     type: "link",
     key: "dashboard",
     label: "dashboard",
-    path: ""
+    path: "picker/dashboard",
   },
  
 ] as const;
@@ -185,6 +185,7 @@ export function getMenuFor(mode: Mode, role?: string | null) {
 
 export const DEFAULT_LANDINGS: Record<Mode, string> = {
   noUser: "/",        // <— public landing
+   work: "/dashboard", 
   customer: "/market", 
-  work: "/work",      // (or a role-specific landing if you want later)
+      // (or a role-specific landing if you want later)
 };

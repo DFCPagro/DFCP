@@ -10,6 +10,9 @@ import {
 } from "./api/mock";
 import { useInterval } from "./hooks/useInterval";
 import { LeaderboardCard, QuestCard, ReadyOrdersTable, StatsCard } from "./components";
+import { useNavigate } from "react-router-dom";
+import { PATHS } from "@/routes/paths";
+
 
 export default function PickerDashboard() {
   const [loading, setLoading] = useState(true);
@@ -19,6 +22,7 @@ export default function PickerDashboard() {
   const [orders, setOrders] = useState<ReadyOrder[]>([]);
   const [scope, setScope] = useState<QuestScope>("day");
   const [refreshKey, setRefreshKey] = useState(0);
+const navigate = useNavigate();
 
   // gate for the orders table
   const [showOrders, setShowOrders] = useState(false);
@@ -78,10 +82,13 @@ export default function PickerDashboard() {
     return Math.max(0, Math.floor((q.expiresAt - Date.now()) / 1000));
   }, [activeQuest]);
 
-  const onClaimOrder = async (id: string) => {
-    await apiClaimOrder(id);
-    setOrders(list => list.filter(o => o.id !== id));
-  };
+const onClaimOrder = async (id: string) => {
+  await apiClaimOrder(id);
+  const order = orders.find(o => o.id === id);
+  const taskParam = String(order?.orderId ?? id).replace(/^#/, "");
+  setOrders(list => list.filter(o => o.id !== id));
+  navigate(PATHS.pickerTask.replace(":taskId", encodeURIComponent(taskParam)));
+};
 
   const onRefresh = () => setRefreshKey(k => k + 1);
 
@@ -128,20 +135,25 @@ export default function PickerDashboard() {
         </GridItem>
 
         <GridItem colSpan={12}>
-          {!showOrders ? (
-            <Card.Root>
-              <Card.Body>
-                <HStack justify="space-between" wrap="wrap">
-                  <Text>Ready-to-pick orders are hidden. Start when you’re ready.</Text>
-                  <Button onClick={onStartPicking}>Start picking</Button>
-                </HStack>
-              </Card.Body>
-            </Card.Root>
-          ) : ordersLoading ? (
-            <HStack gap={3}><Spinner /><Text>Loading orders…</Text></HStack>
-          ) : (
-            <ReadyOrdersTable orders={orders} onClaim={onClaimOrder} />
-          )}
+         {!showOrders ? (
+  <Card.Root>
+    <Card.Body>
+      <HStack justify="space-between" wrap="wrap" w="full">
+        <HStack gap={3}>
+          <Heading size="sm">Ready when you are</Heading>
+          <Text color="fg.muted">Orders stay hidden until you start.</Text>
+        </HStack>
+        <Button onClick={onStartPicking} size="lg" colorPalette="green">
+          <HStack gap={2}><span>▶</span><span>Start picking</span></HStack>
+        </Button>
+      </HStack>
+    </Card.Body>
+  </Card.Root>
+) : ordersLoading ? (
+  <HStack gap={3}><Spinner /><Text>Loading orders…</Text></HStack>
+) : (
+  <ReadyOrdersTable orders={orders} onClaim={onClaimOrder} />
+)}
         </GridItem>
       </Grid>
     </Container>

@@ -38,6 +38,7 @@ export const PATHS = {
 
   // picker pages
   pickerDashboard: "/picker/dashboard",
+  pickerTask: "/picker/task/:taskId",          // ← add this
 
   // public QR routes
   ops: "/o/:token",

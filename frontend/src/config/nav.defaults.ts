@@ -2,7 +2,6 @@
 import type { Mode } from "@/types/menu";
 
 export const DEFAULT_LANDINGS = {
-  customer: "/market",
   work: {
     admin: "/admin/dashboard",
     farmer: "/farmer/crops",
@@ -11,7 +10,9 @@ export const DEFAULT_LANDINGS = {
     fManager: "/fManager/dashboard",
     tManager: "/tManager/dashboard",
     csManager: "/csManager/dashboard",
+    picker: "/picker/dashboard",
   },
+  customer: "/market",
 } as const;
 
 export function getDefaultLanding(mode: Mode, role?: string | null) {

@@ -35,6 +35,7 @@ const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
 const CSManagerDashboard = lazy(() => import("@/pages/csManagerDashboard"));
 
+const PickTaskPage = lazy(() => import("@/pages/picker/pick-task"));
 
 
 
@@ -52,7 +53,7 @@ export default function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path={PATHS.home} element={<Home />} />
           <Route path={PATHS.notFound} element={<NotFound />} />
-            <Route path={PATHS.MapExample} element={< MapPickerExamplePage/>} />
+          <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
         </Route>
 
         {/* --- Public, immersive (no chrome) --- */}
@@ -134,6 +135,14 @@ export default function AppRoutes() {
             path={PATHS.pickerDashboard}
             element={<RoleGuard allow={["picker"]}><PickerDashboard /></RoleGuard>}
           />
+          <Route
+            path={PATHS.pickerTask}
+            element={
+              <RoleGuard allow={["picker"]}>
+                <PickTaskPage />
+              </RoleGuard>
+            }
+          />
 
           {/* Farmer-only */}
           <Route
@@ -154,15 +163,15 @@ export default function AppRoutes() {
           />
         </Route>
 
-          {/* CS Manager-only */}
-  <Route
-    path={PATHS.csManagerDashboard}
-    element={
-      <RoleGuard allow={["csManager", "admin"]}>
-        <CSManagerDashboard />
-      </RoleGuard>
-    }
-  />
+        {/* CS Manager-only */}
+        <Route
+          path={PATHS.csManagerDashboard}
+          element={
+            <RoleGuard allow={["csManager", "admin"]}>
+              <CSManagerDashboard />
+            </RoleGuard>
+          }
+        />
 
 
         {/* --- Authenticated, no FOOTER --- */}
