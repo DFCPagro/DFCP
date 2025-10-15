@@ -1,4 +1,3 @@
-// pages/orders/components/helpers.ts
 import type { OrderRowAPI } from "@/types/orders";
 import type { ItemRow } from "@/components/common/ItemList";
 
@@ -45,7 +44,7 @@ export const STATUS_EMOJI: Record<UIStatus, string> = {
 };
 
 export function normalizeStatus(s: string): UIStatus {
-  const key = (s ?? "").toLowerCase().replace(/\s+/g, "_");
+  const key = (s ?? "").toLowerCase().replace(/[\s-]+/g, "_"); // handle spaces + hyphens
   switch (key) {
     case "created":
     case "new":
@@ -71,6 +70,7 @@ export function normalizeStatus(s: string): UIStatus {
     case "packed":
     case "ready_for_delivery":
     case "ready_for_pickup":
+    case "ready_for_pickup": // normalized from ready_for_pickUp
       return "ready_for_pickup";
     case "delivering":
     case "lc_to_customer":
@@ -83,9 +83,11 @@ export function normalizeStatus(s: string): UIStatus {
     case "confirm_reciveing":
     case "confirm_receiving":
     case "received":
+    case "recived":
       return "received";
     case "canceled":
     case "cancelled":
+    case "problem": // treat “problem” as cancelled-like
       return "cancelled";
     default:
       return "pending";
@@ -179,7 +181,7 @@ export function formatDeliveryTime(o: any) {
   return `${fmtDateYY(d)} ${range}`;
 }
 
-// ---- Item rows for ItemList (farm + ≈metrics) ----
+// ---- Item rows for ItemList ----
 export function toItemRows(lines: any[]): ItemRow[] {
   return (lines ?? []).map((line: any, i: number) => {
     const title =
@@ -195,7 +197,6 @@ export function toItemRows(lines: any[]): ItemRow[] {
 
     const category = firstStr(line?.category, line?.item?.category) ?? "";
 
-    // provenance
     const farmerName = firstStr(
       line?.sourceFarmerName,
       line?.farmerName,
@@ -210,20 +211,17 @@ export function toItemRows(lines: any[]): ItemRow[] {
       firstStr(line?.sourceFarmLogo, line?.farmLogo, line?.farmer?.logo) ??
       undefined;
 
-    // pricing & requested amounts
     const pricePerUnit = toNum(line?.pricePerUnit); // per KG
     const unitMode =
       (line?.unitMode as "kg" | "unit" | "mixed") ?? ("kg" as const);
     const qtyKg = toNumUndef(line?.quantityKg);
     const qtyUnits = toIntUndef(line?.units);
 
-    // snapshot for unit conversions
     const avgWeightPerUnitKg = toNumUndef(
       line?.estimatesSnapshot?.avgWeightPerUnitKg ??
         line?.estimates?.avgWeightPerUnitKg
     );
 
-    // derive ≈units if not present
     const availableUnitsEstimate =
       toIntUndef(line?.availableUnitsEstimate) ??
       (avgWeightPerUnitKg && qtyKg
@@ -245,7 +243,6 @@ export function toItemRows(lines: any[]): ItemRow[] {
       farmLogo,
       farmName,
 
-      // numbers ItemList uses to show ≈kg, ≈units, ≈price/kg, price/unit
       pricePerUnit,
       unitMode,
       qtyKg,

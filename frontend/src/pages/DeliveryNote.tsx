@@ -13,8 +13,12 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import type { OrderRowAPI } from "@/types/orders";
-import ItemList, { type ItemRow } from "@/components/common/ItemList";
+import ItemList from "@/components/common/ItemList";
 import { fetchOrders } from "@/api/orders";
+
+// reuse the same helpers used by Orders
+import { toItemRows, pickCurrency } from "@/pages/Orders/components/helpers";
+
 
 // canonical statuses
 export const ORDER_STATUSES = [
@@ -85,36 +89,11 @@ function fmtDateShort(iso: string) {
   return `${dd}/${mm}/${yy}`;
 }
 
-function toItemRows(items: any[]): ItemRow[] {
-  return (items ?? []).map((it: any, idx: number): ItemRow => ({
-    id: it.id ?? it.productId ?? it.itemId ?? String(idx),
-    name: it.name ?? it.displayName ?? it.productName ?? it.productId ?? "item",
-    farmer:
-      it.sourceFarmerName ??
-      it.sourceFarmName ??
-      it.farmerName ??
-      it.farmer ??
-      "—",
-    imageUrl: it.imageUrl ?? it.image ?? undefined,
-    qty: Number(it.quantity ?? it.qty ?? 0),
-    unitLabel: it.unit ?? it.unitLabel ?? "unit",
-    unitPrice: Number(it.unitPrice ?? it.pricePerUnit ?? it.price ?? 0),
-    currency: it.currency ?? undefined,
-  }));
-}
-
-function pickCurrency(items: any[]): string | undefined {
-  for (const it of items ?? []) if (it?.currency) return it.currency;
-  return undefined;
-}
-
 // address + shift helpers
 function getAddress(o: any): string {
-  // preferred: your API shape
   if (typeof o?.deliveryAddress === "string") return o.deliveryAddress;
   if (o?.deliveryAddress?.address) return o.deliveryAddress.address;
 
-  // other common shapes
   const tryStrings = [
     o?.address?.label,
     o?.shippingAddress?.label,
@@ -125,8 +104,7 @@ function getAddress(o: any): string {
   ].filter(Boolean) as string[];
   if (tryStrings.length) return tryStrings[0]!;
 
-  const a =
-    o?.deliveryAddress ?? o?.address ?? o?.shippingAddress ?? {};
+  const a = o?.deliveryAddress ?? o?.address ?? o?.shippingAddress ?? {};
   const line = [a.street, a.houseNumber, a.apartment, a.city]
     .filter(Boolean)
     .join(" ");
@@ -145,7 +123,6 @@ const SHIFT_NAME: Record<string, string> = {
 };
 
 function getShiftLabel(o: any): string {
-  // supported keys
   const s =
     o?.deliverySlot ??
     o?.shiftKey ??
@@ -208,12 +185,18 @@ export default function DeliveryNotePage() {
   );
 
   const currency = useMemo(
-    () => pickCurrency((order as any)?.items ?? []) ?? "$",
+    () => pickCurrency((order as any)?.items ?? []) ?? "₪",
     [order]
   );
 
   const address = useMemo(() => (order ? getAddress(order as any) : "—"), [order]);
   const shiftLabel = useMemo(() => (order ? getShiftLabel(order as any) : "—"), [order]);
+
+  // prepare rows for ItemList v2 (and inject currency symbol)
+  const rows = useMemo(() => {
+    const base = toItemRows(((order as any)?.items ?? []) as any[]);
+    return base.map((r) => ({ ...r, currencySymbol: currency }));
+  }, [order, currency]);
 
   if (loading) {
     return (
@@ -263,10 +246,7 @@ export default function DeliveryNotePage() {
 
         <Separator my={3} />
 
-        <ItemList
-          items={toItemRows((order as any).items ?? [])}
-          currency={currency}
-        />
+        <ItemList items={rows} />
       </Box>
     </Container>
   );

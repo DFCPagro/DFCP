@@ -66,10 +66,13 @@ export type ItemRow = {
   category?: string;
 
   // numbers used to compute ≈metrics
-  pricePerUnit?: number; // per KG
+  /** price per KG */
+  pricePerUnit?: number;
+  /** 'kg' | 'unit' | 'mixed' (informational) */
   unitMode?: "kg" | "unit" | "mixed";
   qtyKg?: number;
   qtyUnits?: number;
+  /** average weight per unit, in KG */
   avgWeightPerUnitKg?: number;
   availableUnitsEstimate?: number;
 
@@ -110,8 +113,12 @@ export default function ItemList({
 
         // ---------- derive metrics ----------
         const avg = num(row.avgWeightPerUnitKg);
-        const pUnit = num(row.pricePerUnit); // per KG (already)
-        const pKg = pUnit > 0 ? round2(pUnit) : undefined;
+        const pricePerKg = num(row.pricePerUnit); // per KG
+        const displayPerKg = pricePerKg > 0 ? round2(pricePerKg) : undefined;
+
+        // derive a *per unit* price only if we know avg weight
+        const pricePerUnit =
+          pricePerKg > 0 && avg > 0 ? round2(pricePerKg * avg) : undefined;
 
         const units =
           intUndef(row.availableUnitsEstimate) ??
@@ -132,7 +139,7 @@ export default function ItemList({
           (Number.isFinite(row.qtyKg) ? num(row.qtyKg) : 0) +
           (typeof units === "number" && avg > 0 ? units * avg : 0);
         const total =
-          pUnit > 0 && effKg > 0 ? round2(pUnit * effKg) : undefined;
+          pricePerKg > 0 && effKg > 0 ? round2(pricePerKg * effKg) : undefined;
 
         const qtyLine = [
           kg !== undefined ? `≈ ${kg} kg` : null,
@@ -142,8 +149,8 @@ export default function ItemList({
           .join("  •  ");
 
         const priceLine = [
-          pKg !== undefined ? `≈ ${currency}${pKg}/kg` : null,
-          pUnit > 0 ? `${currency}${round2(pUnit)}/unit` : null,
+          displayPerKg !== undefined ? `≈ ${currency}${displayPerKg}/kg` : null,
+          pricePerUnit !== undefined ? `${currency}${pricePerUnit}/unit` : null,
         ]
           .filter(Boolean)
           .join("  •  ");

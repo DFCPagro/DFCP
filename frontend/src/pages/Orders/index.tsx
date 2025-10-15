@@ -1,4 +1,3 @@
-// pages/orders/index.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,7 +38,7 @@ import RouteLocationDialog, { type PointValue } from "@/components/common/RouteL
 
 type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
 
-// Backend-canonical statuses
+// Backend canonical statuses (as provided)
 const BE_STATUSES = [
   "pending",
   "confirmed",
@@ -49,7 +48,7 @@ const BE_STATUSES = [
   "ready_for_pickUp",
   "out_for_delivery",
   "delivered",
-  "received",
+  "received",    // helper maps 'recived' -> 'received' too
   "canceled",
   "problem",
 ] as const;
@@ -111,7 +110,7 @@ export default function OrdersIndex() {
     (async () => {
       setLoading(true);
       try {
-        const data = await fetchOrders(limit);
+        const data = await fetchOrders(limit);            // <- new API shape
         if (!mounted) return;
         setOrders(Array.isArray(data) ? data : []);
       } catch {

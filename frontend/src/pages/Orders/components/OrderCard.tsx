@@ -1,4 +1,3 @@
-// pages/orders/components/OrderCard.tsx
 "use client";
 
 import { useState } from "react";
@@ -29,10 +28,10 @@ import {
 } from "./helpers";
 
 type Props = {
-  order?: OrderRowAPI | null; // defensive
+  order?: OrderRowAPI | null;
   isOpen: boolean;
   onToggleOpen: () => void;
-  onOpenMap: (pt: LatLng, onlyDelivery: boolean) => void;
+  onOpenMap: (pt: LatLng, onlyDelivery?: boolean) => void; // <- allow optional 2nd arg
   onOpenNote: () => void;
 };
 
