@@ -1,0 +1,80 @@
+[
+  {
+    "_id": "66f2bb0000000000000000a1",
+    "containerId": "FO123_01",
+    "farmerOrderId": "68ee138318af876ae7dfba64",
+    "itemId": "6873f67b8027abff0fdb32f3",
+    "logisticCenterId": "66e007000000000000000001",
+    "state": "arrived",
+    "weightKg": 100,
+    "location": {
+      "area": "warehouse",
+      "zone": "Z1",
+      "aisle": "A",
+      "shelfId": null,
+      "slotId": null,
+      "updatedAt": "2025-10-14T09:45:00.000Z"
+    },
+    "auditTrail": [
+      {
+        "userId": "66f2aa000000000000000008",
+        "action": "arrived",
+        "note": "Initial stock in warehouse zone Z1",
+        "timestamp": "2025-10-14T09:45:00.000Z",
+        "meta": {}
+      }
+    ]
+  },
+  {
+    "_id": "66f2bb0000000000000000a2",
+    "containerId": "FO123_02",
+    "farmerOrderId": "68ee138318af876ae7dfba64",
+    "itemId": "6873f67b8027abff0fdb32f3",
+    "logisticCenterId": "66e007000000000000000001",
+    "state": "arrived",
+    "weightKg": 80,
+    "location": {
+      "area": "warehouse",
+      "zone": "Z2",
+      "aisle": "B",
+      "shelfId": null,
+      "slotId": null,
+      "updatedAt": "2025-10-14T09:45:00.000Z"
+    },
+    "auditTrail": [
+      {
+        "userId": "66f2aa000000000000000008",
+        "action": "arrived",
+        "note": "Stock in warehouse zone Z2",
+        "timestamp": "2025-10-14T09:45:00.000Z",
+        "meta": {}
+      }
+    ]
+  },
+  {
+    "_id": "66f2bb0000000000000000a3",
+    "containerId": "FO999_01",
+    "farmerOrderId": "68ee0b9f5367e5f7f5cfecc9",
+    "itemId": "f68140ef8273c40bbae48b98",
+    "logisticCenterId": "66e007000000000000000001",
+    "state": "shelved",
+    "weightKg": 70,
+    "location": {
+      "area": "shelf",
+      "zone": "A",
+      "aisle": "1",
+      "shelfId": "66e0070000000000000aaa01",
+      "slotId": "1",
+      "updatedAt": "2025-10-14T09:45:00.000Z"
+    },
+    "auditTrail": [
+      {
+        "userId": "66f2aa000000000000000008",
+        "action": "shelved",
+        "note": "Moved from warehouse to picker shelf A1/1",
+        "timestamp": "2025-10-14T09:45:00.000Z",
+        "meta": {}
+      }
+    ]
+  }
+]

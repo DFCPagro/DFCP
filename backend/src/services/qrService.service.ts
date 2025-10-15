@@ -1,6 +1,6 @@
 // services/qrService.ts
 import crypto from 'crypto';
-import QrToken from '../models/QrToken.model';
+import QrToken from '../models/QRModel.model';
 import Order from '../models/order.model';
 
 const randToken = () => crypto.randomBytes(24).toString('base64url'); // 192-bit
@@ -20,8 +20,8 @@ export async function mintOrderQrs(orderId: string, customerTtlDays = 30) {
   ]);
 
   return {
-    opsUrl: `${process.env.PUBLIC_APP_URL}/o/${opsToken.token}`,
-    customerUrl: `${process.env.PUBLIC_APP_URL}/r/${customerToken.token}`,
+    opsUrl: `${process.env.PUBLIC_APP_BASE_URL }/o/${opsToken.token}`,
+    customerUrl: `${process.env.PUBLIC_APP_BASE_URL }/r/${customerToken.token}`,
     opsToken: opsToken.token,
     customerToken: customerToken.token,
   };

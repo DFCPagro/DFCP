@@ -12,7 +12,7 @@
  */
 
 import "dotenv/config";
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 
 import { connectDB, disconnectDB } from "../../../src/db/connect";
 import {
@@ -28,18 +28,20 @@ import { getContactInfoByIdService } from "../../../src/services/user.service";
 // Config
 // -----------------------------
 const TZ = "Asia/Jerusalem";
-const STATIC_LC_ID = "66e007000000000000000001";     // LC _id (hex string)
+const STATIC_LC_ID = "66e007000000000000000001"; // LC _id (hex string)
 const FARMER_MANAGER_ID = "66f2aa000000000000000005"; // createdBy/updatedBy
 
 // two *user* IDs for farmers (assuming == Farmer._id; change if needed)
 const Farmer1_ID = "66f2aa000000000000000008";
 const Farmer2_ID = "66f2aa00000000000000002a";
+const CONTAINERA = "FO123_01";
+const CONTAINERB = "FO123_02";
 
 const SHIFT_CONFIG = [
-  { name: "morning" as const,   startMin:  60, endMin:  420 },
-  { name: "afternoon" as const, startMin: 420, endMin:  780 },
-  { name: "evening" as const,   startMin: 780, endMin: 1140 },
-  { name: "night" as const,     startMin: 1140, endMin:   60 }, // crosses midnight
+  { name: "morning" as const, startMin: 60, endMin: 420 },
+  { name: "afternoon" as const, startMin: 420, endMin: 780 },
+  { name: "evening" as const, startMin: 780, endMin: 1140 },
+  { name: "night" as const, startMin: 1140, endMin: 60 }, // crosses midnight
 ];
 
 const ITEMS_PER_SHIFT = 5;
@@ -48,15 +50,32 @@ const ITEMS_PER_SHIFT = 5;
 // Helpers
 // -----------------------------
 function fmtYMD(date: Date, timeZone: string): string {
-  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" });
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
   return fmt.format(date); // "YYYY-MM-DD"
 }
 function getLocalHM(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   }).formatToParts(date);
-  const get = (t: string) => Number(parts.find(p => p.type === t)?.value);
-  return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: get("hour"),
+    minute: get("minute"),
+  };
 }
 function minuteOfDay(date: Date, timeZone: string) {
   const { year, month, day, hour, minute } = getLocalHM(date, timeZone);
@@ -67,14 +86,23 @@ function minuteOfDay(date: Date, timeZone: string) {
 function nextTwoShifts(now = new Date()) {
   const { minute } = minuteOfDay(now, TZ);
   function enumerateNext(n: number) {
-    const out: Array<{ ymd: string; name: "morning" | "afternoon" | "evening" | "night" }> = [];
+    const out: Array<{
+      ymd: string;
+      name: "morning" | "afternoon" | "evening" | "night";
+    }> = [];
     const { year, month, day } = getLocalHM(now, TZ);
     const todayUTC = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
-    const candidates: Array<{ dayOffset: number; name: typeof SHIFT_CONFIG[number]["name"]; startMin: number }> = [];
-    for (let d = 0; d < 3; d++) for (const s of SHIFT_CONFIG) candidates.push({ dayOffset: d, name: s.name, startMin: s.startMin });
+    const candidates: Array<{
+      dayOffset: number;
+      name: (typeof SHIFT_CONFIG)[number]["name"];
+      startMin: number;
+    }> = [];
+    for (let d = 0; d < 3; d++)
+      for (const s of SHIFT_CONFIG)
+        candidates.push({ dayOffset: d, name: s.name, startMin: s.startMin });
     const filtered = candidates
-      .filter(c => (c.dayOffset > 0 ? true : c.startMin > minute))
-      .sort((a, b) => (a.dayOffset - b.dayOffset) || (a.startMin - b.startMin));
+      .filter((c) => (c.dayOffset > 0 ? true : c.startMin > minute))
+      .sort((a, b) => a.dayOffset - b.dayOffset || a.startMin - b.startMin);
     for (let i = 0; i < Math.min(n, filtered.length); i++) {
       const c = filtered[i];
       const dateLocal = new Date(todayUTC + c.dayOffset * 24 * 60 * 60 * 1000);
@@ -84,7 +112,9 @@ function nextTwoShifts(now = new Date()) {
   }
   return enumerateNext(2);
 }
-function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randInt(min: number, max: number) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 function isEggs(item: any): boolean {
   const t = String(item?.type || "").toLowerCase();
   const v = String(item?.variety || "").toLowerCase();
@@ -92,8 +122,22 @@ function isEggs(item: any): boolean {
   return t.includes("egg") || v.includes("egg") || c.includes("egg");
 }
 
+// Deterministic QR URL builder for containers (stub; swap to your real endpoint/token logic)
+function makeQrUrlForContainer(
+  farmerOrderId: Types.ObjectId,
+  containerId: string
+) {
+  return `https://your.app/qr/fo/${farmerOrderId.toString()}/${encodeURIComponent(
+    containerId
+  )}`;
+}
+
 // AMS doc helpers
-async function ensureEmptyAMS(LCid: string, dateYMD: string, shift: "morning" | "afternoon" | "evening" | "night") {
+async function ensureEmptyAMS(
+  LCid: string,
+  dateYMD: string,
+  shift: "morning" | "afternoon" | "evening" | "night"
+) {
   let doc = await getAvailableMarketStockByKey({ LCid, date: dateYMD, shift });
   if (!doc) {
     doc = await AvailableMarketStockModel.create({
@@ -105,12 +149,22 @@ async function ensureEmptyAMS(LCid: string, dateYMD: string, shift: "morning" | 
     return doc._id.toString();
   }
   const updated = await AvailableMarketStockModel.findByIdAndUpdate(
-    doc._id, { $set: { items: [] } }, { new: true }
+    doc._id,
+    { $set: { items: [] } },
+    { new: true }
   );
   return updated!._id.toString();
 }
-async function ensureAMSId(LCid: string, dateYMD: string, shift: "morning" | "afternoon" | "evening" | "night") {
-  const existing = await getAvailableMarketStockByKey({ LCid, date: dateYMD, shift });
+async function ensureAMSId(
+  LCid: string,
+  dateYMD: string,
+  shift: "morning" | "afternoon" | "evening" | "night"
+) {
+  const existing = await getAvailableMarketStockByKey({
+    LCid,
+    date: dateYMD,
+    shift,
+  });
   if (existing) return String(existing._id);
   const created = await AvailableMarketStockModel.create({
     LCid: new Types.ObjectId(LCid),
@@ -123,22 +177,32 @@ async function ensureAMSId(LCid: string, dateYMD: string, shift: "morning" | "af
 
 // items pool — full documents (lean)
 async function pickRandomItemDocs(n: number) {
-  const arr = await ItemModel.find({}, null, { sort: { updatedAt: -1 }, lean: true });
-  if (arr.length < n) throw new Error(`Not enough items in DB to sample ${n}. Found: ${arr.length}`);
+  const arr = await ItemModel.find({}, null, {
+    sort: { updatedAt: -1 },
+    lean: true,
+  });
+  if (arr.length < n)
+    throw new Error(
+      `Not enough items in DB to sample ${n}. Found: ${arr.length}`
+    );
 
   const chosen: any[] = [];
   const used = new Set<number>();
   while (chosen.length < n) {
     const idx = Math.floor(Math.random() * arr.length);
-    if (!used.has(idx)) { used.add(idx); chosen.push(arr[idx]); }
+    if (!used.has(idx)) {
+      used.add(idx);
+      chosen.push(arr[idx]);
+    }
   }
   return chosen; // full docs
 }
 
 // summary typing helpers
 const UNIT_MODES = ["kg", "unit", "mixed"] as const;
-type UnitMode = typeof UNIT_MODES[number];
-const isUnitMode = (v: any): v is UnitMode => v === "kg" || v === "unit" || v === "mixed";
+type UnitMode = (typeof UNIT_MODES)[number];
+const isUnitMode = (v: any): v is UnitMode =>
+  v === "kg" || v === "unit" || v === "mixed";
 
 // -----------------------------
 // Seed
@@ -149,7 +213,10 @@ async function seed() {
 
   // ------- summary trackers -------
   const summary = {
-    byShift: new Map<string, { amsDocId: string; lines: number; byMode: Record<UnitMode, number> }>(),
+    byShift: new Map<
+      string,
+      { amsDocId: string; lines: number; byMode: Record<UnitMode, number> }
+    >(),
     farmerOrders: { total: 0, byFarmer: new Map<string, number>() },
   };
 
@@ -158,8 +225,20 @@ async function seed() {
     const f1 = await getContactInfoByIdService(Farmer1_ID);
     const f2 = await getContactInfoByIdService(Farmer2_ID);
     const FARMERS = [
-      { farmerUserId: Farmer1_ID, farmerId: new Types.ObjectId(Farmer1_ID), farmerName: f1.name, farmName: f1.farmName || "freshy fresh", farmLogo: f1.farmLogo ?? null },
-      { farmerUserId: Farmer2_ID, farmerId: new Types.ObjectId(Farmer2_ID), farmerName: f2.name, farmName: f2.farmName || "freshy fresh", farmLogo: f2.farmLogo ?? null },
+      {
+        farmerUserId: Farmer1_ID,
+        farmerId: new Types.ObjectId(Farmer1_ID),
+        farmerName: f1.name,
+        farmName: f1.farmName || "freshy fresh",
+        farmLogo: f1.farmLogo ?? null,
+      },
+      {
+        farmerUserId: Farmer2_ID,
+        farmerId: new Types.ObjectId(Farmer2_ID),
+        farmerName: f2.name,
+        farmName: f2.farmName || "freshy fresh",
+        farmLogo: f2.farmLogo ?? null,
+      },
     ];
 
     // 1) Next 2 shifts
@@ -173,9 +252,16 @@ async function seed() {
 
     // 3) Pick 5 random items (full docs)
     const items = await pickRandomItemDocs(ITEMS_PER_SHIFT);
-    console.log("[Items] Selected:", items.map((it: any) => ({ id: String(it._id), type: it.type, variety: it.variety })));
+    console.log(
+      "[Items] Selected:",
+      items.map((it: any) => ({
+        id: String(it._id),
+        type: it.type,
+        variety: it.variety,
+      }))
+    );
 
-    // 4) For each shift: for each item, create FO for Farmer1 AND Farmer2, then push to AMS
+    // 4) For each shift: for each item, create an FO for Farmer1 AND for Farmer2
     for (const s of next2) {
       const key = `${s.ymd} ${s.name}`;
       console.log(`\n[Shift] ${key}: creating farmer orders & AMS lines…`);
@@ -186,15 +272,18 @@ async function seed() {
         // sanity: need base price per KG
         const pricePerKg = Number(itemDoc?.price?.a);
         if (!Number.isFinite(pricePerKg) || pricePerKg < 0) {
-          console.warn(`[WARN] Missing/invalid price.a for item ${String(itemDoc._id)} — skipping`);
+          console.warn(
+            `[WARN] Missing/invalid price.a for item ${String(
+              itemDoc._id
+            )} — skipping`
+          );
           continue;
         }
 
-        // both farmers get this item (2 orders per item)
         for (const farmer of FARMERS) {
           const committedKg = isEggs(itemDoc) ? 80 : randInt(50, 80);
 
-          // Create FarmerOrder per model (farmerStatus = "ok")
+          // Create FarmerOrder (aligned with model: ObjectId fields)
           const created = await FarmerOrder.create({
             createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
             updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
@@ -202,7 +291,9 @@ async function seed() {
             itemId: new Types.ObjectId(itemDoc._id),
             type: String(itemDoc.type || "Unknown"),
             variety: String(itemDoc.variety || ""),
-            pictureUrl: String(itemDoc?.imageUrl ?? "https://example.com/placeholder.jpg"),
+            pictureUrl: String(
+              itemDoc?.imageUrl ?? "https://example.com/placeholder.jpg"
+            ),
 
             farmerId: farmer.farmerId,
             farmerName: farmer.farmerName,
@@ -218,28 +309,58 @@ async function seed() {
             forcastedQuantityKg: committedKg,
 
             orders: [],
-            containers: [],
+            containers: [], // important: empty for now
             historyAuditTrail: [],
           });
 
-          summary.farmerOrders.total += 1;
-          summary.farmerOrders.byFarmer.set(
-            farmer.farmerName,
-            (summary.farmerOrders.byFarmer.get(farmer.farmerName) ?? 0) + 1
+          // --- Now attach containers (with required fields set) ---
+          const containers = [
+            {
+              containerId: CONTAINERA,
+              itemId: new Types.ObjectId("6873f67b8027abff0fdb32f3"), // keep your demo itemId or swap to item._id
+              farmerOrder: created._id,
+              qrUrl: makeQrUrlForContainer(created._id, CONTAINERA),
+              // optional fields like weightKg/stages can go here
+            },
+            {
+              containerId: CONTAINERB,
+              itemId: new Types.ObjectId("6873f67b8027abff0fdb32f3"),
+              farmerOrder: created._id,
+              qrUrl: makeQrUrlForContainer(created._id, CONTAINERB),
+            },
+          ];
+
+          await FarmerOrder.updateOne(
+            { _id: created._id },
+            { $set: { containers } }
           );
 
-          // Push to AMS (service computes unitMode + pricePerUnit + estimates)
-          const displayName = itemDoc.variety ? `${itemDoc.type} ${itemDoc.variety}` : itemDoc.type;
+          // --- Build AMS item using your builder ---
+          const amsLine = buildAmsItemFromItem({
+            item: itemDoc,
+            farmer: {
+              id: created.farmerId,
+              name: created.farmerName,
+              farmName: created.farmName,
+              farmLogo: farmer.farmLogo ?? undefined,
+            },
+            committedKg,
+            unitConfig: { zScore: 1.28, shrinkagePct: 0.02 }, // optional tuning
+          });
 
+          // Ensure links/price on AMS line
+          (amsLine as any).farmerOrderId = created._id;
+          (amsLine as any).pricePerUnit = pricePerKg;
+
+          // Push to AMS via service
           await addItemToAvailableMarketStock({
             docId: amsId,
             item: {
-              itemId: String(itemDoc._id),
-              displayName,
-              imageUrl: itemDoc.imageUrl ?? null,
-              category: itemDoc.category,
-
-              // DO NOT send pricePerUnit/unitMode/estimates (service derives them)
+              itemId: String((amsLine as any).itemId),
+              displayName: (amsLine as any).displayName,
+              imageUrl: (amsLine as any).imageUrl ?? null,
+              category: (amsLine as any).category,
+              pricePerUnit: Number((amsLine as any).pricePerUnit),
 
               originalCommittedQuantityKg: committedKg,
               currentAvailableQuantityKg: committedKg,
@@ -250,16 +371,23 @@ async function seed() {
               farmName: farmer.farmName,
               farmLogo: farmer.farmLogo ?? null,
 
-              status: "active",
-            },
+              unitMode: (amsLine as any).unitMode,
+              estimates: (amsLine as any).estimates,
+
+              status: (amsLine as any).status ?? "active",
+            } as any,
           });
         }
       }
 
       // summary snapshot for this shift
-      const doc = await getAvailableMarketStockByKey({ LCid: STATIC_LC_ID, date: s.ymd, shift: s.name });
+      const doc = await getAvailableMarketStockByKey({
+        LCid: STATIC_LC_ID,
+        date: s.ymd,
+        shift: s.name,
+      });
       const byMode: Record<UnitMode, number> = { kg: 0, unit: 0, mixed: 0 };
-      for (const it of (doc?.items ?? [])) {
+      for (const it of doc?.items ?? []) {
         const m = (it as any).unitMode;
         if (isUnitMode(m)) byMode[m] += 1;
       }
@@ -283,6 +411,9 @@ async function seed() {
     }
     console.log("Farmer status set to 'ok' for all created FarmerOrders.");
     console.log("✅ Done.");
+  } catch (err) {
+    console.error("❌ Seed failed:", err);
+    throw err;
   } finally {
     await disconnectDB().catch(() => {});
     console.log("🔌 Disconnected");
@@ -291,11 +422,7 @@ async function seed() {
 
 // Execute if run directly
 if (require.main === module) {
-  seed().catch(async (err) => {
-    console.error("❌ Seed failed:", err);
-    try { await disconnectDB(); } catch {}
-    process.exit(1);
-  });
+  seed().catch(() => process.exit(1));
 }
 
 export default seed;

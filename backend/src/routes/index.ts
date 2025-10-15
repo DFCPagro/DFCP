@@ -15,13 +15,24 @@ import farmerOrderRoutes from './farmerOrder.route';
 import PackageSizeRoute from './packageSize.route';
 import ItemPackingRoute from './ItemPacking.route';
 import farmerRoute from './farmer.routes';
+import scanRoute from './scan.routes';
+import industrialDelivererRoute from './industrialDeliverer.routes';
+import shelfRoutes from './shelf.routes';
+import containerOpsRoutes from './containerOps.routes'
 
 const router = Router();
+
 router.use('/auth', authRoutes);
+
 router.use('/logistics-centers', logisticsCenterRouter);
+
+// 🧱 Warehouse / LC ops
+router.use('/shelves', shelfRoutes);            // /shelves/:id, /shelves/:id/slots/place, etc.
+router.use('/container-ops', containerOpsRoutes); // /container-ops/:id/pick, /container-ops/:id/mark-depleted
+
+// Existing
 router.use('/items', itemRoutes);
 router.use('/orders', orderRoutes);
-router.use("/jobApp", jobApplicationRouter);
 router.use('/market', marketRoutes);
 router.use('/deliverers', delivererRoutes);
 router.use('/carts', cartRoutes);
@@ -29,9 +40,11 @@ router.use('/config', configRoutes);
 router.use('/farmer-orders', farmerOrderRoutes);
 router.use('/package-sizes', PackageSizeRoute);
 router.use('/item-packing', ItemPackingRoute);
-router.use('/farmer',farmerRoute);
-
+router.use('/farmer', farmerRoute);
+router.use('/industrialDeliverer', industrialDelivererRoute);
+router.use('/scan', scanRoute);
 // router.use(centerMapRoutes);
-router.use('/shifts',shiftRoutes);
+router.use('/shifts', shiftRoutes);
 router.use('/users', userRoutes);
+
 export default router;

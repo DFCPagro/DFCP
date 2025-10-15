@@ -1,5 +1,17 @@
-export const roles = ['customer', 'farmer', 'picker', 'sorter', 'deliverer','industrialDeliverer', 'tManager', 'fManager', 'opManager', 'admin','csManager'] as const;
-export type Role = typeof roles[number];
+export const roles = [
+  "customer",
+  "farmer",
+  "picker",
+  "sorter",
+  "deliverer",
+  "industrialDeliverer",
+  "tManager",
+  "fManager",
+  "opManager",
+  "admin",
+  "csManager",
+] as const;
+export type Role = (typeof roles)[number];
 
 /** ---------------------------
  *  Job Application – Roles
@@ -11,7 +23,7 @@ export const jobApplicationRoles = [
   "picker",
   "sorter",
 ] as const;
-export type JobApplicationRole = typeof jobApplicationRoles[number];
+export type JobApplicationRole = (typeof jobApplicationRoles)[number];
 
 export const jobApplicationStatuses = [
   "pending",
@@ -19,8 +31,7 @@ export const jobApplicationStatuses = [
   "approved",
   "denied",
 ] as const;
-export type JobApplicationStatus = typeof jobApplicationStatuses[number];
-
+export type JobApplicationStatus = (typeof jobApplicationStatuses)[number];
 
 /** Valid status transitions (enforced by controllers/services) */
 export const JOB_APP_ALLOWED_TRANSITIONS: Readonly<
@@ -29,19 +40,13 @@ export const JOB_APP_ALLOWED_TRANSITIONS: Readonly<
   pending: ["contacted", "denied"],
   contacted: ["approved", "denied"],
   approved: [], // terminal
-  denied: [],   // terminal
+  denied: [], // terminal
 });
 
 export const JOB_APP_TERMINAL_STATUSES = ["approved", "denied"] as const;
 
-
-
-
-
-
-
-/** 
- * 
+/**
+ *
  * Tokens Related
  */
 

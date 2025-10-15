@@ -9,7 +9,7 @@ const Env = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
 
   // optional override
-  PUBLIC_APP_URL: z.url().optional(),
+  PUBLIC_APP_BASE_URL : z.url().optional(),
 
   API_PREFIX: z.string().default('/api/v1'),
 
@@ -29,12 +29,12 @@ const Env = z.object({
   COOKIE_DOMAIN: z.string().optional(),
 }).transform(v => {
   const isProd = v.NODE_ENV === 'production';
-  const PUBLIC_APP_URL =
-    v.PUBLIC_APP_URL ?? `${isProd ? 'https' : 'http'}://localhost:${v.PORT}`;
+  const PUBLIC_APP_BASE_URL  =
+    v.PUBLIC_APP_BASE_URL  ?? `${isProd ? 'https' : 'http'}://localhost:${v.PORT}`;
 
   return {
     ...v,
-    PUBLIC_APP_URL,
+    PUBLIC_APP_BASE_URL ,
     COOKIE_SECURE: v.COOKIE_SECURE ?? isProd,
   };
 });
@@ -55,7 +55,7 @@ export const env = cfg;
 export const {
   NODE_ENV,
   PORT,
-  PUBLIC_APP_URL,
+  PUBLIC_APP_BASE_URL ,
   API_PREFIX,
   MONGODB_URI,
   JWT_ACCESS_SECRET,

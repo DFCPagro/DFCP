@@ -1,0 +1,50 @@
+[
+  {
+    "_id": "66e0070000000000000aaa00",
+    "logisticCenterId": "66e007000000000000000001",
+    "shelfId": "A1",
+    "type": "warehouse",
+    "zone": "A",
+    "aisle": "1",
+    "level": "top",
+    "maxSlots": 3,
+    "maxWeightKg": 180,
+    "slots": [
+      { "slotId": "1", "capacityKg": 60 },
+      { "slotId": "2", "capacityKg": 60 },
+      { "slotId": "3", "capacityKg": 60 }
+    ]
+  },
+  {
+    "_id": "66e0070000000000000aaa01",
+    "logisticCenterId": "66e007000000000000000001",
+    "shelfId": "A2",
+    "type": "picker",
+    "zone": "A",
+    "aisle": "1",
+    "level": "mid",
+    "maxSlots": 3,
+    "maxWeightKg": 180,
+    "slots": [
+      { "slotId": "1", "capacityKg": 60 },
+      { "slotId": "2", "capacityKg": 60 },
+      { "slotId": "3", "capacityKg": 60 }
+    ]
+  },
+  {
+    "_id": "66e0070000000000000aaa02",
+    "logisticCenterId": "66e007000000000000000001",
+    "shelfId": "A3",
+    "type": "picker",
+    "zone": "A",
+    "aisle": "1",
+    "level": "bottom",
+    "maxSlots": 3,
+    "maxWeightKg": 180,
+    "slots": [
+      { "slotId": "1", "capacityKg": 60 },
+      { "slotId": "2", "capacityKg": 60 },
+      { "slotId": "3", "capacityKg": 60 }
+    ]
+  }
+]
