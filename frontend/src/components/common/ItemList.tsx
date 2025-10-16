@@ -21,21 +21,21 @@ function AvatarBox({ url, text }: { url?: string; text?: string }) {
     <Image
       src={url}
       alt={label}
-      boxSize="22px"
+      boxSize={{ base: "26px", md: "30px" }}
       borderRadius="full"
       borderWidth="1px"
       objectFit="cover"
     />
   ) : (
     <Box
-      boxSize="22px"
+      boxSize={{ base: "26px", md: "30px" }}
       borderRadius="full"
       borderWidth="1px"
       bg="bg.muted"
       display="flex"
       alignItems="center"
       justifyContent="center"
-      fontSize="10px"
+      fontSize="12px"
       fontWeight="bold"
     >
       {label.slice(0, 2).toUpperCase()}
@@ -58,25 +58,22 @@ export type ItemRow = {
 
   imageUrl?: string;
 
-  // farm branding
   farmLogo?: string | null;
   farmName?: string | null;
 
-  // tagging
   category?: string;
 
-  // numbers used to compute ≈metrics
   /** price per KG */
-  pricePerUnit?: number;
-  /** 'kg' | 'unit' | 'mixed' (informational) */
+  pricePerUnit?: number; // legacy name, actually per KG
+  /** optional price per EACH unit if item is priced per unit */
+  pricePerUnitEach?: number;
+
   unitMode?: "kg" | "unit" | "mixed";
   qtyKg?: number;
   qtyUnits?: number;
-  /** average weight per unit, in KG */
   avgWeightPerUnitKg?: number;
   availableUnitsEstimate?: number;
 
-  // optional currency hint
   currencySymbol?: string;
 
   [k: string]: any;
@@ -111,63 +108,76 @@ export default function ItemList({
 
         const currency = row.currencySymbol ?? "₪";
 
-        // ---------- derive metrics ----------
-        const avg = num(row.avgWeightPerUnitKg);
-        const pricePerKg = num(row.pricePerUnit); // per KG
-        const displayPerKg = pricePerKg > 0 ? round2(pricePerKg) : undefined;
+        // ---------- inputs ----------
+        const avg = nz(num(row.avgWeightPerUnitKg)); // kg per unit
+        const pricePerKg = nz(num(row.pricePerUnit));
+        const explicitEach = nz(num((row as any).pricePerUnitEach));
+        const priceEach = explicitEach > 0 ? explicitEach : avg > 0 && pricePerKg > 0 ? round2(pricePerKg * avg) : 0;
 
-        // derive a *per unit* price only if we know avg weight
-        const pricePerUnit =
-          pricePerKg > 0 && avg > 0 ? round2(pricePerKg * avg) : undefined;
+        const qtyKgRaw = isNum(row.qtyKg) ? num(row.qtyKg) : undefined;
+        const qtyUnitsRaw = isNum(row.qtyUnits) ? Math.round(num(row.qtyUnits)) : undefined;
 
-        const units =
-          intUndef(row.availableUnitsEstimate) ??
-          intUndef(row.qtyUnits) ??
-          (avg > 0 && Number.isFinite(row.qtyKg)
-            ? Math.round(num(row.qtyKg) / avg)
-            : undefined);
-
-        const kg =
-          Number.isFinite(row.qtyKg)
-            ? round1(num(row.qtyKg))
-            : units && avg > 0
-            ? round1(units * avg)
+        // ---------- display metrics (do not double count) ----------
+        const kgDisplay =
+          qtyKgRaw !== undefined
+            ? round1(qtyKgRaw)
+            : qtyUnitsRaw !== undefined && avg > 0
+            ? round1(qtyUnitsRaw * avg)
             : undefined;
 
-        // effective kg for total
-        const effKg =
-          (Number.isFinite(row.qtyKg) ? num(row.qtyKg) : 0) +
-          (typeof units === "number" && avg > 0 ? units * avg : 0);
-        const total =
-          pricePerKg > 0 && effKg > 0 ? round2(pricePerKg * effKg) : undefined;
+        const unitsDisplay =
+          intUndef(row.availableUnitsEstimate) ??
+          (qtyUnitsRaw !== undefined
+            ? qtyUnitsRaw
+            : qtyKgRaw !== undefined && avg > 0
+            ? Math.round(qtyKgRaw / avg)
+            : undefined);
+
+        const pricePerKgDisplay = pricePerKg > 0 ? round2(pricePerKg) : undefined;
+        const pricePerUnitDisplay = priceEach > 0 ? round2(priceEach) : undefined;
 
         const qtyLine = [
-          kg !== undefined ? `≈ ${kg} kg` : null,
-          typeof units === "number" ? `≈ ${units} units` : null,
+          kgDisplay !== undefined ? `≈ ${kgDisplay} kg` : null,
+          unitsDisplay !== undefined ? `≈ ${unitsDisplay} units` : null,
         ]
           .filter(Boolean)
           .join("  •  ");
 
         const priceLine = [
-          displayPerKg !== undefined ? `≈ ${currency}${displayPerKg}/kg` : null,
-          pricePerUnit !== undefined ? `${currency}${pricePerUnit}/unit` : null,
+          pricePerKgDisplay !== undefined ? `≈ ${currency}${pricePerKgDisplay}/kg` : null,
+          pricePerUnitDisplay !== undefined ? `${currency}${pricePerUnitDisplay}/unit` : null,
         ]
           .filter(Boolean)
           .join("  •  ");
 
-        const totalLine =
-          total !== undefined ? `≈ ${currency}${total} total` : "";
+        // ---------- TOTAL (no double counting) ----------
+        const totalFromKg = pricePerKg > 0 && qtyKgRaw !== undefined ? pricePerKg * qtyKgRaw : 0;
+
+        const totalFromUnits =
+          qtyUnitsRaw !== undefined
+            ? priceEach > 0
+              ? priceEach * qtyUnitsRaw
+              : pricePerKg > 0 && avg > 0
+              ? pricePerKg * (qtyUnitsRaw * avg)
+              : 0
+            : 0;
+
+        const totalRaw = totalFromKg + totalFromUnits;
+        const total = totalRaw > 0 ? round2(totalRaw) : undefined;
+        const totalLine = total !== undefined ? `${currency}${total}` : "";
 
         return (
           <Fragment key={key}>
-            {/* Card-like row */}
             <Grid
-              templateColumns={{ base: "80px 1fr", md: "96px 1fr 240px" }}
-              gap={3}
-              p={3}
-              borderRadius="lg"
+              templateColumns={{ base: "96px 1fr", md: "112px 2fr 1.2fr" }}
+              gap={{ base: 3, md: 4 }}
+              p={{ base: 4, md: 5 }}
+              borderRadius="xl"
+              borderWidth="1px"
+              bg="bg.canvas"
               _hover={{
                 bg: "bg.subtle",
+                shadow: "sm",
                 cursor: onRowClick ? "pointer" : "default",
               }}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -177,64 +187,90 @@ export default function ItemList({
                 <Image
                   src={row.imageUrl}
                   alt={row.title}
-                  boxSize={{ base: "80px", md: "96px" }}
-                  borderRadius="md"
+                  boxSize={{ base: "96px", md: "112px" }}
+                  borderRadius="lg"
                   objectFit="cover"
                   borderWidth="1px"
                 />
               ) : (
                 <Box
-                  boxSize={{ base: "80px", md: "96px" }}
-                  borderRadius="md"
+                  boxSize={{ base: "96px", md: "112px" }}
+                  borderRadius="lg"
                   borderWidth="1px"
                   bg="bg.muted"
                 />
               )}
 
               {/* main info */}
-              <VStack align="start" gap={1} minW={0}>
-                <Text fontWeight="semibold" lineClamp={1}>
+              <VStack align="start" gap={{ base: 2, md: 3 }} minW={0}>
+                <Text
+                  fontWeight="bold"
+                  fontSize={{ base: "lg", md: "xl" }}
+                  lineHeight="1.2"
+                  lineClamp={1}
+                >
                   {row.title}
                 </Text>
 
-                {/* logo next to farmer/farm name */}
                 {(row.subtitle || row.farmName || row.farmLogo) && (
                   <HStack gap={2} align="center" w="full" minW={0}>
                     <AvatarBox
                       url={row.farmLogo ?? undefined}
                       text={initials(row.farmName, row.subtitle, row.title)}
                     />
-                    <Text fontSize="sm" color="fg.muted" lineClamp={1}>
+                    <Text
+                      fontSize={{ base: "sm", md: "md" }}
+                      color="fg.muted"
+                      lineClamp={1}
+                    >
                       {row.subtitle ?? row.farmName ?? ""}
                     </Text>
                   </HStack>
                 )}
 
                 <HStack gap={2} wrap="wrap">
-                  {row.category ? <Badge>{row.category}</Badge> : null}
+                  {row.category ? (
+                    <Badge px="2" py="0.5" fontSize={{ base: "xs", md: "sm" }} borderRadius="md">
+                      {row.category}
+                    </Badge>
+                  ) : null}
                 </HStack>
               </VStack>
 
               {/* metrics pane */}
               <VStack
                 display={{ base: "none", md: "flex" }}
-                align="end"
+                align="stretch"
                 justify="center"
-                gap={1}
+                gap={2}
+                fontVariantNumeric="tabular-nums"
               >
-                <Text fontSize="sm" color="fg.muted">
-                  {qtyLine || "—"}
-                </Text>
-                <Text fontSize="sm" color="fg.muted">
-                  {priceLine || "—"}
-                </Text>
-                <Text fontSize="sm" fontWeight="semibold">
-                  {totalLine || " "}
-                </Text>
+                <HStack justify="space-between">
+                  <Text color="fg.muted" fontSize="sm">
+                    Qty
+                  </Text>
+                  <Text fontSize="lg">{qtyLine || "—"}</Text>
+                </HStack>
+
+                <HStack justify="space-between">
+                  <Text color="fg.muted" fontSize="sm">
+                    Price
+                  </Text>
+                  <Text fontSize="lg">{priceLine || "—"}</Text>
+                </HStack>
+
+                <HStack justify="space-between">
+                  <Text color="fg.muted" fontSize="sm">
+                    Total
+                  </Text>
+                  <Text fontSize="2xl" fontWeight="extrabold">
+                    {totalLine || " "}
+                  </Text>
+                </HStack>
 
                 {showScanButton ? (
                   <Button
-                    size="xs"
+                    size="sm"
                     variant="outline"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -246,20 +282,34 @@ export default function ItemList({
                 ) : null}
               </VStack>
 
-              {/* small-screen metrics below text */}
+              {/* small-screen metrics */}
               <Box
                 gridColumn={{ base: "1 / -1", md: "auto" }}
                 display={{ md: "none" }}
+                fontVariantNumeric="tabular-nums"
               >
-                <Text fontSize="sm" color="fg.muted">
-                  {qtyLine || "—"}
-                </Text>
-                <Text fontSize="sm" color="fg.muted">
-                  {priceLine || "—"}
-                </Text>
-                <Text fontSize="sm" fontWeight="semibold">
-                  {totalLine || " "}
-                </Text>
+                <VStack align="stretch" gap={1.5}>
+                  <HStack justify="space-between">
+                    <Text color="fg.muted" fontSize="xs">
+                      Qty
+                    </Text>
+                    <Text fontSize="md">{qtyLine || "—"}</Text>
+                  </HStack>
+                  <HStack justify="space-between">
+                    <Text color="fg.muted" fontSize="xs">
+                      Price
+                    </Text>
+                    <Text fontSize="md">{priceLine || "—"}</Text>
+                  </HStack>
+                  <HStack justify="space-between">
+                    <Text color="fg.muted" fontSize="xs">
+                      Total
+                    </Text>
+                    <Text fontSize="xl" fontWeight="extrabold">
+                      {totalLine || " "}
+                    </Text>
+                  </HStack>
+                </VStack>
               </Box>
             </Grid>
 
@@ -274,7 +324,14 @@ export default function ItemList({
 // ---------- helpers ----------
 function num(v?: number | string | null): number {
   const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+function nz(n: number) {
   return Number.isFinite(n) ? n : 0;
+}
+function isNum(v: unknown): boolean {
+  const n = Number(v);
+  return Number.isFinite(n);
 }
 function intUndef(v: unknown): number | undefined {
   const n = Number(v);

@@ -36,7 +36,8 @@ export default function OrderTimeline({ status, size = "md" }: Props) {
   const steps: UIStatus[] = cancelled ? ([...FLOW.slice(0, -1), "cancelled"] as UIStatus[]) : FLOW;
   const currentIndex = steps.findIndex((x) => x === ui);
 
-  const circle = size === "sm" ? "6" : "8"; // chakra size tokens
+  const circle = size === "sm" ? "6" : "8";
+  const activeCircle = size === "sm" ? "8" : "10";
   const connectorWidth = size === "sm" ? 36 : 48;
 
   return (
@@ -44,50 +45,41 @@ export default function OrderTimeline({ status, size = "md" }: Props) {
       {steps.map((s, i) => {
         const isCancel = s === "cancelled";
         const active = i === currentIndex;
-        const done = currentIndex >= 0 && i <= currentIndex && !isCancel && !cancelled;
-        const color = isCancel
-          ? "red.500"
-          : done
-          ? "teal.500"
-          : active
-          ? "blue.500"
-          : "gray.400";
+        const done = currentIndex >= 0 && i < currentIndex && !isCancel && !cancelled;
+
+        const borderColor = isCancel ? "red.600" : active ? "teal.600" : done ? "teal.600" : "gray.400";
+        const fg = isCancel ? "red.600" : active ? "teal.700" : done ? "teal.700" : "gray.500";
+        const bg = isCancel ? "red.100" : active ? "teal.200" : done ? "teal.50" : "transparent";
 
         return (
           <HStack key={s} flex="0 0 auto" minW="max-content" gap={3}>
             <VStack gap={1}>
               <Box
-                boxSize={circle}
+                boxSize={active ? activeCircle : circle}
                 borderRadius="full"
                 borderWidth="2px"
                 display="flex"
                 alignItems="center"
                 justifyContent="center"
-                color={color}
-                borderColor={color}
-                bg={
-                  isCancel
-                    ? "red.50"
-                    : done
-                    ? "teal.50"
-                    : active
-                    ? "blue.50"
-                    : "transparent"
-                }
+                color={fg}
+                borderColor={borderColor}
+                bg={bg}
+                boxShadow={active ? "0 0 0 3px rgba(59,130,246,0.35)" : "none"} // blue ring
                 _dark={{
-                  bg: isCancel
-                    ? "red.900"
-                    : done
-                    ? "teal.900"
-                    : active
-                    ? "blue.900"
-                    : "transparent",
+                  bg: active ? "blue.400" : done ? "teal.900" : isCancel ? "red.900" : "transparent",
+                  color: active ? "black" : undefined,
+                  borderColor: active ? "blue.400" : borderColor,
                 }}
                 fontSize={size === "sm" ? "xs" : "sm"}
               >
                 <span aria-hidden>{STATUS_EMOJI[s as UIStatus] ?? "•"}</span>
               </Box>
-              <Text fontSize="xs" color="gray.600" textTransform="capitalize">
+              <Text
+                fontSize="xs"
+                color={active ? "blue.700" : "gray.600"}
+                fontWeight={active ? "bold" : "normal"}
+                textTransform="capitalize"
+              >
                 {STATUS_LABEL[s as UIStatus] ?? s}
               </Text>
             </VStack>
@@ -101,11 +93,19 @@ export default function OrderTimeline({ status, size = "md" }: Props) {
                   cancelled
                     ? "gray.300"
                     : i < currentIndex
-                    ? "teal.400"
+                    ? "teal.500"           // done
+                    : i === currentIndex
+                    ? "blue.500"           // active → next
                     : "gray.300"
                 }
                 _dark={{
-                  bg: cancelled ? "gray.600" : i < currentIndex ? "teal.600" : "gray.600",
+                  bg: cancelled
+                    ? "gray.600"
+                    : i < currentIndex
+                    ? "teal.600"
+                    : i === currentIndex
+                    ? "blue.400"
+                    : "gray.600",
                 }}
               />
             )}

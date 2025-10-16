@@ -53,21 +53,53 @@ const BE_STATUSES = [
   "problem",
 ] as const;
 
+// OrdersIndex.tsx — replace ColorBlock and pass accents to Section
 function ColorBlock({
   children,
   light,
   dark,
+  accent,
 }: {
   children: React.ReactNode;
   light: string;
   dark: string;
+  /** Accent for the outer ring gradient */
+  accent: string;
 }) {
+  const opposite = (c: string) => {
+    const base = c.split(".")[0];
+    switch (base) {
+      case "teal":
+        return "pink.500";
+      case "orange":
+        return "blue.600";
+      case "pink":
+        return "teal.600";
+      case "purple":
+        return "yellow.400";
+      case "blue":
+        return "orange.500";
+      case "cyan":
+        return "red.500";
+      case "green":
+        return "purple.600";
+      case "yellow":
+        return "purple.700";
+      default:
+        return "cyan.500";
+    }
+  };
+  const ring = `linear(to-r, ${accent}, ${opposite(accent)})`;
+
   return (
-    <Box p={4} borderRadius="lg" bg={light} _dark={{ bg: dark }}>
-      {children}
+    <Box bgGradient={ring} p="1px" borderRadius="2xl">
+      <Box p={4} borderRadius="2xl" bg={light} _dark={{ bg: dark }}>
+        {children}
+      </Box>
     </Box>
   );
 }
+
 
 function labelForStatus(s: string): string {
   const ui = normalizeStatus(s) as UIStatus;
@@ -239,7 +271,7 @@ export default function OrdersIndex() {
     <AuthGuard>
       <Container maxW="6xl" py={6}>
         {/* Header + Filters */}
-        <ColorBlock light="purple.50" dark="purple.900">
+<ColorBlock light="purple.100" dark="purple.900" accent="purple.600">
           <HStack gap={3} align="center">
             <Heading size="2xl" fontWeight="extrabold">My Orders</Heading>
             <span style={{ flex: 1 }} />
@@ -312,7 +344,7 @@ export default function OrdersIndex() {
 
         {/* Active */}
         <Box h={3} />
-        <ColorBlock light="teal.50" dark="teal.900">
+<ColorBlock light="teal.50" dark="teal.900" accent="teal.600">
           {loading && (orders ?? []).length === 0 ? (
             <HStack justifyContent="center" py={12}><Spinner /></HStack>
           ) : (activeOrders ?? []).length === 0 ? (
@@ -356,7 +388,7 @@ export default function OrdersIndex() {
 
         {/* Previous orders */}
         <Box h={3} />
-        <ColorBlock light="orange.50" dark="orange.900">
+<ColorBlock light="yellow.50" dark="orange.900" accent="orange.600">
           {(oldOrders ?? []).length === 0 ? (
             <Alert.Root status="info" borderRadius="md">
               <Alert.Indicator />
@@ -398,7 +430,7 @@ export default function OrdersIndex() {
 
         {/* Reported */}
         <Box h={3} />
-        <ColorBlock light="pink.50" dark="pink.900">
+<ColorBlock light="pink.100" dark="pink.900" accent="pink.600">
           <Section
             title={
               <HStack w="full" justify="space-between" align="center">
@@ -430,7 +462,7 @@ export default function OrdersIndex() {
 
         {/* Load more */}
         <Box h={3} />
-        <ColorBlock light="gray.50" dark="gray.800">
+<ColorBlock light="gray.100" dark="gray.800" accent="cyan.600">
           {(orders?.length ?? 0) >= limit && (
             <HStack justifyContent="center">
               <Button onClick={() => setLimit((n) => n + 50)} disabled={loading}>
