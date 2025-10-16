@@ -162,10 +162,19 @@ export default function MarketPage() {
   // console.log("pageItems (from hook)", pageItems.length);
 
   // ---- Search suggestions (items + farmers) ----
-  const { suggestions, matchFilter } = useMarketSearchIndex({
+  // ---- Search suggestions (items + farmers) ----
+  // Immediate instance → suggestions feel live-as-you-type
+  const { suggestions: liveSuggestions } = useMarketSearchIndex({
+    items: allItems,
+    text: search,
+  });
+
+  // Debounced instance → predicate for grid filtering
+  const { matchFilter: matchFilterDebounced } = useMarketSearchIndex({
     items: allItems,
     text: debouncedSearch,
   });
+
 
 
 
@@ -313,11 +322,12 @@ export default function MarketPage() {
   }, []);
 
 
+
   // ---- Derived: page items filtered with search predicate from index ----
-  // (Optional: if you want matchFilter to apply before paging, move it into useMarketItems via its options)
   const visiblePageItems = useMemo(() => {
-    return pageItems.filter(matchFilter);
-  }, [pageItems, matchFilter]);
+    return pageItems.filter(matchFilterDebounced);
+  }, [pageItems, matchFilterDebounced]);
+
 
   return (
     <Box w="full">
@@ -335,20 +345,21 @@ export default function MarketPage() {
           <>
             {/* Sticky filters */}
             <StickyFilterBar
-              offsetTop={55}                 // adjust to your header height
+              offsetTop={55}
               category={category}
               search={search}
               sort={sort}
               page={page}
               totalPages={totalPages}
               totalItems={totalItems}
-              suggestions={suggestions}
+              suggestions={liveSuggestions} // ← immediate suggestions
               onCategoryChange={(cat) => setCategory(cat)}
               onSearchChange={(t) => setSearch(t)}
               onPickSuggestion={handlePickSuggestion}
               onSortChange={setSort}
               onPageChange={handlePageChange}
             />
+
 
             {/* Grid */}
             <ItemsGrid

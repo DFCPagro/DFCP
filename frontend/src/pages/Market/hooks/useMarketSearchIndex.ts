@@ -7,8 +7,8 @@ export type SearchSuggestion =
       kind: "item";
       /** unique key for this suggestion (we use item name for item-kind) */
       key: string;
-      label: string;            // visible label (item name)
-      secondary?: string;       // optional subtitle (e.g., category)
+      label: string; // visible label (item name)
+      secondary?: string; // optional subtitle (e.g., category)
       /** All itemIds sharing this display name (for filtering on click) */
       itemIds: string[];
     }
@@ -16,8 +16,8 @@ export type SearchSuggestion =
       kind: "farmer";
       /** unique key for this suggestion (farmerId) */
       key: string;
-      label: string;            // visible label (farmer name)
-      secondary?: string;       // optional subtitle (e.g., farm name)
+      label: string; // visible label (farmer name)
+      secondary?: string; // optional subtitle (e.g., farm name)
       /** All farmerIds for this name (usually one) */
       farmerIds: string[];
     };
@@ -29,6 +29,16 @@ export type UseMarketSearchIndexOptions = {
   /** Max suggestions to return (default: 8) */
   maxSuggestions?: number;
 };
+
+// Add near the types (same file)
+export function makeFilterFromSuggestion(s: SearchSuggestion) {
+  if (s.kind === "item") {
+    const ids = new Set(s.itemIds);
+    return (it: MarketItem) => ids.has(it.itemId);
+  }
+  const ids = new Set(s.farmerIds);
+  return (it: MarketItem) => ids.has(it.farmerId);
+}
 
 /**
  * Build a simple index from MarketItem[] and produce ranked suggestions and a filter.
@@ -76,7 +86,8 @@ export function useMarketSearchIndex({
         const k = farmerKey.toLowerCase();
         const rec = farmerIndex.get(k);
         if (rec) {
-          if (!rec.farmerIds.includes(it.farmerId)) rec.farmerIds.push(it.farmerId);
+          if (!rec.farmerIds.includes(it.farmerId))
+            rec.farmerIds.push(it.farmerId);
         } else {
           farmerIndex.set(k, {
             label: farmerKey,
@@ -146,7 +157,8 @@ export function useMarketSearchIndex({
     // Sort by rank desc, then label length asc, then alpha
     pool.sort((a, b) => {
       if (b.rank !== a.rank) return b.rank - a.rank;
-      if (a.s.label.length !== b.s.label.length) return a.s.label.length - b.s.label.length;
+      if (a.s.label.length !== b.s.label.length)
+        return a.s.label.length - b.s.label.length;
       return a.s.label.localeCompare(b.s.label);
     });
 

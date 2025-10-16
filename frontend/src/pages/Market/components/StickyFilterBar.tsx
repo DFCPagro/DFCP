@@ -6,10 +6,8 @@ import {
   Icon,
   IconButton,
   Input,
-  Kbd,
   Menu,
   Portal,
-  Show,
   Stack,
   Text,
   VisuallyHidden,
@@ -54,7 +52,7 @@ function StickyFilterBarBase({
   page,
   totalPages,
   totalItems,
-  pageSize = 16, // not used here but kept for parity / future use
+  pageSize = 16,
   suggestions,
   onCategoryChange,
   onSearchChange,
@@ -62,40 +60,108 @@ function StickyFilterBarBase({
   onSortChange,
   onPageChange,
 }: StickyFilterBarProps) {
-  // --- search dropdown control ---
-  const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const showDropdown = open && suggestions.length > 0 && (search?.trim()?.length ?? 0) > 0
 
-  // close on outside click (simple, local)
+  // Dropdown open + positioning (Portal anchored to input)
+  const [open, setOpen] = useState(false)
+  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  // Keyboard navigation
+  const [activeIndex, setActiveIndex] = useState<number>(-1)
+
+  const showDropdown = open && suggestions.length > 0 && (search?.trim()?.length ?? 0) > 0
+  const listboxId = "market-search-suggestions"
+
+  const updateDropdownPos = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setDropdownPos({ left: Math.round(r.left), top: Math.round(r.bottom), width: Math.round(r.width) })
+  }, [])
+
+  // Keep dropdown glued to the input on open/type/scroll/resize
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!rootRef.current) return
-      if (!rootRef.current.contains(e.target as Node)) setOpen(false)
+    if (!open) return
+    updateDropdownPos()
+
+    const onScroll = () => updateDropdownPos()
+    const onResize = () => updateDropdownPos()
+
+    const scrollHandler = () => requestAnimationFrame(onScroll)
+    const resizeHandler = () => requestAnimationFrame(onResize)
+
+    window.addEventListener("scroll", scrollHandler, true)
+    window.addEventListener("resize", resizeHandler)
+
+    return () => {
+      window.removeEventListener("scroll", scrollHandler, true)
+      window.removeEventListener("resize", resizeHandler)
     }
-    if (showDropdown) document.addEventListener("mousedown", onDocClick)
-    return () => document.removeEventListener("mousedown", onDocClick)
+  }, [open, updateDropdownPos, search])
+
+  // Close on outside click, but allow clicks inside the Portal dropdown
+  useEffect(() => {
+    if (!showDropdown) return
+
+    const onDocMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      const root = rootRef.current
+      const drop = dropdownRef.current
+      const insideRoot = !!root && root.contains(t)
+      const insideDrop = !!drop && drop.contains(t)
+      if (!insideRoot && !insideDrop) setOpen(false)
+    }
+
+    // Use capture so we run before other handlers; we only close if truly outside
+    document.addEventListener("mousedown", onDocMouseDown, true)
+    return () => document.removeEventListener("mousedown", onDocMouseDown, true)
   }, [showDropdown])
 
-  // keyboard nav: Enter selects first suggestion
+  // Reset active index when suggestions change or dropdown opens
+  useEffect(() => {
+    if (showDropdown) setActiveIndex(0)
+    else setActiveIndex(-1)
+  }, [showDropdown, suggestions])
+
+  // Keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter" && suggestions[0]) {
-        onSearchChange(suggestions[0].label)
-        onPickSuggestion(suggestions[0])
-        setOpen(false)
-      } else if (e.key === "Escape") {
+      if (!showDropdown) {
+        // Open the dropdown with arrows if we have suggestions
+        if ((e.key === "ArrowDown" || e.key === "ArrowUp") && suggestions.length > 0) {
+          setOpen(true)
+          setActiveIndex(0)
+          e.preventDefault()
+        }
+        if (e.key === "Escape" || e.key === "Tab") setOpen(false)
+        return
+      }
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setActiveIndex((prev) => (prev + 1) % suggestions.length)
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setActiveIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length)
+      } else if (e.key === "Enter") {
+        e.preventDefault()
+        const s = suggestions[activeIndex] ?? suggestions[0]
+        if (s) {
+          onSearchChange(s.label)
+          onPickSuggestion(s)
+          setOpen(false)
+        }
+      } else if (e.key === "Escape" || e.key === "Tab") {
         setOpen(false)
       }
     },
-    [suggestions, onPickSuggestion],
+    [showDropdown, suggestions, activeIndex, onPickSuggestion, onSearchChange],
   )
 
   const pageLabel = useMemo(() => `${page}/${Math.max(1, totalPages)}`, [page, totalPages])
-
-  // v3 Show: use boolean via useBreakpointValue
-  const showHint = useBreakpointValue({ base: false, md: true }) ?? false
+  const showRightSide = useBreakpointValue({ base: true, md: true }) ?? true
 
   return (
     <Box
@@ -129,140 +195,169 @@ function StickyFilterBarBase({
               }}
             >
               <Icon as={FiSearch} color="fg.muted" />
+
               <Input
                 id="market-search"
                 ref={inputRef}
                 aria-label="Search items or farmers"
                 placeholder="Search items or farmers…"
                 value={search}
-                onClick={() => setOpen(true)}
-                onFocus={() => setOpen(true)}
+                onClick={() => {
+                  setOpen(true)
+                  updateDropdownPos()
+                }}
+                onFocus={() => {
+                  setOpen(true)
+                  updateDropdownPos()
+                }}
                 onChange={(e) => {
                   onSearchChange(e.target.value)
                   if (!open) setOpen(true)
+                  updateDropdownPos()
                 }}
                 onKeyDown={handleKeyDown}
+                aria-autocomplete="list"
+                aria-expanded={showDropdown}
+                aria-controls={showDropdown ? listboxId : undefined}
+                aria-activedescendant={
+                  showDropdown && activeIndex >= 0 ? `${listboxId}-opt-${activeIndex}` : undefined
+                }
               />
-              <Show when={showHint}>
-                <HStack gap="1" color="fg.muted">
-                  <Kbd>Enter</Kbd>
-                  <Text fontSize="xs">to select</Text>
-                </HStack>
-              </Show>
             </HStack>
 
-            {/* Dropdown */}
-            {showDropdown ? (
-              <Box
-                position="absolute"
-                left={0}
-                right={0}
-                mt={1}
-                borderWidth="1px"
-                borderRadius="md"
-                bg="bg.panel"
-                shadow="md"
-                maxH="56"
-                overflowY="auto"
-              >
-                {suggestions.map((s) => (
-                  <HStack
-                    key={`${s.kind}:${s.key}`}
-                    as="button"
-                    width="100%"
-                    textAlign="left"
-                    px="3"
-                    py="2"
-                    gap="2"
-                    _hover={{ bg: "bg.subtle" }}
-                    onMouseDown={(e) => e.preventDefault()} // keep focus
-                    onClick={() => {
-                      onSearchChange(s.label)
-                      onPickSuggestion(s)
-                      setOpen(false)
-                    }}
-                  >
-                    <Icon as={s.kind === "item" ? FiShoppingBag : FiUser} />
-                    <Stack gap="0" align="start">
-                      <Text fontSize="sm">{s.label}</Text>
-                      {s.secondary ? (
-                        <Text fontSize="xs" color="fg.muted">
-                          {s.secondary}
-                        </Text>
-                      ) : null}
-                    </Stack>
-                  </HStack>
-                ))}
-              </Box>
+            {/* Portal Dropdown */}
+            {showDropdown && dropdownPos ? (
+              <Portal>
+                <Box
+                  ref={dropdownRef}
+                  id={listboxId}
+                  role="listbox"
+                  aria-label="Search suggestions"
+                  position="fixed"
+                  left={`${dropdownPos.left}px`}
+                  top={`${dropdownPos.top}px`}
+                  width={`${dropdownPos.width}px`}
+                  borderWidth="1px"
+                  borderRadius="md"
+                  bg="bg.panel"
+                  boxShadow="lg"
+                  maxH="14rem"
+                  overflowY="auto"
+                  zIndex="modal"
+                >
+                  {suggestions.map((s, idx) => {
+                    const isActive = idx === activeIndex
+                    return (
+                      <HStack
+                        key={`${s.kind}:${s.key}`}
+                        id={`${listboxId}-opt-${idx}`}
+                        as="button"
+                        role="option"
+                        aria-selected={isActive ? "true" : "false"}
+                        w="100%"
+                        textAlign="left"
+                        px="3"
+                        py="2"
+                        gap="2"
+                        bg={isActive ? "bg.emphasized" : undefined}
+                        _hover={{ bg: "bg.subtle" }}
+                        onMouseDown={(e) => {
+                          // Keep focus on input and avoid outside-click handler closing early
+                          e.preventDefault()
+                          e.stopPropagation()
+                        }}
+                        onMouseEnter={() => setActiveIndex(idx)}
+                        onClick={() => {
+                          onSearchChange(s.label)
+                          onPickSuggestion(s)
+                          setOpen(false)
+                        }}
+                      >
+                        <Icon as={s.kind === "item" ? FiShoppingBag : FiUser} />
+                        <Stack gap="0" align="start">
+                          <Text fontSize="sm">{s.label}</Text>
+                          {s.secondary ? (
+                            <Text fontSize="xs" color="fg.muted">
+                              {s.secondary}
+                            </Text>
+                          ) : null}
+                        </Stack>
+                      </HStack>
+                    )
+                  })}
+                </Box>
+              </Portal>
             ) : null}
           </Box>
         </HStack>
 
         {/* Right: Sort + Page */}
-        <HStack gap={2} flexShrink={0}>
-          <Menu.Root>
-            <Menu.Trigger asChild>
-              <Button size="sm" variant="outline">
-                {sortLabel(sort)}
-                <Icon as={FiChevronDown} ml="2" />
-              </Button>
-            </Menu.Trigger>
-            <Portal>
-              <Menu.Positioner>
-                <Menu.Content>
-                  <Menu.Item value="relevance" onClick={() => onSortChange("relevance")}>
-                    {sortLabel("relevance")}
-                  </Menu.Item>
-                  <Menu.Item value="priceAsc" onClick={() => onSortChange("priceAsc")}>
-                    {sortLabel("priceAsc")}
-                  </Menu.Item>
-                  <Menu.Item value="priceDesc" onClick={() => onSortChange("priceDesc")}>
-                    {sortLabel("priceDesc")}
-                  </Menu.Item>
-                  <Menu.Item value="nameAsc" onClick={() => onSortChange("nameAsc")}>
-                    {sortLabel("nameAsc")}
-                  </Menu.Item>
-                  <Menu.Item value="nameDesc" onClick={() => onSortChange("nameDesc")}>
-                    {sortLabel("nameDesc")}
-                  </Menu.Item>
-                </Menu.Content>
-              </Menu.Positioner>
-            </Portal>
-          </Menu.Root>
+        {showRightSide ? (
+          <HStack gap={2} flexShrink={0}>
+            <Menu.Root>
+              <Menu.Trigger asChild>
+                <Button size="sm" variant="outline">
+                  {sortLabel(sort)}
+                  <Icon as={FiChevronDown} ml="2" />
+                </Button>
+              </Menu.Trigger>
+              <Portal>
+                <Menu.Positioner>
+                  <Menu.Content>
+                    <Menu.Item value="relevance" onClick={() => onSortChange("relevance")}>
+                      {sortLabel("relevance")}
+                    </Menu.Item>
+                    <Menu.Item value="priceAsc" onClick={() => onSortChange("priceAsc")}>
+                      {sortLabel("priceAsc")}
+                    </Menu.Item>
+                    <Menu.Item value="priceDesc" onClick={() => onSortChange("priceDesc")}>
+                      {sortLabel("priceDesc")}
+                    </Menu.Item>
+                    <Menu.Item value="nameAsc" onClick={() => onSortChange("nameAsc")}>
+                      {sortLabel("nameAsc")}
+                    </Menu.Item>
+                    <Menu.Item value="nameDesc" onClick={() => onSortChange("nameDesc")}>
+                      {sortLabel("nameDesc")}
+                    </Menu.Item>
+                  </Menu.Content>
+                </Menu.Positioner>
+              </Portal>
+            </Menu.Root>
 
-          <HStack gap={1}>
-            <VisuallyHidden>
-              <Text>Pagination</Text>
-            </VisuallyHidden>
-            <IconButton
-              aria-label="Previous page"
-              size="sm"
-              variant="outline"
-              onClick={() => onPageChange(Math.max(1, page - 1))}
-              disabled={page <= 1}
-            >
-              <FiChevronLeft />
-            </IconButton>
-            <Text minW="40px" textAlign="center" fontSize="sm">
-              {pageLabel}
-            </Text>
-            <IconButton
-              aria-label="Next page"
-              size="sm"
-              variant="outline"
-              onClick={() => onPageChange(Math.min(Math.max(1, totalPages), page + 1))}
-              disabled={page >= totalPages}
-            >
-              <FiChevronRight />
-            </IconButton>
-
-            {typeof totalItems === "number" ? (
-              <Text fontSize="sm" color="fg.muted" ml="2">
-                {totalItems} items
+            <HStack gap={1}>
+              <VisuallyHidden>
+                <Text>Pagination</Text>
+              </VisuallyHidden>
+              <IconButton
+                aria-label="Previous page"
+                size="sm"
+                variant="outline"
+                onClick={() => onPageChange(Math.max(1, page - 1))}
+                disabled={page <= 1}
+              >
+                <FiChevronLeft />
+              </IconButton>
+              <Text minW="40px" textAlign="center" fontSize="sm">
+                {pageLabel}
               </Text>
-            ) : null}
+              <IconButton
+                aria-label="Next page"
+                size="sm"
+                variant="outline"
+                onClick={() => onPageChange(Math.min(Math.max(1, totalPages), page + 1))}
+                disabled={page >= totalPages}
+              >
+                <FiChevronRight />
+              </IconButton>
+
+              {typeof totalItems === "number" ? (
+                <Text fontSize="sm" color="fg.muted" ml="2">
+                  {totalItems} items
+                </Text>
+              ) : null}
+            </HStack>
           </HStack>
-        </HStack>
+        ) : null}
       </HStack>
     </Box>
   )

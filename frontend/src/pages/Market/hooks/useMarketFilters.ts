@@ -53,7 +53,13 @@ export type UseMarketFilters = {
   /** A stable string suitable as a memo key for filtered queries */
   filtersKey: string;
   /** Export filters as a plain object (handy for API params if needed) */
-  toQuery: () => { cat?: string; q?: string; sort?: SortKey; page?: number; limit?: number };
+  toQuery: () => {
+    cat?: string;
+    q?: string;
+    sort?: SortKey;
+    page?: number;
+    limit?: number;
+  };
 };
 
 // small helper to normalize a category string into our canonical filter value
@@ -63,7 +69,6 @@ function normalizeCategory(input: string | null | undefined): string | null {
   if (lc === "" || lc === "all") return null;
   return lc;
 }
-
 
 /* ------------------------- tiny debounce utility ------------------------- */
 function useDebouncedValue<T>(value: T, delayMs: number): T {
@@ -94,7 +99,6 @@ export function useMarketFilters({
       // normalize initialCategory too: "" or "all" -> null, else lowercase
       const normInitCat = normalizeCategory(initialCategory);
 
-
       return {
         category: normInitCat,
         search: initialSearch,
@@ -110,19 +114,31 @@ export function useMarketFilters({
 
     // normalize cat from URL: "" or "all" -> null, else lowercase
     const category =
-    rawCat == null ? normalizeCategory(initialCategory) : normalizeCategory(rawCat);
-
+      rawCat == null
+        ? normalizeCategory(initialCategory)
+        : normalizeCategory(rawCat);
 
     return {
       category,
       search: q ?? initialSearch,
-      sort: (sortParam && isValidSort(sortParam) ? sortParam : initialSort) as SortKey,
-      page: Number.isFinite(pageParam) && pageParam > 0 ? pageParam : initialPage,
+      sort: (sortParam && isValidSort(sortParam)
+        ? sortParam
+        : initialSort) as SortKey,
+      page:
+        Number.isFinite(pageParam) && pageParam > 0 ? pageParam : initialPage,
     };
-  }, [initialCategory, initialPage, initialSearch, initialSort, searchParams, syncToURL]);
+  }, [
+    initialCategory,
+    initialPage,
+    initialSearch,
+    initialSort,
+    searchParams,
+    syncToURL,
+  ]);
 
-
-  const [{ category, search, sort, page }, setState] = useState(() => readURL());
+  const [{ category, search, sort, page }, setState] = useState(() =>
+    readURL()
+  );
   const pageSize = pageSizeOpt;
 
   // hydrate from URL exactly once
@@ -148,15 +164,12 @@ export function useMarketFilters({
     setState((s) => ({ ...s, category: next, page: 1 }));
   }, []);
 
-
   const setSearchImmediate = useCallback((text: string) => {
     setState((s) => ({ ...s, search: text, page: 1 }));
   }, []);
 
-  const setSearch = useCallback((text: string) => {
-    // keep API the same; we just route to immediate setter
-    setSearchImmediate(text);
-  }, [setSearchImmediate]);
+  // Alias kept for backwards compatibility; both are immediate
+  const setSearch = setSearchImmediate;
 
   const setSort = useCallback((key: SortKey) => {
     setState((s) => ({ ...s, sort: isValidSort(key) ? key : s.sort, page: 1 }));
@@ -166,16 +179,19 @@ export function useMarketFilters({
     setState((s) => ({ ...s, page: Math.max(1, Math.floor(p || 1)) }));
   }, []);
 
+  /** Convenience: clear the search and reset to page 1 */
+  const clearSearch = useCallback(() => {
+    setState((s) => ({ ...s, search: "", page: 1 }));
+  }, []);
+
   const resetFilters = useCallback(() => {
     setState({
-    category: normalizeCategory(initialCategory),
-    search: initialSearch,
-    sort: initialSort,
-    page: 1,
-  });
-
+      category: normalizeCategory(initialCategory),
+      search: initialSearch,
+      sort: initialSort,
+      page: 1,
+    });
   }, [initialCategory, initialSearch, initialSort]);
-
 
   // --- write changes to URL (if enabled) ---
   useEffect(() => {
@@ -200,12 +216,25 @@ export function useMarketFilters({
 
   // memo helpers
   const filtersKey = useMemo(
-    () => JSON.stringify({ category, q: debouncedSearch, sort, page, limit: pageSize }),
+    () =>
+      JSON.stringify({
+        category,
+        q: debouncedSearch,
+        sort,
+        page,
+        limit: pageSize,
+      }),
     [category, debouncedSearch, sort, page, pageSize]
   );
 
   const toQuery = useCallback(() => {
-    const q: { cat?: string; q?: string; sort?: SortKey; page?: number; limit?: number } = {};
+    const q: {
+      cat?: string;
+      q?: string;
+      sort?: SortKey;
+      page?: number;
+      limit?: number;
+    } = {};
     if (category) q.cat = category;
     if (search) q.q = search;
     if (sort) q.sort = sort;
@@ -234,5 +263,11 @@ export function useMarketFilters({
 
 /* ------------------------------- internals ------------------------------- */
 function isValidSort(v: string): v is SortKey {
-  return v === "relevance" || v === "priceAsc" || v === "priceDesc" || v === "nameAsc" || v === "nameDesc";
+  return (
+    v === "relevance" ||
+    v === "priceAsc" ||
+    v === "priceDesc" ||
+    v === "nameAsc" ||
+    v === "nameDesc"
+  );
 }
