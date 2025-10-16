@@ -1,6 +1,6 @@
 import { Box, Stack, Heading, Skeleton, Text } from "@chakra-ui/react";
 import type { ShiftSummaryRow } from "../hooks/useCSShiftSummaries.ts";
-import { ShiftSummaryRowItem } from "./ShiftSummaryRowItem";
+import { ShiftSummaryRowItem } from "./ShiftSummaryRowItem.tsx";
 
 export function ShiftSummaryCard({
   title,

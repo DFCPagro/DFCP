@@ -180,7 +180,7 @@
   {
     "_id": "66f2aa000000000000000009",
     "name": "Noa Levi",
-    "email": "noa.levi@example.com",
+    "email": "noa.levi@gmail.com",
     "password": "Password!1",
     "role": "customer",
     "activeStatus": true,
@@ -203,7 +203,7 @@
   {
     "_id": "66f2aa00000000000000000a",
     "name": "Yossi Cohen",
-    "email": "yossi.cohen@example.com",
+    "email": "yossi.cohen@gmail.com",
     "password": "Password!1",
     "role": "customer",
     "activeStatus": true,
@@ -220,7 +220,7 @@
   {
     "_id": "66f2aa00000000000000000b",
     "name": "Dana Bar",
-    "email": "dana.bar@example.com",
+    "email": "dana.bar@gmail.com",
     "password": "Password!1",
     "role": "customer",
     "activeStatus": true,
@@ -243,7 +243,7 @@
   {
     "_id": "66f2aa00000000000000000c",
     "name": "Amir Kaplan",
-    "email": "amir.kaplan@example.com",
+    "email": "amir.kaplan@gmail.com",
     "password": "Password!1",
     "role": "customer",
     "activeStatus": true,
@@ -260,7 +260,7 @@
   {
     "_id": "66f2aa00000000000000000d",
     "name": "Lior Ben David",
-    "email": "lior.bendavid@example.com",
+    "email": "lior.bendavid@gmail.com",
     "password": "Password!1",
     "role": "customer",
     "activeStatus": true,
@@ -329,7 +329,7 @@
   {
     "_id": "66f2aa00000000000000002b",
     "name": "Avi Mizrahi",
-    "email": "avi.mizrahi@example.com",
+    "email": "picker@gmail.com",
     "password": "picker123",
     "role": "picker",
     "activeStatus": true,
@@ -352,7 +352,7 @@
   {
     "_id": "66f2aa00000000000000002c",
     "name": "Rina Goldstein",
-    "email": "rina.goldstein@example.com",
+    "email": "picker2@gmail.com",
     "password": "picker123",
     "role": "picker",
     "activeStatus": true,
@@ -375,7 +375,7 @@
   {
     "_id": "66f2aa00000000000000002d",
     "name": "Yael Shapiro",
-    "email": "yael.shapiro@example.com",
+    "email": "sorter@gmail.com",
     "password": "sorter123",
     "role": "sorter",
     "activeStatus": true,
@@ -398,9 +398,32 @@
   {
     "_id": "66f2aa00000000000000002e",
     "name": "Eyal Rosen",
-    "email": "eyal.rosen@example.com",
+    "email": "sorter2@gmail.com",
     "password": "sorter123",
     "role": "sorter",
+    "activeStatus": true,
+    "uid": "SRT-2",
+    "addresses": [
+      {
+        "lnt": 34.8,
+        "alt": 32.1,
+        "address": "Ramat Gan, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      },
+      {
+        "lnt": 34.75,
+        "alt": 32.05,
+        "address": "Petah Tikva, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      }
+    ]
+  },
+  {
+    "_id": "66f2aa00000000000000003e",
+    "name": "Eyal Rosen",
+    "email": "csManager@gmail.com",
+    "password": "12345678",
+    "role": "csManager",
     "activeStatus": true,
     "uid": "SRT-2",
     "addresses": [

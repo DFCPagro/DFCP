@@ -6,6 +6,7 @@ import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
+import CSManagerOrdersPage from "@/pages/csManager/Orders";
 
 // Lazy pages (unchanged)
 const Home = lazy(() => import("@/pages/Home"));
@@ -15,9 +16,7 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const DriverSchedule = lazy(() => import("@/pages/DriverSchedule"));
 const JobApplication = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
-const OpsOrderPage = lazy(() => import("@/pages/OpsOrder"));
-const CustomerConfirmPage = lazy(() => import("@/pages/CustomerConfirm"));
-const ArrivalConfirmPage = lazy(() => import("@/pages/ArrivalConfirm"));
+
 const FarmerDashboard = lazy(() => import("@/pages/FarmerDashboard"));
 const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
 const Market = lazy(() => import("@/pages/Market"));
@@ -33,17 +32,12 @@ const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
-const CSManagerDashboard = lazy(() => import("@/pages/csManagerDashboard"));
+const CSManagerDashboard = lazy(() => import("@/pages/csManager/Dashboard"));
 
 const PickTaskPage = lazy(() => import("@/pages/picker/pick-task"));
 
-
-
-
-
 //delete this route later, its just an example for using map picker
 const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
-
 
 export default function AppRoutes() {
   return (
@@ -53,18 +47,7 @@ export default function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path={PATHS.home} element={<Home />} />
           <Route path={PATHS.notFound} element={<NotFound />} />
-          <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
-        </Route>
-
-        {/* --- Public, immersive (no chrome) --- */}
-        <Route
-          element={
-            <AppShell showHeader={false} showFooter={false} px={0} py={0} maxW="container.md" />
-          }
-        >
-          <Route path={PATHS.ops} element={<OpsOrderPage />} />
-          <Route path={PATHS.customerConfirm} element={<CustomerConfirmPage />} />
-          <Route path={PATHS.arrivalConfirm} element={<ArrivalConfirmPage />} />
+          <Route path={PATHS.MapExample} element={<MapPickerExamplePage />} />
         </Route>
 
         {/* --- Guest-only (login/register), no chrome, narrow --- */}
@@ -76,7 +59,13 @@ export default function AppRoutes() {
         </Route>
 
         {/* --- Authenticated, default chrome --- */}
-        <Route element={<AuthGuard><AppShell /></AuthGuard>}>
+        <Route
+          element={
+            <AuthGuard>
+              <AppShell />
+            </AuthGuard>
+          }
+        >
           {/* General protected */}
           <Route path={PATHS.dashboard} element={<Dashboard />} />
           <Route path={PATHS.jobs} element={<AvailabileJobs />} />
@@ -133,7 +122,11 @@ export default function AppRoutes() {
           {/* Picker-only */}
           <Route
             path={PATHS.pickerDashboard}
-            element={<RoleGuard allow={["picker"]}><PickerDashboard /></RoleGuard>}
+            element={
+              <RoleGuard allow={["picker"]}>
+                <PickerDashboard />
+              </RoleGuard>
+            }
           />
           <Route
             path={PATHS.pickerTask}
@@ -161,32 +154,56 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
+          {/* CS Manager-only */}
+          <Route
+            path={PATHS.csManagerDashboard}
+            element={
+              <RoleGuard allow={["csManager", "admin"]}>
+                <CSManagerDashboard />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path={PATHS.csManagerOrders}
+            element={
+              <RoleGuard allow={["csManager", "admin"]}>
+                <CSManagerOrdersPage />
+              </RoleGuard>
+            }
+          />
         </Route>
 
-        {/* CS Manager-only */}
-        <Route
-          path={PATHS.csManagerDashboard}
-          element={
-            <RoleGuard allow={["csManager", "admin"]}>
-              <CSManagerDashboard />
-            </RoleGuard>
-          }
-        />
-
-
         {/* --- Authenticated, no FOOTER --- */}
-        <Route element={<AuthGuard><AppShell showFooter={false} /></AuthGuard>}>
+        <Route
+          element={
+            <AuthGuard>
+              <AppShell showFooter={false} />
+            </AuthGuard>
+          }
+        >
           <Route path={PATHS.cart} element={<Cart />} />
           <Route path={PATHS.checkout} element={<Checkout />} />
         </Route>
 
         {/* --- Authenticated, no FOOTER + wider --- */}
-        <Route element={<AuthGuard><AppShell showFooter={true} maxW="5xl" /></AuthGuard>}>
+        <Route
+          element={
+            <AuthGuard>
+              <AppShell showFooter={true} maxW="5xl" />
+            </AuthGuard>
+          }
+        >
           <Route path={PATHS.profile} element={<Profile />} />
         </Route>
 
         {/* --- Authenticated, no HEADER --- */}
-        <Route element={<AuthGuard><AppShell showHeader={false} /></AuthGuard>}>
+        <Route
+          element={
+            <AuthGuard>
+              <AppShell showHeader={false} />
+            </AuthGuard>
+          }
+        >
           <Route path={PATHS.deliveryNote} element={<DeliveryNote />} />
         </Route>
 

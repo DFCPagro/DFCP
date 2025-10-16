@@ -56,13 +56,17 @@ export default function Login() {
         case "farmer":
           to = PATHS.farmerDashboard;
           break;
-case "picker":
+        case "picker":
           to = PATHS.pickerDashboard;
           break;
-        case "driver":                // if your backend uses "deliverer"/"industrialDeliverer", include them:
+        case "driver": // if your backend uses "deliverer"/"industrialDeliverer", include them:
+          break
         case "deliverer":
+          break;
         case "industrialDeliverer":
           to = PATHS.shipments;
+        case "csManager":
+          to = PATHS.csManagerDashboard;
           break;
 
         default:
