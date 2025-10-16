@@ -51,6 +51,7 @@ export const PATHS = {
   // csManager pages
   csManagerDashboard: "/csManager/dashboard",
   csManagerOrders: "/csManager/orders",
+  csManagerShiftOrders: "/csManager/shift-orders",
 
   notFound: "/404",
 } as const;

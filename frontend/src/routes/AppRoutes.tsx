@@ -6,7 +6,7 @@ import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
-import CSManagerOrdersPage from "@/pages/csManager/Orders";
+
 
 // Lazy pages (unchanged)
 const Home = lazy(() => import("@/pages/Home"));
@@ -33,7 +33,10 @@ const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
 const CSManagerDashboard = lazy(() => import("@/pages/csManager/Dashboard"));
-
+const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
+const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"));
+// New page for picker task page, to be implemented
+//
 const PickTaskPage = lazy(() => import("@/pages/picker/pick-task"));
 
 //delete this route later, its just an example for using map picker
@@ -65,7 +68,7 @@ export default function AppRoutes() {
               <AppShell />
             </AuthGuard>
           }
-        >
+        />
           {/* General protected */}
           <Route path={PATHS.dashboard} element={<Dashboard />} />
           <Route path={PATHS.jobs} element={<AvailabileJobs />} />
@@ -171,7 +174,14 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
-        </Route>
+          <Route
+            path={PATHS.csManagerShiftOrders}
+            element={
+              <RoleGuard allow={["csManager", "admin"]}>
+                <CSManagerShiftOrders />
+              </RoleGuard>
+            }
+          />
 
         {/* --- Authenticated, no FOOTER --- */}
         <Route
