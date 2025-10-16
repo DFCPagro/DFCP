@@ -23,6 +23,7 @@ import {
   subscribeCart,
   marketItemToCartLine,
   type CartLine as SharedCartLine,
+  type CartContext as SharedCartContext,
 } from "@/utils/marketCart.shared";
 import type { MarketItem } from "@/types/market"; // ✅ units-only typing
 import { getCustomerAddresses } from "@/api/market";
@@ -66,6 +67,46 @@ export default function MarketPage() {
     setSelection, clearSelection, revalidate,
   } = useMarketActivation({ autoActivateOnMount: true, keepInvalidInStorage: false });
 
+  // ---- Cart (shared utils) ----
+  // derive the context from active address + shift (null until ready)
+  const cartCtx = useMemo<SharedCartContext | null>(() => {
+    if (!isActive || !address || !shift?.date || !shift?.shift) return null;
+    const lc = address.logisticCenterId ?? null;
+    if (!lc) return null;
+    return {
+      logisticCenterId: lc,
+      date: shift.date,                       // ISO yyyy-mm-dd
+      shift: shift.shift,                     // "morning" | "afternoon" | ...
+    };
+  }, [isActive, address, shift]);
+
+  // local state init (plain read; may be replaced when cartCtx becomes ready)
+  const [cartLines, setCartLines] = useState<SharedCartLine[]>(() => getSharedCart().lines);
+
+  // when the context first becomes available (or changes), re-read cart (util will clear if mismatched)
+  useEffect(() => {
+    if (cartCtx) {
+      const { lines } = getSharedCart(cartCtx);
+      setCartLines(lines);
+    }
+  }, [cartCtx]);
+
+  // keep in sync with other tabs/pages (re-read with current ctx if we have it)
+  useEffect(() => {
+    const off = subscribeCart(() => {
+      const { lines } = cartCtx ? getSharedCart(cartCtx) : getSharedCart();
+      setCartLines(lines);
+    });
+    return off;
+  }, [cartCtx]);
+
+
+
+  const cartCount = useMemo(
+    () => cartLines.reduce((sum, l) => sum + Number(l.quantity ?? 0), 0),
+    [cartLines]
+  );
+
   // ---- Local UI drawers ----
   const [pinOpen, setPinOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -81,9 +122,15 @@ export default function MarketPage() {
       alert(
         `Market activated!\nDeliver to ${formatAddressShort(address)} · ${formatShiftLabel(shift)}`
       );
+      // validate cart against the active context (will auto-clear if mismatched)
+      if (cartCtx) {
+        const { lines } = getSharedCart(cartCtx);
+        setCartLines(lines);
+      }
     }
     if (!isActive) wasActiveRef.current = false;
-  }, [isActive, address, shift]);
+  }, [isActive, address, shift, cartCtx]);
+
 
 
 
@@ -120,20 +167,7 @@ export default function MarketPage() {
     text: debouncedSearch,
   });
 
-  // ---- Cart (shared utils) ----
-  const [cartLines, setCartLines] = useState<SharedCartLine[]>(() => getSharedCart().lines);
 
-  // keep in sync with other tabs / pages
-  useEffect(() => {
-    const off = subscribeCart(() => setCartLines(getSharedCart().lines));
-    return off;
-  }, []);
-
-
-  const cartCount = useMemo(
-    () => cartLines.reduce((sum, l) => sum + Number(l.quantity ?? 0), 0),
-    [cartLines]
-  );
 
 
   const addToCart = useCallback((item: MarketItem, qtyUnits: number) => {
@@ -153,7 +187,7 @@ export default function MarketPage() {
       next = [...curr, newLine];
     }
 
-    setSharedCart({ lines: next });
+    setSharedCart({ lines: next }, cartCtx ?? undefined);
     setCartLines(next);
 
     const approxPerUnit = item.avgWeightPerUnitKg ?? 0.02;
@@ -171,7 +205,7 @@ export default function MarketPage() {
   const removeLineByKey = useCallback((key: string) => {
     const curr = getSharedCart().lines;
     const next = curr.filter((l) => (l.key ?? l.stockId) !== key);
-    setSharedCart({ lines: next });
+    setSharedCart({ lines: next }, cartCtx ?? undefined);
     setCartLines(next);
   }, []);
 
@@ -274,7 +308,7 @@ export default function MarketPage() {
       next = [...curr];
       next[idx] = { ...next[idx], quantity: Math.min(50, Math.max(1, nextUnits)) };
     }
-    setSharedCart({ lines: next });
+    setSharedCart({ lines: next }, cartCtx ?? undefined);
     setCartLines(next);
   }, []);
 

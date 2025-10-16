@@ -163,6 +163,96 @@ export function getCartStorageKey(): string | null {
   return _resolvedKey;
 }
 
+/* ------------------------------------------
+ * Cart Context (kept in a sibling LS key)
+ * ------------------------------------------ */
+
+export type CartContext = {
+  logisticCenterId: string;
+  date: string; // YYYY-MM-DD
+  shift: "morning" | "afternoon" | "evening" | "night";
+};
+
+function getCartContextStorageKey(): string | null {
+  const cartKey = getCartStorageKey();
+  return cartKey ? `${cartKey}:ctx` : null;
+}
+
+function readSavedContext(): CartContext | null {
+  const k = getCartContextStorageKey();
+  if (!k) return null;
+  try {
+    const raw = localStorage.getItem(k);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (
+      obj &&
+      typeof obj === "object" &&
+      typeof obj.logisticCenterId === "string" &&
+      typeof obj.date === "string" &&
+      typeof obj.shift === "string"
+    ) {
+      return {
+        logisticCenterId: obj.logisticCenterId.trim(),
+        date: obj.date,
+        shift: String(obj.shift).toLowerCase() as CartContext["shift"],
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveContext(ctx: CartContext): void {
+  const k = getCartContextStorageKey();
+  if (!k) return;
+  const normalized: CartContext = {
+    logisticCenterId: String(ctx.logisticCenterId || "").trim(),
+    date: ctx.date,
+    shift: String(ctx.shift).toLowerCase() as CartContext["shift"],
+  };
+  localStorage.setItem(k, JSON.stringify(normalized));
+}
+
+function clearSavedContext(): void {
+  const k = getCartContextStorageKey();
+  if (!k) return;
+  localStorage.removeItem(k);
+}
+
+function missingContextFields(
+  ctx: Partial<CartContext> | undefined | null
+): string[] {
+  const miss: string[] = [];
+  if (!ctx || !ctx.logisticCenterId) miss.push("logisticCenterId");
+  if (!ctx || !ctx.date) miss.push("date");
+  if (!ctx || !ctx.shift) miss.push("shift");
+  return miss;
+}
+
+function contextDiff(
+  a: CartContext,
+  b: CartContext
+): Array<{ field: keyof CartContext; saved: string; incoming: string }> {
+  const diffs: Array<{
+    field: keyof CartContext;
+    saved: string;
+    incoming: string;
+  }> = [];
+  if (a.logisticCenterId !== b.logisticCenterId)
+    diffs.push({
+      field: "logisticCenterId",
+      saved: a.logisticCenterId,
+      incoming: b.logisticCenterId,
+    });
+  if (a.date !== b.date)
+    diffs.push({ field: "date", saved: a.date, incoming: b.date });
+  if (a.shift !== b.shift)
+    diffs.push({ field: "shift", saved: a.shift, incoming: b.shift });
+  return diffs;
+}
+
 /* -------------------------------------------------------------------------- */
 /*                          Normalization & Totals                            */
 /* -------------------------------------------------------------------------- */
@@ -346,8 +436,46 @@ export function marketItemToCartLine(
  * Read the current cart from localStorage, normalizing shape differences.
  * This is **read-only** unless you also call `setCart` or `clearCart`.
  */
-export function getCart(): SharedCart {
+export function getCart(context?: Partial<CartContext>): SharedCart {
   const key = getCartStorageKey();
+
+  // 1) If caller provided a context, enforce completeness
+  if (context) {
+    const miss = missingContextFields(context);
+    if (miss.length) {
+      alert(`Missing cart context: ${miss.join(", ")}`);
+      // Do not mutate anything; fall through to plain read.
+    } else {
+      // context is complete → normalize the incoming context
+      const incoming: CartContext = {
+        logisticCenterId: String(context.logisticCenterId!).trim(),
+        date: String(context.date!),
+        shift: String(context.shift!).toLowerCase() as CartContext["shift"],
+      };
+
+      const saved = readSavedContext();
+
+      if (!saved) {
+        // Edge case #2: Saved context missing → clear cart for safety
+        console.log(
+          "[Cart] Cleared: no saved context found. Saving incoming context.",
+          incoming
+        );
+        clearCart(); // will also clear context key (see clearCart change)
+        saveContext(incoming);
+      } else {
+        // Compare and clear if any field differs; also log exact diffs
+        const diffs = contextDiff(saved, incoming);
+        if (diffs.length) {
+          console.log("[Cart] Cleared due to context change:", diffs);
+          clearCart();
+          saveContext(incoming);
+        }
+      }
+    }
+  }
+
+  // 2) Plain read as before
   const parsed = safeParse(localStorage.getItem(key ?? "")); // may be null
   const snap = normalizeSnapshot(parsed);
   return {
@@ -361,9 +489,45 @@ export function getCart(): SharedCart {
  * Overwrite the cart snapshot in localStorage (optional use in Checkout).
  * If you only need to *clear* after order placement, prefer `clearCart()`.
  */
-export function setCart(next: CartSnapshot): void {
+export function setCart(
+  next: CartSnapshot,
+  context?: Partial<CartContext>
+): void {
   const key = getCartStorageKey();
   if (!key) return;
+
+  if (context) {
+    const miss = missingContextFields(context);
+    if (miss.length) {
+      alert(`Missing cart context: ${miss.join(", ")}`);
+      return; // safer: refuse to write with incomplete context
+    }
+    const incoming: CartContext = {
+      logisticCenterId: String(context.logisticCenterId!).trim(),
+      date: String(context.date!),
+      shift: String(context.shift!).toLowerCase() as CartContext["shift"],
+    };
+    const saved = readSavedContext();
+    if (!saved) {
+      console.log(
+        "[Cart] setCart(): no saved context; clearing then writing snapshot.",
+        incoming
+      );
+      clearCart();
+      saveContext(incoming);
+    } else {
+      const diffs = contextDiff(saved, incoming);
+      if (diffs.length) {
+        console.log(
+          "[Cart] setCart(): context changed; clearing then writing snapshot.",
+          diffs
+        );
+        clearCart();
+        saveContext(incoming);
+      }
+    }
+  }
+
   localStorage.setItem(key, JSON.stringify(next));
 }
 
@@ -372,6 +536,7 @@ export function clearCart(): void {
   const key = getCartStorageKey();
   if (!key) return;
   localStorage.removeItem(key);
+  clearSavedContext(); // NEW: also drop the saved context
 }
 
 /**

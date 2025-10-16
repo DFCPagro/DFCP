@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useCallback ,useRef} from "react";
+import { memo, useMemo, useState, useCallback, useRef } from "react";
 import {
   AspectRatio,
   Avatar,
@@ -14,7 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { FiShoppingCart } from "react-icons/fi";
 import type { MarketItem } from "@/types/market";
-import { MarketItemPage } from "./MarketItemPage"; 
+import { MarketItemPage } from "./MarketItemPage";
 
 export type MarketItemCardProps = {
   item: MarketItem;
@@ -28,6 +28,17 @@ export type MarketItemCardProps = {
 };
 
 /* ------------------------------ helpers ------------------------------ */
+
+const colorPalette = ["red", "blue", "green", "yellow", "purple", "orange"] as const;
+
+const fallbackTemp = "https://cdn-icons-png.flaticon.com/128/7417/7417717.png"; // temporary fallback image
+
+const pickPalette = (name?: string | null) => {
+  const n = name?.trim();
+  if (!n) return "gray";
+  const index = n.charCodeAt(0) % colorPalette.length;
+  return colorPalette[index];
+};
 
 function getUnitPriceUSD(it: MarketItem): number {
   const n = Number(it.pricePerUnit);
@@ -45,9 +56,11 @@ function getFarmerIconUrl(it: MarketItem): string | undefined {
 }
 
 
-function getAvailableKg(it: MarketItem): number {
+function getAvailableUnits(it: MarketItem): number {
   const n = Number(it.availableKg);
-  return Number.isFinite(n) ? n : 0;
+  const units = n / Number(it.avgWeightPerUnitKg);
+  if (!Number.isFinite(units)) return 0;
+  return Math.floor(units);
 }
 
 
@@ -82,7 +95,7 @@ function MarketItemCardBase({
 
 
   const price = getUnitPriceUSD(item);
-  const availableKg = getAvailableKg(item);
+  const availableUnits = getAvailableUnits(item);
 
 
   const priceLabel = useMemo(() => {
@@ -166,18 +179,37 @@ function MarketItemCardBase({
 
           {/* Farmer name (text) */}
           {farmerName ? (
-            <Text fontSize="sm" color="fg.muted" lineClamp={1}>
-              {farmerName}
-            </Text>
+            <HStack justify="space-between">
+              <Text fontSize="sm" color="fg.muted" lineClamp={1}>
+                {farmerName}
+              </Text>
+              {farmerIcon ? (
+                <Image
+                  src={farmerIcon ?? fallbackTemp}
+                  objectFit="cover"
+                  w="20%"
+                  h="20%"
+                />
+              ) : (
+                <Avatar.Root colorPalette={pickPalette(farmerName)}>
+                  <Avatar.Fallback name={farmerName ?? "Farmer"} />
+                </Avatar.Root>
+              )}
+            </HStack>
+
           ) : null}
 
           {/* Price + availability */}
+
           <HStack justify="space-between">
             <Text fontWeight="medium">{priceLabel}</Text>
-            <Text fontSize="sm" color="fg.muted">
-              {availableKg} kg available
-            </Text>
+            {availableUnits < 100 ? (
+              <Text fontSize="sm" color="fg.muted">
+                {availableUnits} units available
+              </Text>
+            ) : null}
           </HStack>
+
 
           {/* Qty control */}
           <HStack justify="space-between" align="center">
@@ -230,7 +262,7 @@ function MarketItemCardBase({
             </Box>
           </Button>
         </HStack>
-       </Card.Footer>
+      </Card.Footer>
 
       {/* Quick View Dialog */}
       <Dialog.Root

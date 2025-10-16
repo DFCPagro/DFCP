@@ -118,7 +118,6 @@ export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
   return items as OrderRowAPI[];
 }
 
-
 type LCWindow = {
   date: string;
   shiftName: "morning" | "afternoon" | "evening" | "night";
@@ -135,17 +134,36 @@ type LCSummaryResponse = {
 // maps server shape -> UI rows for your dashboard
 export async function getOrdersSummaryFromLC(lcId: string, count = 6) {
   // your controller accepts ?lc=... OR ?logisticCenterId=...
-  const { data } = await api.get<{ data: LCSummaryResponse }>("/orders/summary", {
-    params: { lc: lcId, count },
-  });
+  const { data } = await api.get<{ data: LCSummaryResponse }>(
+    "/orders/summary",
+    {
+      params: { lc: lcId, count },
+    }
+  );
 
   const payload = data?.data; // unwrap envelope
-  const windows = [payload.current, ...(payload.next ?? [])].filter(Boolean) as LCWindow[];
+  const windows = [payload.current, ...(payload.next ?? [])].filter(
+    Boolean
+  ) as LCWindow[];
 
   return windows.map((w) => ({
-    dateISO: w.date,                // "yyyy-LL-dd"
-    shift: w.shiftName as any,      // cast to your ShiftName union if needed
+    dateISO: w.date, // "yyyy-LL-dd"
+    shift: w.shiftName as any, // cast to your ShiftName union if needed
     total: w.count,
     problem: w.problemCount,
   }));
+}
+
+export async function confirmOrderByCustomerToken(
+  token: string,
+  body: { rating?: number; comment?: string }
+) {
+  const { data } = await api.post(`/orders/confirm/${token}`, body);
+  return data;
+}
+
+/** Fetch order details via an ops token (for logistics staff). */
+export async function getOrderByOpsToken(token: string) {
+  const { data } = await api.get(`/orders/by-ops-token/${token}`);
+  return data;
 }
