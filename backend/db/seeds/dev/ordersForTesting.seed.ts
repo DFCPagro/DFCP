@@ -1,9 +1,10 @@
 /**
- * Seed 4 orders for one customer:
+ * Seed 4 orders for one customer (DIRECT ORDER INSERT + QR mint):
  *  - 3 past orders with status "received"
  *  - 1 future order (next shift) with status "packing"
  * AMS: DO NOT create AMS docs. Assign a unique random amsId per (date, shift).
  * Item price: take price.a (per KG) from Item document.
+ * For each order, mint/reuse a QR via ensureOrderToken().
  *
  * Run:
  *   $env:MONGO_URI="mongodb+srv://user:pass@cluster/mydb"
@@ -11,11 +12,18 @@
  */
 
 import "dotenv/config";
+import crypto from "node:crypto";
 import mongoose, { Types } from "mongoose";
 
 import { connectDB, disconnectDB } from "../../../src/db/connect";
-import { Order } from "../../../src/models/order.model";
+import { Order as OrderModel } from "../../../src/models/order.model";
 import { Item } from "../../../src/models/Item.model";
+import QRModel from "../../../src/models/QRModel.model"; // <-- adjust if your QR model path differs
+import ApiError from "../../../src/utils/ApiError"; // <-- adjust if your error util path differs
+
+// Import only the QR service helpers you need.  Use ensureOrderToken from the
+// main ops.service so that the seeder uses the exact same signer/claims logic.
+import { ensureOrderToken as ensureOrderTokenService, verifyQRSignature } from "../../../src/services/ops.service";
 
 // -----------------------------
 // Config
@@ -31,15 +39,6 @@ const SHIFT_CONFIG = [
   { name: "night" as const,     startMin: 1140, endMin: 60   }, // wraps midnight
 ];
 type ShiftName = typeof SHIFT_CONFIG[number]["name"];
-
-// Use your real farmer IDs for believable provenance (from your dataset memory)
-const FARMERS = [
-  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1e8"), farmerName: "Levy Cohen",     farmName: "Galilee Greens" },
-  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1e9"), farmerName: "Ayala Ben-David", farmName: "Sunrise Fields" },
-  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1ea"), farmerName: "Yousef Haddad",  farmName: "Valley Harvest" },
-  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1eb"), farmerName: "Maya Klein",     farmName: "Olive Ridge" },
-  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1ec"), farmerName: "Tomer Azulay",   farmName: "Coastal Farm" },
-];
 
 // -----------------------------
 // Small math helpers (consistent rounding)
@@ -141,7 +140,6 @@ function avgUnitKgFromItem(it: any) {
 function stdDevKgFromItem(it: any, avgKg: number) {
   const sdGr = Number(it?.sdWeightPerUnitGr);
   if (Number.isFinite(sdGr) && sdGr > 0) return r3(sdGr / 1000);
-  // plausible fallback when avg known
   if (avgKg > 0) return r3(Math.max(0.01, avgKg * 0.15));
   return null;
 }
@@ -160,11 +158,9 @@ function decideUnitModeFromItem(it: any): UnitMode {
 }
 
 function randomQuantityKg() {
-  // 0.35–3.2 kg, rounded to 2dp (UI-friendly)
-  return r2(rand(0.35, 3.2));
+  return r2(rand(0.35, 3.2)); // 0.35–3.2 kg
 }
 function randomUnits() {
-  // 1–8 units
   return randInt(1, 8);
 }
 
@@ -179,89 +175,70 @@ function makeOrderItems(fromItems: any[]) {
     const pricePerKg = pricePerKgFromItem(it);
     const unitMode: UnitMode = decideUnitModeFromItem(it);
 
-    // establish amounts per mode
     let quantityKg = 0;
     let units = 0;
 
-    // unit stats (grams → kg once, 3dp)
     const avgKg = avgUnitKgFromItem(it);          // 0 means unknown
     const stdDevKg = stdDevKgFromItem(it, avgKg); // null or 3dp number
 
     if (unitMode === "kg") {
       quantityKg = randomQuantityKg();
-      units = 0;
     } else if (unitMode === "unit") {
       if (avgKg > 0) {
         units = randomUnits();
-        quantityKg = 0;
       } else {
-        // guard: if item has byUnit without avg, fallback to kg to pass validation
         quantityKg = randomQuantityKg();
-        units = 0;
       }
     } else {
-      // mixed: at least one positive; if units > 0 we need avg > 0
-      quantityKg = Math.random() < 0.7 ? randomQuantityKg() : 0;
-      if (avgKg > 0 && Math.random() < 0.7) {
+      // mixed
+      if (avgKg > 0) {
+        quantityKg = r2(rand(0.25, 2.0));
         units = randomUnits();
       } else {
-        units = 0;
+        quantityKg = randomQuantityKg();
       }
-      if (quantityKg === 0 && units === 0) quantityKg = randomQuantityKg();
     }
 
-    // snapshot used by order model; include only if units > 0
-    const estimatesSnapshot =
-      units > 0 && avgKg > 0
-        ? {
-            avgWeightPerUnitKg: avgKg,     // 3dp
-            stdDevKg: stdDevKg ?? null,    // 3dp or null
-          }
-        : undefined;
-
-    // UI helper: derived unit price = pricePerKg * avg (rounded to cents)
-    const derivedUnitPrice =
-      units > 0 && avgKg > 0 ? r2(pricePerKg * avgKg) : null;
-
-    // (Optional) sanity: estimated kg like the model does (3dp)
-    // const estimatedKg = r3((quantityKg || 0) + (units || 0) * (avgKg || 0));
-    // console.log(`[seed] ${itemDisplayName(it)} -> estKg=${estimatedKg} (mode=${unitMode}, kg=${quantityKg}, units=${units}, avg=${avgKg})`);
+    const estKg = quantityKg + (units * avgKg);
+    const name = itemDisplayName(it);
+    const category = categoryFromItem(it);
 
     return {
-      // --- required by OrderItemSchema ---
-      itemId: new Types.ObjectId(it._id),
-      name: itemDisplayName(it),
-      imageUrl: it?.imageUrl || "",
-      category: categoryFromItem(it),
-
-      // Per-KG snapshot fields
-      pricePerUnit: pricePerKg,  // legacy per-KG used by totals
-      pricePerKg,                // explicit per-KG snapshot
-
-      derivedUnitPrice,          // optional UI helper
-
+      itemId: it._id,
+      name,
+      imageUrl: it.imageUrl || "",
+      category,
+      pricePerUnit: pricePerKg,
+      pricePerKg,
+      derivedUnitPrice: null,
       unitMode,
       quantityKg,
       units,
-      estimatesSnapshot,
-
-      // Final weights left undefined (packing flow will set)
+      estimatesSnapshot: {
+        avgWeightPerUnitKg: avgKg || null,
+        stdDevKg,
+      },
       finalWeightKg: undefined,
       finalizedAt: undefined,
       finalizedBy: undefined,
-
-      // provenance
       sourceFarmerName: farmer.farmerName,
       sourceFarmName: farmer.farmName,
-
-      // random FO link for seed (synthetic)
-      farmerOrderId: new Types.ObjectId(),
+      farmerOrderId: farmer.farmerId,
     };
   });
 }
 
+// Reuse your FARMERS pool from earlier
+const FARMERS = [
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1e8"), farmerName: "Levy Cohen",     farmName: "Galilee Greens" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1e9"), farmerName: "Ayala Ben-David", farmName: "Sunrise Fields" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1ea"), farmerName: "Yousef Haddad",  farmName: "Valley Harvest" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1eb"), farmerName: "Maya Klein",     farmName: "Olive Ridge" },
+  { farmerId: new Types.ObjectId("68960695a7850beaf8dac1ec"), farmerName: "Tomer Azulay",   farmName: "Coastal Farm" },
+];
+
 // -----------------------------
-// AMS ID manager (no DB writes)
+// AMS ID manager (no DB writes, as in your original)
 // -----------------------------
 const amsIdByKey = new Map<string, Types.ObjectId>();
 function getAmsIdForKey(ymd: string, shift: ShiftName): Types.ObjectId {
@@ -295,7 +272,7 @@ async function seed() {
       const amsId = getAmsIdForKey(ymd, shift);
       const items = makeOrderItems(itemsPool);
 
-      const order = await Order.create({
+      const order = await OrderModel.create({
         customerId: new Types.ObjectId(CUSTOMER_ID),
         deliveryAddress: makeDeliveryAddress(LC_ID),
         deliveryDate: new Date(`${ymd}T00:00:00.000Z`),
@@ -309,7 +286,15 @@ async function seed() {
         historyAuditTrail: [],
       });
 
-      console.log(`✔️ Past order: ${order._id.toString()} | ${ymd} ${shift} | amsId=${amsId.toString()}`);
+      const qr = await ensureOrderTokenService({
+        orderId: order._id,
+        createdBy: new Types.ObjectId(CUSTOMER_ID),
+        usagePolicy: "multi-use",
+      });
+
+      console.log(
+        `✔️ Past order: ${order._id.toString()} | ${ymd} ${shift} | amsId=${amsId.toString()} | QR=${qr.token}`
+      );
     }
 
     // 2) One future "packing" order on next shift
@@ -317,7 +302,7 @@ async function seed() {
     const amsId = getAmsIdForKey(nx.ymd, nx.shift);
     const items = makeOrderItems(itemsPool);
 
-    const futureOrder = await Order.create({
+    const futureOrder = await OrderModel.create({
       customerId: new Types.ObjectId(CUSTOMER_ID),
       deliveryAddress: makeDeliveryAddress(LC_ID),
       deliveryDate: nx.date,
@@ -331,19 +316,25 @@ async function seed() {
       historyAuditTrail: [],
     });
 
-    console.log(`✔️ Future order (packing): ${futureOrder._id.toString()} | ${nx.ymd} ${nx.shift} | amsId=${amsId.toString()}`);
-    console.log("✅ Done seeding orders.");
+    const qr = await ensureOrderTokenService({
+      orderId: futureOrder._id,
+      createdBy: new Types.ObjectId(CUSTOMER_ID),
+      usagePolicy: "multi-use",
+    });
+
+    console.log(
+      `✔️ Future order (packing): ${futureOrder._id.toString()} | ${nx.ymd} ${nx.shift} | amsId=${amsId.toString()} | QR=${qr.token}`
+    );
+    console.log("✅ Done seeding orders + QR.");
   } catch (err) {
     console.error("❌ Seed failed:", err);
     throw err;
   } finally {
-    await disconnectDB().catch(() => {});
-    console.log("🔌 Disconnected");
+    await disconnectDB();
   }
 }
 
-if (require.main === module) {
-  seed().catch(() => process.exit(1));
-}
-
-export default seed;
+// -----------------------------
+// Execute
+// -----------------------------
+seed().then(() => process.exit(0)).catch(() => process.exit(1));

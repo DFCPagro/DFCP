@@ -3,17 +3,22 @@ import mongoose, { Types } from "mongoose";
 import Order from "../models/order.model";
 import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
 import { CreateOrderInput } from "../validations/orders.validation";
-import { adjustAvailableQtyAtomic, adjustAvailableQtyByUnitsAtomic } from "./availableMarketStock.service";
+import {
+  adjustAvailableQtyAtomic,
+  adjustAvailableQtyByUnitsAtomic,
+} from "./availableMarketStock.service";
 import ShiftConfig from "../models/shiftConfig.model";
 import { DateTime } from "luxon";
 import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
 
 import { addOrderIdToFarmerOrder } from "./farmerOrder.service";
+import { ensureOrderToken } from "./ops.service";
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
 type IdLike = string | Types.ObjectId;
-const toOID = (v: IdLike) => (v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v)));
+const toOID = (v: IdLike) =>
+  v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
 
 type AmsLine = {
   _id: Types.ObjectId;
@@ -33,7 +38,11 @@ type PayloadItem = CreateOrderInput["items"][number];
 
 // legacy = has 'quantity' and no 'quantityKg'/'units'
 const isLegacyItem = (it: any): boolean =>
-  it && typeof it === "object" && "quantity" in it && !("quantityKg" in it) && !("units" in it);
+  it &&
+  typeof it === "object" &&
+  "quantity" in it &&
+  !("quantityKg" in it) &&
+  !("units" in it);
 
 // prefer payload snapshot, fall back to AMS estimates
 function resolveAvgPerUnit(it: any, amsLine?: AmsLine): number {
@@ -64,11 +73,17 @@ function normalizeItem(it: PayloadItem, amsLine?: AmsLine) {
     const units = Math.max(0, Number((it as any).units) || 0);
     const avg = resolveAvgPerUnit(it, amsLine);
 
-    if ((unitMode === "unit" || unitMode === "mixed") && units > 0 && !(avg > 0)) {
+    if (
+      (unitMode === "unit" || unitMode === "mixed") &&
+      units > 0 &&
+      !(avg > 0)
+    ) {
       const e: any = new Error("BadRequest");
       e.name = "BadRequest";
       e.details = [
-        `Missing avgWeightPerUnitKg for item ${String((it as any).itemId)} while units > 0.`,
+        `Missing avgWeightPerUnitKg for item ${String(
+          (it as any).itemId
+        )} while units > 0.`,
       ];
       throw e;
     }
@@ -77,13 +92,20 @@ function normalizeItem(it: PayloadItem, amsLine?: AmsLine) {
   }
 }
 
-function computeEstimatedKgNormalized(n: { quantityKg: number; units: number; avg: number }): number {
+function computeEstimatedKgNormalized(n: {
+  quantityKg: number;
+  units: number;
+  avg: number;
+}): number {
   const eff = n.quantityKg + n.units * n.avg;
   return Math.max(0, Math.round(eff * 1000) / 1000);
 }
 
 // helper to compute a UI-only per-unit price snapshot
-function deriveUnitPrice(pricePerKg: number | undefined, avgKg: number | undefined | null) {
+function deriveUnitPrice(
+  pricePerKg: number | undefined,
+  avgKg: number | undefined | null
+) {
   if (!Number.isFinite(pricePerKg) || !(pricePerKg! > 0)) return null;
   if (!Number.isFinite(avgKg) || !(avgKg! > 0)) return null;
   // round to cents for display; you can keep more precision if you prefer
@@ -93,19 +115,24 @@ function deriveUnitPrice(pricePerKg: number | undefined, avgKg: number | undefin
 // ───────────────────────────────────────────────────────────────────────────────
 // Create order
 // ───────────────────────────────────────────────────────────────────────────────
-export async function createOrderForCustomer(userId: IdLike, payload: CreateOrderInput) {
+export async function createOrderForCustomer(
+  userId: IdLike,
+  payload: CreateOrderInput
+) {
   const session = await mongoose.startSession();
-
   const customerOID = toOID(userId);
   const amsOID = toOID(payload.amsId);
   const lcOID = toOID(payload.logisticsCenterId);
-
   let orderDoc: any;
+  let orderQR: any;
 
   try {
     await session.withTransaction(async () => {
       // 1) Load AMS for line lookups
-      const ams = await AvailableMarketStockModel.findById(amsOID, { items: 1, availableShift: 1 })
+      const ams = await AvailableMarketStockModel.findById(amsOID, {
+        items: 1,
+        availableShift: 1,
+      })
         .lean(false)
         .session(session);
       if (!ams) {
@@ -114,28 +141,32 @@ export async function createOrderForCustomer(userId: IdLike, payload: CreateOrde
         throw err;
       }
 
-      const itemsArr: AmsLine[] = Array.isArray((ams as any).items) ? ((ams as any).items as any) : [];
+      const itemsArr: AmsLine[] = Array.isArray((ams as any).items)
+        ? ((ams as any).items as any)
+        : [];
       const byFO = new Map<string, AmsLine>();
       for (const line of itemsArr) {
-        const fo = (line as any).farmerOrderId ? String((line as any).farmerOrderId) : "";
+        const fo = (line as any).farmerOrderId
+          ? String((line as any).farmerOrderId)
+          : "";
         if (fo) byFO.set(fo, line);
       }
 
-      // 2) Reserve AMS using AMS' own conservative logic for units
+      // 2) Reserve AMS inventory
       for (const it of payload.items as PayloadItem[]) {
         const foId = String((it as any).farmerOrderId);
         const line = byFO.get(foId);
         if (!line || !line._id) {
-          const err: any = new Error(`AMS line not found for farmerOrderId ${(it as any).farmerOrderId}`);
+          const err: any = new Error(
+            `AMS line not found for farmerOrderId ${(it as any).farmerOrderId}`
+          );
           err.name = "BadRequest";
-          err.details = ["Ensure AMS has a line whose farmerOrderId matches the requested item."]; // helpful to caller
+          err.details = [
+            "Ensure AMS has a line whose farmerOrderId matches the requested item.",
+          ];
           throw err;
         }
-
-        // Normalize once to know what we’re reserving
         const n = normalizeItem(it, line);
-
-        // 2a) Reserve any KG directly (exact kg requested)
         if (n.quantityKg > 0) {
           const kg = Math.round(n.quantityKg * 1000) / 1000;
           await adjustAvailableQtyAtomic({
@@ -146,27 +177,25 @@ export async function createOrderForCustomer(userId: IdLike, payload: CreateOrde
             session,
           });
         }
-
-        // 2b) Reserve any UNITS using AMS' conservative conversion (bundle/z/shrink)
         if (n.units > 0) {
           await adjustAvailableQtyByUnitsAtomic({
             docId: amsOID.toString(),
             lineId: String(line._id),
-            unitsDelta: -n.units, // negative => reserve
+            unitsDelta: -n.units,
             enforceEnoughForReserve: true,
             session,
           });
         }
-
-        // Guard: at least one of kg/units must be positive
         if (!(n.quantityKg > 0 || n.units > 0)) {
-          const err: any = new Error(`Invalid item quantities for item ${(it as any).itemId}`);
+          const err: any = new Error(
+            `Invalid item quantities for item ${(it as any).itemId}`
+          );
           err.name = "BadRequest";
           throw err;
         }
       }
 
-      // 3) Create Order (new shape) — legacy items are auto-normalized
+      // 3) Create Order (normalized items)
       const orderPayload = {
         customerId: customerOID,
         deliveryAddress: payload.deliveryAddress,
@@ -177,49 +206,40 @@ export async function createOrderForCustomer(userId: IdLike, payload: CreateOrde
         items: (payload.items as PayloadItem[]).map((it) => {
           const line = byFO.get(String((it as any).farmerOrderId));
           const n = normalizeItem(it, line);
-
-          // Take per-KG price from payload if provided, else snapshot from AMS line
           const pricePerKg = Number.isFinite((it as any).pricePerUnit)
             ? Number((it as any).pricePerUnit)
             : Number((line as any)?.pricePerUnit ?? 0);
-
-          // Keep legacy name for billing math (per KG)
           const pricePerUnit = pricePerKg;
-
-          // Optional UI helper for unit/mixed
           const derivedUnitPrice =
-            (n.unitMode === "unit" || n.unitMode === "mixed")
-              ? deriveUnitPrice(pricePerKg, n.avg || line?.estimates?.avgWeightPerUnitKg || null)
+            n.unitMode === "unit" || n.unitMode === "mixed"
+              ? deriveUnitPrice(
+                  pricePerKg,
+                  n.avg || line?.estimates?.avgWeightPerUnitKg || null
+                )
               : null;
-
           const snapshot: any = {};
           const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
-          if (Number.isFinite(snapAvg) && (snapAvg as number) > 0) {
+          if (Number.isFinite(snapAvg) && (snapAvg as number) > 0)
             snapshot.avgWeightPerUnitKg = snapAvg;
-          }
           const snapSd = line?.estimates?.sdKg;
-          if (Number.isFinite(snapSd) && (snapSd as number) > 0) {
+          if (Number.isFinite(snapSd) && (snapSd as number) > 0)
             snapshot.stdDevKg = snapSd;
-          }
-
           return {
             itemId: toOID((it as any).itemId),
             name: (it as any).name,
             imageUrl: (it as any).imageUrl ?? "",
-            pricePerUnit,                 // per KG (legacy field used by totals)
-            pricePerKg,                   // explicit duplicate for clarity/analytics
-            derivedUnitPrice,             // optional UI helper
-
+            pricePerUnit,
+            pricePerKg,
+            derivedUnitPrice,
             unitMode: n.unitMode,
             quantityKg: n.quantityKg,
             units: n.units,
-
-            estimatesSnapshot: Object.keys(snapshot).length ? snapshot : undefined,
-
+            estimatesSnapshot: Object.keys(snapshot).length
+              ? snapshot
+              : undefined,
             category: (it as any).category ?? "",
             sourceFarmerName: (it as any).sourceFarmerName,
             sourceFarmName: (it as any).sourceFarmName,
-
             farmerOrderId: toOID((it as any).farmerOrderId),
           };
         }),
@@ -227,22 +247,41 @@ export async function createOrderForCustomer(userId: IdLike, payload: CreateOrde
 
       [orderDoc] = await Order.create([orderPayload], { session });
 
-      // 4) Link each FarmerOrder using **estimated kg** (avg-based; fine for expectations/tolerance)
+      // 4) Link each FarmerOrder with estimated kg
       for (const it of payload.items as PayloadItem[]) {
         const line = byFO.get(String((it as any).farmerOrderId));
         const n = normalizeItem(it, line);
         const estKg = computeEstimatedKgNormalized(n);
-        await addOrderIdToFarmerOrder(orderDoc._id, toOID((it as any).farmerOrderId), estKg, { session });
+        await addOrderIdToFarmerOrder(
+          orderDoc._id,
+          toOID((it as any).farmerOrderId),
+          estKg,
+          { session }
+        );
       }
 
       // 5) Audit & save
-      orderDoc.addAudit(customerOID, "ORDER_CREATED", "Customer placed an order", {
-        itemsCount: payload.items.length,
-      });
+      orderDoc.addAudit(
+        customerOID,
+        "ORDER_CREATED",
+        "Customer placed an order",
+        { itemsCount: payload.items.length }
+      );
       await orderDoc.save({ session });
+
+      // 6) Atomically mint/reuse the Order QR within the same txn
+      orderQR = await ensureOrderToken({
+        orderId: orderDoc._id,
+        createdBy: customerOID,
+        ttlSeconds: 24 * 60 * 60,
+        usagePolicy: "multi-use",
+        issuer: customerOID,
+        session,
+      });
     });
 
-    return orderDoc.toJSON();
+    // committed
+    return { order: orderDoc.toJSON(), orderQR };
   } finally {
     session.endSession();
   }
@@ -263,7 +302,6 @@ export async function listOrdersForCustomer(userId: IdLike, limit = 15) {
   return docs;
 }
 
-
 // ───────────────────────────────────────────────────────────────────────────────
 // Orders summary (for admin dashboard) - latest orders for a given logistics center
 // ───────────────────────────────────────────────────────────────────────────────
@@ -273,7 +311,7 @@ type OrdersSummaryParams = {
 };
 
 type SummaryEntry = {
-  date: string;              // yyyy-LL-dd in LC tz
+  date: string; // yyyy-LL-dd in LC tz
   shiftName: "morning" | "afternoon" | "evening" | "night";
   orderIds: string[];
   count: number;
@@ -281,7 +319,9 @@ type SummaryEntry = {
 };
 
 const dayRangeUtc = (tz: string, ymd: string) => {
-  const start = DateTime.fromFormat(ymd, "yyyy-LL-dd", { zone: tz }).startOf("day");
+  const start = DateTime.fromFormat(ymd, "yyyy-LL-dd", { zone: tz }).startOf(
+    "day"
+  );
   const end = start.plus({ days: 1 });
   return { startUTC: start.toUTC().toJSDate(), endUTC: end.toUTC().toJSDate() };
 };
@@ -290,19 +330,25 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
   const { logisticCenterId, count = 5 } = params;
 
   // find timezone for LC (reuse your pattern from getNextAvailableShifts)
-  const anyCfg = await ShiftConfig
-    .findOne({ logisticCenterId }, { timezone: 1 })
+  const anyCfg = await ShiftConfig.findOne(
+    { logisticCenterId },
+    { timezone: 1 }
+  )
     .lean<{ timezone?: string }>()
     .exec();
 
-  if (!anyCfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  if (!anyCfg)
+    throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = anyCfg.timezone || "Asia/Jerusalem";
 
   // current shift (name) in tz
   const currentShiftName = await getCurrentShift();
   if (currentShiftName === "none") {
     // no active shift now — still return next N shifts only
-    const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
+    const nextShifts = await getNextAvailableShifts({
+      logisticCenterId,
+      count,
+    });
     const summaries = await Promise.all(
       nextShifts.map(async (s) => {
         const { startUTC, endUTC } = dayRangeUtc(tz, s.date);
@@ -313,10 +359,12 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
             deliveryDate: { $gte: startUTC, $lt: endUTC },
           },
           { _id: 1, status: 1 }
-        ).lean().exec();
+        )
+          .lean()
+          .exec();
 
-        const ids = docs.map(d => String(d._id));
-        const problemCount = docs.filter(d => d.status === "problem").length;
+        const ids = docs.map((d) => String(d._id));
+        const problemCount = docs.filter((d) => d.status === "problem").length;
 
         return {
           date: s.date,
@@ -344,7 +392,7 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
   // build the 1 (current) + N (next) targets
   const targets: Array<{ date: string; name: SummaryEntry["shiftName"] }> = [
     { date: todayYmd, name: currentShiftName as any },
-    ...nextShifts.map(s => ({ date: s.date, name: s.name })),
+    ...nextShifts.map((s) => ({ date: s.date, name: s.name })),
   ];
 
   // query each window in parallel
@@ -358,10 +406,12 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
           deliveryDate: { $gte: startUTC, $lt: endUTC },
         },
         { _id: 1, status: 1 }
-      ).lean().exec();
+      )
+        .lean()
+        .exec();
 
-      const ids = docs.map(d => String(d._id));
-      const problemCount = docs.filter(d => d.status === "problem").length;
+      const ids = docs.map((d) => String(d._id));
+      const problemCount = docs.filter((d) => d.status === "problem").length;
 
       return {
         date: t.date,
@@ -383,12 +433,12 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
 
 export async function listOrdersForShift(params: {
   logisticCenterId: string;
-  date: string;                // yyyy-LL-dd in LC timezone
+  date: string; // yyyy-LL-dd in LC timezone
   shiftName: ShiftName;
-  status?: string;             // optional filter by status
-  page?: number;               // default 1
-  limit?: number;              // default 50
-  fields?: string[];           // optional projection
+  status?: string; // optional filter by status
+  page?: number; // default 1
+  limit?: number; // default 50
+  fields?: string[]; // optional projection
 }) {
   const {
     logisticCenterId,
@@ -396,24 +446,33 @@ export async function listOrdersForShift(params: {
     shiftName,
     status,
     page = 1,
-    limit = 50,//change that later 
+    limit = 50, //change that later
     fields,
   } = params;
 
   // Resolve timezone for this LC (same approach as summary)
-  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 }).lean().exec();
-  if (!cfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
+    .lean()
+    .exec();
+  if (!cfg)
+    throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = cfg.timezone || "Asia/Jerusalem";
 
   // Convert date (in LC tz) to UTC day window
-  const start = DateTime.fromFormat(date, "yyyy-LL-dd", { zone: tz }).startOf("day");
-  if (!start.isValid) throw new Error(`Invalid date '${date}', expected yyyy-LL-dd`);
+  const start = DateTime.fromFormat(date, "yyyy-LL-dd", { zone: tz }).startOf(
+    "day"
+  );
+  if (!start.isValid)
+    throw new Error(`Invalid date '${date}', expected yyyy-LL-dd`);
   const end = start.plus({ days: 1 });
 
   const q: any = {
     LogisticsCenterId: new Types.ObjectId(logisticCenterId),
     shiftName,
-    deliveryDate: { $gte: start.toUTC().toJSDate(), $lt: end.toUTC().toJSDate() },
+    deliveryDate: {
+      $gte: start.toUTC().toJSDate(),
+      $lt: end.toUTC().toJSDate(),
+    },
   };
   if (status) q.status = status;
 
@@ -425,7 +484,12 @@ export async function listOrdersForShift(params: {
   const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
 
   const [items, total] = await Promise.all([
-    Order.find(q, projection).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+    Order.find(q, projection)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec(),
     Order.countDocuments(q),
   ]);
 

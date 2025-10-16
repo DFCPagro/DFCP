@@ -2,6 +2,23 @@
 import { Request, Response, NextFunction } from "express";
 import { OpsService } from "../services/ops.service";
 
+type OrderPrintPayload = {
+  order: any;
+  orderQR: {
+    token: string;
+    sig: string;
+    scope: string;
+  };
+  containerQrs: Array<{
+    token: string;
+    sig: string;
+    scope: string;
+    subjectType: string;
+    subjectId: string;
+  }>;
+};
+
+
 /** GET /api/farmer-orders  (read-only listing for farmer/fManager/admin) */
 export async function listMyOrders(req: Request, res: Response, next: NextFunction) {
   try {
