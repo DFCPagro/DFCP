@@ -1,5 +1,5 @@
 import { type Address } from "./address";
-export type Role = "customer" | "admin" | "deliverer" |"farmer" | string;
+export type Role = "customer" | "admin" | "deliverer" |"farmer" | "csManager" | "tManager" | "fManager" |string;
 
 // Add optional fields you showed in your sample response
 export type User = {

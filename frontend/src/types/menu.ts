@@ -17,7 +17,7 @@ export type Mode = "noUser" |"customer" | "work";
  * Known roles you support today. You can extend beyond these at runtime,
  * so the config uses a flexible map for `work`.
  */
-export const KNOWN_WORK_ROLES = ["farmer", "admin", "deliverer", "industrialDeliverer", "picker"] as const;
+export const KNOWN_WORK_ROLES = ["farmer", "admin", "deliverer", "industrialDeliverer", "picker", "csManager", "tManager", "fManager"] as const;
 export type KnownWorkRole = (typeof KNOWN_WORK_ROLES)[number];
 
 /**
