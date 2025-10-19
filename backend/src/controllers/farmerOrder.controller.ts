@@ -4,6 +4,8 @@ import {
   updateFarmerStatusService,
   updateStageStatusService,
   AuthUser,
+  farmerOrdersSummary, 
+  listFarmerOrdersForShift
 } from "../services/farmerOrder.service";
 
 /** POST /api/farmer-orders */
@@ -65,3 +67,41 @@ export async function updateStageStatus(req: Request, res: Response) {
   }
 }
 
+export async function getFarmerOrdersUpcoming(req: Request, res: Response) {
+  const logisticCenterId =
+    (req.query.logisticCenterId as string) ||
+    (req as any).user?.logisticCenterId ||
+    "";
+  if (!logisticCenterId) return res.status(400).json({ message: "logisticCenterId is required" });
+
+  const count = parseInt(String(req.query.count ?? "5"), 10) || 5;
+  const data = await farmerOrdersSummary({ logisticCenterId, count });
+  return res.json(data);
+}
+
+export async function getFarmerOrdersForShift(req: Request, res: Response) {
+  const logisticCenterId =
+    (req.query.logisticCenterId as string) ||
+    (req as any).user?.logisticCenterId ||
+    "";
+  if (!logisticCenterId) return res.status(400).json({ message: "logisticCenterId is required" });
+
+  const date = String(req.query.date || "");
+  const shiftName = String(req.query.shiftName || "");
+  if (!date || !shiftName)
+    return res.status(400).json({ message: "date and shiftName are required" });
+
+  const farmerStatus = req.query.farmerStatus as any;
+  const page = parseInt(String(req.query.page ?? "1"), 10) || 1;
+  const limit = parseInt(String(req.query.limit ?? "50"), 10) || 50;
+
+  const data = await listFarmerOrdersForShift({
+    logisticCenterId,
+    date,
+    shiftName: shiftName as any,
+    farmerStatus,
+    page,
+    limit,
+  });
+  return res.json(data);
+}

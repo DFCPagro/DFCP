@@ -2,189 +2,343 @@ openapi: 3.0.3
 info:
   title: Farmer Orders API
   version: 1.0.0
-  description: |
-    Endpoints for creating Farmer Orders and updating their statuses and stages.
-    Auth: Bearer JWT. Roles used: farmer, farmerManager, admin.
+  description: >
+    Endpoints for creating and managing Farmer Orders (FO), updating farmer
+    acknowledgments and stage statuses, and retrieving summaries for the current
+    and upcoming shifts.  
+    Role-based access is enforced via Bearer auth (see `security` notes on each route).
+
+servers:
+  - url: /api
+    description: Main API base path
+
+tags:
+  - name: FarmerOrders
+    description: Farmer Orders (FO) lifecycle, summaries, and listings
 
 paths:
   /farmer-orders:
     post:
-      summary: Create a new Farmer Order
-      description: Only roles **farmerManager** or **admin** can create.
+      tags: [FarmerOrders]
+      summary: Create a Farmer Order
+      description: |
+        Create a new Farmer Order.  
+        **Auth:** Bearer token required.  
+        **Roles:** `fManager`, `admin`.
       security:
         - bearerAuth: []
-      tags: [FarmerOrders]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateFarmerOrderRequest'
+              $ref: "#/components/schemas/CreateFarmerOrderRequest"
             examples:
-              createExample:
+              create:
                 value:
-                  itemId: "68960284330bf1699eee8955"
-                  type: "leafy"
+                  itemId: "66fabc000000000000000111"
+                  type: "Lettuce"
                   variety: "Romaine"
-                  pictureUrl: "https://img.example.com/romaine.jpg"
-                  farmerId: "66f3b1aa0a8c0f0012345678"
+                  pictureUrl: "https://cdn.example.com/img/romaine.jpg"
+                  farmerId: "66fabc000000000000000222"
                   farmerName: "Levy Cohen"
-                  farmName: "Levy Family Farm"
-                  landId: "66f0b0b0b0b0b0b0b0b0b0b0"
-                  sectionId: "N-3"
+                  farmName: "Green Valley Farm"
                   shift: "morning"
-                  pickUpDate: "2025-09-22"
+                  pickUpDate: "2025-10-20"
                   forcastedQuantityKg: 120
-                  sumOrderedQuantityKg: 0
+                  sumOrderedQuantityKg: 96
       responses:
-        '201':
+        "201":
           description: Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FarmerOrderResponse'
-        '400':
-          description: Validation failed (business or schema)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '403':
-          description: Forbidden (role)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/FarmerOrder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /farmer-orders/{id}/farmer-status:
     patch:
-      summary: Update farmerStatus (farmer/self OR manager/admin)
+      tags: [FarmerOrders]
+      summary: Update farmerStatus (acknowledgment/problem)
       description: |
-        Roles:
-        - **farmer** may update only if `user.id === order.farmerId`
-        - **farmerManager** or **admin** may update any order
-
-        Side effects:
-        - When status = **ok**:
-          - stage `farmerAck` -> `ok`, then `done`
-          - stage `farmerQSrep` -> `current`
-          - upsert item into Available Market Stock (by LC + date + shift)
-          - audit entries added
-        - When status = **problem**:
-          - pipeline halted; any `current` stage cleared to `pending`
-          - stage `farmerAck` -> `done` (HALT note)
-          - audit entries added
+        Update the FO-level `farmerStatus`.  
+        - When set to **ok**: pipeline advances (marks `farmerAck` stage ok/done), and item is upserted into the matching AMS (Available Market Stock).  
+        - When set to **problem**: pipeline is halted.  
+        **Auth:** Bearer token required.  
+        **Roles:** `farmer` (only for own FO), `fManager`, `admin`.
       security:
         - bearerAuth: []
-      tags: [FarmerOrders]
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: FarmerOrder document id
-          schema: { type: string }
+        - $ref: "#/components/parameters/FarmerOrderIdParam"
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/UpdateFarmerStatusRequest' }
+            schema:
+              $ref: "#/components/schemas/UpdateFarmerStatusRequest"
             examples:
-              okExample:
-                value: { status: "ok", note: "Ready for pickup." }
-              problemExample:
-                value: { status: "problem", note: "Weather damage reported." }
+              ok:
+                value: { status: "ok", note: "Confirmed; ready for QS." }
+              problem:
+                value: { status: "problem", note: "Harvest delay due to weather." }
+              pending:
+                value: { status: "pending" }
       responses:
-        '200':
+        "200":
           description: Updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FarmerOrderResponse'
-        '400':
-          description: Validation failed / bad input
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '403':
-          description: Forbidden (not owner farmer, or pipeline halted rules)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '404':
-          description: Order not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/FarmerOrder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /farmer-orders/{id}/stage:
     patch:
-      summary: Update a stage status (manager/admin only)
+      tags: [FarmerOrders]
+      summary: Update stage status for a Farmer Order
       description: |
-        Allowed actions: `setCurrent`, `ok`, `done`, `problem`.
-
-        Rules:
-        - Only **farmerManager** or **admin**.
-        - If pipeline halted (`farmerStatus = problem`), only `action = problem` is allowed.
-        - Uses model instance methods for `setCurrent`/`ok`/`done`.
-        - For `problem`, the stage entry is flagged with status `"problem"` and audited.
+        Update stage state by key. Actions: `setCurrent`, `ok`, `done`, `problem`.  
+        **Auth:** Bearer token required.  
+        **Roles:** `fManager`, `admin`.  
+        > Note: When pipeline is in `problem`, only `action=problem` is allowed unless pipeline is explicitly cleared.
       security:
         - bearerAuth: []
-      tags: [FarmerOrders]
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: FarmerOrder document id
-          schema: { type: string }
+        - $ref: "#/components/parameters/FarmerOrderIdParam"
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/UpdateStageStatusRequest' }
+            schema:
+              $ref: "#/components/schemas/UpdateStageStatusRequest"
             examples:
-              setCurrentExample:
-                value: { key: "inspection", action: "setCurrent", note: "Starting inspection" }
-              okExample:
-                value: { key: "recived", action: "ok", note: "Received confirmed" }
-              doneExample:
-                value: { key: "sorting", action: "done", note: "Sorting completed" }
-              problemExample:
-                value: { key: "inTransit", action: "problem", note: "Delay due to traffic" }
+              setCurrent:
+                value: { key: "farmerQSrep", action: "setCurrent", note: "Start QS phase" }
+              ok:
+                value: { key: "farmerQSrep", action: "ok" }
+              done:
+                value: { key: "loading", action: "done", note: "Loaded to truck" }
+              problem:
+                value: { key: "farmerAck", action: "problem", note: "Mismatch in quantities" }
       responses:
-        '200':
+        "200":
           description: Updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FarmerOrderResponse'
-        '400':
-          description: Validation failed / bad input
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/FarmerOrder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /farmer-orders/summary:
+    get:
+      tags: [FarmerOrders]
+      summary: Summary for current shift + next N shifts
+      description: |
+        Returns a compact summary for the **current shift** (if any) and the **next N shifts** (default 5).  
+        Includes counts of FO docs, `problemCount`, status breakdown (`okFO`, `pendingFO`, `problemFO`), and **distinct farmer counts** per status.  
+        **Auth:** Bearer token required.  
+        **Roles:** `admin`, `fManager`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: logisticCenterId
+          schema: { type: string }
+          required: false
+          description: >
+            The LC id (ObjectId string). If omitted, server tries `(req.user).logisticCenterId`.
+        - in: query
+          name: count
+          schema: { type: integer, minimum: 1, default: 5 }
+          required: false
+          description: Number of next shifts to include after the current one (if any).
+      responses:
+        "200":
+          description: Summary payload
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '403':
-          description: Forbidden (role or pipeline halted)
+              schema:
+                $ref: "#/components/schemas/FarmerOrdersUpcomingResponse"
+              examples:
+                sample:
+                  value:
+                    current:
+                      date: "2025-10-19"
+                      shiftName: "afternoon"
+                      count: 8
+                      problemCount: 1
+                      okFO: 5
+                      pendingFO: 2
+                      problemFO: 1
+                      okFarmers: 4
+                      pendingFarmers: 2
+                      problemFarmers: 1
+                    next:
+                      - date: "2025-10-19"
+                        shiftName: "evening"
+                        count: 0
+                        problemCount: 0
+                        okFO: 0
+                        pendingFO: 0
+                        problemFO: 0
+                        okFarmers: 0
+                        pendingFarmers: 0
+                        problemFarmers: 0
+                      - date: "2025-10-20"
+                        shiftName: "night"
+                        count: 3
+                        problemCount: 0
+                        okFO: 2
+                        pendingFO: 1
+                        problemFO: 0
+                        okFarmers: 2
+                        pendingFarmers: 1
+                        problemFarmers: 0
+                    tz: "Asia/Jerusalem"
+                    lc: "66e007000000000000000001"
+        "400":
+            $ref: "#/components/responses/BadRequest"
+        "401":
+            $ref: "#/components/responses/Unauthorized"
+        "403":
+            $ref: "#/components/responses/Forbidden"
+        "500":
+            $ref: "#/components/responses/InternalError"
+
+  /farmer-orders/by-shift:
+    get:
+      tags: [FarmerOrders]
+      summary: List Farmer Orders for a specific (date, shift)
+      description: |
+        Paginated list of FO for a given **pickUpDate** (yyyy-LL-dd, LC timezone) and **shift**.  
+        Supports optional filtering by `farmerStatus`.  
+        **Auth:** Bearer token required.  
+        **Roles:** `admin`, `fManager`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: logisticCenterId
+          schema: { type: string }
+          required: false
+          description: >
+            The LC id (ObjectId string). If omitted, server tries `(req.user).logisticCenterId`.
+        - in: query
+          name: date
+          schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+          required: true
+          description: pickUpDate in LC timezone (format `yyyy-LL-dd`)
+        - in: query
+          name: shiftName
+          schema:
+            $ref: "#/components/schemas/ShiftName"
+          required: true
+          description: Shift name
+        - in: query
+          name: farmerStatus
+          schema:
+            $ref: "#/components/schemas/FarmerApprovalStatus"
+          required: false
+          description: Optional filter on FO farmerStatus
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+          required: false
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, default: 50 }
+          required: false
+        - in: query
+          name: fields
+          schema:
+            type: array
+            items: { type: string }
+            example: [ "farmerName", "farmName", "type", "variety", "farmerStatus" ]
+          required: false
+          style: form
+          explode: true
+          description: Optional projection fields
+      responses:
+        "200":
+          description: OK (paginated)
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '404':
-          description: Order or stage not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              schema:
+                $ref: "#/components/schemas/FarmerOrdersByShiftResponse"
+              examples:
+                sample:
+                  value:
+                    meta:
+                      lc: "66e007000000000000000001"
+                      date: "2025-10-20"
+                      shiftName: "morning"
+                      tz: "Asia/Jerusalem"
+                      page: 1
+                      limit: 50
+                      total: 3
+                      problemCount: 1
+                      pages: 1
+                    items:
+                      - _id: "66fabcd0000000000000aaa1"
+                        farmerName: "Levy Cohen"
+                        farmName: "Green Valley Farm"
+                        type: "Lettuce"
+                        variety: "Romaine"
+                        farmerStatus: "ok"
+                      - _id: "66fabcd0000000000000aaa2"
+                        farmerName: "Maya Klein"
+                        farmName: "Sun Farm"
+                        type: "Spinach"
+                        variety: "Baby"
+                        farmerStatus: "pending"
+                      - _id: "66fabcd0000000000000aaa3"
+                        farmerName: "Yousef Haddad"
+                        farmName: "Al-Nahr Farm"
+                        type: "Strawberry"
+                        variety: "Albion"
+                        farmerStatus: "problem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
 components:
   securitySchemes:
@@ -193,7 +347,72 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    FarmerOrderIdParam:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, description: "FarmerOrder _id (ObjectId string)" }
+
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            validation:
+              value:
+                error: "Validation failed"
+                details: ["field X is required"]
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            token:
+              value: { error: "Unauthorized" }
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            roles:
+              value:
+                error: "Forbidden"
+                details: ["Only farmerManager or admin can update stages"]
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            foMissing:
+              value:
+                error: "Not Found"
+                details: ["Farmer order not found"]
+    InternalError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
   schemas:
+    ShiftName:
+      type: string
+      enum: [morning, afternoon, evening, night]
+
+    FarmerApprovalStatus:
+      type: string
+      enum: [pending, ok, problem]
+
     CreateFarmerOrderRequest:
       type: object
       required:
@@ -204,46 +423,50 @@ components:
         - farmerId
         - farmerName
         - farmName
-        - landId
-        - sectionId
         - shift
         - pickUpDate
         - forcastedQuantityKg
       properties:
-        itemId: { type: string, description: "Item._id (string)" }
-        type: { type: string }
-        variety: { type: string }
-        pictureUrl: { type: string, format: uri }
-        farmerId: { type: string, description: "Farmer._id" }
-        farmerName: { type: string }
-        farmName: { type: string }
-        landId: { type: string, description: "FarmerLand._id" }
-        sectionId: { type: string }
-        shift:
+        itemId:
           type: string
-          enum: [morning, afternoon, evening, night]
+          description: Item _id (ObjectId string)
+        type:
+          type: string
+        variety:
+          type: string
+        pictureUrl:
+          type: string
+          format: uri
+        farmerId:
+          type: string
+          description: Farmer _id (ObjectId string)
+        farmerName:
+          type: string
+        farmName:
+          type: string
+        shift:
+          $ref: "#/components/schemas/ShiftName"
         pickUpDate:
           type: string
-          pattern: '^\d{4}-\d{2}-\d{2}$'
-          example: "2025-09-22"
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+          example: "2025-10-20"
         forcastedQuantityKg:
           type: number
           minimum: 0
         sumOrderedQuantityKg:
           type: number
           minimum: 0
-          default: 0
+      additionalProperties: false
 
     UpdateFarmerStatusRequest:
       type: object
       required: [status]
       properties:
         status:
-          type: string
-          enum: [pending, ok, problem]
+          $ref: "#/components/schemas/FarmerApprovalStatus"
         note:
           type: string
-          maxLength: 2000
+      additionalProperties: false
 
     UpdateStageStatusRequest:
       type: object
@@ -251,132 +474,160 @@ components:
       properties:
         key:
           type: string
-          description: "Stage key; must be one of FARMER_ORDER_STAGE_KEYS"
-          enum: [farmerAck, farmerQSrep, loadedToTruck, inTransit, recived, inspection, sorting, atWarehouse]
+          description: Stage key (must exist in FO stages)
+          example: farmerAck
         action:
           type: string
           enum: [setCurrent, ok, done, problem]
         note:
           type: string
-          maxLength: 2000
-
-    FarmerOrderResponse:
-      type: object
-      properties:
-        data:
-          $ref: '#/components/schemas/FarmerOrder'
+      additionalProperties: false
 
     FarmerOrder:
       type: object
+      description: >
+        Farmer Order document (selected fields). Exact shape may include more fields.
       properties:
-        id: { type: string }
-        createdAt: { type: string, format: date-time }
-        createdBy: { type: string }
-        updatedAt: { type: string, format: date-time }
-        updatedBy: { type: string }
-        itemId: { type: string }
-        type: { type: string }
-        variety: { type: string }
-        pictureUrl: { type: string }
-        farmerId: { type: string }
-        farmerName: { type: string }
-        farmName: { type: string }
-        landId: { type: string, nullable: true }
-        sectionId: { type: string }
-        shift:
+        _id:
           type: string
-          enum: [morning, afternoon, evening, night]
+        itemId:
+          type: string
+        type:
+          type: string
+        variety:
+          type: string
+        pictureUrl:
+          type: string
+        farmerId:
+          type: string
+        farmerName:
+          type: string
+        farmName:
+          type: string
+        shift:
+          $ref: "#/components/schemas/ShiftName"
         pickUpDate:
           type: string
-          pattern: '^\d{4}-\d{2}-\d{2}$'
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
         logisticCenterId:
           type: string
-          description: 'Static: "66e007000000000000000001" (service-enforced)'
         farmerStatus:
-          type: string
-          enum: [pending, ok, problem]
-        sumOrderedQuantityKg: { type: number }
-        forcastedQuantityKg: { type: number }
-        finalQuantityKg: { type: number, nullable: true }
-        orders:
-          type: array
-          items:
-            type: object
-            properties:
-              orderId: { type: string }
-              allocatedQuantityKg: { type: number, nullable: true }
-        containers:
-          type: array
-          items: { type: object }
-        stages:
-          type: array
-          items:
-            $ref: '#/components/schemas/Stage'
-        farmersQSreport:
-          $ref: '#/components/schemas/QSReport'
-        inspectionQSreport:
-          $ref: '#/components/schemas/QSReport'
-        visualInspection:
-          $ref: '#/components/schemas/VisualInspection'
+          $ref: "#/components/schemas/FarmerApprovalStatus"
+        sumOrderedQuantityKg:
+          type: number
+        forcastedQuantityKg:
+          type: number
+        finalQuantityKg:
+          type: number
         inspectionStatus:
           type: string
           enum: [pending, passed, failed]
-        historyAuditTrail:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FOSummaryEntry:
+      type: object
+      properties:
+        date:
+          type: string
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+        shiftName:
+          $ref: "#/components/schemas/ShiftName"
+        count:
+          type: integer
+          minimum: 0
+        problemCount:
+          type: integer
+          minimum: 0
+        okFO:
+          type: integer
+          minimum: 0
+        pendingFO:
+          type: integer
+          minimum: 0
+        problemFO:
+          type: integer
+          minimum: 0
+        okFarmers:
+          type: integer
+          minimum: 0
+        pendingFarmers:
+          type: integer
+          minimum: 0
+        problemFarmers:
+          type: integer
+          minimum: 0
+
+    FarmerOrdersUpcomingResponse:
+      type: object
+      properties:
+        current:
+          oneOf:
+            - $ref: "#/components/schemas/FOSummaryEntry"
+            - type: "null"
+        next:
           type: array
           items:
-            $ref: '#/components/schemas/AuditEntry'
-
-    Stage:
-      type: object
-      properties:
-        key:
+            $ref: "#/components/schemas/FOSummaryEntry"
+        tz:
           type: string
-          enum: [farmerAck, farmerQSrep, loadedToTruck, inTransit, recived, inspection, sorting, atWarehouse]
-        label: { type: string }
-        status:
+          example: "Asia/Jerusalem"
+        lc:
           type: string
-          enum: [pending, ok, current, done, problem]
-        expectedAt: { type: string, format: date-time, nullable: true }
-        startedAt: { type: string, format: date-time, nullable: true }
-        completedAt: { type: string, format: date-time, nullable: true }
-        timestamp: { type: string, format: date-time }
-        note: { type: string }
+          description: Logistic Center id (ObjectId string)
 
-    QSReport:
-      type: object
-      nullable: true
-      properties:
-        overallGrade: { type: string, nullable: true }
-        values:
-          type: object
-          additionalProperties: true
-
-    VisualInspection:
-      type: object
-      nullable: true
-      properties:
-        status:
-          type: string
-          enum: [ok, problem, pending]
-        note: { type: string, nullable: true }
-
-    AuditEntry:
+    FarmerOrdersByShiftResponse:
       type: object
       properties:
-        userId: { type: string }
-        action: { type: string }
-        note: { type: string }
         meta:
           type: object
-          additionalProperties: true
-        timestamp: { type: string, format: date-time }
+          properties:
+            lc: { type: string }
+            date:
+              type: string
+              pattern: "^\\d{4}-\\d{2}-\\d{2}$"
+            shiftName:
+              $ref: "#/components/schemas/ShiftName"
+            tz:
+              type: string
+            page:
+              type: integer
+              minimum: 1
+            limit:
+              type: integer
+              minimum: 1
+            total:
+              type: integer
+              minimum: 0
+            problemCount:
+              type: integer
+              minimum: 0
+            pages:
+              type: integer
+              minimum: 0
+        items:
+          type: array
+          items:
+            type: object
+            description: >
+              FarmerOrder projection (fields depend on `fields` query param).
+            additionalProperties: true
 
     ErrorResponse:
       type: object
       properties:
-        error: { type: string }
+        error:
+          type: string
+        message:
+          type: string
         details:
           oneOf:
-            - type: string
             - type: array
               items: { type: string }
+            - type: object
+            - type: string
+      additionalProperties: false

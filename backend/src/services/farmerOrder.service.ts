@@ -4,6 +4,11 @@ import { FarmerOrder } from "../models/farmerOrder.model";
 import { Item } from "../models/Item.model";
 import { Farmer } from "../models/farmer.model";
 
+import ShiftConfig from "../models/shiftConfig.model";
+
+import { DateTime } from "luxon";
+import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
+
 import {
   addItemToAvailableMarketStock,
   getAvailableMarketStockByKey,
@@ -541,3 +546,213 @@ export async function adjustFarmerOrderAllocatedKg(
 }
 
 
+/* =======================
+  FO aggregations
+*/
+
+
+type ShiftName = "morning" | "afternoon" | "evening" | "night";
+
+type FOSummaryParams = {
+  logisticCenterId: string;
+  count?: number; // next N shifts after current (default 5)
+};
+
+type FOSummaryEntry = {
+  date: string;   // yyyy-LL-dd in LC tz
+  shiftName: ShiftName;
+
+  // docs
+  count: number;
+  problemCount: number;
+
+  // by farmerStatus
+  okFO: number;
+  pendingFO: number;
+  problemFO: number;
+
+  // distinct farmers per status
+  okFarmers: number;
+  pendingFarmers: number;
+  problemFarmers: number;
+};
+
+export async function farmerOrdersSummary(params: FOSummaryParams) {
+  const { logisticCenterId, count = 5 } = params;
+
+  // Resolve timezone for this LC (same approach as orders)
+  const anyCfg = await ShiftConfig
+    .findOne({ logisticCenterId }, { timezone: 1 })
+    .lean<{ timezone?: string }>()
+    .exec();
+
+  if (!anyCfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  const tz = anyCfg.timezone || "Asia/Jerusalem";
+
+  const currentShiftName = await getCurrentShift(); // may return "none"
+  const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
+
+  // helper to build a per-(date,shift) summary from FO docs
+  const summarize = (docs: Array<{ farmerStatus?: string; farmerId?: any }>): Omit<
+    FOSummaryEntry,
+    "date" | "shiftName"
+  > => {
+    const count = docs.length;
+    const problemCount = docs.filter(d => d.farmerStatus === "problem").length;
+
+    const okDocs = docs.filter(d => d.farmerStatus === "ok");
+    const pendingDocs = docs.filter(d => d.farmerStatus === "pending");
+    const problemDocs = docs.filter(d => d.farmerStatus === "problem");
+
+    const okFO = okDocs.length;
+    const pendingFO = pendingDocs.length;
+    const problemFO = problemDocs.length;
+
+    const uniq = (arr: any[]) => Array.from(new Set(arr.map(v => String(v)))).length;
+
+    const okFarmers = uniq(okDocs.map(d => d.farmerId));
+    const pendingFarmers = uniq(pendingDocs.map(d => d.farmerId));
+    const problemFarmers = uniq(problemDocs.map(d => d.farmerId));
+
+    return {
+      count,
+      problemCount,
+      okFO,
+      pendingFO,
+      problemFO,
+      okFarmers,
+      pendingFarmers,
+      problemFarmers,
+    };
+  };
+
+  // When there's no active shift now → return only "next"
+  if (currentShiftName === "none") {
+    const next = await Promise.all(
+      nextShifts.map(async (s) => {
+        const docs = await FarmerOrder.find(
+          {
+            logisticCenterId: new Types.ObjectId(logisticCenterId),
+            shift: s.name,
+            pickUpDate: s.date, // already yyyy-LL-dd in LC tz
+          },
+          { _id: 1, farmerStatus: 1, farmerId: 1 }
+        ).lean().exec();
+
+        const base = summarize(docs);
+        const row: FOSummaryEntry = {
+          date: s.date,
+          shiftName: s.name as ShiftName,
+          ...base,
+        };
+        return row;
+      })
+    );
+
+    return {
+      current: null,
+      next,
+      tz,
+      lc: logisticCenterId,
+    };
+  }
+
+  // current date in LC tz (for aligning with your getCurrentShift())
+  const todayYmd = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
+
+  // Build the 1 (current) + N (next) targets
+  const targets: Array<{ date: string; name: ShiftName }> = [
+    { date: todayYmd, name: currentShiftName as ShiftName },
+    ...nextShifts.map(s => ({ date: s.date, name: s.name as ShiftName })),
+  ];
+
+  const results = await Promise.all(
+    targets.map(async (t) => {
+      const docs = await FarmerOrder.find(
+        {
+          logisticCenterId: new Types.ObjectId(logisticCenterId),
+          shift: t.name,
+          pickUpDate: t.date,
+        },
+        { _id: 1, farmerStatus: 1, farmerId: 1 }
+      ).lean().exec();
+
+      const base = summarize(docs);
+      const row: FOSummaryEntry = {
+        date: t.date,
+        shiftName: t.name,
+        ...base,
+      };
+      return row;
+    })
+  );
+
+  const [current, ...next] = results;
+  return {
+    current,
+    next,
+    tz,
+    lc: logisticCenterId,
+  };
+}
+
+export async function listFarmerOrdersForShift(params: {
+  logisticCenterId: string;
+  date: string;                 // yyyy-LL-dd in LC timezone
+  shiftName: ShiftName;
+  farmerStatus?: "pending" | "ok" | "problem"; // optional filter
+  page?: number;                // default 1
+  limit?: number;               // default 50
+  fields?: string[];            // optional projection
+}) {
+  const {
+    logisticCenterId,
+    date,
+    shiftName,
+    farmerStatus,
+    page = 1,
+    limit = 50,
+    fields,
+  } = params;
+
+  // We don’t need tz to query FO (pickUpDate is a string),
+  // but we return tz for symmetry with orders endpoint meta.
+  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 }).lean().exec();
+  if (!cfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  const tz = cfg.timezone || "Asia/Jerusalem";
+
+  const q: any = {
+    logisticCenterId: new Types.ObjectId(logisticCenterId),
+    shift: shiftName,
+    pickUpDate: date,
+  };
+  if (farmerStatus) q.farmerStatus = farmerStatus;
+
+  const projection =
+    Array.isArray(fields) && fields.length
+      ? fields.reduce((acc, f) => ((acc[f] = 1), acc), {} as Record<string, 1>)
+      : undefined;
+
+  const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+
+  const [items, total, problemCount] = await Promise.all([
+    FarmerOrder.find(q, projection).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+    FarmerOrder.countDocuments(q),
+    FarmerOrder.countDocuments({ ...q, farmerStatus: "problem" }),
+  ]);
+
+  return {
+    meta: {
+      lc: logisticCenterId,
+      date,
+      shiftName,
+      tz,
+      page,
+      limit,
+      total,
+      problemCount,
+      pages: Math.ceil(total / Math.max(1, limit)),
+    },
+    items,
+  };
+}
