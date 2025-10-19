@@ -14,28 +14,49 @@ import {
   Separator,
 } from "@chakra-ui/react";
 
+/** Sizes: product image and avatar keep a 3:1 ratio */
+const IMG_SIZE = { base: 96, md: 112 };
+const AVA_SIZE = {
+  base: `${Math.round(IMG_SIZE.base * 0.5)}px`,  // 48px
+  md: `${Math.round(IMG_SIZE.md * 0.5)}px`,      // 56px
+};
+const AVA_FONT = {
+  base: `${Math.round(IMG_SIZE.base * 0.5 * 0.45)}px`,
+  md: `${Math.round(IMG_SIZE.md * 0.5 * 0.45)}px`,
+};
+
 /** Local avatar for farm logos or initials. */
-function AvatarBox({ url, text }: { url?: string; text?: string }) {
+function AvatarBox({
+  url,
+  text,
+  size,
+  fontSize,
+}: {
+  url?: string;
+  text?: string;
+  size: any; // responsive boxSize object
+  fontSize: any; // responsive fontSize object
+}) {
   const label = (text ?? "").trim() || "F";
   return url ? (
     <Image
       src={url}
       alt={label}
-      boxSize={{ base: "26px", md: "30px" }}
+      boxSize={size}
       borderRadius="full"
       borderWidth="1px"
       objectFit="cover"
     />
   ) : (
     <Box
-      boxSize={{ base: "26px", md: "30px" }}
+      boxSize={size}
       borderRadius="full"
       borderWidth="1px"
       bg="bg.muted"
       display="flex"
       alignItems="center"
       justifyContent="center"
-      fontSize="12px"
+      fontSize={fontSize}
       fontWeight="bold"
     >
       {label.slice(0, 2).toUpperCase()}
@@ -58,22 +79,27 @@ export type ItemRow = {
 
   imageUrl?: string;
 
+  // farm branding
   farmLogo?: string | null;
   farmName?: string | null;
 
+  // tagging
   category?: string;
 
+  // numbers used to compute ≈metrics
   /** price per KG */
-  pricePerUnit?: number; // legacy name, actually per KG
+  pricePerUnit?: number; // per KG
   /** optional price per EACH unit if item is priced per unit */
   pricePerUnitEach?: number;
 
   unitMode?: "kg" | "unit" | "mixed";
   qtyKg?: number;
   qtyUnits?: number;
+  /** average weight per unit, in KG */
   avgWeightPerUnitKg?: number;
   availableUnitsEstimate?: number;
 
+  // optional currency hint
   currencySymbol?: string;
 
   [k: string]: any;
@@ -112,12 +138,17 @@ export default function ItemList({
         const avg = nz(num(row.avgWeightPerUnitKg)); // kg per unit
         const pricePerKg = nz(num(row.pricePerUnit));
         const explicitEach = nz(num((row as any).pricePerUnitEach));
-        const priceEach = explicitEach > 0 ? explicitEach : avg > 0 && pricePerKg > 0 ? round2(pricePerKg * avg) : 0;
+        const priceEach =
+          explicitEach > 0
+            ? explicitEach
+            : avg > 0 && pricePerKg > 0
+            ? round2(pricePerKg * avg)
+            : 0;
 
         const qtyKgRaw = isNum(row.qtyKg) ? num(row.qtyKg) : undefined;
         const qtyUnitsRaw = isNum(row.qtyUnits) ? Math.round(num(row.qtyUnits)) : undefined;
 
-        // ---------- display metrics (do not double count) ----------
+        // ---------- display metrics ----------
         const kgDisplay =
           qtyKgRaw !== undefined
             ? round1(qtyKgRaw)
@@ -168,6 +199,7 @@ export default function ItemList({
 
         return (
           <Fragment key={key}>
+            {/* Card-like row */}
             <Grid
               templateColumns={{ base: "96px 1fr", md: "112px 2fr 1.2fr" }}
               gap={{ base: 3, md: 4 }}
@@ -187,14 +219,14 @@ export default function ItemList({
                 <Image
                   src={row.imageUrl}
                   alt={row.title}
-                  boxSize={{ base: "96px", md: "112px" }}
+                  boxSize={{ base: `${IMG_SIZE.base}px`, md: `${IMG_SIZE.md}px` }}
                   borderRadius="lg"
                   objectFit="cover"
                   borderWidth="1px"
                 />
               ) : (
                 <Box
-                  boxSize={{ base: "96px", md: "112px" }}
+                  boxSize={{ base: `${IMG_SIZE.base}px`, md: `${IMG_SIZE.md}px` }}
                   borderRadius="lg"
                   borderWidth="1px"
                   bg="bg.muted"
@@ -212,11 +244,14 @@ export default function ItemList({
                   {row.title}
                 </Text>
 
+                {/* logo next to farmer/farm name, 1/3 of image size */}
                 {(row.subtitle || row.farmName || row.farmLogo) && (
                   <HStack gap={2} align="center" w="full" minW={0}>
                     <AvatarBox
                       url={row.farmLogo ?? undefined}
                       text={initials(row.farmName, row.subtitle, row.title)}
+                      size={AVA_SIZE}
+                      fontSize={AVA_FONT}
                     />
                     <Text
                       fontSize={{ base: "sm", md: "md" }}

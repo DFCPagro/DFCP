@@ -19,11 +19,21 @@ export const noUserMenu: MenuRegistry["noUser"] = [
 ] as const;
 
 const customerMenu: MenuRegistry["customer"] = [
-  { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-  { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
+  {
+    type: "link",
+    key: "market",
+    label: "Market",
+    path: "/market",
+    exact: true,
+  },
+  {
+    type: "link",
+    key: "JobApplication",
+    label: "Apply for jobs",
+    path: "/jobs",
+  },
   { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-
+  { type: "link", key: "profile", label: "Profile", path: "/profile" },
 ] as const;
 
 /* ------------------------ Work menus by role ------------------------ */
@@ -42,7 +52,12 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     label: "Delivery Reports",
     path: "/farmer/deliveries/reports",
   },
-  { type: "link", key: "farmer-dashboard", label: "Dashboard", path: "/farmerDashboard" },
+  {
+    type: "link",
+    key: "farmer-dashboard",
+    label: "Dashboard",
+    path: "/farmerDashboard",
+  },
 
   //market pages
   {
@@ -50,13 +65,23 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     key: "market",
     label: "view market",
     children: [
-     { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-    { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
-    { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    
+      {
+        type: "link",
+        key: "market",
+        label: "Market",
+        path: "/market",
+        exact: true,
+      },
+      {
+        type: "link",
+        key: "JobApplication",
+        label: "Apply for jobs",
+        path: "/jobs",
+      },
+      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+      { type: "link", key: "profile", label: "Profile", path: "/profile" },
     ],
-  }
+  },
 ] as const;
 
 const workAdmin: ReadonlyArray<MenuItem> = [
@@ -65,9 +90,24 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     key: "mgr-orders",
     label: "Orders-WIP",
     children: [
-      { type: "link", key: "mgr-orders-report", label: "Orders Report", path: "/manager/orders/report" },
-      { type: "link", key: "mgr-orders-active", label: "Active Orders", path: "/manager/orders/active" },
-      { type: "link", key: "mgr-orders-history", label: "Order History", path: "/manager/orders/history" },
+      {
+        type: "link",
+        key: "mgr-orders-report",
+        label: "Orders Report",
+        path: "/manager/orders/report",
+      },
+      {
+        type: "link",
+        key: "mgr-orders-active",
+        label: "Active Orders",
+        path: "/manager/orders/active",
+      },
+      {
+        type: "link",
+        key: "mgr-orders-history",
+        label: "Order History",
+        path: "/manager/orders/history",
+      },
     ],
   },
   {
@@ -75,8 +115,12 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     key: "mgr-logistics",
     label: "Logistics-WIP",
     children: [
-      { type: "link", key: "mgr-containers", label: "Containers", path: "/manager/containers" },
-      
+      {
+        type: "link",
+        key: "mgr-containers",
+        label: "Containers",
+        path: "/manager/containers",
+      },
     ],
   },
   {
@@ -84,26 +128,45 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     key: "mgr-confirm",
     label: "Working Links",
     children: [
-      { type: "link", key: "mgr-admin-items", label: "Manage Items", path: "/admin/items" },
-      { type: "link", key: "mgr-admin-jobReview", label: "Job Application Review", path: "/admin/jobReview" },
-      { type: "link", key: "mgr-expected-harvest", label: "Expected Harvest", path: "/admin/crop-harvest" },
+      {
+        type: "link",
+        key: "mgr-admin-items",
+        label: "Manage Items",
+        path: "/admin/items",
+      },
+      {
+        type: "link",
+        key: "mgr-admin-jobReview",
+        label: "Job Application Review",
+        path: "/admin/jobReview",
+      },
+      {
+        type: "link",
+        key: "mgr-expected-harvest",
+        label: "Expected Harvest",
+        path: "/admin/crop-harvest",
+      },
     ],
   },
 
-   {
+  {
     type: "group",
     key: "fManager",
     label: "FManager pages",
     children: [
-      { type: "link", key: "mgr-farmer-orders", label: "farmer orders", path: "#" },
+      {
+        type: "link",
+        key: "mgr-farmer-orders",
+        label: "farmer orders",
+        path: "#",
+      },
       { type: "link", key: "mgr-faramer", label: "manage farmers", path: "#" },
       { type: "link", key: "mgr-ams", label: "stcok", path: "#" },
       { type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
-    
     ],
   },
 
-    {
+  {
     type: "group",
     key: "tManager",
     label: "TManager pages",
@@ -114,44 +177,81 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     ],
   },
 
-
   //market pages
   {
     type: "group",
     key: "market",
     label: "view market",
     children: [
-     { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-    { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
-    { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    
+      {
+        type: "link",
+        key: "market",
+        label: "Market",
+        path: "/market",
+        exact: true,
+      },
+      {
+        type: "link",
+        key: "JobApplication",
+        label: "Apply for jobs",
+        path: "/jobs",
+      },
+      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+      { type: "link", key: "profile", label: "Profile", path: "/profile" },
     ],
-  }
-
-  
+  },
 ] as const;
 
 const workDeliverer: ReadonlyArray<MenuItem> = [
-  { type: "link", key: "drv-schedule", label: "Schedule", path: "/deliverer/schedule", exact: true },
-  { type: "link", key: "drv-today", label: "Today", path: "/deliverer/schedule/today" },
-  { type: "link", key: "drv-upcoming", label: "Upcoming", path: "/deliverer/schedule/upcoming" },
-  { type: "link", key: "drv-month", label: "Month View", path: "/deliverer/schedule/month" },
+  {
+    type: "link",
+    key: "drv-schedule",
+    label: "Schedule",
+    path: "/deliverer/schedule",
+    exact: true,
+  },
+  {
+    type: "link",
+    key: "drv-today",
+    label: "Today",
+    path: "/deliverer/schedule/today",
+  },
+  {
+    type: "link",
+    key: "drv-upcoming",
+    label: "Upcoming",
+    path: "/deliverer/schedule/upcoming",
+  },
+  {
+    type: "link",
+    key: "drv-month",
+    label: "Month View",
+    path: "/deliverer/schedule/month",
+  },
 
-  
   //market pages
   {
     type: "group",
     key: "market",
     label: "view market",
     children: [
-     { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-    { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
-    { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    
+      {
+        type: "link",
+        key: "market",
+        label: "Market",
+        path: "/market",
+        exact: true,
+      },
+      {
+        type: "link",
+        key: "JobApplication",
+        label: "Apply for jobs",
+        path: "/jobs",
+      },
+      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+      { type: "link", key: "profile", label: "Profile", path: "/profile" },
     ],
-  }
+  },
 ] as const;
 
 const workPicker: ReadonlyArray<MenuItem> = [
@@ -168,14 +268,24 @@ const workPicker: ReadonlyArray<MenuItem> = [
     key: "market",
     label: "view market",
     children: [
-     { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-    { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
-    { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    
+      {
+        type: "link",
+        key: "market",
+        label: "Market",
+        path: "/market",
+        exact: true,
+      },
+      {
+        type: "link",
+        key: "JobApplication",
+        label: "Apply for jobs",
+        path: "/jobs",
+      },
+      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+      { type: "link", key: "profile", label: "Profile", path: "/profile" },
     ],
-  }
- 
+  },
+  { type: "link", key: "profile", label: "profile", path: "workerProfile" },
 ] as const;
 
 const workFManager: ReadonlyArray<MenuItem> = [
@@ -183,7 +293,7 @@ const workFManager: ReadonlyArray<MenuItem> = [
     type: "link",
     key: "dashboard",
     label: "dashboard",
-    path: ""
+    path: "",
   },
 
   //market pages
@@ -192,25 +302,32 @@ const workFManager: ReadonlyArray<MenuItem> = [
     key: "market",
     label: "view market",
     children: [
-     { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-    { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
-    { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    
+      {
+        type: "link",
+        key: "market",
+        label: "Market",
+        path: "/market",
+        exact: true,
+      },
+      {
+        type: "link",
+        key: "JobApplication",
+        label: "Apply for jobs",
+        path: "/jobs",
+      },
+      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+      { type: "link", key: "profile", label: "Profile", path: "/profile" },
     ],
-  }
- 
+  },
 ] as const;
-
 
 const workTManager: ReadonlyArray<MenuItem> = [
   {
     type: "link",
     key: "dashboard",
     label: "dashboard",
-    path: ""
+    path: "",
   },
-
 
   //market pages
   {
@@ -218,38 +335,81 @@ const workTManager: ReadonlyArray<MenuItem> = [
     key: "market",
     label: "view market",
     children: [
-     { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-    { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
-    { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    
+      {
+        type: "link",
+        key: "market",
+        label: "Market",
+        path: "/market",
+        exact: true,
+      },
+      {
+        type: "link",
+        key: "JobApplication",
+        label: "Apply for jobs",
+        path: "/jobs",
+      },
+      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+      { type: "link", key: "profile", label: "Profile", path: "/profile" },
     ],
-  }
- 
+  },
 ] as const;
 
 // in your central registry file
 const workCSManager: ReadonlyArray<MenuItem> = [
-  { type: "link", key: "cs-dashboard", label: "Dashboard", path: "/csManager/dashboard" },
-  { type: "link", key: "cs-orders", label: "All Orders", path: "/csManager/orders" },
-  { type: "link", key: "cs-reports", label: "Reports Inbox", path: "/csManager/reports" },
-  { type: "link", key: "cs-customers", label: "Customers", path: "/csManager/customers" },
-  { type: "link", key: "cs-analytics", label: "Analytics", path: "/csManager/analytics" },
-   
-  
+  {
+    type: "link",
+    key: "cs-dashboard",
+    label: "Dashboard",
+    path: "/csManager/dashboard",
+  },
+  {
+    type: "link",
+    key: "cs-orders",
+    label: "All Orders",
+    path: "/csManager/orders",
+  },
+  {
+    type: "link",
+    key: "cs-reports",
+    label: "Reports Inbox",
+    path: "/csManager/reports",
+  },
+  {
+    type: "link",
+    key: "cs-customers",
+    label: "Customers",
+    path: "/csManager/customers",
+  },
+  {
+    type: "link",
+    key: "cs-analytics",
+    label: "Analytics",
+    path: "/csManager/analytics",
+  },
+
   //market pages
   {
     type: "group",
     key: "market",
     label: "view market",
     children: [
-     { type: "link", key: "market", label: "Market", path: "/market", exact: true },
-    { type: "link", key: "JobApplication", label: "Apply for jobs", path: "/jobs" },
-    { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-    { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    
+      {
+        type: "link",
+        key: "market",
+        label: "Market",
+        path: "/market",
+        exact: true,
+      },
+      {
+        type: "link",
+        key: "JobApplication",
+        label: "Apply for jobs",
+        path: "/jobs",
+      },
+      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
+      { type: "link", key: "profile", label: "Profile", path: "/profile" },
     ],
-  }
+  },
 ] as const;
 
 /* ------------------------ Registry export ------------------------ */
@@ -272,8 +432,6 @@ export const MENUS: MenuRegistry = {
   },
 } as const;
 
-
-
 /* ------------------------ Tiny helper for consumers ------------------------ */
 
 /**
@@ -286,10 +444,9 @@ export function getMenuFor(mode: Mode, role?: string | null) {
   return (role && MENUS.work[role]) || [];
 }
 
-
 export const DEFAULT_LANDINGS: Record<Mode, string> = {
-  noUser: "/",        // <— public landing
-   work: "/dashboard", 
-  customer: "/market", 
-      // (or a role-specific landing if you want later)
+  noUser: "/", // <— public landing
+  work: "/dashboard",
+  customer: "/market",
+  // (or a role-specific landing if you want later)
 };

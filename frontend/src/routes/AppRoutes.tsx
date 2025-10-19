@@ -38,7 +38,12 @@ const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"))
 // New page for picker task page, to be implemented
 //
 
+const WorkerProfile = lazy(() => import("@/pages/workerProfile"));
 const PickTaskPage = lazy(() => import("@/pages/picker/pick-task"));
+const PickerSchedule = lazy(() => import("@/pages/picker/picker-Schedule"));
+
+
+
 
 //delete this route later, its just an example for using map picker
 const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
@@ -75,6 +80,8 @@ export default function AppRoutes() {
           <Route path={PATHS.jobs} element={<AvailabileJobs />} />
           <Route path={PATHS.jobApplication} element={<JobApplication />} />
           <Route path={PATHS.market} element={<Market />} />
+          <Route path={PATHS.profile} element={<Profile />} />
+
           <Route path={PATHS.orders} element={<Orders />} />
 
           {/* Admin-only */}
@@ -114,6 +121,16 @@ export default function AppRoutes() {
             }
           />
 
+
+          {/*---Worker ontly routes---*/}
+          <Route path={PATHS.workerProfile} element={<RoleGuard allow={["farmer", "picker", "driver", "dManager", "industrialDeliverer"]
+
+          } >
+            <WorkerProfile />
+          </RoleGuard>
+          }></Route>
+
+
           {/* Driver-only */}
           <Route
             path={PATHS.driverSchedule}
@@ -137,6 +154,14 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["picker"]}>
                 <PickTaskPage />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path={PATHS.pickerSchedule}
+            element={
+              <RoleGuard allow={["picker"]}>
+                <PickerSchedule />
               </RoleGuard>
             }
           />

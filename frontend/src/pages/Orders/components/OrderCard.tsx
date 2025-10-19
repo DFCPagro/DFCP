@@ -11,7 +11,7 @@ import {
   Button,
   VStack,
 } from "@chakra-ui/react";
-import { MapPin } from "lucide-react";
+import { MapPin, CircleX } from "lucide-react";
 import ItemList from "@/components/common/ItemList";
 import type { OrderRowAPI } from "../../../types/orders";
 import OrderTimeline from "./OrderTimeline";
@@ -26,12 +26,13 @@ import {
   isOldStatus,
   type LatLng,
 } from "./helpers";
+import StyledIconButton from "@/components/ui/IconButton";
 
 type Props = {
   order?: OrderRowAPI | null;
   isOpen: boolean;
   onToggleOpen: () => void;
-  onOpenMap: (pt: LatLng, onlyDelivery?: boolean) => void; // <- allow optional 2nd arg
+  onOpenMap: (pt: LatLng, onlyDelivery?: boolean) => void;
   onOpenNote: () => void;
 };
 
@@ -52,7 +53,6 @@ export default function OrderCard({
   const onlyDelivery = isOldStatus((order as any).status);
   const deliveryTime = formatDeliveryTime(order);
 
-  // rows mapped for ItemList; add currency symbol per row
   const currency = pickCurrency((order as any).items ?? []) ?? "₪";
   const rowsBase = toItemRows((order as any).items ?? []);
   const rows = rowsBase.map((r: any) => ({ ...r, currencySymbol: currency }));
@@ -131,9 +131,16 @@ export default function OrderCard({
             {(ui === "delivered" || ui === "received") && (
               <Button onClick={onOpenNote}>Delivery Note</Button>
             )}
-            <Button variant="outline" onClick={onToggleOpen}>
-              {isOpen ? "Close" : "Full order"}
-            </Button>
+
+            {isOpen ? (
+              <StyledIconButton aria-label="Close" variant="outline" onClick={onToggleOpen}>
+                <CircleX size={16} />
+              </StyledIconButton>
+            ) : (
+              <Button variant="outline" onClick={onToggleOpen}>
+                Full order
+              </Button>
+            )}
           </HStack>
         </GridItem>
       </Grid>

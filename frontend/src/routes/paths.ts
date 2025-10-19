@@ -38,7 +38,8 @@ export const PATHS = {
 
   // picker pages
   pickerDashboard: "/picker/dashboard",
-  pickerTask: "/picker/task/:taskId",          // ← add this
+  pickerTask: "/picker/task/:taskId", 
+  pickerSchedule:"/picker/Schedule",         // ← add this
 
   // public QR routes
   ops: "/o/:token",
@@ -53,5 +54,10 @@ export const PATHS = {
   csManagerOrders: "/csManager/orders",
   csManagerShiftOrders: "/csManager/shift-orders",
 
+  
+//all worker pages
+workerProfile: "/workerProfile",
+
   notFound: "/404",
 } as const;
+
