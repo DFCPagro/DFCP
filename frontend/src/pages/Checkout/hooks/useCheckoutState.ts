@@ -68,7 +68,7 @@ export type UseCheckoutState = {
 
 function parseParams(search: string): CheckoutContext {
   const qs = new URLSearchParams(search);
-  console.log("parseParams", { search });
+  // console.log("parseParams", { search });
   const amsId = (qs.get("amsId") || "").trim() || null;
   const logisticsCenterId = (qs.get("logisticsCenterId") || "").trim() || null;
 

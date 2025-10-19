@@ -1,25 +1,27 @@
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import {
     Box,
     Button,
     Card,
-    Field,
     HStack,
     Icon,
-    Input,
-    RadioGroup,
     Separator,
     Stack,
     Text,
 } from "@chakra-ui/react";
-import { FiArrowLeft, FiCheck, FiCreditCard, FiDollarSign, FiSmartphone } from "react-icons/fi";
+import {
+    FiArrowLeft,
+    FiCheck,
+    FiCreditCard,
+    FiDollarSign,
+    FiSmartphone,
+} from "react-icons/fi";
 import { usePayment } from "../hooks/usePayment";
 import CardForm from "./CardForm";
-import { AddressSchema, type Address } from "@/types/address";
+import { type Address } from "@/types/address";
 import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
 
 /* ---------------------------------- types --------------------------------- */
-
 
 export type MoneyTotals = {
     itemCount: number;
@@ -72,25 +74,35 @@ function formatCurrencyUSD(n: number | undefined | null): string {
 
 /* -------------------------------- component -------------------------------- */
 
-export const PaymentSection = memo(function PaymentSection(props: PaymentSectionProps) {
+export const PaymentSection = memo(function PaymentSection(
+    props: PaymentSectionProps,
+) {
     const { context, cartLines, totals, onSuccess, onBack } = props;
 
-    const { method, setMethod, card, setCardField, canSubmit, submitting, submit } = usePayment({
-        context,
-        cartLines,
-        totals,
-        onSuccess,
-    });
+    const { method, setMethod, card, setCardField, canSubmit, submitting, submit } =
+        usePayment({
+            context,
+            cartLines,
+            onSuccess,
+        });
 
-    const showCard = method === "card";
-    const showGPay = method === "google_pay";
-    const showPaypal = method === "paypal";
+    // Ensure "card" is the default selection on first render.
+    useEffect(() => {
+        if (!method) setMethod("card" as any);
+    }, [method, setMethod]);
+
+    const currentMethod = method ?? "card";
+
+    const showCard = currentMethod === "card";
+    const showGPay = currentMethod === "google_pay";
+    const showPaypal = currentMethod === "paypal";
 
     // For now, delivery & tax are zero in UI; backend computes final totals.
     let deliveryFee = 5;
     const taxUsd = 0;
     if (totals.subtotal > 100) deliveryFee = 0;
-    const totalPrice = Math.round((totals.subtotal + deliveryFee + taxUsd) * 100) / 100;
+    const totalPrice =
+        Math.round((totals.subtotal + deliveryFee + taxUsd) * 100) / 100;
 
     return (
         <Stack gap={4}>
@@ -107,39 +119,40 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                 Select payment method
                             </Text>
 
-                            <RadioGroup.Root value={method ?? ""} onValueChange={(val: any) => setMethod(val as any)}>
-                                <Stack gap={3}>
-                                    <RadioGroup.Item value="card">
-                                        <RadioGroup.ItemControl />
-                                        <RadioGroup.ItemText>
-                                            <HStack gap={2}>
-                                                <Icon as={FiCreditCard} />
-                                                <Text>Credit / Debit card</Text>
-                                            </HStack>
-                                        </RadioGroup.ItemText>
-                                    </RadioGroup.Item>
+                            <HStack gap={3} wrap="wrap">
+                                <Button
+                                    onClick={() => setMethod("card" as any)}
+                                    variant={currentMethod === "card" ? "solid" : "outline"}
+                                    colorPalette="blue"
+                                    gap={2}
+                                    aria-pressed={currentMethod === "card"}
+                                >
+                                    <Icon as={FiCreditCard} />
+                                    Credit / Debit card
+                                </Button>
 
-                                    <RadioGroup.Item value="google_pay">
-                                        <RadioGroup.ItemControl />
-                                        <RadioGroup.ItemText>
-                                            <HStack gap={2}>
-                                                <Icon as={FiSmartphone} />
-                                                <Text>Google&nbsp;Pay</Text>
-                                            </HStack>
-                                        </RadioGroup.ItemText>
-                                    </RadioGroup.Item>
+                                <Button
+                                    onClick={() => setMethod("google_pay" as any)}
+                                    variant={currentMethod === "google_pay" ? "solid" : "outline"}
+                                    colorPalette="blue"
+                                    gap={2}
+                                    aria-pressed={currentMethod === "google_pay"}
+                                >
+                                    <Icon as={FiSmartphone} />
+                                    Google&nbsp;Pay
+                                </Button>
 
-                                    <RadioGroup.Item value="paypal">
-                                        <RadioGroup.ItemControl />
-                                        <RadioGroup.ItemText>
-                                            <HStack gap={2}>
-                                                <Icon as={FiDollarSign} />
-                                                <Text>PayPal</Text>
-                                            </HStack>
-                                        </RadioGroup.ItemText>
-                                    </RadioGroup.Item>
-                                </Stack>
-                            </RadioGroup.Root>
+                                <Button
+                                    onClick={() => setMethod("paypal" as any)}
+                                    variant={currentMethod === "paypal" ? "solid" : "outline"}
+                                    colorPalette="blue"
+                                    gap={2}
+                                    aria-pressed={currentMethod === "paypal"}
+                                >
+                                    <Icon as={FiDollarSign} />
+                                    PayPal
+                                </Button>
+                            </HStack>
                         </Box>
 
                         {/* Card form */}
@@ -148,10 +161,11 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                 value={card}
                                 onChange={setCardField}
                                 disabled={submitting}
-                                errors={undefined /* or hook-provided error object if you add validation later */}
+                                errors={
+                                    undefined /* or hook-provided error object if you add validation later */
+                                }
                             />
                         )}
-
 
                         {/* Wallet placeholders (demo) */}
                         {showGPay && (
@@ -160,7 +174,8 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                     Pay with Google&nbsp;Pay
                                 </Button>
                                 <Text mt={2} fontSize="sm" color="fg.muted">
-                                    (Demo) Wallets aren’t wired yet — we’ll place the order as normal.
+                                    (Demo) Wallets aren’t wired yet — we’ll place the order as
+                                    normal.
                                 </Text>
                             </Box>
                         )}
@@ -170,7 +185,8 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                     Pay with PayPal
                                 </Button>
                                 <Text mt={2} fontSize="sm" color="fg.muted">
-                                    (Demo) Wallets aren’t wired yet — we’ll place the order as normal.
+                                    (Demo) Wallets aren’t wired yet — we’ll place the order as
+                                    normal.
                                 </Text>
                             </Box>
                         )}
@@ -194,7 +210,9 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                 <Separator />
                                 <HStack justifyContent="space-between">
                                     <Text fontWeight="semibold">Total</Text>
-                                    <Text fontWeight="semibold">{formatCurrencyUSD(totalPrice)}</Text>
+                                    <Text fontWeight="semibold">
+                                        {formatCurrencyUSD(totalPrice)}
+                                    </Text>
                                 </HStack>
                             </Stack>
                         </Box>
@@ -206,7 +224,13 @@ export const PaymentSection = memo(function PaymentSection(props: PaymentSection
                                 Back
                             </Button>
 
-                            <Button colorPalette="green" onClick={submit} disabled={!canSubmit} loading={submitting} gap={2}>
+                            <Button
+                                colorPalette="green"
+                                onClick={submit}
+                                disabled={!canSubmit}
+                                loading={submitting}
+                                gap={2}
+                            >
                                 Place order
                                 <Icon as={FiCheck} />
                             </Button>

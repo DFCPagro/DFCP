@@ -310,8 +310,8 @@ function normalizeLine(line: any): CartLine {
     farmName,
     farmLogo: normalizeUrl(line?.farmLogo),
     // keep legacy fields so older UIs that read them don't explode
-    sourceFarmerName: line?.sourceFarmerName,
-    sourceFarmName: line?.sourceFarmName,
+    sourceFarmerName: farmerName,
+    sourceFarmName: farmName,
 
     pricePerUnit: Number.isFinite(price) ? price : 0,
     quantity: Number.isFinite(qty) ? qty : 0,
