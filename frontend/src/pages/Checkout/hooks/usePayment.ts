@@ -109,49 +109,34 @@ export function usePayment(deps: {
 
   const mapCartLineToOrderItem = useCallback(
     (line: SharedCartLine): CreateOrderItemInput => {
+      console.log("Mapping cart line to order item", line);
       // Identity
-      const itemId: string =
-        (line.itemId as string) ??
-        (line as any).id ??
-        (line as any).item?.itemId ??
-        (line as any).item?._id ??
-        String(line.stockId ?? line.key ?? "");
+      const itemId: string = line.itemId as string;
 
       // Display
-      const name: string | undefined =
-        (line.name as string) ??
-        (line as any).displayName ??
-        (line as any).item?.displayName ??
-        (line as any).item?.name;
-      const imageUrl: string | undefined =
-        (line.imageUrl as string) ??
-        (line as any).item?.imageUrl ??
-        (line as any).item?.img ??
-        (line as any).item?.photo;
+      const name: string | undefined = line.name as string;
+
+      const imageUrl: string | undefined = line.imageUrl as string;
+
       const category: string | undefined =
         (line.category as string) ?? (line as any).item?.category;
 
       // Pricing snapshot — prefer cart snapshot; backend interprets as per KG
-      const pricePerUnit: number =
-        Number((line as any).unitPriceUsd ?? NaN) ||
-        Number(line.pricePerUnit ?? NaN) ||
-        Number((line as any).pricePerKg ?? NaN) ||
-        Number((line as any).item?.pricePerUnit ?? NaN) ||
-        0;
+      const pricePerUnit: number = Number(line.pricePerUnit ?? NaN);
 
       // Unit mode + quantities
-      const unitMode: UnitMode | undefined =
-        (line.unitMode as UnitMode | undefined) ??
-        ((line as any).item?.unitMode as UnitMode | undefined);
+      const unitMode: UnitMode | undefined = line.unitMode as
+        | UnitMode
+        | undefined;
 
-      const quantityKg: number | undefined =
-        ((line as any).quantityKg as number | undefined) ??
-        ((line as any).item?.originalCommittedQuantityKg as number | undefined);
+      const quantityKg: number | undefined = (line.quantity *
+        line.avgWeightPerUnitKg) as number | undefined;
 
       const units: number | undefined =
         ((line as any).units as number | undefined) ??
         (line.quantity as number | undefined);
 
+      //error here TODO
       // Estimates snapshot
       const estimatesSnapshot =
         (line as any).estimatesSnapshot ??
@@ -161,39 +146,21 @@ export function usePayment(deps: {
           : undefined);
 
       // Legacy fallback: older cart lines used `quantity` as pure KG
-      const legacyQtyKg = Number(line.quantity ?? NaN);
-      const hasLegacyKg =
-        !unitMode &&
-        !quantityKg &&
-        Number.isFinite(legacyQtyKg) &&
-        legacyQtyKg > 0;
 
       return {
         itemId: String(itemId),
         pricePerUnit,
         unitMode: unitMode ?? "kg",
-        quantityKg:
-          unitMode === "kg" || hasLegacyKg
-            ? (quantityKg ?? legacyQtyKg)
-            : quantityKg,
+        quantityKg,
         units: unitMode === "unit" || unitMode === "mixed" ? units : undefined,
         estimatesSnapshot,
         name,
         imageUrl,
         category,
         // provenance passthrough (prefer cart fields)
-        sourceFarmerName:
-          (line as any).sourceFarmerName ??
-          (line as any).farmerName ??
-          (line as any).item?.farmerName,
-        sourceFarmName:
-          (line as any).sourceFarmName ??
-          (line as any).farmName ??
-          (line as any).item?.farmName,
-        farmerOrderId:
-          (line as any).farmerOrderId ??
-          (line as any).item?.farmerOrderId ??
-          (line as any).stockId,
+        sourceFarmerName: (line as any).sourceFarmerName,
+        sourceFarmName: (line as any).sourceFarmName,
+        farmerOrderId: (line as any).farmerOrderId,
       };
     },
     []
@@ -363,6 +330,14 @@ export function usePayment(deps: {
       items: legacyItems,
       deliveryAddress: context.address!,
     };
+    /*
+    "unitMode": "mixed",
+      "quantityKg": 2,
+      "units": 3,
+      "estimatesSnapshot": {
+        "avgWeightPerUnitKg": 0.35
+    */
+    console.log("Submitting order", body);
 
     try {
       setSubmitting(true);

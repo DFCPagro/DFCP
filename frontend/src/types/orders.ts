@@ -28,17 +28,20 @@ export type PaymentMethod = "card" | "google_pay" | "paypal";
  */
 export type EstimatesSnapshot = {
   avgWeightPerUnitKg?: number | null;
-  stdDevKg?: number | null;
 };
 
 export type CreateOrderItemInput = {
   /** Item reference (required) */
   itemId: string;
 
-  /**
-   * Price per KG (USD) snapshot at time of ordering.
-   * The backend schema requires pricePerUnit and treats it as per-KG.
-   */
+  farmerOrderId?: string;
+  sourceFarmerName?: string;
+  sourceFarmName?: string;
+
+  name?: string;
+  imageUrl?: string;
+  category?: string;
+
   pricePerUnit: number;
 
   /** "kg" | "unit" | "mixed" (backend validates combinations below) */
@@ -54,20 +57,7 @@ export type CreateOrderItemInput = {
    * Required by backend validation when unitMode is "unit" or when "mixed" with units > 0.
    * When present, must be > 0.
    */
-  estimatesSnapshot?: {
-    avgWeightPerUnitKg?: number | null;
-    stdDevKg?: number | null;
-  };
-
-  /** Optional UI hints (backend schema has these fields on lines, but backend can also derive them) */
-  name?: string;
-  imageUrl?: string;
-  category?: string;
-
-  /** Provenance fields (the backend populates these from AMS/farmer orders; allow optional here) */
-  sourceFarmerName?: string;
-  sourceFarmName?: string;
-  farmerOrderId?: string;
+  estimatesSnapshot?: EstimatesSnapshot;
 };
 
 export type CreateOrderBody = {
