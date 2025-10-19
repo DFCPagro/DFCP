@@ -4,6 +4,7 @@ import * as svc from "../services/shelf.service";
 
 
 import { CrowdService } from "../services/shelfCrowd.service";
+import { isObjId } from "@/utils/validations/mongose";
 
 /**
  * Keep controllers skinny:
@@ -26,13 +27,34 @@ export async function placeContainer(req: Request, res: Response, next: NextFunc
     const { slotId, containerOpsId, weightKg } = req.body;
     // @ts-ignore
     const userId = req.user?._id;
-    if (!shelfMongoId) {
-      return res.status(400).json({ ok: false, message: "Missing shelf id in URL" });
+
+    if (!isObjId(shelfMongoId)) {
+      return res.status(400).json({ ok: false, message: "Invalid shelfMongoId" });
     }
-    const data = await svc.ShelfService.placeContainer({ shelfMongoId, slotId, containerOpsId, weightKg, userId });
+    if (!slotId || typeof slotId !== "string") {
+      return res.status(400).json({ ok: false, message: "Invalid slotId" });
+    }
+    if (!isObjId(containerOpsId)) {
+      return res.status(400).json({ ok: false, message: "Invalid containerOpsId" });
+    }
+    if (typeof weightKg !== "number" || Number.isNaN(weightKg) || weightKg < 0) {
+      return res.status(400).json({ ok: false, message: "Invalid weightKg" });
+    }
+
+    const data = await svc.ShelfService.placeContainer({
+      shelfMongoId,
+      slotId,
+      containerOpsId,
+      weightKg,
+      userId,
+    });
+
     res.status(200).json({ ok: true, data });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 }
+
 
 export async function consumeFromSlot(req: Request, res: Response, next: NextFunction) {
   try {

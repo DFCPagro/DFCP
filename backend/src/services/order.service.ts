@@ -14,8 +14,6 @@ import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
 import { addOrderIdToFarmerOrder } from "./farmerOrder.service";
 import { ensureOrderToken } from "./ops.service";
 
-
-
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
 type IdLike = string | Types.ObjectId;
@@ -122,9 +120,12 @@ export async function createOrderForCustomer(
   payload: CreateOrderInput
 ) {
   const session = await mongoose.startSession();
+  const toOID = (v: any) => new Types.ObjectId(String(v));
+
   const customerOID = toOID(userId);
   const amsOID = toOID(payload.amsId);
   const lcOID = toOID(payload.logisticsCenterId);
+
   let orderDoc: any;
   let orderQR: any;
 
@@ -154,10 +155,14 @@ export async function createOrderForCustomer(
         if (fo) byFO.set(fo, line);
       }
 
-      // 2) Reserve AMS inventory
-      for (const it of payload.items as PayloadItem[]) {
-        const foId = String((it as any).farmerOrderId);
+      // --------------------------------------------------------------------------------
+      // 2) Reserve AMS inventory (by kg)
+      // NOTE: Your schema uses `quantity` (kg). No units/mixed logic here.
+      // --------------------------------------------------------------------------------
+      for (const it of payload.items) {
+        const foId = String(it.farmerOrderId);
         const line = byFO.get(foId);
+
         if (!line || !line._id) {
           const err: any = new Error(
             `AMS line not found for farmerOrderId ${(it as any).farmerOrderId}`
@@ -195,15 +200,29 @@ export async function createOrderForCustomer(
           err.name = "BadRequest";
           throw err;
         }
+
+        // If you maintain available by kg on AMS, adjust here:
+        // (comment out if not using reservation)
+        await adjustAvailableQtyAtomic({
+          docId: amsOID.toString(),
+          lineId: String(line._id),
+          deltaKg: -Math.round(kg * 1000) / 1000,
+          enforceEnoughForReserve: true,
+          session,
+        });
       }
 
-      // 3) Create Order (normalized items)
-      const orderPayload = {
+      // --------------------------------------------------------------------------------
+      // 3) Create Order (normalize directly from your payload shape)
+      // - pricePerUnit in your schema is already per KG (legacy name)
+      // - itemsSnapshot: carries through fields as per your schema
+      // --------------------------------------------------------------------------------
+      const orderPayload: any = {
         customerId: customerOID,
         deliveryAddress: payload.deliveryAddress,
         deliveryDate: payload.deliveryDate,
         LogisticsCenterId: lcOID,
-        shiftName: (ams as any).availableShift,
+        shiftName: (ams as any).availableShift, // you already used AMS.availableShift
         amsId: amsOID,
         items: (payload.items as PayloadItem[]).map((it) => {
           const line = byFO.get(String((it as any).farmerOrderId));
@@ -262,6 +281,7 @@ export async function createOrderForCustomer(
         );
       }
 
+      // --------------------------------------------------------------------------------
       // 5) Audit & save
       orderDoc.addAudit(
         customerOID,
@@ -271,8 +291,11 @@ export async function createOrderForCustomer(
       );
       await orderDoc.save({ session });
 
+      // --------------------------------------------------------------------------------
       // 6) Atomically mint/reuse the Order QR within the same txn
-      orderQR = await ensureOrderToken({
+      //    (This is the important part you wanted: generate QR for the order)
+      // --------------------------------------------------------------------------------
+      const qrDoc = await ensureOrderToken({
         orderId: orderDoc._id,
         createdBy: customerOID,
         ttlSeconds: 24 * 60 * 60,
@@ -280,10 +303,16 @@ export async function createOrderForCustomer(
         issuer: customerOID,
         session,
       });
+
+      // Compact QR payload for returning to the client
+      orderQR = { token: qrDoc.token, sig: qrDoc.sig, scope: qrDoc.scope };
     });
 
     // committed
-    return { order: orderDoc.toJSON(), orderQR };
+    return {
+      order: orderDoc.toJSON(),
+      orderQR,
+    };
   } finally {
     session.endSession();
   }

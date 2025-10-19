@@ -25,7 +25,7 @@ export const PATHS = {
   ItemsManagment: "/admin/items",
 
   MapExample: "/map-example",
-
+  QRExample: "/qr-example",
   // admin pages
   adminDashboard: "/admin/dashboard",
   JobAppReview: "/admin/jobReview",

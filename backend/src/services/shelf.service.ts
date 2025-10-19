@@ -4,6 +4,7 @@ import Shelf from "../models/Shelf.model";
 import ContainerOps from "../models/ContainerOps.model";
 import ApiError from "../utils/ApiError";
 import { CrowdService } from "./shelfCrowd.service";
+import { isObjId } from "@/utils/validations/mongose";
 
 export namespace ShelfService {
   /** Fetch one shelf (lean) with optional guards. */
@@ -30,63 +31,73 @@ export namespace ShelfService {
    * Place a container into a specific slot.
    */
   export async function placeContainer(args: {
-    shelfMongoId: string;
-    slotId: string;
-    containerOpsId: string;
-    weightKg: number;
-    userId: string | Types.ObjectId;
-  }) {
-    const { shelfMongoId, slotId, containerOpsId, weightKg, userId } = args;
+  shelfMongoId: string;
+  slotId: string;
+  containerOpsId: string;
+  weightKg: number;
+  userId: string | Types.ObjectId;
+}) {
+  const { shelfMongoId, slotId, containerOpsId, weightKg, userId } = args;
 
-    const shelf = await Shelf.findById(shelfMongoId);
-    if (!shelf) throw new ApiError(404, "Shelf not found");
-
-    const ops = await ContainerOps.findById(containerOpsId);
-    if (!ops) throw new ApiError(404, "ContainerOps not found");
-
-    if (String(ops.logisticCenterId) !== String(shelf.logisticCenterId)) {
-      throw new ApiError(400, "Container and shelf belong to different logistics centers");
-    }
-
-    const slot = shelf.slots.find((s) => s.slotId === slotId);
-    if (!slot) throw new ApiError(404, "Slot not found on shelf");
-    if (slot.containerOpsId) throw new ApiError(400, "Slot is occupied");
-    if (weightKg < 0) throw new ApiError(400, "Weight must be >= 0");
-    if (slot.capacityKg != null && weightKg > slot.capacityKg) {
-      throw new ApiError(400, "Exceeds slot capacity");
-    }
-
-    // Assignments with TS-safe casts
-    (slot as any).containerOpsId = new Types.ObjectId(containerOpsId);
-    slot.currentWeightKg = weightKg;
-    slot.occupiedAt = new Date();
-    (slot as any).emptiedAt = null; // allow null per schema
-
-    shelf.currentWeightKg = (shelf.currentWeightKg || 0) + weightKg;
-    shelf.occupiedSlots = (shelf.occupiedSlots || 0) + 1;
-
-    await shelf.save();
-
-    ops.state = "shelved";
-    ops.location = {
-      area: "shelf",
-      zone: shelf.zone ?? null,
-      aisle: shelf.aisle ?? null,
-      shelfId: shelf._id,
-      slotId,
-      updatedAt: new Date(),
-    } as any;
-    ops.auditTrail.push({
-      userId: new Types.ObjectId(userId),
-      action: "shelved",
-      note: `Shelf ${shelf.shelfId} slot ${slotId}`,
-      timestamp: new Date(),
-      meta: { shelfId: shelf._id, slotId },
-    } as any);
-    await ops.save();
-
-    return { shelf: shelf.toObject(), containerOps: ops.toObject() };
+  // ---- hard validation up-front ----
+  if (!isObjId(shelfMongoId)) throw new ApiError(400, "Invalid shelfMongoId");
+  if (typeof slotId !== "string" || !slotId.trim()) throw new ApiError(400, "Invalid slotId");
+  if (!isObjId(containerOpsId)) throw new ApiError(400, "Invalid containerOpsId");
+  if (typeof weightKg !== "number" || Number.isNaN(weightKg)) {
+    throw new ApiError(400, "weightKg must be a number");
   }
+  if (weightKg < 0) throw new ApiError(400, "Weight must be >= 0");
+
+  const shelf = await Shelf.findById(shelfMongoId);
+  if (!shelf) throw new ApiError(404, "Shelf not found");
+
+  const ops = await ContainerOps.findById(containerOpsId);
+  if (!ops) throw new ApiError(404, "ContainerOps not found");
+
+  if (String(ops.logisticCenterId) !== String(shelf.logisticCenterId)) {
+    throw new ApiError(400, "Container and shelf belong to different logistics centers");
+  }
+
+  const slot = shelf.slots.find((s) => s.slotId === slotId);
+  if (!slot) throw new ApiError(404, "Slot not found on shelf");
+  if (slot.containerOpsId) throw new ApiError(400, "Slot is occupied");
+  if (slot.capacityKg != null && weightKg > slot.capacityKg) {
+    throw new ApiError(400, "Exceeds slot capacity");
+  }
+
+  // ---- safe assignments ----
+  (slot as any).containerOpsId = new Types.ObjectId(containerOpsId);
+  slot.currentWeightKg = weightKg;
+  slot.occupiedAt = new Date();
+  (slot as any).emptiedAt = null;
+
+  shelf.currentWeightKg = (shelf.currentWeightKg || 0) + weightKg;
+  shelf.occupiedSlots = (shelf.occupiedSlots || 0) + 1;
+
+  await shelf.save();
+
+  ops.state = "shelved";
+  ops.location = {
+    area: "shelf",
+    zone: shelf.zone ?? null,
+    aisle: shelf.aisle ?? null,
+    shelfId: shelf._id,
+    slotId,
+    updatedAt: new Date(),
+  } as any;
+
+  ops.auditTrail.push({
+    userId: isObjId(userId as any) ? new Types.ObjectId(userId as any) : (userId as any),
+    action: "shelved",
+    note: `Shelf ${shelf.shelfId} slot ${slotId}`,
+    timestamp: new Date(),
+    meta: { shelfId: shelf._id, slotId },
+  } as any);
+
+  await ops.save();
+
+  return { shelf: shelf.toObject(), containerOps: ops.toObject() };
+}
 
   /**
    * Consume weight from a slot (e.g., picker takes items).

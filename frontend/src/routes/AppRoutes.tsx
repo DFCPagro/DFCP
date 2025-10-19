@@ -16,6 +16,7 @@ const DriverSchedule = lazy(() => import("@/pages/DriverSchedule"));
 const JobApplication = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
 
+const ArrivalConfirmPage = lazy(() => import("@/pages/ArrivalConfirm"));
 const FarmerDashboard = lazy(() => import("@/pages/FarmerDashboard"));
 const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
 const Market = lazy(() => import("@/pages/Market"));
@@ -47,6 +48,7 @@ const PickerSchedule = lazy(() => import("@/pages/picker/picker-Schedule"));
 
 //delete this route later, its just an example for using map picker
 const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
+const QRExample = lazy(() => import("@/pages/QRExample"));
 
 export default function AppRoutes() {
   return (
@@ -56,7 +58,17 @@ export default function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path={PATHS.home} element={<Home />} />
           <Route path={PATHS.notFound} element={<NotFound />} />
-          <Route path={PATHS.MapExample} element={<MapPickerExamplePage />} />
+          <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
+          <Route path={PATHS.QRExample} element={< QRExample />} />
+        </Route>
+
+        {/* --- Public, immersive (no chrome) --- */}
+        <Route
+          element={
+            <AppShell showHeader={false} showFooter={false} px={0} py={0} maxW="container.md" />
+          }
+        >
+          <Route path={PATHS.arrivalConfirm} element={<ArrivalConfirmPage />} />
         </Route>
 
         {/* --- Guest-only (login/register), no chrome, narrow --- */}
