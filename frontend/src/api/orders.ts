@@ -11,12 +11,17 @@
 
 import { api } from "./config";
 import type { CreateOrderBody, Order, OrderRowAPI } from "@/types/orders";
-
+import type { CSOrdersResponse } from "@/types/cs.orders";
 export type ApiError = {
   status: number;
   message: string;
   details?: unknown;
 };
+
+
+/*  FOR CUSTOMERS */
+
+
 
 // Internal: Normalize field casing for API POST body
 function normalizeCreateBody(body: CreateOrderBody): Record<string, any> {
@@ -69,25 +74,6 @@ export async function createOrder(body: CreateOrderBody): Promise<Order> {
   }
 }
 
-/**
- * Fetch an order by id.
- * If your backend returns { data: Order }, we unwrap; otherwise we return the raw object.
- */
-export async function getOrderById(orderId: string): Promise<Order> {
-  try {
-    const res = await api.get(`/orders/${encodeURIComponent(orderId)}`);
-    const out = res?.data?.data ?? res?.data;
-    return out as Order;
-  } catch (err: any) {
-    const status = err?.response?.status ?? 0;
-    const message =
-      err?.response?.data?.error ?? err?.message ?? "Failed to fetch order";
-    const details = err?.response?.data?.details ?? err?.response?.data;
-
-    const apiErr: ApiError = { status, message, details };
-    throw apiErr;
-  }
-}
 
 export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
   const { data } = await api.get<{ data: any[] }>("/orders/my", {
@@ -117,6 +103,32 @@ export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
 
   return items as OrderRowAPI[];
 }
+
+
+
+
+/*  FOR LOGISTICS STAFF /MANAGERS */
+
+/**
+ * Fetch an order by id.
+ * If your backend returns { data: Order }, we unwrap; otherwise we return the raw object.
+ */
+export async function getOrderById(orderId: string): Promise<Order> {
+  try {
+    const res = await api.get(`/orders/${encodeURIComponent(orderId)}`);
+    const out = res?.data?.data ?? res?.data;
+    return out as Order;
+  } catch (err: any) {
+    const status = err?.response?.status ?? 0;
+    const message =
+      err?.response?.data?.error ?? err?.message ?? "Failed to fetch order";
+    const details = err?.response?.data?.details ?? err?.response?.data;
+
+    const apiErr: ApiError = { status, message, details };
+    throw apiErr;
+  }
+}
+
 
 type LCWindow = {
   date: string;
@@ -166,4 +178,15 @@ export async function confirmOrderByCustomerToken(
 export async function getOrderByOpsToken(token: string) {
   const { data } = await api.get(`/orders/by-ops-token/${token}`);
   return data;
+}
+
+
+
+export async function getOrdersForShift(params: {
+  logisticCenterId: string;
+  date: string;
+  shiftName: string;
+}): Promise<CSOrdersResponse> {
+  const { data } = await api.get("/orders/by-shift", { params });
+  return (data?.data ?? data) as CSOrdersResponse; // unwrap if enveloped
 }

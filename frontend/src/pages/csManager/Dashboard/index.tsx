@@ -6,6 +6,7 @@ import { ShiftSummaryCard } from "./components/ShiftSummaryCard";
 import { ReportsCard } from "./components/ReportsCard";
 import { useCSShiftSummaries } from "./hooks/useCSShiftSummaries";
 import { useCSStats } from "./hooks/useCSStats";
+import {PATHS} from "@/routes/paths";
 
 export default function CSManagerDashboardPage() {
   const nav = useNavigate();
@@ -29,7 +30,13 @@ export default function CSManagerDashboardPage() {
             title="Current & Next 5 Shifts"
             rows={rows}
             loading={shiftsLoading}
-            onViewShift={(row) => nav(`/csManager/orders?date=${row.dateISO}&shift=${row.shift}`)}
+           onViewShift={(row) =>
+  nav({
+    pathname: PATHS.csManagerShiftOrders,
+    search: `?date=${row.dateISO}&shift=${row.shift}`,
+  })
+}
+
           />
           <ReportsCard title="Order Reports (Customer Messages)" />
         </SimpleGrid>
