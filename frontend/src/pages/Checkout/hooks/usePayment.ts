@@ -49,83 +49,74 @@ type UsePaymentDeps = {
  *  - Coerces numbers defensively
  */
 function mapCartLineToOrderItem(line: SharedCartLine): CreateOrderItemInput {
-  // Defensive helpers
-  const asNumber = (v: unknown): number | undefined => {
-    if (v === null || v === undefined || v === "") return undefined;
+  const num = (v: unknown): number | undefined => {
+    if (v == null || v === "") return undefined;
     const n = Number(v);
     return Number.isFinite(n) ? n : undefined;
   };
 
-  // Unit/weight quantities (keep exactly one, according to what is present)
-  const quantityUnits = asNumber((line as any).units ?? (line as any).quantity);
-  const quantityKg = asNumber(
-    (line as any).quantity * (line as any).weightPerUnitKg
-  );
+  const explicitUnitMode = (line as any).unitMode;
+  const legacyQtyKg      = num((line as any).quantity);     // 👈 fallback (your cart has this)
 
-  // Optional estimates snapshot (pass only if meaningful)
-  const avgWeightPerUnitKg = asNumber((line as any).avgWeightPerUnitKg);
-  const estimatesSnapshot: CreateOrderItemInput["estimatesSnapshot"] =
-    avgWeightPerUnitKg && avgWeightPerUnitKg > 0
-      ? { avgWeightPerUnitKg }
-      : undefined;
-
-  // Decide unitMode: prefer the cart line's value; otherwise infer from which qty is present
+  // Prefer explicit mode; otherwise infer from present fields
   const unitMode: UnitMode = (() => {
-    const v = (line as any).unitMode;
+    const v = explicitUnitMode;
     if (v === "unit" || v === "kg" || v === "mixed") return v as UnitMode;
-    if (typeof quantityUnits === "number" && quantityUnits > 0 && !quantityKg)
-      return "unit";
-    if (typeof quantityKg === "number" && quantityKg > 0 && !quantityUnits)
-      return "kg";
-    return "unit"; // sensible default
+    if (num((line as any).units)) return "unit";
+    if (num((line as any).quantityKg)) return "kg";
+    if (legacyQtyKg) return "kg";                            // 👈 legacy implies kg
+    return "kg";
   })();
 
-  // Build the item strictly to the type (no extras)
-  const out: CreateOrderItemInput = {
+  // Use explicit fields; if missing, fall back to legacy quantity→kg
+  const units      = num((line as any).units);
+  const quantityKg = num((line as any).quantityKg) ?? legacyQtyKg; // 👈 here
+
+  // avgWeightPerUnitKg is REQUIRED only when reserving by units
+  const avgWeightPerUnitKg = num((line as any).avgWeightPerUnitKg);
+  const estimatesSnapshot =
+    (unitMode === "unit" || unitMode === "mixed") && (units ?? 0) > 0
+      ? (avgWeightPerUnitKg && avgWeightPerUnitKg > 0
+          ? { avgWeightPerUnitKg }
+          : undefined)
+      : (avgWeightPerUnitKg && avgWeightPerUnitKg > 0
+          ? { avgWeightPerUnitKg }
+          : undefined);
+
+  return {
     itemId: String((line as any).itemId ?? (line as any).id ?? ""),
-    name: String((line as any).name ?? ""),
-    unitMode,
+    name: (line as any).name ? String((line as any).name) : undefined,
     imageUrl: ((): string | undefined => {
       const v = (line as any).imageUrl;
-      if (v === null || v === undefined || v === "") return undefined;
-      return String(v);
+      return v ? String(v) : undefined;
     })(),
     category: ((): string | undefined => {
       const v = (line as any).category;
-      if (v === null || v === undefined || v === "") return undefined;
-      return String(v);
+      return v ? String(v) : undefined;
     })(),
-    pricePerUnit: ((): number => {
-      const n = asNumber((line as any).pricePerUnit);
-      return typeof n === "number" && n >= 0 ? n : 0;
+    pricePerUnit: Number((line as any).pricePerUnit) || 0, // per KG
+
+    unitMode,
+    farmerOrderId: ((): string | undefined => {
+      const v = (line as any).farmerOrderId;
+      return v ? String(v) : undefined;
     })(),
-    // provenance fields (only if they exist on the cart line)
     sourceFarmerName: ((): string | undefined => {
       const v = (line as any).sourceFarmerName;
       return v ? String(v) : undefined;
     })(),
     sourceFarmName: ((): string | undefined => {
       const v = (line as any).sourceFarmName;
-      console.log("sourceFarmName", { v });
-      return v ? String(v) : undefined;
-    })(),
-    farmerOrderId: ((): string | undefined => {
-      const v = (line as any).farmerOrderId;
       return v ? String(v) : undefined;
     })(),
 
-    // quantities — include only the ones that are defined and valid
-    ...(typeof quantityUnits === "number" && quantityUnits > 0
-      ? { quantity: quantityUnits }
-      : {}),
+    ...(typeof units === "number" && units > 0 ? { units } : {}),
     ...(typeof quantityKg === "number" && quantityKg > 0 ? { quantityKg } : {}),
-
-    // estimates snapshot (if present)
     ...(estimatesSnapshot ? { estimatesSnapshot } : {}),
   };
-
-  return out;
 }
+
+
 
 /* -------------------------------------------------------------------------- */
 /*                                Hook: Public                                 */
@@ -156,49 +147,41 @@ export function usePayment(deps: UsePaymentDeps) {
     if (!Array.isArray(deps.cartLines) || deps.cartLines.length === 0)
       return [];
     return deps.cartLines.map(mapCartLineToOrderItem).filter((it) => {
-      // Keep only valid items
-      const hasId = !!it.itemId;
-      const hasAnyQty =
-        (typeof (it as any).quantity === "number" &&
-          (it as any).quantity > 0) ||
-        (typeof (it as any).quantityKg === "number" &&
-          (it as any).quantityKg > 0);
-      return hasId && hasAnyQty;
-    });
+  const hasId = !!it.itemId;
+  const hasAnyQty =
+    (typeof it.units === "number" && it.units > 0) ||
+    (typeof it.quantityKg === "number" && it.quantityKg > 0);
+  const needsAvg =
+    (it.unitMode === "unit" || it.unitMode === "mixed") && (it.units ?? 0) > 0;
+  const hasAvg =
+    !needsAvg || (it.estimatesSnapshot?.avgWeightPerUnitKg ?? 0) > 0;
+  return hasId && hasAnyQty && hasAvg;
+});
+
   }, [deps.cartLines]);
 
   /* ---------------------------- Compute canSubmit ----------------------------- */
 
-  const canSubmit = useMemo(() => {
-    const { amsId, logisticsCenterId, deliveryDate, shiftName, address } =
-      deps.context;
+const canSubmit = useMemo(() => {
+  const { amsId, logisticsCenterId, deliveryDate, /* shiftName, */ address } =
+    deps.context;
 
+  if (!amsId || !logisticsCenterId || !deliveryDate || !address) return false;
+  if (!method) return false;
+
+  if (String(method).toLowerCase() === "card") {
     if (
-      !amsId ||
-      !logisticsCenterId ||
-      !deliveryDate ||
-      !shiftName ||
-      !address
-    ) {
-      return false;
-    }
-    if (!method) return false;
+      !card.holder.trim() ||
+      !/^\d[\d\s-]{11,}$/.test(card.cardNumber) ||
+      !/^\d{2}$/.test(card.expMonth) ||
+      !/^\d{2,4}$/.test(card.expYear) ||
+      !/^\d{3,4}$/.test(card.cvc)
+    ) return false;
+  }
 
-    // If method requires card, do a minimal UI validation
-    if (String(method).toLowerCase() === "card") {
-      if (
-        !card.holder.trim() ||
-        !/^\d[\d\s-]{11,}$/.test(card.cardNumber) || // basic 12+ digits allowance
-        !/^\d{2}$/.test(card.expMonth) ||
-        !/^\d{2,4}$/.test(card.expYear) ||
-        !/^\d{3,4}$/.test(card.cvc)
-      ) {
-        return false;
-      }
-    }
+  return orderItems.length > 0;
+}, [deps.context, method, card, orderItems]);
 
-    return orderItems.length > 0;
-  }, [deps.context, method, card, orderItems]);
 
   /* ------------------------------ Submit handler ------------------------------ */
 

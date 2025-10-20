@@ -16,7 +16,7 @@ const DriverSchedule = lazy(() => import("@/pages/DriverSchedule"));
 const JobApplication = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
 
-const ArrivalConfirmPage = lazy(() => import("@/pages/ArrivalConfirm"));
+
 const FarmerDashboard = lazy(() => import("@/pages/FarmerDashboard"));
 const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
 const Market = lazy(() => import("@/pages/Market"));
@@ -68,7 +68,7 @@ export default function AppRoutes() {
             <AppShell showHeader={false} showFooter={false} px={0} py={0} maxW="container.md" />
           }
         >
-          <Route path={PATHS.arrivalConfirm} element={<ArrivalConfirmPage />} />
+       
         </Route>
 
         {/* --- Guest-only (login/register), no chrome, narrow --- */}

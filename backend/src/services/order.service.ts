@@ -16,6 +16,8 @@ import { ensureOrderToken } from "./ops.service";
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
+/** --------------------------------- types --------------------------------- */
+
 type IdLike = string | Types.ObjectId;
 const toOID = (v: IdLike) =>
   v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
@@ -23,7 +25,7 @@ const toOID = (v: IdLike) =>
 type AmsLine = {
   _id: Types.ObjectId;
   farmerOrderId?: Types.ObjectId;
-  pricePerUnit?: number; // per KG in AMS
+  pricePerUnit?: number; // per KG (AMS is per-KG)
   unitMode?: "kg" | "unit" | "mixed";
   estimates?: {
     avgWeightPerUnitKg?: number | null;
@@ -31,10 +33,9 @@ type AmsLine = {
   };
 };
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Backwards-compat helpers (support legacy {quantity} and new unitMode/units/quantityKg)
-// ───────────────────────────────────────────────────────────────────────────────
 type PayloadItem = CreateOrderInput["items"][number];
+
+/** ------------------------ legacy / normalization helpers ------------------------ */
 
 // legacy = has 'quantity' and no 'quantityKg'/'units'
 const isLegacyItem = (it: any): boolean =>
@@ -73,6 +74,7 @@ function normalizeItem(it: PayloadItem, amsLine?: AmsLine) {
     const units = Math.max(0, Number((it as any).units) || 0);
     const avg = resolveAvgPerUnit(it, amsLine);
 
+    // Require avg when reserving by units (unit/mixed with units>0)
     if (
       (unitMode === "unit" || unitMode === "mixed") &&
       units > 0 &&
@@ -108,7 +110,7 @@ function deriveUnitPrice(
 ) {
   if (!Number.isFinite(pricePerKg) || !(pricePerKg! > 0)) return null;
   if (!Number.isFinite(avgKg) || !(avgKg! > 0)) return null;
-  // round to cents for display; you can keep more precision if you prefer
+  // round to cents for display
   return Math.round(pricePerKg! * avgKg! * 100) / 100;
 }
 
@@ -120,7 +122,6 @@ export async function createOrderForCustomer(
   payload: CreateOrderInput
 ) {
   const session = await mongoose.startSession();
-  const toOID = (v: any) => new Types.ObjectId(String(v));
 
   const customerOID = toOID(userId);
   const amsOID = toOID(payload.amsId);
@@ -131,19 +132,21 @@ export async function createOrderForCustomer(
 
   try {
     await session.withTransaction(async () => {
-      // 1) Load AMS for line lookups
+      // 1) Load AMS (for line lookup + authoritative shift)
       const ams = await AvailableMarketStockModel.findById(amsOID, {
         items: 1,
         availableShift: 1,
       })
         .lean(false)
         .session(session);
+
       if (!ams) {
         const err: any = new Error("AvailableMarketStock not found");
         err.name = "NotFound";
         throw err;
       }
 
+      // Build quick lookup by farmerOrderId
       const itemsArr: AmsLine[] = Array.isArray((ams as any).items)
         ? ((ams as any).items as any)
         : [];
@@ -155,12 +158,9 @@ export async function createOrderForCustomer(
         if (fo) byFO.set(fo, line);
       }
 
-      // --------------------------------------------------------------------------------
-      // 2) Reserve AMS inventory (by kg)
-      // NOTE: Your schema uses `quantity` (kg). No units/mixed logic here.
-      // --------------------------------------------------------------------------------
+      // 2) Reserve AMS inventory (kg and/or units) — once per item
       for (const it of payload.items) {
-        const foId = String(it.farmerOrderId);
+        const foId = String((it as any).farmerOrderId || "");
         const line = byFO.get(foId);
 
         if (!line || !line._id) {
@@ -173,7 +173,17 @@ export async function createOrderForCustomer(
           ];
           throw err;
         }
+
         const n = normalizeItem(it, line);
+
+        if (!(n.quantityKg > 0 || n.units > 0)) {
+          const err: any = new Error(
+            `Invalid item quantities for item ${(it as any).itemId}`
+          );
+          err.name = "BadRequest";
+          throw err;
+        }
+
         if (n.quantityKg > 0) {
           const kg = Math.round(n.quantityKg * 1000) / 1000;
           await adjustAvailableQtyAtomic({
@@ -184,6 +194,7 @@ export async function createOrderForCustomer(
             session,
           });
         }
+
         if (n.units > 0) {
           await adjustAvailableQtyByUnitsAtomic({
             docId: amsOID.toString(),
@@ -193,51 +204,29 @@ export async function createOrderForCustomer(
             session,
           });
         }
-        if (!(n.quantityKg > 0 || n.units > 0)) {
-          const err: any = new Error(
-            `Invalid item quantities for item ${(it as any).itemId}`
-          );
-          err.name = "BadRequest";
-          throw err;
-        }
-
-        // If you maintain available by kg on AMS, adjust here:
-        // (comment out if not using reservation)
-        await adjustAvailableQtyAtomic({
-          docId: amsOID.toString(),
-          lineId: String(line._id),
-          deltaKg: -Math.round(kg * 1000) / 1000,
-          enforceEnoughForReserve: true,
-          session,
-        });
       }
 
-      // --------------------------------------------------------------------------------
-      // 3) Create Order (normalize directly from your payload shape)
-      // - pricePerUnit in your schema is already per KG (legacy name)
-      // - itemsSnapshot: carries through fields as per your schema
-      // --------------------------------------------------------------------------------
+      // 3) Create Order (items snapshot normalized)
       const orderPayload: any = {
         customerId: customerOID,
-        deliveryAddress: payload.deliveryAddress,
+        deliveryAddress: payload.deliveryAddress, // { address, lat/lng normalized in controller/schema }
         deliveryDate: payload.deliveryDate,
         LogisticsCenterId: lcOID,
-        shiftName: (ams as any).availableShift, // you already used AMS.availableShift
+        // Take the authoritative shift from AMS to avoid mismatch
+        shiftName: (ams as any).availableShift,
         amsId: amsOID,
+        // Optional tolerancePct: use payload if present; otherwise leave for model default
+        ...(typeof (payload as any).tolerancePct === "number"
+          ? { tolerancePct: (payload as any).tolerancePct }
+          : {}),
         items: (payload.items as PayloadItem[]).map((it) => {
           const line = byFO.get(String((it as any).farmerOrderId));
           const n = normalizeItem(it, line);
+
           const pricePerKg = Number.isFinite((it as any).pricePerUnit)
             ? Number((it as any).pricePerUnit)
             : Number((line as any)?.pricePerUnit ?? 0);
-          const pricePerUnit = pricePerKg;
-          const derivedUnitPrice =
-            n.unitMode === "unit" || n.unitMode === "mixed"
-              ? deriveUnitPrice(
-                  pricePerKg,
-                  n.avg || line?.estimates?.avgWeightPerUnitKg || null
-                )
-              : null;
+
           const snapshot: any = {};
           const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
           if (Number.isFinite(snapAvg) && (snapAvg as number) > 0)
@@ -245,20 +234,27 @@ export async function createOrderForCustomer(
           const snapSd = line?.estimates?.sdKg;
           if (Number.isFinite(snapSd) && (snapSd as number) > 0)
             snapshot.stdDevKg = snapSd;
+
           return {
             itemId: toOID((it as any).itemId),
             name: (it as any).name,
             imageUrl: (it as any).imageUrl ?? "",
-            pricePerUnit,
-            pricePerKg,
-            derivedUnitPrice,
+            category: (it as any).category ?? "",
+            pricePerUnit: pricePerKg, // per KG (legacy name in schema)
+            pricePerKg,               // keep explicit too if your model stores it
+            derivedUnitPrice:
+              n.unitMode === "unit" || n.unitMode === "mixed"
+                ? deriveUnitPrice(
+                    pricePerKg,
+                    n.avg || line?.estimates?.avgWeightPerUnitKg || null
+                  )
+                : null,
             unitMode: n.unitMode,
             quantityKg: n.quantityKg,
             units: n.units,
             estimatesSnapshot: Object.keys(snapshot).length
               ? snapshot
               : undefined,
-            category: (it as any).category ?? "",
             sourceFarmerName: (it as any).sourceFarmerName,
             sourceFarmName: (it as any).sourceFarmName,
             farmerOrderId: toOID((it as any).farmerOrderId),
@@ -266,9 +262,10 @@ export async function createOrderForCustomer(
         }),
       };
 
-      [orderDoc] = await Order.create([orderPayload], { session });
+      const created = await Order.create([orderPayload], { session });
+      orderDoc = created[0];
 
-      // 4) Link each FarmerOrder with estimated kg
+      // 4) Link FarmerOrders with estimated kg for this order
       for (const it of payload.items as PayloadItem[]) {
         const line = byFO.get(String((it as any).farmerOrderId));
         const n = normalizeItem(it, line);
@@ -281,8 +278,7 @@ export async function createOrderForCustomer(
         );
       }
 
-      // --------------------------------------------------------------------------------
-      // 5) Audit & save
+      // 5) Audit trail
       orderDoc.addAudit(
         customerOID,
         "ORDER_CREATED",
@@ -291,20 +287,15 @@ export async function createOrderForCustomer(
       );
       await orderDoc.save({ session });
 
-      // --------------------------------------------------------------------------------
-      // 6) Atomically mint/reuse the Order QR within the same txn
-      //    (This is the important part you wanted: generate QR for the order)
-      // --------------------------------------------------------------------------------
+      // 6) Mint (or reuse) an order token/QR inside the same txn
       const qrDoc = await ensureOrderToken({
         orderId: orderDoc._id,
         createdBy: customerOID,
-        ttlSeconds: 24 * 60 * 60,
+        ttlSeconds: 24 * 60 * 60, // 24h
         usagePolicy: "multi-use",
         issuer: customerOID,
         session,
       });
-
-      // Compact QR payload for returning to the client
       orderQR = { token: qrDoc.token, sig: qrDoc.sig, scope: qrDoc.scope };
     });
 
