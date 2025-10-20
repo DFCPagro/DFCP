@@ -53,8 +53,8 @@ function ensureDefaults(d: any) {
   const out = { ...d };
   if (typeof out.agriculturalInsurance !== "boolean") out.agriculturalInsurance = false;
   if (typeof out.agreementPercentage !== "number") out.agreementPercentage = 60;
-  if (!out.farmerInfo) {
-    out.farmerInfo =
+  if (!out.farmerBio) {
+    out.farmerBio =
       "Family-run, climate-smart farm prioritizing soil health, water efficiency, and biodiversity. We use drip irrigation, cover crops, and minimal tillage.";
   }
   if (!out.farmLogo) out.farmLogo = `https://picsum.photos/seed/${faker.string.alphanumeric(8)}/512/512`;
@@ -84,7 +84,7 @@ async function prepareFarmers(docs: any[]) {
       farmName,
       agriculturalInsurance: base.agriculturalInsurance,
       farmLogo: base.farmLogo,
-      farmerInfo: base.farmerInfo,
+      farmerBio: base.farmerBio,
       agreementPercentage: base.agreementPercentage,
       lands,
       createdAt: base.createdAt,

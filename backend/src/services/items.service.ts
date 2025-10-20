@@ -273,6 +273,7 @@ export type MarketItemPageResult = {
  * Returns both item benefits and farmer bio (by farmer's userId)
  */
 export async function marketItemPageData(itemId: string, farmerUserId: string): Promise<MarketItemPageResult> {
+
   if (!Types.ObjectId.isValid(itemId) || !Types.ObjectId.isValid(farmerUserId)) return null;
 
   const [itemInfo, farmerInfo] = await Promise.all([
@@ -281,7 +282,7 @@ export async function marketItemPageData(itemId: string, farmerUserId: string): 
   ]);
 
   if (!itemInfo || !farmerInfo) return null;
-
+  console.log("farmerBio:", farmerInfo.farmerBio);
   return {
     item: {
       customerInfo: itemInfo.customerInfo,

@@ -45,8 +45,11 @@ function formatAddressShort(a: any): string {
   // prefer the plain text address; fall back to coords
   const txt = (a.address ?? "").trim();
   if (txt) return txt;
-  const lat = Number(a.lat ?? a.alt), lng = Number(a.lng ?? a.lng);
-  return (Number.isFinite(lat) && Number.isFinite(lng)) ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : "—";
+  const lat = Number(a.lat ?? a.alt),
+    lng = Number(a.lng ?? a.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng)
+    ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
+    : "—";
 }
 
 function formatShiftLabel(s: any): string {
@@ -56,16 +59,25 @@ function formatShiftLabel(s: any): string {
   return `${date}${date && win ? " • " : ""}${win}`;
 }
 
-
 // ------------------------------- Component --------------------------------
 
 export default function MarketPage() {
   const navigate = useNavigate();
 
   const {
-    isActive, address, shift, selection, isLoading: activationLoading, error: activationError,
-    setSelection, clearSelection, revalidate,
-  } = useMarketActivation({ autoActivateOnMount: true, keepInvalidInStorage: false });
+    isActive,
+    address,
+    shift,
+    selection,
+    isLoading: activationLoading,
+    error: activationError,
+    setSelection,
+    clearSelection,
+    revalidate,
+  } = useMarketActivation({
+    autoActivateOnMount: true,
+    keepInvalidInStorage: false,
+  });
 
   // ---- Cart (shared utils) ----
   // derive the context from active address + shift (null until ready)
@@ -75,13 +87,15 @@ export default function MarketPage() {
     if (!lc) return null;
     return {
       logisticCenterId: lc,
-      date: shift.date,                       // ISO yyyy-mm-dd
-      shift: shift.shift,                     // "morning" | "afternoon" | ...
+      date: shift.date, // ISO yyyy-mm-dd
+      shift: shift.shift, // "morning" | "afternoon" | ...
     };
   }, [isActive, address, shift]);
 
   // local state init (plain read; may be replaced when cartCtx becomes ready)
-  const [cartLines, setCartLines] = useState<SharedCartLine[]>(() => getSharedCart().lines);
+  const [cartLines, setCartLines] = useState<SharedCartLine[]>(
+    () => getSharedCart().lines
+  );
 
   // when the context first becomes available (or changes), re-read cart (util will clear if mismatched)
   useEffect(() => {
@@ -99,8 +113,6 @@ export default function MarketPage() {
     });
     return off;
   }, [cartCtx]);
-
-
 
   const cartCount = useMemo(
     () => cartLines.reduce((sum, l) => sum + Number(l.quantity ?? 0), 0),
@@ -131,20 +143,32 @@ export default function MarketPage() {
     if (!isActive) wasActiveRef.current = false;
   }, [isActive, address, shift, cartCtx]);
 
-
-
-
   // ---- Filters ----
   const {
-    category, search, debouncedSearch, sort, page, pageSize,
-    setCategory, setSearch, setSort, setPage,
+    category,
+    search,
+    debouncedSearch,
+    sort,
+    page,
+    pageSize,
+    setCategory,
+    setSearch,
+    setSort,
+    setPage,
   } = useMarketFilters({ pageSize: 16 });
 
   // ---- Items (stock) ----
-  const marketStockId = selection?.marketStockId ?? shift?.marketStockId ?? null;
+  const marketStockId =
+    selection?.marketStockId ?? shift?.marketStockId ?? null;
   const {
-    allItems, pageItems, isLoading: itemsLoading, isFetching: itemsFetching,
-    error: itemsError, totalItems, totalPages, setPage: setLocalPage,
+    allItems,
+    pageItems,
+    isLoading: itemsLoading,
+    isFetching: itemsFetching,
+    error: itemsError,
+    totalItems,
+    totalPages,
+    setPage: setLocalPage,
   } = useMarketItems({
     marketStockId,
     enabled: !!marketStockId,
@@ -175,17 +199,18 @@ export default function MarketPage() {
     text: debouncedSearch,
   });
 
-
-
-
-
   const addToCart = useCallback((item: MarketItem, qtyUnits: number) => {
     // ✅ units-only: whole numbers, 1..50
-    const deltaUnits = Math.max(1, Math.min(50, Math.floor(Number(qtyUnits) || 1)));
+    const deltaUnits = Math.max(
+      1,
+      Math.min(50, Math.floor(Number(qtyUnits) || 1))
+    );
 
     const newLine = marketItemToCartLine(item, deltaUnits); // shared builder
     const curr = getSharedCart().lines;
-    const idx = curr.findIndex((l) => (l.key ?? l.stockId) === (newLine.key ?? newLine.stockId));
+    const idx = curr.findIndex(
+      (l) => (l.key ?? l.stockId) === (newLine.key ?? newLine.stockId)
+    );
 
     let next: SharedCartLine[];
     if (idx >= 0) {
@@ -209,7 +234,6 @@ export default function MarketPage() {
       duration: 2500,
     });
   }, []);
-
 
   const removeLineByKey = useCallback((key: string) => {
     const curr = getSharedCart().lines;
@@ -248,15 +272,21 @@ export default function MarketPage() {
     const lcId = addr.logisticCenterId ?? null;
     console.log("customer addresses", addresses);
     const logisticsCenterId = lcId;
-    const deliveryDate = shift.date ?? null;   // ISO yyyy-mm-dd
-    const shiftName = shift.shift ?? null;     // "morning" | "afternoon" | ...
+    const deliveryDate = shift.date ?? null; // ISO yyyy-mm-dd
+    const shiftName = shift.shift ?? null; // "morning" | "afternoon" | ...
 
     // Basic guardrails so you don’t navigate with half-baked context
     if (!amsId || !logisticsCenterId || !deliveryDate || !shiftName) {
-      console.warn("checkout: missing context", { amsId, logisticsCenterId, deliveryDate, shiftName });
+      console.warn("checkout: missing context", {
+        amsId,
+        logisticsCenterId,
+        deliveryDate,
+        shiftName,
+      });
       toaster.create({
         title: "Missing delivery details",
-        description: "AMS, logistics center, date, and shift are required for checkout.",
+        description:
+          "AMS, logistics center, date, and shift are required for checkout.",
         type: "warning",
       });
       setPinOpen(true);
@@ -270,20 +300,24 @@ export default function MarketPage() {
       deliveryDate,
       shift: shiftName,
     });
-    console.log("checkout: navigate to /checkout with", Object.fromEntries(qs.entries()));
+    console.log(
+      "checkout: navigate to /checkout with",
+      Object.fromEntries(qs.entries())
+    );
 
     navigate(`/checkout?${qs.toString()}`);
-
   }, [isActive, shift, selection, navigate]);
 
-
   // ---- Handlers for UI ----
-  const handlePickSuggestion = useCallback((s: any) => {
-    // Simple behavior: put label into search field
-    setSearch(s.label);
-    // Reset to page 1 for new search
-    setPage(1);
-  }, [setSearch, setPage]);
+  const handlePickSuggestion = useCallback(
+    (s: any) => {
+      // Simple behavior: put label into search field
+      setSearch(s.label);
+      // Reset to page 1 for new search
+      setPage(1);
+    },
+    [setSearch, setPage]
+  );
 
   const handleChangeSelectionConfirm = useCallback(async () => {
     // Empty cart + clear selection + go inactive
@@ -291,16 +325,22 @@ export default function MarketPage() {
     clearSelection();
   }, [clearCart, clearSelection]);
 
-  const handlePickSelection = useCallback(async ({ address, shift }: { address: any; shift: any; }) => {
-    await setSelection({ address, marketStockId: shift.marketStockId });
-  }, [setSelection]);
+  const handlePickSelection = useCallback(
+    async ({ address, shift }: { address: any; shift: any }) => {
+      await setSelection({ address, marketStockId: shift.marketStockId });
+    },
+    [setSelection]
+  );
 
   // If filters changed and page is out of range, the hook snaps it;
   // Keep URL/page state in sync by updating the filters' page setter too.
-  const handlePageChange = useCallback((p: number) => {
-    setPage(p);
-    setLocalPage(p);
-  }, [setPage, setLocalPage]);
+  const handlePageChange = useCallback(
+    (p: number) => {
+      setPage(p);
+      setLocalPage(p);
+    },
+    [setPage, setLocalPage]
+  );
 
   const handleChangeQty = useCallback((key: string, nextUnitsRaw: number) => {
     const curr = getSharedCart().lines;
@@ -315,24 +355,23 @@ export default function MarketPage() {
       next = curr.filter((_, i) => i !== idx);
     } else {
       next = [...curr];
-      next[idx] = { ...next[idx], quantity: Math.min(50, Math.max(1, nextUnits)) };
+      next[idx] = {
+        ...next[idx],
+        quantity: Math.min(50, Math.max(1, nextUnits)),
+      };
     }
     setSharedCart({ lines: next }, cartCtx ?? undefined);
     setCartLines(next);
   }, []);
-
-
 
   // ---- Derived: page items filtered with search predicate from index ----
   const visiblePageItems = useMemo(() => {
     return pageItems.filter(matchFilterDebounced);
   }, [pageItems, matchFilterDebounced]);
 
-
   return (
     <Box w="full">
       <Stack gap="6">
-
         {/* Inactive Gate */}
         {!isActive ? (
           <ActivationGate
@@ -360,7 +399,6 @@ export default function MarketPage() {
               onPageChange={handlePageChange}
             />
 
-
             {/* Grid */}
             <ItemsGrid
               items={visiblePageItems}
@@ -372,7 +410,9 @@ export default function MarketPage() {
               totalItems={totalItems}
               onPageChange={handlePageChange}
               onAdd={({ item, qty }) => addToCart(item, qty)}
-            />
+              allItemsForRelated={allItems}   // ✅ add this line
+/>
+
           </>
         )}
       </Stack>

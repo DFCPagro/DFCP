@@ -37,7 +37,11 @@ export type ItemsGridProps = {
   minCardHeight?: string // for consistent skeleton sizing; default "280px"
   columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number } // responsive columns
   gutter?: string // grid gap; default "4"
+
+  allItemsForRelated?: MarketItem[];
 }
+
+
 
 /**
  * Paged grid of market items (Chakra UI v3).
@@ -52,6 +56,7 @@ function ItemsGridBase({
   totalItems,
   onPageChange,
   onAdd,
+  allItemsForRelated,
   minCardHeight = "280px",
   columns = { base: 2, md: 3, lg: 5 },
   gutter = "4",
@@ -59,7 +64,7 @@ function ItemsGridBase({
   const renderSkeletons = isLoading
   const showEmpty = !isLoading && !error && items.length === 0
   // console.log("ItemsGrid received items:", items);
-
+  
   return (
     <Stack gap="4" width="full">
       {/* Error */}
@@ -101,7 +106,7 @@ function ItemsGridBase({
             ))
           : items.map((it) => (
             <GridItem key={itemKey(it)}>
-              <MarketItemCard item={it} onAdd={onAdd} />
+              <MarketItemCard item={it} onAdd={onAdd} allItemsForRelated={allItemsForRelated} />
             </GridItem>
           ))}
       </Grid>
@@ -155,6 +160,7 @@ function itemKey(it: MarketItem): string {
   if (it.docId && it.lineId) return `${it.docId}:${it.lineId}`; // stable within doc
   return `${it.itemId}:${it.farmerId ?? it.farmerName ?? "unknown"}`;
 }
+
 
 
 export const ItemsGrid = memo(ItemsGridBase)

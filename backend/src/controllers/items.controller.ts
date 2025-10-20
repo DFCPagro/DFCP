@@ -198,7 +198,6 @@ export async function getItemBenefits(req: Request, res: Response, next: NextFun
 export async function marketItemPage(req: Request, res: Response, next: NextFunction) {
   try {
     const { itemId, farmerUserId } = req.params;
-
     if (!ensureValidObjectId(itemId) || !ensureValidObjectId(farmerUserId)) {
       throw new ApiError(400, "itemId and farmerUserId are required and must be valid ObjectIds");
     }

@@ -25,11 +25,20 @@ export type MarketItemCardProps = {
   /** Optional qty bounds; default 1..20 */
   minQty?: number;
   maxQty?: number;
+
+  allItemsForRelated?: MarketItem[];
 };
 
 /* ------------------------------ helpers ------------------------------ */
 
-const colorPalette = ["red", "blue", "green", "yellow", "purple", "orange"] as const;
+const colorPalette = [
+  "red",
+  "blue",
+  "green",
+  "yellow",
+  "purple",
+  "orange",
+] as const;
 
 const fallbackTemp = "https://cdn-icons-png.flaticon.com/128/7417/7417717.png"; // temporary fallback image
 
@@ -45,16 +54,13 @@ function getUnitPriceUSD(it: MarketItem): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-
 function getImageUrl(it: MarketItem): string | undefined {
   return it.imageUrl;
 }
 
-
 function getFarmerIconUrl(it: MarketItem): string | undefined {
   return it.farmLogo;
 }
-
 
 function getAvailableUnits(it: MarketItem): number {
   const n = Number(it.availableKg);
@@ -62,7 +68,6 @@ function getAvailableUnits(it: MarketItem): number {
   if (!Number.isFinite(units)) return 0;
   return Math.floor(units);
 }
-
 
 /* --------------------------------- UI --------------------------------- */
 
@@ -73,17 +78,18 @@ function MarketItemCardBase({
   adding,
   minQty = 1,
   maxQty = 20,
+  allItemsForRelated,
 }: MarketItemCardProps) {
   const [qty, setQty] = useState<number>(1);
-  const [isOpen, setIsOpen] = useState(false);                 // + add
-  const triggerRef = useRef<HTMLButtonElement | null>(null);   // + add
+  const [isOpen, setIsOpen] = useState(false); // + add
+  const triggerRef = useRef<HTMLButtonElement | null>(null); // + add
 
-  const openQuickView = useCallback(() => setIsOpen(true), []);         // + add
+  const openQuickView = useCallback(() => setIsOpen(true), []); // + add
   const closeQuickView = useCallback(() => {
     setIsOpen(false);
     // restore focus to the trigger for a11y (safe-guard)
     triggerRef.current?.focus?.();
-  }, []);                                                               // + add
+  }, []); // + add
 
   const img = getImageUrl(item);
 
@@ -93,15 +99,12 @@ function MarketItemCardBase({
   // If you don't actually have "variety" on MarketItem, keep this optional read guarded:
   const variety = (item as any).variety as string | undefined;
 
-
   const price = getUnitPriceUSD(item);
   const availableUnits = getAvailableUnits(item);
-
 
   const priceLabel = useMemo(() => {
     return `$${(Number.isFinite(price) ? price : 0).toFixed(2)}/unit`;
   }, [price]);
-
 
   const dec = useCallback(() => {
     setQty((q) => Math.max(minQty, Math.min(maxQty, q - 1)));
@@ -111,18 +114,24 @@ function MarketItemCardBase({
     setQty((q) => Math.max(minQty, Math.min(maxQty, q + 1)));
   }, [minQty, maxQty]);
 
-  const handleAdd = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const q = Math.max(minQty, Math.min(maxQty, qty));
-    if (q > 0) onAdd?.({ item, qty: q });
-  }, [onAdd, item, qty, minQty, maxQty]);
+  const handleAdd = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const q = Math.max(minQty, Math.min(maxQty, qty));
+      if (q > 0) onAdd?.({ item, qty: q });
+    },
+    [onAdd, item, qty, minQty, maxQty]
+  );
 
   return (
     <Card.Root
       variant="outline"
       rounded="2xl"
       overflow="hidden"
-      _hover={{ shadow: onClick ? "md" : undefined, cursor: onClick ? "pointer" : "default" }}
+      _hover={{
+        shadow: onClick ? "md" : undefined,
+        cursor: onClick ? "pointer" : "default",
+      }}
       onClick={onClick ? () => onClick(item) : undefined}
     >
       {/* Image */}
@@ -136,7 +145,15 @@ function MarketItemCardBase({
                 e.stopPropagation(); // prevent bubbling to Card onClick if used later
                 openQuickView();
               }}
-              style={{ display: "block", width: "100%", height: "100%", padding: 0, background: "transparent", border: "none", cursor: "pointer" }}
+              style={{
+                display: "block",
+                width: "100%",
+                height: "100%",
+                padding: 0,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+              }}
               aria-label="Open item preview"
             >
               <Image
@@ -152,7 +169,6 @@ function MarketItemCardBase({
           )}
         </Box>
       </AspectRatio>
-
 
       {/* Body */}
       <Card.Body>
@@ -196,7 +212,6 @@ function MarketItemCardBase({
                 </Avatar.Root>
               )}
             </HStack>
-
           ) : null}
 
           {/* Price + availability */}
@@ -210,10 +225,11 @@ function MarketItemCardBase({
             ) : null}
           </HStack>
 
-
           {/* Qty control */}
           <HStack justify="space-between" align="center">
-            <Text fontSize="sm" color="fg.muted">Quantity</Text>
+            <Text fontSize="sm" color="fg.muted">
+              Quantity
+            </Text>
             <HStack>
               <Button
                 size="xs"
@@ -226,7 +242,12 @@ function MarketItemCardBase({
               >
                 –
               </Button>
-              <Box minW="32px" textAlign="center" fontWeight="semibold" aria-live="polite">
+              <Box
+                minW="32px"
+                textAlign="center"
+                fontWeight="semibold"
+                aria-live="polite"
+              >
                 {qty}
               </Box>
               <Button
@@ -242,7 +263,6 @@ function MarketItemCardBase({
               </Button>
             </HStack>
           </HStack>
-
         </Stack>
       </Card.Body>
 
@@ -273,10 +293,23 @@ function MarketItemCardBase({
         <Portal>
           <Dialog.Backdrop />
           <Dialog.Positioner>
-            <Dialog.Content>
+            <Dialog.Content
+             p="0"
+        bg="transparent"
+        shadow="none"
+        _focusVisible={{ boxShadow: "none" }}
+        w="100vw"                 // full viewport width
+        maxW="100vw"
+        h="100vh"                 // let the positioner center vertically too
+        display="flex"            // center the child (your page box)
+        justifyContent="center"
+        alignItems="center"
+      >
               <MarketItemPage
                 item={item}
                 onClose={closeQuickView}
+                onAddToCart={({ item: it, qty }) => onAdd?.({ item: it, qty })}
+                allItemsForRelated={allItemsForRelated}
               />
             </Dialog.Content>
           </Dialog.Positioner>

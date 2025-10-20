@@ -251,3 +251,34 @@ export async function getFlatItemsByMarketStockId(marketStockId: string): Promis
   const doc = await getStockByMarketStockId(marketStockId);
   return flattenMarketDocToItems(doc);
 }
+
+
+
+/**
+ * GET /marketItemPage/:itemId/:farmerUserId
+ * (Optionally pass marketStockId to help the backend compute related items)
+ */
+/*-----------ITEM PAGE-----------*/
+export type MarketItemPageData = {
+  farmerBio?: string;
+  farmName?: string;
+  farmerLogo?: string;
+  farmLogo?: string;
+  benefits?: string[];
+  caloriesPer100g?: number;
+};
+
+export async function getMarketItemPage(itemId: string, farmerUserId: string): Promise<MarketItemPageData> {
+  const { data } = await api.get(`items/marketItemPage/${encodeURIComponent(itemId)}/${encodeURIComponent(farmerUserId)}`);
+  const item = data?.data?.item ?? {};
+  const farmer = data?.data?.farmer ?? {};
+  return {
+    farmerBio: farmer.farmerBio ?? "",
+    farmName: farmer.farmName ?? "",
+    farmerLogo: farmer.logo ?? "",
+    farmLogo: farmer.farmLogo ?? "",
+    benefits: Array.isArray(item.customerInfo) ? item.customerInfo : [],
+    caloriesPer100g: typeof item.caloriesPer100g === "number" ? item.caloriesPer100g : undefined,
+  };
+}
+
