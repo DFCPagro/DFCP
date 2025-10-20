@@ -10,10 +10,45 @@
     "maxSlots": 3,
     "maxWeightKg": 180,
     "slots": [
-      { "slotId": "1", "capacityKg": 60 },
-      { "slotId": "2", "capacityKg": 60 },
-      { "slotId": "3", "capacityKg": 60 }
-    ]
+      {
+        "slotId": "1",
+        "capacityKg": 60,
+        "currentWeightKg": 60,
+        "containerOpsId": "66f2bb0000000000000000a1",
+        "occupiedAt": "2025-10-14T09:45:00.000Z",
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      },
+      {
+        "slotId": "2",
+        "capacityKg": 60,
+        "currentWeightKg": 40,
+        "containerOpsId": "66f2bb0000000000000000a1",
+        "occupiedAt": "2025-10-14T09:45:00.000Z",
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      },
+      {
+        "slotId": "3",
+        "capacityKg": 60,
+        "currentWeightKg": 20,
+        "containerOpsId": "66f2bb0000000000000000a2",
+        "occupiedAt": "2025-10-14T09:45:00.000Z",
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      }
+    ],
+    "currentWeightKg": 120,
+    "occupiedSlots": 3,
+    "liveActiveTasks": 0,
+    "lastTaskPingAt": null,
+    "busyScore": 0,
+    "isTemporarilyAvoid": false,
+    "createdAt": "2025-10-14T09:45:00.000Z",
+    "updatedAt": "2025-10-14T09:45:00.000Z"
   },
   {
     "_id": "66e0070000000000000aaa01",
@@ -26,10 +61,45 @@
     "maxSlots": 3,
     "maxWeightKg": 180,
     "slots": [
-      { "slotId": "1", "capacityKg": 60 },
-      { "slotId": "2", "capacityKg": 60 },
-      { "slotId": "3", "capacityKg": 60 }
-    ]
+      {
+        "slotId": "1",
+        "capacityKg": 60,
+        "currentWeightKg": 60,
+        "containerOpsId": "66f2bb0000000000000000a3",
+        "occupiedAt": "2025-10-14T09:45:00.000Z",
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      },
+      {
+        "slotId": "2",
+        "capacityKg": 60,
+        "currentWeightKg": 0,
+        "containerOpsId": null,
+        "occupiedAt": null,
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      },
+      {
+        "slotId": "3",
+        "capacityKg": 60,
+        "currentWeightKg": 0,
+        "containerOpsId": null,
+        "occupiedAt": null,
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      }
+    ],
+    "currentWeightKg": 60,
+    "occupiedSlots": 1,
+    "liveActiveTasks": 0,
+    "lastTaskPingAt": null,
+    "busyScore": 0,
+    "isTemporarilyAvoid": false,
+    "createdAt": "2025-10-14T09:45:00.000Z",
+    "updatedAt": "2025-10-14T09:45:00.000Z"
   },
   {
     "_id": "66e0070000000000000aaa02",
@@ -42,9 +112,44 @@
     "maxSlots": 3,
     "maxWeightKg": 180,
     "slots": [
-      { "slotId": "1", "capacityKg": 60 },
-      { "slotId": "2", "capacityKg": 60 },
-      { "slotId": "3", "capacityKg": 60 }
-    ]
+      {
+        "slotId": "1",
+        "capacityKg": 60,
+        "currentWeightKg": 0,
+        "containerOpsId": null,
+        "occupiedAt": null,
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      },
+      {
+        "slotId": "2",
+        "capacityKg": 60,
+        "currentWeightKg": 0,
+        "containerOpsId": null,
+        "occupiedAt": null,
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      },
+      {
+        "slotId": "3",
+        "capacityKg": 60,
+        "currentWeightKg": 0,
+        "containerOpsId": null,
+        "occupiedAt": null,
+        "emptiedAt": null,
+        "liveActiveTasks": 0,
+        "lastTaskPingAt": null
+      }
+    ],
+    "currentWeightKg": 0,
+    "occupiedSlots": 0,
+    "liveActiveTasks": 0,
+    "lastTaskPingAt": null,
+    "busyScore": 0,
+    "isTemporarilyAvoid": false,
+    "createdAt": "2025-10-14T09:45:00.000Z",
+    "updatedAt": "2025-10-14T09:45:00.000Z"
   }
 ]

@@ -5,25 +5,35 @@
     "farmerOrderId": "68ee138318af876ae7dfba64",
     "itemId": "6873f67b8027abff0fdb32f3",
     "logisticCenterId": "66e007000000000000000001",
-    "state": "arrived",
-    "weightKg": 100,
+    "qrId": null,
+    "state": "shelved",
+    "weightHistory": [],
+    "cleaning": { "startedAt": null, "finishedAt": null, "by": null, "notes": "" },
+    "sorting": { "sortedAt": null, "by": null, "details": {} },
     "location": {
-      "area": "warehouse",
-      "zone": "Z1",
-      "aisle": "A",
-      "shelfId": null,
-      "slotId": null,
+      "area": "shelf",
+      "zone": "A",
+      "aisle": "1",
+      "shelfId": "66e0070000000000000aaa00",
+      "slotId": "1",
       "updatedAt": "2025-10-14T09:45:00.000Z"
     },
     "auditTrail": [
       {
         "userId": "66f2aa000000000000000008",
-        "action": "arrived",
-        "note": "Initial stock in warehouse zone Z1",
+        "action": "shelved",
+        "note": "Warehouse staging: A1/1=60kg, A1/2=40kg",
         "timestamp": "2025-10-14T09:45:00.000Z",
-        "meta": {}
+        "meta": { "warehouse": ["A1/1:60","A1/2:40"] }
       }
-    ]
+    ],
+    "totalWeightKg": 100,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa00", "slotId": "1", "weightKg": 60 },
+      { "shelfId": "66e0070000000000000aaa00", "slotId": "2", "weightKg": 40 }
+    ],
+    "createdAt": "2025-10-14T09:45:00.000Z",
+    "updatedAt": "2025-10-14T09:45:00.000Z"
   },
   {
     "_id": "66f2bb0000000000000000a2",
@@ -31,25 +41,34 @@
     "farmerOrderId": "68ee138318af876ae7dfba64",
     "itemId": "6873f67b8027abff0fdb32f3",
     "logisticCenterId": "66e007000000000000000001",
-    "state": "arrived",
-    "weightKg": 80,
+    "qrId": null,
+    "state": "shelved",
+    "weightHistory": [],
+    "cleaning": { "startedAt": null, "finishedAt": null, "by": null, "notes": "" },
+    "sorting": { "sortedAt": null, "by": null, "details": {} },
     "location": {
-      "area": "warehouse",
-      "zone": "Z2",
-      "aisle": "B",
-      "shelfId": null,
-      "slotId": null,
+      "area": "shelf",
+      "zone": "A",
+      "aisle": "1",
+      "shelfId": "66e0070000000000000aaa00",
+      "slotId": "3",
       "updatedAt": "2025-10-14T09:45:00.000Z"
     },
     "auditTrail": [
       {
         "userId": "66f2aa000000000000000008",
-        "action": "arrived",
-        "note": "Stock in warehouse zone Z2",
+        "action": "shelved",
+        "note": "Warehouse staging: A1/3=20kg",
         "timestamp": "2025-10-14T09:45:00.000Z",
-        "meta": {}
+        "meta": { "warehouse": ["A1/3:20"] }
       }
-    ]
+    ],
+    "totalWeightKg": 20,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa00", "slotId": "3", "weightKg": 20 }
+    ],
+    "createdAt": "2025-10-14T09:45:00.000Z",
+    "updatedAt": "2025-10-14T09:45:00.000Z"
   },
   {
     "_id": "66f2bb0000000000000000a3",
@@ -57,8 +76,11 @@
     "farmerOrderId": "68ee0b9f5367e5f7f5cfecc9",
     "itemId": "f68140ef8273c40bbae48b98",
     "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
     "state": "shelved",
-    "weightKg": 70,
+    "weightHistory": [],
+    "cleaning": { "startedAt": null, "finishedAt": null, "by": null, "notes": "" },
+    "sorting": { "sortedAt": null, "by": null, "details": {} },
     "location": {
       "area": "shelf",
       "zone": "A",
@@ -71,10 +93,16 @@
       {
         "userId": "66f2aa000000000000000008",
         "action": "shelved",
-        "note": "Moved from warehouse to picker shelf A1/1",
+        "note": "Picker shelf A2/1 = 60kg",
         "timestamp": "2025-10-14T09:45:00.000Z",
-        "meta": {}
+        "meta": { "picker": ["A2/1:60"] }
       }
-    ]
+    ],
+    "totalWeightKg": 60,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa01", "slotId": "1", "weightKg": 60 }
+    ],
+    "createdAt": "2025-10-14T09:45:00.000Z",
+    "updatedAt": "2025-10-14T09:45:00.000Z"
   }
 ]

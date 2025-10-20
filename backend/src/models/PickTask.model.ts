@@ -7,9 +7,6 @@
 // through states (pending → in_progress → completed) and records
 // audit events for observability.
 
-
-
-
 import {
   Schema,
   model,
@@ -75,6 +72,33 @@ const PickTaskSchema = new Schema(
     completedAt: { type: Date, default: null },
     items: { type: [PickItemSchema], default: [] },
     shelfAssignments: { type: [ShelfAssignmentSchema], default: [] },
+    /**
+     * The sum of crowd scores for the shelves involved in this task.  This
+     * value is computed by the task assignment service to allow selecting
+     * the least crowded task for a picker.
+     */
+    aggregateCrowdScore: { type: Number, default: null },
+
+    /**
+     * Planning detail describing which shelf/slot will supply the items for
+     * this task and the expected crowd score for that shelf.  Services
+     * populate this when computing suggestions.
+     */
+    targetSlots: {
+      type: [
+        new Schema(
+          {
+            itemId: { type: Types.ObjectId, ref: "Item", required: true },
+            shelfId: { type: Types.ObjectId, ref: "Shelf", required: true },
+            slotId: { type: String, required: true },
+            plannedKg: { type: Number, required: true, min: 0 },
+            crowdScore: { type: Number, required: true },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     auditTrail: { type: [AuditEntrySchema], default: [] },
   },
   { timestamps: true }

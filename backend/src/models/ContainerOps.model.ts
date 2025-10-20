@@ -128,6 +128,32 @@ const ContainerOpsSchema = new Schema(
     sorting: { type: SortingInfoSchema, default: {} },
     location: { type: LocationSchema, default: {} },
     auditTrail: { type: [AuditEntrySchema], default: [] },
+    /**
+     * Total weight in kilograms across all shelves/slots.  This field is
+     * required for containers that may span multiple slots.  It is
+     * maintained by services when placing, consuming, refilling or moving
+     * containers.
+     */
+    totalWeightKg: { type: Number, required: true, default: 0, min: 0 },
+
+    /**
+     * Record of distributed weights across shelves/slots.  Each entry
+     * identifies a shelf and slot and how much weight is present.  The
+     * sum of all `weightKg` values should equal `totalWeightKg`.
+     */
+    distributedWeights: {
+      type: [
+        new Schema(
+          {
+            shelfId: { type: Types.ObjectId, ref: "Shelf", required: true },
+            slotId: { type: String, required: true },
+            weightKg: { type: Number, required: true, min: 0 },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );

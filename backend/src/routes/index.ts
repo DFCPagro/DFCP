@@ -19,6 +19,8 @@ import scanRoute from './scan.routes';
 import industrialDelivererRoute from './industrialDeliverer.routes';
 import shelfRoutes from './shelf.routes';
 import containerOpsRoutes from './containerOps.routes'
+import pickTaskRoutes from "./pickTask.routes";
+import reconciliationRoutes from "./reconciliation.routes";
 
 const router = Router();
 
@@ -46,5 +48,7 @@ router.use('/scan', scanRoute);
 // router.use(centerMapRoutes);
 router.use('/shifts', shiftRoutes);
 router.use('/users', userRoutes);
+router.use("/pick-tasks", pickTaskRoutes);
+router.use("/containers", reconciliationRoutes);
 
 export default router;

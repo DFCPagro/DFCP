@@ -68,7 +68,7 @@ export default function AppRoutes() {
             <AppShell showHeader={false} showFooter={false} px={0} py={0} maxW="container.md" />
           }
         >
-       
+
         </Route>
 
         {/* --- Guest-only (login/register), no chrome, narrow --- */}
