@@ -17,14 +17,14 @@ const JobApplication = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
 
 
-const FarmerDashboard = lazy(() => import("@/pages/FarmerDashboard"));
-const FarmerCropManagement = lazy(() => import("@/pages/FarmerCropManagement"));
-const Market = lazy(() => import("@/pages/Market"));
-const Cart = lazy(() => import("@/pages/Cart"));
-const Checkout = lazy(() => import("@/pages/Checkout"));
-const Profile = lazy(() => import("@/pages/Profile"));
-const Orders = lazy(() => import("@/pages/Orders"));
-const DeliveryNote = lazy(() => import("@/pages/DeliveryNote"));
+const FarmerDashboard = lazy(() => import("@/pages/farmer/FarmerDashboard"));
+const FarmerCropManagement = lazy(() => import("@/pages/farmer/FarmerCropManagement"));
+const Market = lazy(() => import("@/pages/customer/Market"));
+const Cart = lazy(() => import("@/pages/customer/Cart"));
+const Checkout = lazy(() => import("@/pages/customer/Checkout"));
+const Profile = lazy(() => import("@/pages/customer/Profile"));
+const Orders = lazy(() => import("@/pages/customer/customerOrders"));
+const DeliveryNote = lazy(() => import("@/pages/customer/DeliveryNote"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const ItemManager = lazy(() => import("@/pages/ItemManager"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));

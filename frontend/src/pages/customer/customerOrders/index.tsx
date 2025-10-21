@@ -16,7 +16,7 @@ import {
 } from "@chakra-ui/react";
 
 import AuthGuard from "@/guards/AuthGuard";
-import { CartFAB } from "../Market/components/CartFAB";
+import { CartFAB } from "../customer/Market/components/CartFAB";
 import { fetchOrders } from "@/api/orders";
 import type { OrderRowAPI } from "../../types/orders";
 import Section from "./components/Section";
