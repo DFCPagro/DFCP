@@ -157,7 +157,7 @@ function ItemsGridBase({
 /** Defensive unique key for a MarketItem */
 function itemKey(it: MarketItem): string {
   if (it.stockId) return it.stockId;                          // "<itemId>_<farmerId>"
-  if (it.docId && it.lineId) return `${it.docId}:${it.lineId}`; // stable within doc
+  if (it.docId ) return `${it.docId}`; // stable within doc
   return `${it.itemId}:${it.farmerId ?? it.farmerName ?? "unknown"}`;
 }
 

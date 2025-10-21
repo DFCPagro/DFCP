@@ -39,24 +39,53 @@ export async function postCreateOrder(req: Request, res: Response) {
 
     const data = await createOrderForCustomer(userId, parsed);
     return res.status(201).json({ data });
+
   } catch (err: any) {
+    // Zod schema errors
     if (err.name === "ZodError") {
+      console.log("zod");
       return res.status(400).json({ error: "ValidationError", details: err.issues });
     }
+
+    // Not found AMS document
     if (err.name === "NotFound" && err.message?.includes("AvailableMarketStock")) {
+      console.log("ams not found");
       return res.status(404).json({ error: "NotFound", details: [err.message] });
     }
-    if (err.name === "BadRequest" && err.message?.startsWith("AMS line not found")) {
-      return res.status(400).json({ error: "BadRequest", details: [err.message, ...(err.details ?? [])] });
+
+    // FO-centric missing line in AMS
+    if (err.name === "BadRequest" && err.message?.startsWith("AMS line not found for farmerOrderId")) {
+      console.log("ams line (FO) not found");
+      return res.status(400).json({
+        error: "BadRequest",
+        details: [err.message, ...(err.details ?? [])],
+      });
     }
-    // messages propagated from adjustAvailableQtyAtomic:
+
+    // Guard errors from FO adjusters
     if (err?.message === "Not enough available quantity to reserve") {
+      console.log("not enough qty");
       return res.status(400).json({ error: "BadRequest", details: [err.message] });
     }
-    if (err?.message === "Document not found or lineId invalid") {
+
+    // FO selector couldn't match inside the doc
+    if (err?.message === "AvailableMarketStock not found or FO not matched") {
+      console.log("doc or FO not matched");
       return res.status(404).json({ error: "NotFound", details: [err.message] });
     }
+
+    // Bad deltas
     if (err?.message === "deltaKg must be a non-zero finite number") {
+      console.log("delta kg issue");
+      return res.status(400).json({ error: "BadRequest", details: [err.message] });
+    }
+
+    // Units path not allowed (unit/mixed mismatch or missing avg)
+    if (
+      err?.message === "This item is not sold by unit" ||
+      err?.message === "This item is not sold by unit or missing avgWeightPerUnitKg"
+    ) {
+      console.log("units path invalid for item");
       return res.status(400).json({ error: "BadRequest", details: [err.message] });
     }
 
@@ -64,6 +93,7 @@ export async function postCreateOrder(req: Request, res: Response) {
     return res.status(500).json({ error: "ServerError" });
   }
 }
+
 
 export async function getMyOrders(req: Request, res: Response) {
   try {

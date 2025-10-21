@@ -1,18 +1,20 @@
-// src/services/order.service.ts
 import mongoose, { Types } from "mongoose";
 import Order from "../models/order.model";
 import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
 import { CreateOrderInput } from "../validations/orders.validation";
-import {
-  adjustAvailableQtyAtomic,
-  adjustAvailableQtyByUnitsAtomic,
-} from "./availableMarketStock.service";
+
 import ShiftConfig from "../models/shiftConfig.model";
 import { DateTime } from "luxon";
 import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
 
 import { addOrderIdToFarmerOrder } from "./farmerOrder.service";
 import { ensureOrderToken } from "./ops.service";
+
+// NEW: FO-based adjusters (no lineId)
+import {
+  adjustAvailableKgByFOAtomic,
+  adjustAvailableUnitsByFOAtomic,
+} from "./availableMarketStock.service";
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
@@ -22,10 +24,10 @@ type IdLike = string | Types.ObjectId;
 const toOID = (v: IdLike) =>
   v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
 
+// UPDATED: no `_id` on the AMS item; use FO-centric fields
 type AmsLine = {
-  _id: Types.ObjectId;
-  farmerOrderId?: Types.ObjectId;
-  pricePerUnit?: number; // per KG (AMS is per-KG)
+  farmerOrderId?: Types.ObjectId | null;
+  pricePerKg?: number; // authoritative price per KG from AMS
   unitMode?: "kg" | "unit" | "mixed";
   estimates?: {
     avgWeightPerUnitKg?: number | null;
@@ -139,14 +141,13 @@ export async function createOrderForCustomer(
       })
         .lean(false)
         .session(session);
-
       if (!ams) {
         const err: any = new Error("AvailableMarketStock not found");
         err.name = "NotFound";
         throw err;
       }
 
-      // Build quick lookup by farmerOrderId
+      // Build quick lookup by farmerOrderId (FO-centric; no subdoc _id)
       const itemsArr: AmsLine[] = Array.isArray((ams as any).items)
         ? ((ams as any).items as any)
         : [];
@@ -163,7 +164,7 @@ export async function createOrderForCustomer(
         const foId = String((it as any).farmerOrderId || "");
         const line = byFO.get(foId);
 
-        if (!line || !line._id) {
+        if (!line) {
           const err: any = new Error(
             `AMS line not found for farmerOrderId ${(it as any).farmerOrderId}`
           );
@@ -184,11 +185,12 @@ export async function createOrderForCustomer(
           throw err;
         }
 
+        // Reserve by FO (no lineId)
         if (n.quantityKg > 0) {
           const kg = Math.round(n.quantityKg * 1000) / 1000;
-          await adjustAvailableQtyAtomic({
+          await adjustAvailableKgByFOAtomic({
             docId: amsOID.toString(),
-            lineId: String(line._id),
+            farmerOrderId: foId,
             deltaKg: -kg,
             enforceEnoughForReserve: true,
             session,
@@ -196,9 +198,9 @@ export async function createOrderForCustomer(
         }
 
         if (n.units > 0) {
-          await adjustAvailableQtyByUnitsAtomic({
+          await adjustAvailableUnitsByFOAtomic({
             docId: amsOID.toString(),
-            lineId: String(line._id),
+            farmerOrderId: foId,
             unitsDelta: -n.units,
             enforceEnoughForReserve: true,
             session,
@@ -209,13 +211,12 @@ export async function createOrderForCustomer(
       // 3) Create Order (items snapshot normalized)
       const orderPayload: any = {
         customerId: customerOID,
-        deliveryAddress: payload.deliveryAddress, // { address, lat/lng normalized in controller/schema }
+        deliveryAddress: payload.deliveryAddress,
         deliveryDate: payload.deliveryDate,
         LogisticsCenterId: lcOID,
         // Take the authoritative shift from AMS to avoid mismatch
         shiftName: (ams as any).availableShift,
         amsId: amsOID,
-        // Optional tolerancePct: use payload if present; otherwise leave for model default
         ...(typeof (payload as any).tolerancePct === "number"
           ? { tolerancePct: (payload as any).tolerancePct }
           : {}),
@@ -223,9 +224,12 @@ export async function createOrderForCustomer(
           const line = byFO.get(String((it as any).farmerOrderId));
           const n = normalizeItem(it, line);
 
-          const pricePerKg = Number.isFinite((it as any).pricePerUnit)
-            ? Number((it as any).pricePerUnit)
-            : Number((line as any)?.pricePerUnit ?? 0);
+          // Prefer AMS pricePerKg; fall back to payload.pricePerKg if provided
+          const pricePerKg = Number.isFinite((line as any)?.pricePerKg)
+            ? Number((line as any).pricePerKg)
+            : Number.isFinite((it as any).pricePerKg)
+            ? Number((it as any).pricePerKg)
+            : 0;
 
           const snapshot: any = {};
           const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
@@ -240,8 +244,9 @@ export async function createOrderForCustomer(
             name: (it as any).name,
             imageUrl: (it as any).imageUrl ?? "",
             category: (it as any).category ?? "",
-            pricePerUnit: pricePerKg, // per KG (legacy name in schema)
-            pricePerKg,               // keep explicit too if your model stores it
+            // keep legacy field name in Order schema if needed:
+            pricePerUnit: pricePerKg, // legacy: "per KG" stored in pricePerUnit
+            pricePerKg,               // explicit
             derivedUnitPrice:
               n.unitMode === "unit" || n.unitMode === "mixed"
                 ? deriveUnitPrice(
@@ -265,7 +270,7 @@ export async function createOrderForCustomer(
       const created = await Order.create([orderPayload], { session });
       orderDoc = created[0];
 
-      // 4) Link FarmerOrders with estimated kg for this order
+      // 4) Link FarmerOrders with estimated kg for this order (FO-centric stays the same)
       for (const it of payload.items as PayloadItem[]) {
         const line = byFO.get(String((it as any).farmerOrderId));
         const n = normalizeItem(it, line);
@@ -308,7 +313,6 @@ export async function createOrderForCustomer(
     session.endSession();
   }
 }
-
 // ───────────────────────────────────────────────────────────────────────────────
 // List latest 15 orders
 // ───────────────────────────────────────────────────────────────────────────────

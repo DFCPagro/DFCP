@@ -9,7 +9,7 @@ import marketRoutes from './availableMarketStock.routes';
 import delivererRoutes from './deliverer.routes';
 import shiftRoutes from './shiftConfig.route';
 import userRoutes from './user.route';
-import cartRoutes from './cart.routes';
+
 import configRoutes from './config.routes';
 import farmerOrderRoutes from './farmerOrder.route';
 import PackageSizeRoute from './packageSize.route';
@@ -37,7 +37,7 @@ router.use('/items', itemRoutes);
 router.use('/orders', orderRoutes);
 router.use('/market', marketRoutes);
 router.use('/deliverers', delivererRoutes);
-router.use('/carts', cartRoutes);
+
 router.use('/config', configRoutes);
 router.use('/farmer-orders', farmerOrderRoutes);
 router.use('/package-sizes', PackageSizeRoute);

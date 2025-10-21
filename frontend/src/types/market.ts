@@ -104,7 +104,7 @@ export type MarketStockDocBackend = z.infer<typeof MarketStockDocBackendSchema>;
  * -------------------------------------------------------------------------- */
 
 export const MarketStockLineSchema = z.object({
-  lineId: z.string(), // from backend._id
+  
   stockId: z.string(), // computed "<itemId>_<farmerID>"
   itemId: z.string(),
   displayName: z.string(),
@@ -153,7 +153,6 @@ export type MarketStockDoc = z.infer<typeof MarketStockDocSchema>;
 
 export const MarketItemSchema = z.object({
   docId: z.string(), // doc._id
-  lineId: z.string(), // line.lineId
   stockId: z.string(), // "<itemId>_<farmerID>"
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   shift: ShiftNameSchema,
@@ -195,7 +194,7 @@ export type MarketItem = z.infer<typeof MarketItemSchema>;
 export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
   return (doc.lines ?? []).map((ln) => ({
     docId: doc._id,
-    lineId: ln.lineId,
+  
     stockId: ln.stockId,
     date: doc.date,
     shift: doc.shift,

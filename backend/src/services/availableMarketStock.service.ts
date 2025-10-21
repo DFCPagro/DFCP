@@ -7,7 +7,7 @@ import {
   SHIFT_NAMES,
 } from "../models/availableMarketStock.model";
 import ItemModel from "../models/Item.model";
-import {getItemByItemId} from "./items.service"; 
+// import { getItemByItemId } from "./items.service";
 import { getNextAvailableShifts, getShiftConfigByKey } from "./shiftConfig.service";
 import { normalizeWindow } from "../utils/time";
 
@@ -87,13 +87,8 @@ export async function getAvailableMarketStockByKey(params: {
 /** Get an AvailableMarketStock document by its _id (stock id). */
 export async function getAvailableMarketStockById(docId: string) {
   const _docId = new Types.ObjectId(docId);
-
   const doc = await AvailableMarketStockModel.findById(_docId).lean<AvailableMarketStock | null>();
-
-  if (!doc) {
-    throw new Error("AvailableMarketStock not found");
-  }
-
+  if (!doc) throw new Error("AvailableMarketStock not found");
   return doc;
 }
 
@@ -134,10 +129,11 @@ export async function nextFiveShiftsWithStock(params: {
 
   const key = (d: Date, s: string) => `${d.toISOString()}|${s}`;
   const byKey = new Map<string, { _id: Types.ObjectId; items: any[] }>();
-  for (const d of docs) byKey.set(key(d.availableDate, d.availableShift), {
-    _id: d._id as Types.ObjectId,
-    items: (d as any).items ?? [],
-  });
+  for (const d of docs)
+    byKey.set(key(d.availableDate, d.availableShift), {
+      _id: d._id as Types.ObjectId,
+      items: (d as any).items ?? [],
+    });
 
   const out: Array<{ date: string; shift: ShiftName; docId: string; deliverySlotLabel: string }> = [];
   for (const s of upcoming) {
@@ -195,79 +191,73 @@ function unitsToKgDelta({
   return rounded;
 }
 
-/* ----------------------------- atomic qty adjustment ----------------------------- */
+/* ----------------------------- FO-centric atomic qty adjustment ----------------------------- */
+/**
+ * All operations below target an AMS line by `farmerOrderId` ONLY.
+ * This matches your schema where subdocs use `{ _id: false }`.
+ * We guard oversell and clamp `currentAvailableQuantityKg` to [0 .. originalCommittedQuantityKg].
+ * After updates, we recompute `estimates.availableUnitsEstimate` for unit/mixed lines.
+ */
 
-async function reserveOrReleaseByKgAtomic({
-  docId,
-  lineId,
-  deltaKg,
-  enforceEnoughForReserve = true,
-  session,
-}: {
+/** Reserve/release KG by FarmerOrderId (negative = reserve, positive = release) */
+export async function adjustAvailableKgByFOAtomic(args: {
   docId: string;
-  lineId: string;
+  farmerOrderId: string;
   deltaKg: number;
   enforceEnoughForReserve?: boolean;
   session?: ClientSession | null;
 }) {
-  if (!deltaKg || !Number.isFinite(deltaKg)) throw new Error("deltaKg must be a non-zero finite number");
+  const { docId, farmerOrderId, deltaKg, enforceEnoughForReserve = true, session } = args;
 
-  dbg("reserveOrReleaseByKgAtomic.start", { docId, lineId, deltaKg, enforceEnoughForReserve });
-
-  const _docId = new Types.ObjectId(docId);
-  const _lineId = new Types.ObjectId(lineId);
-  const filter: any = { _id: _docId };
-
-  if (deltaKg < 0 && enforceEnoughForReserve) {
-    const need = Math.abs(deltaKg);
-    filter.items = { $elemMatch: { _id: _lineId, currentAvailableQuantityKg: { $gte: need } } };
+  if (!Number.isFinite(deltaKg) || deltaKg === 0) {
+    throw Object.assign(new Error("BadRequest"), { name: "BadRequest", details: ["deltaKg must be non-zero finite"] });
   }
 
-  const q = AvailableMarketStockModel.updateOne(filter, [
+  const elemFilter: any = { farmerOrderId: new Types.ObjectId(farmerOrderId) };
+  if (enforceEnoughForReserve && deltaKg < 0) {
+    elemFilter["currentAvailableQuantityKg"] = { $gte: Math.abs(deltaKg) };
+  }
+
+  // $inc then clamp to [0..originalCommittedQuantityKg]
+  const res = await AvailableMarketStockModel.updateOne(
+    { _id: new Types.ObjectId(docId) },
     {
+      $inc: { "items.$[elem].currentAvailableQuantityKg": deltaKg },
       $set: {
-        items: {
-          $map: {
-            input: "$items",
-            as: "it",
-            in: {
+        "items.$[elem].currentAvailableQuantityKg": {
+          $cond: [
+            { $gt: ["$items.$[elem].currentAvailableQuantityKg", "$items.$[elem].originalCommittedQuantityKg"] },
+            "$items.$[elem].originalCommittedQuantityKg",
+            {
               $cond: [
-                { $eq: ["$$it._id", _lineId] },
-                {
-                  $mergeObjects: [
-                    "$$it",
-                    {
-                      currentAvailableQuantityKg: {
-                        $max: [
-                          0,
-                          { $min: ["$$it.originalCommittedQuantityKg", { $add: ["$$it.currentAvailableQuantityKg", deltaKg] }] },
-                        ],
-                      },
-                    },
-                  ],
-                },
-                "$$it",
+                { $lt: ["$items.$[elem].currentAvailableQuantityKg", 0] },
+                0,
+                "$items.$[elem].currentAvailableQuantityKg",
               ],
             },
-          },
+          ],
         },
       },
-    },
-  ]);
-  if (session) q.session(session);
-  const result = await q.exec();
+    } as any,
+    {
+      arrayFilters: [{ elem: elemFilter }],
+      session: session ?? undefined,
+    }
+  );
 
-  dbg("reserveOrReleaseByKgAtomic.result", { matched: result.matchedCount, modified: (result as any).modifiedCount });
-
-  if (result.matchedCount === 0) {
-    if (deltaKg < 0 && enforceEnoughForReserve) throw new Error("Not enough available quantity to reserve");
-    throw new Error("Document not found or lineId invalid");
+  if (res.matchedCount === 0 || res.modifiedCount === 0) {
+    const e: any = new Error("BadRequest");
+    e.name = "BadRequest";
+    e.details = [
+      `Failed to update AMS.kg for farmerOrderId=${farmerOrderId} (delta=${deltaKg}).`,
+    ];
+    throw e;
   }
 
-  // best-effort recompute units estimate
+  // Recompute availableUnitsEstimate if unit/mixed
   try {
     const doc = await AvailableMarketStockModel.findOne(
-      { _id: _docId, "items._id": _lineId },
+      { _id: new Types.ObjectId(docId), "items.farmerOrderId": new Types.ObjectId(farmerOrderId) },
       { "items.$": 1 }
     ).lean();
 
@@ -287,56 +277,46 @@ async function reserveOrReleaseByKgAtomic({
       );
 
       await AvailableMarketStockModel.updateOne(
-        { _id: _docId, "items._id": _lineId },
-        { $set: { "items.$.estimates.availableUnitsEstimate": est } }
+        { _id: new Types.ObjectId(docId) },
+        { $set: { "items.$[elem].estimates.availableUnitsEstimate": est } },
+        { arrayFilters: [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }] }
       ).exec();
-
-      dbg("reserveOrReleaseByKgAtomic.reestimate", {
-        lineId,
-        newKg: line.currentAvailableQuantityKg,
-        estUnits: est,
-      });
     }
   } catch (e) {
-    warn("reserveOrReleaseByKgAtomic.reestimate.error", e);
+    warn("adjustAvailableKgByFOAtomic.reestimate.error", e);
   }
 
   return { ok: true };
 }
 
-export async function adjustAvailableQtyAtomic(params: {
+/** Reserve/release UNITS by FarmerOrderId (negative = reserve, positive = release) */
+export async function adjustAvailableUnitsByFOAtomic(args: {
   docId: string;
-  lineId: string;
-  deltaKg: number;
+  farmerOrderId: string;
+  unitsDelta: number; // negative => reserve
   enforceEnoughForReserve?: boolean;
   session?: ClientSession | null;
 }) {
-  return reserveOrReleaseByKgAtomic(params);
-}
+  const { docId, farmerOrderId, unitsDelta, enforceEnoughForReserve = true, session } = args;
 
-export async function adjustAvailableQtyByUnitsAtomic(params: {
-  docId: string;
-  lineId: string;
-  unitsDelta: number;
-  enforceEnoughForReserve?: boolean;
-  session?: ClientSession | null;
-}) {
-  const { docId, lineId, unitsDelta, enforceEnoughForReserve = true, session } = params;
-  dbg("adjustAvailableQtyByUnitsAtomic.start", { docId, lineId, unitsDelta });
+  if (!Number.isFinite(unitsDelta) || unitsDelta === 0) return { ok: true };
 
+  // We need avg/sd/bundle to convert units → kg
   const doc = await AvailableMarketStockModel.findOne(
-    { _id: new Types.ObjectId(docId), "items._id": new Types.ObjectId(lineId) },
+    { _id: new Types.ObjectId(docId), "items.farmerOrderId": new Types.ObjectId(farmerOrderId) },
     { "items.$": 1 }
   ).lean();
 
   const line = (doc as any)?.items?.[0];
-  if (!line) throw new Error("Line item not found");
+  if (!line) throw new Error("AMS line not found for farmerOrderId");
 
   const unity = line.unitMode === "unit" || line.unitMode === "mixed";
   const avg = line.estimates?.avgWeightPerUnitKg ?? null;
   if (!unity || !avg) {
-    warn("adjustAvailableQtyByUnitsAtomic.rejected", { reason: "not unit/mixed or missing avg", unitMode: line.unitMode, avg });
-    throw new Error("This item is not sold by unit");
+    throw Object.assign(new Error("BadRequest"), {
+      name: "BadRequest",
+      details: ["This item is not sold by unit or missing avgWeightPerUnitKg"],
+    });
   }
 
   const kgDelta = unitsToKgDelta({
@@ -347,14 +327,12 @@ export async function adjustAvailableQtyByUnitsAtomic(params: {
     shrinkagePct: line.estimates?.shrinkagePct ?? 0.02,
     bundle: Math.max(1, line.estimates?.unitBundleSize ?? 1),
   });
-  if (kgDelta === 0) {
-    dbg("adjustAvailableQtyByUnitsAtomic.noop", { reason: "bundle/natural alignment zeroed delta" });
-    return { ok: true };
-  }
 
-  return reserveOrReleaseByKgAtomic({
+  if (kgDelta === 0) return { ok: true };
+
+  return adjustAvailableKgByFOAtomic({
     docId,
-    lineId,
+    farmerOrderId,
     deltaKg: kgDelta,
     enforceEnoughForReserve,
     session,
@@ -362,9 +340,6 @@ export async function adjustAvailableQtyByUnitsAtomic(params: {
 }
 
 /* ------------------------------ add/update/remove ------------------------------ */
-
-
-// Requires: conservativeUnitsFromKg helper defined elsewhere in this file.
 
 export async function addItemToAvailableMarketStock(params: {
   docId: string;
@@ -509,87 +484,124 @@ export async function addItemToAvailableMarketStock(params: {
     { new: true }
   );
 
-  // (defensive) handle race — shouldn't happen because we checked above
   if (!updated) throw new Error(`Failed to update AvailableMarketStock ${docId}`);
 
-  const newLine = (updated as any)?.items?.at?.(-1);
-  if (newLine?._id) {
-    console.log("AMS addItem> saved", {
-      lineId: newLine._id.toString(),
-      unitMode,
-      pricePerKg,
-      pricePerUnit,
-      avgWeightPerUnitKg,
-      availableUnitsEstimate,
-    });
-  }
+  // (no subdoc _id here by design)
+  dbg("AMS addItem> saved", {
+    farmerOrderId: payload.farmerOrderId?.toString() ?? null,
+    unitMode,
+    pricePerKg,
+    pricePerUnit,
+    avgWeightPerUnitKg,
+    availableUnitsEstimate,
+  });
 
   return updated;
 }
 
-
-
+/** Update item quantity and/or status by FarmerOrderId */
 export async function updateItemQtyStatusAtomic(params: {
   docId: string;
-  lineId: string;
+  farmerOrderId: string;
   currentAvailableQuantityKg?: number;
   status?: "active" | "soldout" | "removed";
 }) {
-  const { docId, lineId, currentAvailableQuantityKg, status } = params;
+  const { docId, farmerOrderId, currentAvailableQuantityKg, status } = params;
 
-  const doc = await AvailableMarketStockModel.findById(docId);
-  if (!doc) throw new Error("AvailableMarketStock not found");
-
-  const line = (doc as any).items.id(lineId);
-  if (!line) throw new Error("Line item not found");
+  // Validate and compute set object
+  const updates: any = {};
+  const filters: any[] = [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }];
 
   if (typeof currentAvailableQuantityKg === "number") {
     if (currentAvailableQuantityKg < 0) throw new Error("Quantity cannot be negative");
-    if (currentAvailableQuantityKg > line.originalCommittedQuantityKg) {
-      throw new Error("Exceeds original committed quantity");
-    }
-    line.currentAvailableQuantityKg = currentAvailableQuantityKg;
 
-    const unity = line.unitMode === "unit" || line.unitMode === "mixed";
-    const avg = line.estimates?.avgWeightPerUnitKg ?? null;
-    if (unity && avg) {
-      const est = conservativeUnitsFromKg(
-        line.currentAvailableQuantityKg,
-        avg,
-        line.estimates?.sdKg ?? 0,
-        line.estimates?.zScore ?? 1.28,
-        line.estimates?.shrinkagePct ?? 0.02,
-        Math.max(1, line.estimates?.unitBundleSize ?? 1)
-      );
-      if (!line.estimates) line.estimates = {};
-      line.estimates.availableUnitsEstimate = est;
+    // clamp in-place with $set + $cond, but also guard against exceeding original
+    updates["items.$[elem].currentAvailableQuantityKg"] = {
+      $cond: [
+        { $gt: [currentAvailableQuantityKg, "$items.$[elem].originalCommittedQuantityKg"] },
+        "$items.$[elem].originalCommittedQuantityKg",
+        currentAvailableQuantityKg,
+      ],
+    };
+  }
 
-      dbg("updateItemQtyStatusAtomic.reestimate", {
-        lineId,
-        newKg: line.currentAvailableQuantityKg,
-        estUnits: est,
-      });
-    } else if (line.estimates) {
-      line.estimates.availableUnitsEstimate = null;
+  if (status) {
+    updates["items.$[elem].status"] = status;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return await AvailableMarketStockModel.findById(docId); // nothing to do
+  }
+
+  const res = await AvailableMarketStockModel.updateOne(
+    { _id: new Types.ObjectId(docId) },
+    { $set: updates } as any,
+    { arrayFilters: filters}
+  );
+
+  if (res.matchedCount === 0) throw new Error("AvailableMarketStock not found or FO not matched");
+
+  // Recompute estimate if we changed quantity
+  if (typeof currentAvailableQuantityKg === "number") {
+    try {
+      const doc = await AvailableMarketStockModel.findOne(
+        { _id: new Types.ObjectId(docId), "items.farmerOrderId": new Types.ObjectId(farmerOrderId) },
+        { "items.$": 1 }
+      ).lean();
+
+      const line = (doc as any)?.items?.[0];
+      if (line) {
+        const unity = line.unitMode === "unit" || line.unitMode === "mixed";
+        const avg = line.estimates?.avgWeightPerUnitKg ?? null;
+        if (unity && avg) {
+          const est = conservativeUnitsFromKg(
+            line.currentAvailableQuantityKg,
+            avg,
+            line.estimates?.sdKg ?? 0,
+            line.estimates?.zScore ?? 1.28,
+            line.estimates?.shrinkagePct ?? 0.02,
+            Math.max(1, line.estimates?.unitBundleSize ?? 1)
+          );
+
+          await AvailableMarketStockModel.updateOne(
+            { _id: new Types.ObjectId(docId) },
+            { $set: { "items.$[elem].estimates.availableUnitsEstimate": est } },
+            { arrayFilters: [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }] }
+          ).exec();
+
+          dbg("updateItemQtyStatusAtomic.reestimate", {
+            farmerOrderId,
+            newKg: line.currentAvailableQuantityKg,
+            estUnits: est,
+          });
+        } else if (line.estimates) {
+          await AvailableMarketStockModel.updateOne(
+            { _id: new Types.ObjectId(docId) },
+            { $set: { "items.$[elem].estimates.availableUnitsEstimate": null } },
+            { arrayFilters: [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }] }
+          ).exec();
+        }
+      }
+    } catch (e) {
+      warn("updateItemQtyStatusAtomic.reestimate.error", e);
     }
   }
-  if (status) line.status = status;
 
-  await doc.save();
-  return doc;
+  return await AvailableMarketStockModel.findById(docId);
 }
 
+/** Remove an item from AMS by FarmerOrderId */
 export async function removeItemFromAvailableMarketStock(params: {
   docId: string;
-  lineId: string;
+  farmerOrderId: string;
 }) {
-  const { docId, lineId } = params;
+  const { docId, farmerOrderId } = params;
 
   const updated = await AvailableMarketStockModel.findByIdAndUpdate(
     docId,
-    { $pull: { items: { _id: new Types.ObjectId(lineId) } } },
+    { $pull: { items: { farmerOrderId: new Types.ObjectId(farmerOrderId) } } },
     { new: true }
   );
-  dbg("removeItem", { docId, lineId, ok: !!updated });
+  dbg("removeItem", { docId, farmerOrderId, ok: !!updated });
   return updated;
 }

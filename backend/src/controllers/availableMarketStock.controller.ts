@@ -8,29 +8,31 @@ import {
   AvailableMarketStockModel,
   type ItemStatus,
   type UnitMode,
-  type AmsItem,
+  // type AmsItem, // not needed directly here
 } from "../models/availableMarketStock.model";
 
 import {
   findOrCreateAvailableMarketStock,
   getAvailableMarketStockByKey,
   listUpcomingAvailableMarketStock,
-  adjustAvailableQtyAtomic,          // by KG
-  adjustAvailableQtyByUnitsAtomic,   // by UNITS
-  updateItemQtyStatusAtomic,
+  // FO-centric adjusters:
+  adjustAvailableKgByFOAtomic,       // by KG using farmerOrderId
+  adjustAvailableUnitsByFOAtomic,    // by UNITS using farmerOrderId
+  updateItemQtyStatusAtomic,         // now accepts farmerOrderId
   nextFiveShiftsWithStock,
   getAvailableMarketStockById,
 } from "../services/availableMarketStock.service";
 
 /* --------------------------------- Types --------------------------------- */
 
-type LeanMatchedItem = {
-  _id: Types.ObjectId;
+type LeanMatchedItemFO = {
+  // no _id (subdoc has _id: false)
+  farmerOrderId: Types.ObjectId | null;
+
   currentAvailableQuantityKg: number;
   originalCommittedQuantityKg: number;
   status: ItemStatus;
 
-  // model-aligned fields:
   unitMode: UnitMode; // "kg" | "unit" | "mixed"
   estimates?: {
     avgWeightPerUnitKg: number | null;
@@ -40,21 +42,21 @@ type LeanMatchedItem = {
     shrinkagePct?: number;
     availableUnitsEstimate: number | null;
   };
-  pricePerUnit?: number;       // legacy per-line price (derived/override)
+  pricePerUnit?: number | null;
   farmLogo?: string | null;
 };
 
-type LeanMatchedDoc = {
-  items: LeanMatchedItem[];
+type LeanMatchedDocFO = {
+  items: LeanMatchedItemFO[];
 };
 
 /* ------------------------------ Helpers ------------------------------ */
 
-async function getSingleLineFromDoc(docId: string, lineId: string) {
+async function getSingleLineByFO(docId: string, farmerOrderId: string) {
   const _docId = new Types.ObjectId(docId);
-  const _lineId = new Types.ObjectId(lineId);
+  const _foId = new Types.ObjectId(farmerOrderId);
 
-  const rows = await AvailableMarketStockModel.aggregate<LeanMatchedDoc>([
+  const rows = await AvailableMarketStockModel.aggregate<LeanMatchedDocFO>([
     { $match: { _id: _docId } },
     {
       $project: {
@@ -62,16 +64,15 @@ async function getSingleLineFromDoc(docId: string, lineId: string) {
           $filter: {
             input: "$items",
             as: "it",
-            cond: { $eq: ["$$it._id", _lineId] },
+            cond: { $eq: ["$$it.farmerOrderId", _foId] },
           },
         },
       },
     },
     { $match: { "items.0": { $exists: true } } },
-    // Optionally trim subfields here:
     {
       $project: {
-        "items._id": 1,
+        "items.farmerOrderId": 1,
         "items.currentAvailableQuantityKg": 1,
         "items.originalCommittedQuantityKg": 1,
         "items.status": 1,
@@ -87,22 +88,22 @@ async function getSingleLineFromDoc(docId: string, lineId: string) {
   return rows[0].items[0];
 }
 
-async function respondAfterAdjust({
+async function respondAfterAdjustFO({
   res,
   docId,
-  lineId,
+  farmerOrderId,
   autoSoldoutOnZero,
 }: {
   res: Response;
   docId: string;
-  lineId: string;
+  farmerOrderId: string;
   autoSoldoutOnZero: boolean;
 }) {
-  const line = await getSingleLineFromDoc(docId, lineId);
+  const line = await getSingleLineByFO(docId, farmerOrderId);
   if (!line) {
     return res
       .status(404)
-      .json({ error: "Document or line not found after update" });
+      .json({ error: "Document or farmerOrder line not found after update" });
   }
 
   const newQty = Number(line.currentAvailableQuantityKg ?? 0);
@@ -113,14 +114,14 @@ async function respondAfterAdjust({
 
   let newStatus: "soldout" | undefined = undefined;
   if (autoSoldoutOnZero && newQty === 0 && line.status !== "soldout") {
-    await updateItemQtyStatusAtomic({ docId, lineId, status: "soldout" });
+    await updateItemQtyStatusAtomic({ docId, farmerOrderId, status: "soldout" });
     newStatus = "soldout";
   }
 
   return res.json({
     ok: true,
     docId,
-    lineId,
+    farmerOrderId,
     newQty,
     unitsLeft, // lets frontend update "~units left"
     ...(newStatus ? { status: newStatus } : {}),
@@ -131,7 +132,7 @@ async function respondAfterAdjust({
 
 export async function initDoc(req: Request, res: Response) {
   try {
-    const userId = (req as any).user?._id; // assumes auth middleware populates req.user
+    const userId = (req as any).user?._id;
     const { LCid, date, shift } = req.body;
     const createdById = userId;
 
@@ -158,7 +159,6 @@ export async function getDoc(req: Request, res: Response) {
     const doc = await getAvailableMarketStockByKey({ LCid, date, shift });
     if (!doc) return res.status(404).json({ error: "Not found" });
 
-    // doc includes items[].unitMode (string), items[].estimates.*, items[].farmLogo, etc.
     return res.json(doc);
   } catch (err: any) {
     return res
@@ -222,17 +222,17 @@ export async function listNextFiveWithStock(req: Request, res: Response) {
 }
 
 /**
- * Adjust by KG
+ * Adjust by KG (FO-centric)
  * Body:
  *  - docId: string (AvailableMarketStock _id)
- *  - lineId: string (subdocument _id in items[])
+ *  - farmerOrderId: string (unique per item line)
  *  - deltaKg: number (negative=reserve, positive=release; non-zero)
  *  - enforceEnoughForReserve?: boolean (default true)
  *  - autoSoldoutOnZero?: boolean (default true)
  */
 export async function adjustAvailableQty(req: Request, res: Response) {
   try {
-    const { docId, lineId, deltaKg } = req.body ?? {};
+    const { docId, farmerOrderId, deltaKg } = req.body ?? {};
     const enforceEnoughForReserve =
       req.body?.enforceEnoughForReserve === undefined
         ? true
@@ -242,22 +242,27 @@ export async function adjustAvailableQty(req: Request, res: Response) {
 
     if (
       !docId ||
-      !lineId ||
+      !farmerOrderId ||
       typeof deltaKg !== "number" ||
       !isFinite(deltaKg) ||
       deltaKg === 0
     ) {
-      return res
-        .status(400)
-        .json({ error: "docId, lineId, and non-zero numeric deltaKg are required" });
+      return res.status(400).json({
+        error: "docId, farmerOrderId, and non-zero numeric deltaKg are required",
+      });
     }
-    if (!Types.ObjectId.isValid(docId) || !Types.ObjectId.isValid(lineId)) {
-      return res.status(400).json({ error: "Invalid docId or lineId" });
+    if (!Types.ObjectId.isValid(docId) || !Types.ObjectId.isValid(farmerOrderId)) {
+      return res.status(400).json({ error: "Invalid docId or farmerOrderId" });
     }
 
-    await adjustAvailableQtyAtomic({ docId, lineId, deltaKg, enforceEnoughForReserve });
+    await adjustAvailableKgByFOAtomic({
+      docId,
+      farmerOrderId,
+      deltaKg,
+      enforceEnoughForReserve,
+    });
 
-    return respondAfterAdjust({ res, docId, lineId, autoSoldoutOnZero });
+    return respondAfterAdjustFO({ res, docId, farmerOrderId, autoSoldoutOnZero });
   } catch (err: any) {
     return res
       .status(409)
@@ -266,17 +271,17 @@ export async function adjustAvailableQty(req: Request, res: Response) {
 }
 
 /**
- * Adjust by UNITS
+ * Adjust by UNITS (FO-centric)
  * Body:
  *  - docId: string
- *  - lineId: string
+ *  - farmerOrderId: string
  *  - unitsDelta: number (negative=reserve, positive=release; NATURAL & bundle-aligned enforced)
  *  - enforceEnoughForReserve?: boolean (default true)
  *  - autoSoldoutOnZero?: boolean (default true)
  */
 export async function adjustAvailableQtyByUnits(req: Request, res: Response) {
   try {
-    const { docId, lineId, unitsDelta } = req.body ?? {};
+    const { docId, farmerOrderId, unitsDelta } = req.body ?? {};
     const enforceEnoughForReserve =
       req.body?.enforceEnoughForReserve === undefined
         ? true
@@ -286,30 +291,30 @@ export async function adjustAvailableQtyByUnits(req: Request, res: Response) {
 
     if (
       !docId ||
-      !lineId ||
+      !farmerOrderId ||
       typeof unitsDelta !== "number" ||
       !isFinite(unitsDelta) ||
       unitsDelta === 0
     ) {
-      return res
-        .status(400)
-        .json({ error: "docId, lineId, and non-zero numeric unitsDelta are required" });
+      return res.status(400).json({
+        error: "docId, farmerOrderId, and non-zero numeric unitsDelta are required",
+      });
     }
-    if (!Types.ObjectId.isValid(docId) || !Types.ObjectId.isValid(lineId)) {
-      return res.status(400).json({ error: "Invalid docId or lineId" });
+    if (!Types.ObjectId.isValid(docId) || !Types.ObjectId.isValid(farmerOrderId)) {
+      return res.status(400).json({ error: "Invalid docId or farmerOrderId" });
     }
 
-    await adjustAvailableQtyByUnitsAtomic({
+    await adjustAvailableUnitsByFOAtomic({
       docId,
-      lineId,
+      farmerOrderId,
       unitsDelta,
       enforceEnoughForReserve,
     });
 
-    return respondAfterAdjust({ res, docId, lineId, autoSoldoutOnZero });
+    return respondAfterAdjustFO({ res, docId, farmerOrderId, autoSoldoutOnZero });
   } catch (err: any) {
-    return res
-      .status(409)
-      .json({ error: err.message || "Failed to adjust available quantity by units" });
+    return res.status(409).json({
+      error: err.message || "Failed to adjust available quantity by units",
+    });
   }
 }

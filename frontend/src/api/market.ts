@@ -200,7 +200,7 @@ export async function getStockByMarketStockId(marketStockId: string): Promise<Ma
       }
 
       return {
-        lineId: x._id,
+       
         stockId: `${itemId}_${farmerID}`,
         itemId,
 

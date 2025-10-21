@@ -21,7 +21,7 @@ export type CartLine = {
 
   /* server identity (optional but recommended for checkout preflight) */
   docId?: string;
-  lineId?: string;
+ 
   stockId?: string; // "<itemId>_<farmerId>"
   itemId: string;
 
@@ -292,7 +292,6 @@ function normalizeLine(line: any): CartLine {
   return {
     key,
     docId: line?.docId,
-    lineId: line?.lineId,
     stockId,
     itemId: String(line?.itemId ?? ""),
 
@@ -393,7 +392,6 @@ export function marketItemToCartLine(
   return normalizeLine({
     key: item.stockId, // stable & unique per farmer+item
     docId: item.docId,
-    lineId: item.lineId,
     stockId: item.stockId,
     itemId: item.itemId,
 

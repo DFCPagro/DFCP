@@ -18,13 +18,13 @@ import { connectDB, disconnectDB } from "../../../src/db/connect";
 import {
   addItemToAvailableMarketStock,
   getAvailableMarketStockByKey,
-  
 } from "../../../src/services/availableMarketStock.service";
 import { AvailableMarketStockModel } from "../../../src/models/availableMarketStock.model";
 import { FarmerOrder } from "../../../src/models/farmerOrder.model";
 import ItemModel from "../../../src/models/Item.model";
 import { getContactInfoByIdService } from "../../../src/services/user.service";
 import { buildAmsItemFromItem } from "../../../src/services/amsLine.builder";
+
 // -----------------------------
 // Config
 // -----------------------------
@@ -271,8 +271,8 @@ async function seed() {
 
       for (const itemDoc of items) {
         // sanity: need base price per KG
-        const pricePerKg = Number(itemDoc?.price?.a);
-        if (!Number.isFinite(pricePerKg) || pricePerKg < 0) {
+        const basePricePerKg = Number(itemDoc?.price?.a);
+        if (!Number.isFinite(basePricePerKg) || basePricePerKg < 0) {
           console.warn(
             `[WARN] Missing/invalid price.a for item ${String(
               itemDoc._id
@@ -314,14 +314,20 @@ async function seed() {
             historyAuditTrail: [],
           });
 
-          // --- Now attach containers (with required fields set) ---
+          // track summary (optional, no logic impact)
+          summary.farmerOrders.total += 1;
+          summary.farmerOrders.byFarmer.set(
+            farmer.farmerName,
+            (summary.farmerOrders.byFarmer.get(farmer.farmerName) ?? 0) + 1
+          );
+
+          // --- Attach containers (kept as-is) ---
           const containers = [
             {
               containerId: CONTAINERA,
-              itemId: new Types.ObjectId("6873f67b8027abff0fdb32f3"), // keep your demo itemId or swap to item._id
+              itemId: new Types.ObjectId("6873f67b8027abff0fdb32f3"),
               farmerOrder: created._id,
               qrUrl: makeQrUrlForContainer(created._id, CONTAINERA),
-              // optional fields like weightKg/stages can go here
             },
             {
               containerId: CONTAINERB,
@@ -330,7 +336,6 @@ async function seed() {
               qrUrl: makeQrUrlForContainer(created._id, CONTAINERB),
             },
           ];
-
           await FarmerOrder.updateOne(
             { _id: created._id },
             { $set: { containers } }
@@ -349,11 +354,52 @@ async function seed() {
             unitConfig: { zScore: 1.28, shrinkagePct: 0.02 }, // optional tuning
           });
 
-          // Ensure links/price on AMS line
+          // Ensure links & pricing per new schema
           (amsLine as any).farmerOrderId = created._id;
-          (amsLine as any).pricePerUnit = pricePerKg;
 
-          // Push to AMS via service
+          // Required now: price per KG from Item.price.a
+          const pricePerKg = basePricePerKg;
+
+          // Only include pricePerUnit for unit/mixed; otherwise null
+          const unitMode: "kg" | "unit" | "mixed" =
+            (amsLine as any).unitMode === "unit" ||
+            (amsLine as any).unitMode === "mixed"
+              ? (amsLine as any).unitMode
+              : "kg";
+
+          const pricePerUnit =
+            unitMode === "unit" || unitMode === "mixed"
+              ? Number((amsLine as any).pricePerUnit ?? pricePerKg)
+              : null;
+
+          // Estimates: map legacy key if the builder uses avgWeightPerUnit
+          const rawEst = (amsLine as any).estimates ?? {};
+          const estimates = {
+            avgWeightPerUnitKg:
+              typeof rawEst.avgWeightPerUnitKg === "number"
+                ? rawEst.avgWeightPerUnitKg
+                : typeof rawEst.avgWeightPerUnit === "number"
+                ? rawEst.avgWeightPerUnit
+                : 0.5, // safe default
+            sdKg: typeof rawEst.sdKg === "number" ? rawEst.sdKg : 0.02,
+            // let the pre-save hook compute/adjust this; setting 0 is fine
+            availableUnitsEstimate:
+              typeof rawEst.availableUnitsEstimate === "number"
+                ? rawEst.availableUnitsEstimate
+                : 0,
+            unitBundleSize:
+              typeof rawEst.unitBundleSize === "number" &&
+              rawEst.unitBundleSize >= 1
+                ? rawEst.unitBundleSize
+                : 1,
+            zScore: typeof rawEst.zScore === "number" ? rawEst.zScore : 1.28,
+            shrinkagePct:
+              typeof rawEst.shrinkagePct === "number"
+                ? rawEst.shrinkagePct
+                : 0.02,
+          };
+
+          // Push to AMS via service (NO _id in the payload)
           await addItemToAvailableMarketStock({
             docId: amsId,
             item: {
@@ -361,7 +407,11 @@ async function seed() {
               displayName: (amsLine as any).displayName,
               imageUrl: (amsLine as any).imageUrl ?? null,
               category: (amsLine as any).category,
-              pricePerUnit: Number((amsLine as any).pricePerUnit),
+
+              // NEW schema: explicit per-KG price (required)
+              pricePerKg,
+              // Optional per-unit price only for unit/mixed
+              pricePerUnit,
 
               originalCommittedQuantityKg: committedKg,
               currentAvailableQuantityKg: committedKg,
@@ -372,14 +422,14 @@ async function seed() {
               farmName: farmer.farmName,
               farmLogo: farmer.farmLogo ?? null,
 
-              unitMode: (amsLine as any).unitMode,
-              estimates: (amsLine as any).estimates,
+              unitMode,
+              estimates,
 
               status: (amsLine as any).status ?? "active",
             } as any,
           });
-        }
-      }
+        } // end for FARMERS
+      } // end for items
 
       // summary snapshot for this shift
       const doc = await getAvailableMarketStockByKey({
@@ -397,7 +447,7 @@ async function seed() {
         lines: doc?.items?.length ?? 0,
         byMode,
       });
-    }
+    } // end for shifts
 
     // -------- summary output --------
     console.log("\n===== SEED SUMMARY =====");

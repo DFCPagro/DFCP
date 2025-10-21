@@ -127,7 +127,7 @@ export default function ItemList({
       {data.map((row, index) => {
         const key =
           row.id ??
-          (row as any).lineId ??
+          
           (row as any).stockId ??
           (row as any).docId ??
           String(index);

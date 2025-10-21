@@ -1,18 +1,27 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
-  title: Available Market Stock APIs
-  version: "1.1.0"
+  title: Available Market Stock API
+  version: 1.0.0
+  description: >
+    Handles creation, retrieval, and adjustment of Available Market Stock (AMS)
+    documents for logistic centers, used by Farmer Managers and backend order processes.
+    All operations require authentication. Quantity adjustments now use **farmerOrderId**
+    instead of internal subdocument `_id`.
 
 tags:
-  - name: Market
-    description: Market stock (shift-based) endpoints. Run `npm run seed:ams` to generate example docs.
+  - name: AvailableMarketStock
+    description: Endpoints to manage and adjust available market stock for shifts. seed:ams
 
 paths:
-  /market/available-stock/init:
+  /api/available-stock/init:
     post:
-      tags: [Market]
-      summary: Create or fetch stock doc for LC + date + shift
-      security: [{ bearerAuth: [] }]
+      summary: Initialize (or find existing) Available Market Stock document
+      description: >
+        Creates or retrieves an AvailableMarketStock document for a given logistic center,
+        date, and shift. Only Farmer Managers can create.
+      tags: [AvailableMarketStock]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -21,29 +30,36 @@ paths:
               type: object
               required: [LCid, date, shift]
               properties:
-                LCid: { type: string, description: "Logistics Center id (ObjectId string)" }
-                date: { type: string, format: date, description: "YYYY-MM-DD or ISO" }
-                shift: { $ref: "#/components/schemas/ShiftName" }
-            example:
-              LCid: "66e007000000000000000001"
-              date: "2025-10-07"
-              shift: afternoon
+                LCid:
+                  type: string
+                  description: Logistic center ObjectId
+                  example: "66e007000000000000000001"
+                date:
+                  type: string
+                  format: date
+                  example: "2025-10-22"
+                shift:
+                  type: string
+                  enum: [morning, afternoon, evening]
+                  example: "morning"
       responses:
         "200":
-          description: Stock document (existing or newly created)
+          description: AMS document found or created
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AvailableMarketStock"
-        "400": { description: LCid, date, and shift are required }
-        "401": { description: Unauthorized }
-        "500": { description: Server error }
+        "400":
+          description: Missing required parameters
+        "500":
+          description: Server or database error
 
-  /market/available-stock:
+  /api/available-stock:
     get:
-      tags: [Market]
-      summary: Get stock doc by LC + date + shift
-      security: [{ bearerAuth: [] }]
+      summary: Get Available Market Stock document by LC + date + shift
+      tags: [AvailableMarketStock]
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: LCid
@@ -56,45 +72,47 @@ paths:
         - in: query
           name: shift
           required: true
-          schema: { $ref: "#/components/schemas/ShiftName" }
+          schema: { type: string, enum: [morning, afternoon, evening] }
       responses:
         "200":
-          description: Stock document
+          description: The requested Available Market Stock document
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AvailableMarketStock"
-        "400": { description: LCid, date, and shift are required }
-        "401": { description: Unauthorized }
-        "404": { description: Not found }
-        "500": { description: Server error }
+        "404":
+          description: Not found
+        "400":
+          description: Invalid or missing query params
 
-  /market/available-stock/{docId}:
+  /api/available-stock/{docId}:
     get:
-      tags: [Market]
-      summary: Get stock doc by its id
-      security: [{ bearerAuth: [] }]
+      summary: Get Available Market Stock by document ID
+      tags: [AvailableMarketStock]
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: docId
           required: true
           schema: { type: string }
+          description: AMS document ObjectId
       responses:
         "200":
-          description: Stock document
+          description: AMS document retrieved successfully
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AvailableMarketStock"
-        "400": { description: Invalid docId }
-        "401": { description: Unauthorized }
-        "404": { description: AvailableMarketStock not found }
+        "404":
+          description: Not found or invalid ID
 
-  /market/available-stock/upcoming:
+  /api/available-stock/upcoming:
     get:
-      tags: [Market]
-      summary: List upcoming stock docs for LC (today forward)
-      security: [{ bearerAuth: [] }]
+      summary: List upcoming AMS documents (today onward)
+      tags: [AvailableMarketStock]
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: LCid
@@ -102,147 +120,148 @@ paths:
           schema: { type: string }
         - in: query
           name: count
-          required: false
-          schema: { type: integer, default: 6, minimum: 1, maximum: 50 }
+          schema: { type: integer, default: 5 }
         - in: query
           name: fromDate
-          required: false
           schema: { type: string, format: date }
       responses:
         "200":
-          description: Array of stock docs
+          description: List of upcoming AMS documents
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/AvailableMarketStock" }
-        "400": { description: LCid is required }
-        "401": { description: Unauthorized }
-        "500": { description: Server error }
+                items:
+                  $ref: "#/components/schemas/AvailableMarketStock"
 
-  /market/available-stock/next5:
+  /api/available-stock/next5:
     get:
-      tags: [Market]
-      summary: Next 5 shifts (by LC timezone) that actually have items
-      description: Returns only shifts that already have a stock doc **with at least one item**, plus the delivery slot label.
-      security: [{ bearerAuth: [] }]
+      summary: List next five shifts that have stock available
+      tags: [AvailableMarketStock]
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: LCid
           required: true
           schema: { type: string }
+          description: Logistic center ID
       responses:
         "200":
-          description: Array of upcoming shifts with stock
+          description: Array of upcoming shifts that contain available items
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: "#/components/schemas/NextShiftWithStock" }
-              example:
-                - date: "2025-10-07"
-                  shift: "afternoon"
-                  docId: "6703f4f7c9b5f3a7b3a9d123"
-                  deliverySlotLabel: "14:00–17:00"
-                - date: "2025-10-07"
-                  shift: "evening"
-                  docId: "6703f527c9b5f3a7b3a9d124"
-                  deliverySlotLabel: "18:00–21:00"
-        "400": { description: LCid is required }
-        "401": { description: Unauthorized }
-        "500": { description: Server error }
+                items:
+                  type: object
+                  properties:
+                    date: { type: string, example: "2025-10-22" }
+                    shift: { type: string, example: "morning" }
+                    docId: { type: string }
+                    deliverySlotLabel: { type: string, example: "08:00–12:00" }
 
-  /market/available-stock/adjustQty:
+  /api/available-stock/adjustQty:
     post:
-      tags: [Market]
-      summary: Atomically adjust line quantity by KG (reserve/release)
-      description: |
-        Negative `deltaKg` reserves (decrements). Positive releases (increments).
-        If `enforceEnoughForReserve` is true (default), reserve succeeds only when there is enough quantity.
-        If `autoSoldoutOnZero` is true (default), status is set to `soldout` when new quantity hits zero.
-      security: [{ bearerAuth: [] }]
+      summary: Adjust available quantity by kilograms
+      description: >
+        Adjust an item’s available stock by **kilograms**, identified by `farmerOrderId`.
+        Use negative delta for reservation, positive for release.
+      tags: [AvailableMarketStock]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AdjustQtyRequest"
-            examples:
-              reserve2kg:
-                value:
-                  docId: "6703f4f7c9b5f3a7b3a9d123"
-                  lineId: "6703f4f7c9b5f3a7b3a9d555"
-                  deltaKg: -2
-                  enforceEnoughForReserve: true
-                  autoSoldoutOnZero: true
-              release1_5kg:
-                value:
-                  docId: "6703f4f7c9b5f3a7b3a9d123"
-                  lineId: "6703f4f7c9b5f3a7b3a9d555"
-                  deltaKg: 1.5
+              type: object
+              required: [docId, farmerOrderId, deltaKg]
+              properties:
+                docId:
+                  type: string
+                  description: AMS document ObjectId
+                farmerOrderId:
+                  type: string
+                  description: FarmerOrder ObjectId (unique per line)
+                deltaKg:
+                  type: number
+                  description: >
+                    Change in available KG (negative = reserve, positive = release)
+                  example: -12.5
+                enforceEnoughForReserve:
+                  type: boolean
+                  default: true
+                autoSoldoutOnZero:
+                  type: boolean
+                  default: true
       responses:
         "200":
-          description: Adjustment result with fresh line numbers
+          description: Stock adjusted successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AdjustQtyResponse"
-              example:
-                ok: true
-                docId: "6703f4f7c9b5f3a7b3a9d123"
-                lineId: "6703f4f7c9b5f3a7b3a9d555"
-                newQty: 47.5
-                unitsLeft: 38
-        "400": { description: Invalid docId/lineId or bad body (deltaKg required and non-zero) }
-        "401": { description: Unauthorized }
-        "404": { description: Document or line not found after update }
-        "409": { description: Not enough available quantity to reserve / conflict }
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  docId: { type: string }
+                  farmerOrderId: { type: string }
+                  newQty: { type: number }
+                  unitsLeft: { type: number, nullable: true }
+                  status: { type: string, enum: [active, soldout, removed], nullable: true }
+        "400":
+          description: Validation error or missing parameters
+        "409":
+          description: Not enough available quantity or concurrency issue
 
-  /market/available-stock/adjustQtyUnits:
+  /api/available-stock/adjustQtyUnits:
     post:
-      tags: [Market]
-      summary: Atomically adjust line quantity by UNITS (reserve/release)
-      description: |
-        Negative `unitsDelta` reserves (decrements). Positive releases (increments).
-        Input units are **natural integers** and **bundle-aligned** internally.
-        The service converts units → conservative KG, updates canonical KG, and re-calculates unit estimates.
-      security: [{ bearerAuth: [] }]
+      summary: Adjust available quantity by units
+      description: >
+        Adjusts an item’s available stock by **units**, converting to KG internally.
+        Negative = reserve, positive = release.
+      tags: [AvailableMarketStock]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AdjustQtyUnitsRequest"
-            examples:
-              reserve24units_bundle12:
-                value:
-                  docId: "6703f4f7c9b5f3a7b3a9d123"
-                  lineId: "6703f4f7c9b5f3a7b3a9d555"
-                  unitsDelta: -24
-                  enforceEnoughForReserve: true
-                  autoSoldoutOnZero: true
-              release1unit:
-                value:
-                  docId: "6703f4f7c9b5f3a7b3a9d123"
-                  lineId: "6703f4f7c9b5f3a7b3a9d555"
-                  unitsDelta: 1
+              type: object
+              required: [docId, farmerOrderId, unitsDelta]
+              properties:
+                docId:
+                  type: string
+                farmerOrderId:
+                  type: string
+                unitsDelta:
+                  type: number
+                  example: -10
+                enforceEnoughForReserve:
+                  type: boolean
+                  default: true
+                autoSoldoutOnZero:
+                  type: boolean
+                  default: true
       responses:
         "200":
-          description: Adjustment result with fresh line numbers
+          description: Units adjusted successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AdjustQtyResponse"
-              example:
-                ok: true
-                docId: "6703f4f7c9b5f3a7b3a9d123"
-                lineId: "6703f4f7c9b5f3a7b3a9d555"
-                newQty: 46.2
-                unitsLeft: 26
-        "400": { description: Invalid docId/lineId or bad body (unitsDelta required and non-zero) }
-        "401": { description: Unauthorized }
-        "404": { description: Document or line not found after update }
-        "409": { description: Not enough available quantity to reserve / conflict }
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  docId: { type: string }
+                  farmerOrderId: { type: string }
+                  newQty: { type: number }
+                  unitsLeft: { type: number, nullable: true }
+                  status: { type: string, enum: [active, soldout, removed], nullable: true }
+        "400":
+          description: Invalid parameters
+        "409":
+          description: Not enough stock or unit mismatch
 
 components:
   securitySchemes:
@@ -252,192 +271,46 @@ components:
       bearerFormat: JWT
 
   schemas:
-    ShiftName:
-      type: string
-      enum: [morning, afternoon, evening, night]
-
     AvailableMarketStock:
       type: object
-      required: [_id, LCid, availableDate, availableShift, items]
       properties:
         _id:
           type: string
-          description: Stock document id (ObjectId)
+          description: Document ID
         LCid:
           type: string
+          description: Logistic Center ObjectId
         availableDate:
           type: string
-          format: date-time
-          description: Midnight UTC of the availability date
+          format: date
         availableShift:
-          $ref: "#/components/schemas/ShiftName"
-        createdById:
           type: string
-          nullable: true
+          enum: [morning, afternoon, evening]
         items:
           type: array
-          items: { $ref: "#/components/schemas/AvailableStockItem" }
-
-    AvailableStockItem:
-      type: object
-      description: >
-        Line item inside a stock document. Supports kg-only and unit/mixed modes.
-        Unit-math configuration is stored under `estimates`.
-      required:
-        - _id
-        - itemId
-        - displayName
-        - category
-        - originalCommittedQuantityKg
-        - currentAvailableQuantityKg
-        - farmerID
-        - farmerName
-        - farmName
-        - status
-      properties:
-        _id: { type: string, description: "Line id (ObjectId)" }
-        itemId: { type: string }
-        displayName: { type: string }
-        imageUrl: { type: string, nullable: true }
-        category: { type: string }
-        # Pricing (line-level). pricePerUnit may be derived from Item(avgWeightPerUnitGr) or override.
-        pricePerKg:
-          type: number
-          description: "Base price per KG(from item.price.a)"
-        pricePerUnit:
-          type: number
-          nullable: true
-          description: "Per-unit price when unit/mixed; null otherwise (or when avg weight missing)"
-        # Inventory
-        originalCommittedQuantityKg: { type: number }
-        currentAvailableQuantityKg: { type: number }
-        status:
-          type: string
-          enum: [active, soldout, removed]
-        # Relations
-        farmerOrderId:
-          type: string
-          nullable: true
-        farmerID: { type: string }
-        farmerName: { type: string }
-        farmName: { type: string }
-        farmLogo:
-          type: string
-          nullable: true
-        # Unit mode string straight from the model
-        unitMode:
-          type: string
-          enum: [kg, unit, mixed]
-        estimates:
-          $ref: "#/components/schemas/Estimates"
-      example:
-        _id: "6703f4f7c9b5f3a7b3a9d555"
-        itemId: "68960284330bf1699eee8955"
-        displayName: "Lettuce Romaine"
-        imageUrl: "https://cdn.example.com/items/lettuce.jpg"
-        category: "vegetables"
-        pricePerUnit: 6.5
-        originalCommittedQuantityKg: 60
-        currentAvailableQuantityKg: 47.5
-        farmerOrderId: "6703f2e4c9b5f3a7b3a9d101"
-        farmerID: "68960695a7850beaf8dac1ea"
-        farmerName: "Yousef Haddad"
-        farmName: "Haddad Fields"
-        farmLogo: "https://cdn.example.com/logos/haddad.png"
-        unitMode: mixed
-        estimates:
-          availableUnitsEstimate: 38
-          avgWeightPerUnitKg: 0.5
-          sdKg: 0.08
-          unitBundleSize: 1
-          zScore: 1.28
-          shrinkagePct: 0.02
-
-    Estimates:
-      type: object
-      description: Conservative availability metrics and tuning
-      properties:
-        availableUnitsEstimate:
-          type: integer
-          nullable: true
-          description: Bundle-aligned natural integer, or null if not applicable
-        avgWeightPerUnitKg:
-          type: number
-          nullable: true
-        sdKg:
-          type: number
-          nullable: true
-        unitBundleSize:
-          type: integer
-          minimum: 1
-          description: Minimum sell/bundle increment (e.g., eggs=12)
-        zScore:
-          type: number
-          description: Safety factor for conservative estimate
-        shrinkagePct:
-          type: number
-          description: Handling loss factor for conservative estimate
-
-    NextShiftWithStock:
-      type: object
-      required: [date, shift, docId, deliverySlotLabel]
-      properties:
-        date:
-          type: string
-          description: ISO date string (YYYY-MM-DD)
-        shift:
-          $ref: "#/components/schemas/ShiftName"
-        docId:
-          type: string
-        deliverySlotLabel:
-          type: string
-          example: "14:00–17:00"
-
-    AdjustQtyRequest:
-      type: object
-      required: [docId, lineId, deltaKg]
-      properties:
-        docId: { type: string }
-        lineId: { type: string }
-        deltaKg:
-          type: number
-          description: Negative to reserve, positive to release (non-zero)
-        enforceEnoughForReserve:
-          type: boolean
-          default: true
-        autoSoldoutOnZero:
-          type: boolean
-          default: true
-
-    AdjustQtyUnitsRequest:
-      type: object
-      required: [docId, lineId, unitsDelta]
-      properties:
-        docId: { type: string }
-        lineId: { type: string }
-        unitsDelta:
-          type: integer
-          description: Negative to reserve, positive to release (non-zero). Natural integer; bundle alignment enforced.
-        enforceEnoughForReserve:
-          type: boolean
-          default: true
-        autoSoldoutOnZero:
-          type: boolean
-          default: true
-
-    AdjustQtyResponse:
-      type: object
-      required: [ok, docId, lineId, newQty]
-      properties:
-        ok: { type: boolean }
-        docId: { type: string }
-        lineId: { type: string }
-        newQty: { type: number }
-        unitsLeft:
-          type: integer
-          nullable: true
-          description: Estimate from `estimates.availableUnitsEstimate`, if present
-        status:
-          type: string
-          enum: [soldout]
-          description: Present when `autoSoldoutOnZero` triggers
+          items:
+            type: object
+            properties:
+              itemId: { type: string }
+              displayName: { type: string }
+              category: { type: string }
+              pricePerKg: { type: number }
+              pricePerUnit: { type: number, nullable: true }
+              currentAvailableQuantityKg: { type: number }
+              originalCommittedQuantityKg: { type: number }
+              farmerOrderId: { type: string }
+              farmerID: { type: string }
+              farmerName: { type: string }
+              farmName: { type: string }
+              farmLogo: { type: string, nullable: true }
+              unitMode: { type: string, enum: [kg, unit, mixed] }
+              estimates:
+                type: object
+                properties:
+                  avgWeightPerUnitKg: { type: number }
+                  sdKg: { type: number }
+                  availableUnitsEstimate: { type: number, nullable: true }
+                  unitBundleSize: { type: number }
+                  zScore: { type: number }
+                  shrinkagePct: { type: number }
+              status: { type: string, enum: [active, soldout, removed] }

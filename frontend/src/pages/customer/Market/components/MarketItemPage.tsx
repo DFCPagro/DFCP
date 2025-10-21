@@ -312,7 +312,7 @@ useEffect(() => {
             {related.length ? (
               related.map((rel) => (
                 <Box
-                  key={(rel as any).stockId ?? (rel as any).lineId ?? (rel as any).itemId}
+                  key={(rel as any).stockId ??(rel as any).itemId}
                   scrollSnapAlign="start"
                 >
                   <CompactItemCard it={rel} onAddToCart={onAddToCart} onOpenItem={handleOpenItem} />

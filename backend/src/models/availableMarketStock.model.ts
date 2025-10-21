@@ -52,7 +52,7 @@ const AvailableStockItemSchema = new Schema(
 
     status: { type: String, enum: ITEM_STATUSES, default: "active", index: true },
   },
-  { _id: true }
+  { _id: false }
 );
 
 
