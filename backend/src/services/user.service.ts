@@ -6,6 +6,8 @@ import { Role, roles } from "../utils/constants";
 import type { Address } from "../models/user.model";
 import { Farmer } from "../models/farmer.model"; // or: import { User } from "../models/user.model";
 
+export const DEFAULT_LC_ID = "66e007000000000000000001";
+
 /**
  * Create a user document in the base User collection.
  * - Model expects `addresses: Address[]`.
@@ -20,6 +22,7 @@ export async function createUser(data: {
   address?: Address;
   // …or an array that maps 1:1 to the schema.
   addresses?: Address[];
+  logisticCenterId?: string | null;
   birthday?: Date | string;
   role?: Role; // optional; validated but NOT used to switch models
 }) {
@@ -32,9 +35,11 @@ export async function createUser(data: {
   const uid = generateId("u_");
 
   const addresses: Address[] =
-    (Array.isArray(data.addresses) && data.addresses.length > 0)
+    Array.isArray(data.addresses) && data.addresses.length > 0
       ? data.addresses
-      : (data.address ? [data.address] : []);
+      : data.address
+      ? [data.address]
+      : [];
 
   const payload: any = {
     uid,
@@ -42,7 +47,7 @@ export async function createUser(data: {
     email: String(data.email).trim().toLowerCase(),
     password: data.password, // hashed by pre('save') hook
     role,
-    addresses,               // <-- align with schema
+    addresses, // <-- align with schema
   };
 
   if (data.phone) payload.phone = data.phone;
@@ -66,7 +71,9 @@ export async function createUser(data: {
  * Return a hydrated document (no `.lean()`), so instance methods work.
  */
 export async function findUserByEmail(email: string) {
-  return User.findOne({ email: String(email).trim().toLowerCase() }).select("+password");
+  return User.findOne({ email: String(email).trim().toLowerCase() }).select(
+    "+password"
+  );
 }
 
 /** Strict lookup by id with a 404 if missing. */
@@ -117,13 +124,11 @@ export async function getPublicUserById(id: string): Promise<PublicUser> {
 // ====== (user personal info ) ======
 import { Types } from "mongoose";
 
-
 // For now, always pin LC to this id regardless of what the client sends.
-export const DEFAULT_LC_ID = "66e007000000000000000001";
 
 export type NewAddressInput = {
-  lnt: number;         // longitude (kept as 'lnt' per your schema)
-  alt: number;         // latitude  (kept as 'alt' per your schema)
+  lnt: number; // longitude (kept as 'lnt' per your schema)
+  alt: number; // latitude  (kept as 'alt' per your schema)
   address: string;
   // logisticCenterId?: string; // intentionally ignored for now
 };
@@ -189,8 +194,6 @@ export async function getUserName(userId: string) {
   return { name: user.name };
 }
 
-
-
 /**
  * Update email and/or phone (either field is optional).
  * - Email is normalized to lowercase.
@@ -240,7 +243,6 @@ export async function updateUserContact(
   };
 }
 
-
 function assertObjectId(id: string) {
   if (!Types.ObjectId.isValid(id)) {
     throw new ApiError(400, "Invalid user id");
@@ -254,17 +256,24 @@ export type ContactInfo = {
   role: Role | string;
   // added only for farmer role
   farmName?: string | "Freshy Fresh";
-  farmLogo?:string |"none";
+  farmLogo?: string | "none";
 };
 
 /**
  * Fetch contact info (name, email, phone, birthday).
  * if any type of manager or role we will get more if needeed
  */
-export async function getContactInfoByIdService(userId: string): Promise<ContactInfo> {
+export async function getContactInfoByIdService(
+  userId: string
+): Promise<ContactInfo> {
   assertObjectId(userId);
 
-  const user = await User.findById(userId, { name: 1, email: 1, phone: 1, role: 1 }).lean();
+  const user = await User.findById(userId, {
+    name: 1,
+    email: 1,
+    phone: 1,
+    role: 1,
+  }).lean();
   if (!user) throw new ApiError(404, "User not found");
 
   const base: ContactInfo = {
@@ -276,9 +285,12 @@ export async function getContactInfoByIdService(userId: string): Promise<Contact
 
   if (String(user.role) === "farmer") {
     // Only for farmers, enrich with farmName from Farmer collection
-    const farmer = await Farmer.findOne({ user: userId }, { farmName: 1 }).lean();
+    const farmer = await Farmer.findOne(
+      { user: userId },
+      { farmName: 1 }
+    ).lean();
     base.farmName = farmer?.farmName ?? "freshy fresh";
-    base.farmLogo=farmer?.farmLogo?? "none";
+    base.farmLogo = farmer?.farmLogo ?? "none";
   }
 
   return base;
@@ -299,10 +311,14 @@ export async function removeAddress(
   }
 
   // Fetch current addresses to detect if anything was actually removed
-  const existing = await User.findById(asObjectId(userId), { addresses: 1 }).lean();
+  const existing = await User.findById(asObjectId(userId), {
+    addresses: 1,
+  }).lean();
   if (!existing) throw new Error("User not found");
 
-  const beforeLen = Array.isArray(existing.addresses) ? existing.addresses.length : 0;
+  const beforeLen = Array.isArray(existing.addresses)
+    ? existing.addresses.length
+    : 0;
 
   const criteria = {
     lnt: addr.lnt,
@@ -320,7 +336,9 @@ export async function removeAddress(
 
   if (!updated) throw new Error("User not found");
 
-  const afterLen = Array.isArray(updated.addresses) ? updated.addresses.length : 0;
+  const afterLen = Array.isArray(updated.addresses)
+    ? updated.addresses.length
+    : 0;
   if (afterLen === beforeLen) {
     throw new ApiError(404, "Address not found");
   }

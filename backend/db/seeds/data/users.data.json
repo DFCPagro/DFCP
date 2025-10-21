@@ -7,6 +7,7 @@
     "role": "admin",
     "activeStatus": true,
     "uid": "ADM-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.781768,
@@ -30,6 +31,7 @@
     "role": "deliverer",
     "activeStatus": true,
     "uid": "DLV-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 35.21371,
@@ -53,6 +55,7 @@
     "role": "industrialDeliverer",
     "activeStatus": true,
     "uid": "IDL-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.989571,
@@ -76,6 +79,7 @@
     "role": "tManager",
     "activeStatus": true,
     "uid": "DMG-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.886917,
@@ -99,6 +103,7 @@
     "role": "fManager",
     "activeStatus": true,
     "uid": "FMG-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.799335,
@@ -122,6 +127,7 @@
     "role": "opManager",
     "activeStatus": true,
     "uid": "OPM-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.75,
@@ -162,6 +168,7 @@
     "role": "farmer",
     "activeStatus": true,
     "uid": "FMR-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.7,
@@ -311,6 +318,7 @@
     "role": "farmer",
     "activeStatus": true,
     "uid": "FMR-2",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "label": "Home",
@@ -334,6 +342,7 @@
     "role": "picker",
     "activeStatus": true,
     "uid": "PCK-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.789,
@@ -357,6 +366,7 @@
     "role": "picker",
     "activeStatus": true,
     "uid": "PCK-2",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.799,
@@ -380,6 +390,7 @@
     "role": "sorter",
     "activeStatus": true,
     "uid": "SRT-1",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.781768,
@@ -403,6 +414,7 @@
     "role": "sorter",
     "activeStatus": true,
     "uid": "SRT-2",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.8,
@@ -426,6 +438,7 @@
     "role": "csManager",
     "activeStatus": true,
     "uid": "SRT-2",
+    "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
         "lnt": 34.8,

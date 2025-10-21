@@ -43,8 +43,8 @@ const UserSchema = new Schema(
 
     // active after verification later; default true for now
     activeStatus: { type: Boolean, default: true },
-
-    coins: {type: Number, default:0},
+    logisticCenterId: { type: String, default: null },
+    coins: { type: Number, default: 0 },
     // addresses array (subdocuments)
     addresses: {
       type: [AddressSchema],
