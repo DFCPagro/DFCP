@@ -22,14 +22,17 @@ import {
   Icon,
 } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
-import { Play, Settings2, Trophy, Coins, Flame, Pencil } from "lucide-react";
+import { Play, Trophy, Coins, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { PATHS } from "@/routes/paths";
-import { fetchPickerProfile, savePreferences, type PickerProfile } from "./data";
+import { fetchPickerProfile, type PickerProfile } from "./data";
 
 const ACCENT = "teal";
 const PANEL_MAX_H = "calc(100vh - 180px)";
 const xpPct = (xp: number) => Math.min(100, Math.round((xp % 1000) / 10));
+
+// Prefer PATHS.pickerSchedule when available, fallback to hard-coded route
+const SCHEDULE_PATH: string = (PATHS as any).pickerSchedule ?? "/picker/schedule";
 
 export default function WorkerProfile() {
   const navigate = useNavigate();
@@ -41,8 +44,6 @@ export default function WorkerProfile() {
   // prefs
   const [available, setAvailable] = useState(true);
   const [nickname, setNickname] = useState("");
-  const [audio, setAudio] = useState(true);
-  const [haptics, setHaptics] = useState(false);
   const [editingNick, setEditingNick] = useState(false);
 
   useEffect(() => {
@@ -132,9 +133,10 @@ export default function WorkerProfile() {
               <Button size="sm" variant="outline" onClick={() => navigate(PATHS.orders)}>
                 Orders
               </Button>
-              <IconButton aria-label="settings" size="sm" variant="ghost">
-                <Icon as={Settings2} boxSize={4} />
-              </IconButton>
+              <Button size="sm" variant="outline" onClick={() => navigate(SCHEDULE_PATH)}>
+                Schedule
+              </Button>
+          
             </HStack>
           </HStack>
 
@@ -225,8 +227,6 @@ export default function WorkerProfile() {
                       toast.success(v ? "Available" : "Away");
                     }}
                   />
-                  <ToggleCard label="Audio cues" checked={audio} onChange={setAudio} />
-                  <ToggleCard label="Haptics" checked={haptics} onChange={setHaptics} />
                 </SimpleGrid>
 
                 <HStack gap={2}>
@@ -240,7 +240,6 @@ export default function WorkerProfile() {
                     onClick={async () => {
                       try {
                         setSaving(true);
-                        await savePreferences({ nickname, audio, haptics, available });
                         toast.success("Saved");
                       } finally {
                         setSaving(false);
@@ -283,7 +282,8 @@ export default function WorkerProfile() {
               </Heading>
             </Card.Header>
             <Card.Body p={4}>
-              <Grid columns={{ base: 1, md: 2 }} gap={4} alignItems="start">
+              <Grid  templateColumns="repeat(2, 1fr)" gap={4} alignItems="start">
+                <GridItem  colSpan={1} gap={1}>
                 {/* Daily quests */}
                 <Card.Root rounded="lg" borderWidth="1px" borderColor={`${ACCENT}.200`}>
                   <Card.Header py={2} px={3} bg="green.50" borderBottomWidth="1px">
@@ -314,6 +314,8 @@ export default function WorkerProfile() {
                     </VStack>
                   </Card.Body>
                 </Card.Root>
+</GridItem>
+                <GridItem  colSpan={0} >
 
                 {/* Achievements */}
                 <Card.Root rounded="lg" borderWidth="1px" borderColor="purple.200">
@@ -341,7 +343,9 @@ export default function WorkerProfile() {
                     </VStack>
                   </Card.Body>
                 </Card.Root>
+</GridItem>
               </Grid>
+              
             </Card.Body>
           </Card.Root>
         </GridItem>

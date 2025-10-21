@@ -6,7 +6,6 @@ import {
     Card,
     HStack,
     Icon,
-    Image,
     Separator,
     Stack,
     Text,
@@ -20,6 +19,7 @@ import {
 } from "react-icons/fi";
 
 import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+import ItemList, { type ItemRow } from "@/components/common/ItemList";
 
 /* ---------------------------------- Types --------------------------------- */
 
@@ -68,9 +68,49 @@ function formatDate(iso: string | null): string {
         return iso;
     }
 }
+function toItemRows(lines: SharedCartLine[]): ItemRow[] {
+  return (lines ?? []).map((l, i) => {
+    const id = l.key || l.stockId || l.itemId || String(i);
+    const unit = l.unit === "unit" ? "unit" : "kg";
+    const qty = Number(l.quantity) || 0;
+    const avg = typeof l.avgWeightPerUnitKg === "number" ? l.avgWeightPerUnitKg : 0;
+
+    // ItemList expects pricePerUnit as per-KG. Derive if user chose per-unit.
+    const pricePerKg =
+      unit === "kg"
+        ? Number(l.pricePerUnit) || 0
+        : avg > 0
+        ? Math.round((Number(l.pricePerUnit) / avg) * 100) / 100
+        : 0;
+
+    const priceEach = unit === "unit" ? Number(l.pricePerUnit) || 0 : undefined;
+
+    return {
+      id,
+      title: l.name || "Item",
+      imageUrl: l.imageUrl || undefined,
+      category: l.category || undefined,
+
+      farmName: l.farmName ?? l.farmerName ?? null,
+      farmLogo: l.farmLogo ?? null,
+
+      pricePerUnit: pricePerKg,        // per-KG baseline
+      pricePerUnitEach: priceEach,     // per-each when applicable
+
+      unitMode: l.unitMode ?? unit,
+      qtyKg: unit === "kg" ? qty : undefined,
+      qtyUnits: unit === "unit" ? Math.round(qty) : undefined,
+      avgWeightPerUnitKg: avg,
+      availableUnitsEstimate:
+        typeof l.availableUnitsEstimate === "number" ? l.availableUnitsEstimate : undefined,
+
+      currencySymbol: "$",
+    };
+  });
+}
 
 /** price per the selected unit (kg or unit), taken from the cart snapshot */
-function readUnitPrice(l: SharedCartLine): number {
+/**function readUnitPrice(l: SharedCartLine): number {
     return Number(l?.pricePerUnit ?? 0) || 0;
 }
 
@@ -85,9 +125,9 @@ function readImageUrl(l: SharedCartLine): string | undefined {
 function readCategory(l: SharedCartLine): string | undefined {
     return l.category || undefined;
 }
-
+**/
 /** Quantity text and effective kg (for displaying an estimated conversion when unit=unit) */
-function computeDisplayQty(l: SharedCartLine): { text: string; effKg?: number } {
+/**function computeDisplayQty(l: SharedCartLine): { text: string; effKg?: number } {
     const unit = l.unit === "unit" ? "unit" : "kg";
     const qty = Number(l.quantity ?? 0) || 0;
 
@@ -104,12 +144,12 @@ function computeDisplayQty(l: SharedCartLine): { text: string; effKg?: number } 
     }
     return { text: base, effKg: undefined };
 }
-
+**/
 /** label suffix for price, based on selected unit */
-function priceSuffix(l: SharedCartLine): string {
+/**function priceSuffix(l: SharedCartLine): string {
     return l.unit === "unit" ? " / unit" : " / kg";
 }
-
+**/
 function formatAddress(a: any): string {
     if (!a) return "—";
     if (typeof a === "string") return a || "—";
@@ -125,31 +165,16 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
         deliveryAddress,
         deliveryDate,
         shiftName,
-        amsId,
-        logisticsCenterId,
+        // amsId,
+        // logisticsCenterId,
         totals,
         onContinue,
         onEditAddress,
         isLoading,
     } = props;
 
-    const linesVM = useMemo(() => {
-        return (cartLines ?? []).map((l, idx) => {
-            const price = readUnitPrice(l);
-            const { text: qtyText } = computeDisplayQty(l);
-            const lineTotal = Math.round(price * (Number(l.quantity ?? 0) || 0) * 100) / 100;
+const itemRows = useMemo(() => toItemRows(cartLines), [cartLines]);
 
-            return {
-                key: String(l.key ?? l.stockId ?? l.itemId ?? idx),
-                name: readDisplayName(l),
-                imageUrl: readImageUrl(l),
-                category: readCategory(l),
-                unitPriceText: `${formatCurrencyUSD(price)}${priceSuffix(l)}`,
-                qtyText,
-                lineTotalText: formatCurrencyUSD(lineTotal),
-            };
-        });
-    }, [cartLines]);
 
     // delivery & tax zero for now; server is source of truth
     let deliveryFee = 5;
@@ -215,37 +240,13 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                         <Text fontWeight="semibold">Items</Text>
                     </HStack>
                 </Card.Header>
-                <Card.Body pt={0}>
-                    <Stack gap={3}>
-                        {linesVM.length === 0 && <Text color="fg.muted">Your cart is empty.</Text>}
-
-                        {linesVM.map((ln, i) => (
-                            <Box key={ln.key}>
-                                <HStack align="flex-start" gap={3}>
-                                    <Image
-                                        src={ln.imageUrl}
-                                        alt={ln.name}
-                                        borderRadius="md"
-                                        boxSize="56px"
-                                        objectFit="cover"
-                                    />
-                                    <Box flex="1">
-                                        <Text fontWeight="medium">{ln.name}</Text>
-                                        {ln.category && (
-                                            <Text fontSize="sm" color="fg.muted">
-                                                {ln.category}
-                                            </Text>
-                                        )}
-                                        <Text fontSize="sm" color="fg.muted">{ln.qtyText}</Text>
-                                        <Text fontSize="sm" color="fg.muted">{ln.unitPriceText}</Text>
-                                    </Box>
-                                    <Text fontWeight="semibold">{ln.lineTotalText}</Text>
-                                </HStack>
-                                {i < linesVM.length - 1 && <Separator my={3} />}
-                            </Box>
-                        ))}
-                    </Stack>
-                </Card.Body>
+<Card.Body pt={0}>
+  {itemRows.length === 0 ? (
+    <Text color="fg.muted">Your cart is empty.</Text>
+  ) : (
+    <ItemList rows={itemRows} />
+  )}
+</Card.Body>
             </Card.Root>
 
             {/* Totals */}
@@ -281,7 +282,7 @@ export const CheckoutSummary = memo(function CheckoutSummary(props: CheckoutSumm
                 <Button
                     size="lg"
                     onClick={onContinue}
-                    disabled={linesVM.length === 0}
+disabled={itemRows.length === 0}
                     loading={!!isLoading}
                     gap={2}
                 >

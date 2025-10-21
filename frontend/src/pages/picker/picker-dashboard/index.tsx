@@ -24,7 +24,7 @@ import {
   apiClaimOrder,
 } from "./api/mock";
 import { useInterval } from "./hooks/useInterval";
-import { LeaderboardCard, QuestCard, ReadyOrdersTable, StatsCard } from "./components";
+import { LeaderboardCard, QuestCard, StatsCard } from "./components"; 
 import { useNavigate } from "react-router-dom";
 import { PATHS } from "@/routes/paths";
 
@@ -53,20 +53,15 @@ function GlowCard({
   );
 }
 
-
-
 export default function PickerDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PickerStats | null>(null);
   const [board, setBoard] = useState<LeaderboardEntry[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
-  const [orders, setOrders] = useState<ReadyOrder[]>([]);
   const [scope, setScope] = useState<QuestScope>("day");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [assigning, setAssigning] = useState(false);
   const navigate = useNavigate();
-
-  const [showOrders, setShowOrders] = useState(false);
-  const [ordersLoading, setOrdersLoading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -115,29 +110,53 @@ export default function PickerDashboard() {
     return Math.max(0, Math.floor((q.expiresAt - Date.now()) / 1000));
   }, [activeQuest]);
 
-  const onClaimOrder = async (id: string) => {
-    await apiClaimOrder(id);
-    const order = orders.find((o) => o.id === id);
-    const taskParam = String(order?.orderId ?? id).replace(/^#/, "");
-    setOrders((list) => list.filter((o) => o.id !== id));
-    toast.success("Order claimed");
-    navigate(PATHS.pickerTask.replace(":taskId", encodeURIComponent(taskParam)));
+  // --- Auto-claim logic ---
+  const pickBest = (list: ReadyOrder[]) =>
+    [...list].sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority === "rush" ? -1 : 1; // rush first
+      if (a.readyForMin !== b.readyForMin) return b.readyForMin - a.readyForMin; // longest waiting first
+      return b.items - a.items; // then larger batches
+    })[0];
+
+  const claimNextAvailable = async () => {
+    setAssigning(true);
+    try {
+      const queue = await apiFetchReadyOrders();
+      if (!queue.length) {
+        toast("No orders in queue", { icon: "ℹ️" });
+        return;
+      }
+      let remaining = [...queue];
+      // Try best → next-best if a race occurs
+      while (remaining.length) {
+        const best = pickBest(remaining);
+        try {
+          await apiClaimOrder(best.id);
+          const taskParam = String(best.orderId ?? best.id).replace(/^#/, "");
+          toast.success("Order assigned");
+          navigate(PATHS.pickerTask.replace(":taskId", encodeURIComponent(taskParam)));
+          return;
+        } catch {
+          remaining = remaining.filter((x) => x.id !== best.id);
+        }
+      }
+      toast.error("Could not claim an order. Try again.");
+    } finally {
+      setAssigning(false);
+    }
   };
+  // --- end auto-claim ---
 
   const onRefresh = () => setRefreshKey((k) => k + 1);
 
   const onStartPicking = async () => {
-    setShowOrders(true);
-    setOrdersLoading(true);
-    const data = await apiFetchReadyOrders();
-    setOrders(data);
-    setOrdersLoading(false);
-    toast("Orders unlocked", { icon: "🔓" });
+    if (assigning || loading) return;
+    await claimNextAvailable();
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !showOrders && !loading) {
+      if (e.code === "Space" && !assigning && !loading) {
         e.preventDefault();
         onStartPicking();
       }
@@ -145,7 +164,7 @@ export default function PickerDashboard() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [showOrders, loading]);
+  }, [assigning, loading]);
 
   if (loading || !stats || !activeQuest) {
     return (
@@ -240,51 +259,43 @@ export default function PickerDashboard() {
           </GlowCard>
         </GridItem>
 
-        {/* Orders */}
+        {/* Orders CTA → auto-assign */}
         <GridItem colSpan={12}>
-          {!showOrders ? (
-            <GlowCard from="green.400" to="teal.400">
-              <Card.Body
-                bgGradient="linear(to-r, green.50, white)"
-                _dark={{ bgGradient: "linear(to-r, gray.900, gray.800)" }}
-              >
-                <HStack justify="space-between" wrap="wrap" w="full">
-                  <HStack gap={3}>
-                    <Text fontSize="lg" fontWeight="semibold">
-                      Ready when you are
-                    </Text>
-                    <Text color="fg.muted">Orders stay hidden until you start.</Text>
-                  </HStack>
-                  <Button
-                    onClick={onStartPicking}
-                    size="lg"
-                    colorPalette="green"
-                    rounded="full"
-                    transition="transform .12s ease"
-                    _hover={{ transform: "translateY(-1px)" }}
-                  >
-                    <HStack gap={2}>
-                      <Play size={18} />
-                      <Text>Start picking</Text>
-                    </HStack>
-                  </Button>
-                </HStack>
-                <Separator my={3} />
-                <Box>
-                  <Text fontSize="sm" color="fg.muted">
-                    Tip: batch similar items to move faster.
+          <GlowCard from="green.400" to="teal.400">
+            <Card.Body
+              bgGradient="linear(to-r, green.50, white)"
+              _dark={{ bgGradient: "linear(to-r, gray.900, gray.800)" }}
+            >
+              <HStack justify="space-between" wrap="wrap" w="full">
+                <HStack gap={3}>
+                  <Text fontSize="lg" fontWeight="semibold">
+                    Ready when you are
                   </Text>
-                </Box>
-              </Card.Body>
-            </GlowCard>
-          ) : ordersLoading ? (
-            <HStack gap={3}>
-              <Spinner />
-              <Text>Loading orders…</Text>
-            </HStack>
-          ) : (
-            <ReadyOrdersTable orders={orders} onClaim={onClaimOrder} />
-          )}
+                  <Text color="fg.muted">Click start to get your next order.</Text>
+                </HStack>
+                <Button
+                  onClick={onStartPicking}
+                  size="lg"
+                  colorPalette="green"
+                  rounded="full"
+                  disabled={assigning}
+                  transition="transform .12s ease"
+                  _hover={{ transform: assigning ? undefined : "translateY(-1px)" }}
+                >
+                  <HStack gap={2}>
+                    {assigning ? <Spinner size="sm" /> : <Play size={18} />}
+                    <Text>{assigning ? "Assigning…" : "Start picking"}</Text>
+                  </HStack>
+                </Button>
+              </HStack>
+              <Separator my={3} />
+              <Box>
+                <Text fontSize="sm" color="fg.muted">
+                  Tip: batch similar items to move faster.
+                </Text>
+              </Box>
+            </Card.Body>
+          </GlowCard>
         </GridItem>
       </Grid>
     </Container>

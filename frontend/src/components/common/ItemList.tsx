@@ -14,6 +14,7 @@ import {
   Separator,
 } from "@chakra-ui/react";
 
+
 /** Sizes: product image and avatar keep a 3:1 ratio */
 const IMG_SIZE = { base: 96, md: 112 };
 const AVA_SIZE = {
@@ -201,7 +202,7 @@ export default function ItemList({
           <Fragment key={key}>
             {/* Card-like row */}
             <Grid
-              templateColumns={{ base: "96px 1fr", md: "112px 2fr 1.2fr" }}
+              templateColumns={{ base: "96px 1fr", md: "112px 2fr 2fr" }}
               gap={{ base: 3, md: 4 }}
               p={{ base: 4, md: 5 }}
               borderRadius="xl"
@@ -277,31 +278,25 @@ export default function ItemList({
                 display={{ base: "none", md: "flex" }}
                 align="stretch"
                 justify="center"
-                gap={2}
+                gap={1}
                 fontVariantNumeric="tabular-nums"
               >
                 <HStack justify="space-between">
-                  <Text color="fg.muted" fontSize="sm">
-                    Qty
+                  <Text color="fg.muted" fontSize="xl">
+                    Qty {qtyLine || "—"}
                   </Text>
-                  <Text fontSize="lg">{qtyLine || "—"}</Text>
                 </HStack>
 
                 <HStack justify="space-between">
-                  <Text color="fg.muted" fontSize="sm">
-                    Price
+                  <Text color="fg.muted" fontSize="xl">
+                    Price {priceLine || "—"}
                   </Text>
-                  <Text fontSize="lg">{priceLine || "—"}</Text>
+                  <Text fontSize="xl" fontWeight="extrabold">
+                    Total {totalLine || " "}
+                  </Text>
                 </HStack>
 
-                <HStack justify="space-between">
-                  <Text color="fg.muted" fontSize="sm">
-                    Total
-                  </Text>
-                  <Text fontSize="2xl" fontWeight="extrabold">
-                    {totalLine || " "}
-                  </Text>
-                </HStack>
+        
 
                 {showScanButton ? (
                   <Button
@@ -326,7 +321,7 @@ export default function ItemList({
                 <VStack align="stretch" gap={1.5}>
                   <HStack justify="space-between">
                     <Text color="fg.muted" fontSize="xs">
-                      Qty
+                      Qty 
                     </Text>
                     <Text fontSize="md">{qtyLine || "—"}</Text>
                   </HStack>

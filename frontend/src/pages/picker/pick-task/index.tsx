@@ -1,5 +1,5 @@
 // src/pages/picker/pick-task/index.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
@@ -17,6 +17,7 @@ import {
   Input,
   Separator,
 } from "@chakra-ui/react";
+import { Package as PackageIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import { buildPickTask, type PickTask, type PickItem } from "@/data/picker";
 
@@ -25,16 +26,100 @@ const SLA_MIN = (p: "normal" | "rush") => (p === "rush" ? 20 : 45);
 const fmt = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+/* Small package glyph */
+function PkgGlyph() {
+  return (
+    <Box
+      w="36px"
+      h="36px"
+      rounded="md"
+      borderWidth="1px"
+      bg="bg.subtle"
+      _dark={{ bg: "blackAlpha.300" }}
+      display="grid"
+      placeItems="center"
+    >
+      <PackageIcon size={18} />
+    </Box>
+  );
+}
+
+/* Size strip: renders only sizes that exist */
+function SizeStrip({
+  sizes,
+  clickable = false,
+  onPickSize,
+  borderAccent = true,
+}: {
+  sizes: Partial<Record<"L" | "M" | "S", number>>;
+  clickable?: boolean;
+  onPickSize?: (sizeCode: "L" | "M" | "S") => void;
+  borderAccent?: boolean;
+}) {
+  const order: Array<"L" | "M" | "S"> = ["L", "M", "S"];
+  const label: Record<"L" | "M" | "S", string> = { L: "Large", M: "Medium", S: "Small" };
+
+  const visible = order.filter((sz) => (sizes[sz] ?? 0) > 0);
+  if (visible.length === 0) return null;
+
+  return (
+    <Box
+      rounded="xl"
+      borderWidth="2px"
+      borderColor={borderAccent ? "blackAlpha.600" : "blackAlpha.300"}
+      _dark={{ borderColor: borderAccent ? "whiteAlpha.700" : "whiteAlpha.400" }}
+      overflow="hidden"
+    >
+      <Grid templateColumns={`repeat(${visible.length}, 1fr)`} gap="5px">
+        {visible.map((sz, idx) => {
+          const count = sizes[sz] ?? 0;
+          return (
+            <Box
+              key={sz}
+              p={{ base: 4, md: 6 }}
+              position="relative"
+              cursor={clickable ? "pointer" : "default"}
+              onClick={clickable && onPickSize ? () => onPickSize(sz) : undefined}
+              _hover={clickable ? { bg: "bg.subtle", _dark: { bg: "blackAlpha.300" } } : undefined}
+            >
+              {idx < visible.length - 1 && (
+                <Box
+                  position="absolute"
+                  top="0"
+                  right="0"
+                  bottom="0"
+                  borderRightWidth="2px"
+                  borderColor="blackAlpha.600"
+                  _dark={{ borderColor: "whiteAlpha.400" }}
+                />
+              )}
+              <VStack gap={2}>
+                <PkgGlyph />
+                <Text fontSize="xl" fontWeight="bold">
+                  {label[sz]}
+                </Text>
+                <Text fontSize="lg" fontWeight="semibold">
+                  x{count}
+                </Text>
+              </VStack>
+            </Box>
+          );
+        })}
+      </Grid>
+    </Box>
+  );
+}
+
 export default function PickTaskPage() {
   const { taskId } = useParams();
   const navigate = useNavigate();
 
   const [phase, setPhase] = useState<Phase>("load");
   const [task, setTask] = useState<PickTask | null>(null);
-  const [selectedPkg, setSelectedPkg] = useState<string | null>(null); // start with none selected
+  const [selectedPkg, setSelectedPkg] = useState<string | null>(null);
   const [indexInPkg, setIndexInPkg] = useState(0);
+  const [weightInput, setWeightInput] = useState(""); // <-- moved ABOVE conditional returns
 
-  // SLA timer
   const [deadline, setDeadline] = useState<number>(() => Date.now() + 20 * 60 * 1000);
   const [now, setNow] = useState<number>(() => Date.now());
   useEffect(() => {
@@ -43,21 +128,14 @@ export default function PickTaskPage() {
   }, []);
   const timeLeft = Math.max(0, Math.floor((deadline - now) / 1000));
 
-  // load task
   useEffect(() => {
     const t = buildPickTask(taskId ?? "#DEMO");
     setTask(t);
-    // do NOT preselect a package
     setDeadline(Date.now() + SLA_MIN(t.priority) * 60 * 1000);
   }, [taskId]);
 
-  // package fill
   const [pkgLoad, setPkgLoad] = useState<Record<string, number>>({});
   const cap = (pid: string) => task?.packages.find((p) => p.packageId === pid)?.maxWeightKg ?? 0;
-  const ratio = (pid: string) => ((pkgLoad[pid] ?? 0) / Math.max(1, cap(pid))) * 100;
-
-  // item state
-  const [weightInput, setWeightInput] = useState("");
 
   const itemsForPkg = useMemo(() => {
     if (!task || !selectedPkg) return [];
@@ -77,33 +155,21 @@ export default function PickTaskPage() {
 
   const gotoNextItemInPackage = () => {
     if (indexInPkg + 1 < itemsForPkg.length) setIndexInPkg((i) => i + 1);
-    else setIndexInPkg(0); // end of this package; wait for user to choose next package
+    else setIndexInPkg(0);
   };
 
-  // size counters per sizeCode
+  // counts per sizeCode
   const sizeCount = useMemo(() => {
-    const m: Record<string, number> = {};
+    const m: Record<"L" | "M" | "S", number> = { L: 0, M: 0, S: 0 };
     task?.packages.forEach((p) => {
-      m[p.sizeCode] = (m[p.sizeCode] ?? 0) + 1;
+      if (p.sizeCode === "L" || p.sizeCode === "M" || p.sizeCode === "S") {
+        m[p.sizeCode] = (m[p.sizeCode] ?? 0) + 1;
+      }
     });
     return m;
   }, [task]);
 
-  // derived meta for clearer UI
-  const pkgMeta = useMemo(() => {
-    if (!task) return [];
-    return task.packages.map((p) => {
-      const used = pkgLoad[p.packageId] ?? 0;
-      const capKg = Math.max(1, p.maxWeightKg);
-      const pct = Math.min(100, Math.round((used / capKg) * 100));
-      const pending = task.items.filter(
-        (i) => i.packageId === p.packageId && i.status === "pending",
-      ).length;
-      return { ...p, used, capKg, pct, pending, count: sizeCount[p.sizeCode] ?? 1 };
-    });
-  }, [task, pkgLoad, sizeCount]);
-
-  // next package with pending items
+ 
   const nextAvailablePkg = useMemo(() => {
     if (!task || !selectedPkg) return null;
     const ids = task.packages.map((p) => p.packageId);
@@ -115,6 +181,21 @@ export default function PickTaskPage() {
     }
     return null;
   }, [task, selectedPkg]);
+
+  const firstPendingPkgBySize = useCallback(
+    (size: "L" | "M" | "S") => {
+      if (!task) return null;
+      const list = task.packages.filter((p) => p.sizeCode === size);
+      for (const p of list) {
+        const pending = task.items.filter(
+          (i) => i.packageId === p.packageId && i.status === "pending",
+        ).length;
+        if (pending > 0) return p.packageId;
+      }
+      return list[0]?.packageId ?? null;
+    },
+    [task],
+  );
 
   if (!task)
     return (
@@ -153,7 +234,6 @@ export default function PickTaskPage() {
     </Box>
   );
 
-  /* floating timer pill */
   const TimerPill = (
     <Box
       position="fixed"
@@ -186,7 +266,7 @@ export default function PickTaskPage() {
         {header}
         {TimerPill}
         <Grid columns={{ base: 1, md: 12 }} gap={6}>
-          <GridItem colSpan={{ base: 12, md: 8 }}>
+          <GridItem colSpan={{ base: 12, md: 12 }}>
             <Card.Root rounded="2xl" borderWidth="1px">
               <Card.Header>
                 <HStack justify="space-between" w="full">
@@ -195,57 +275,11 @@ export default function PickTaskPage() {
                 </HStack>
               </Card.Header>
               <Card.Body>
-                <VStack align="stretch" gap={4}>
-                  {pkgMeta.map((p) => (
-                    <HStack
-                      key={p.packageId}
-                      justify="space-between"
-                      p={4}
-                      rounded="xl"
-                      bg="white"
-                      _dark={{ bg: "gray.900" }}
-                      borderWidth="1px"
-                    >
-                      <HStack gap={4}>
-                        <Badge size="lg" variant="solid" colorPalette="teal">
-                          {p.packageId}
-                        </Badge>
-                        <Text fontSize="lg" fontWeight="semibold">
-                          Size {p.sizeCode}
-                          <Text as="span" color="fg.muted" ml="1">
-                            x{p.count}
-                          </Text>
-                        </Text>
-                        <Badge size="lg" variant="subtle" colorPalette="teal">
-                          {p.targetUse}
-                        </Badge>
-                      </HStack>
-
-                      <VStack align="end" gap={1} minW="280px">
-                        <HStack gap={3}>
-                          <Text fontSize="sm" color="fg.muted">
-                            Fill
-                          </Text>
-                          <Text fontSize="sm">
-                            {p.used.toFixed(1)} / {p.capKg} kg
-                          </Text>
-                          <Badge variant="outline">{p.pct}%</Badge>
-                          <Badge variant="surface" colorPalette="purple">
-                            Pending {p.pending}
-                          </Badge>
-                        </HStack>
-                        <Progress.Root value={p.pct} w="full">
-                          <Progress.Track />
-                          <Progress.Range />
-                        </Progress.Root>
-                      </VStack>
-                    </HStack>
-                  ))}
-                  <Separator />
-                  <Text fontSize="md" color="fg.muted">
-                    Confirm when packages are on your cart.
-                  </Text>
-                </VStack>
+                <SizeStrip sizes={sizeCount} />
+                <Separator my={4} />
+                <Text fontSize="md" color="fg.muted">
+                  Confirm when packages are on your cart.
+                </Text>
               </Card.Body>
               <Card.Footer>
                 <HStack gap={3}>
@@ -265,6 +299,7 @@ export default function PickTaskPage() {
   }
 
   /* ---------- PHASE: PICK ---------- */
+
   const confirmArrival = () => {
     if (!cur) return;
     setStatus(cur.id, "at_location");
@@ -285,7 +320,6 @@ export default function PickTaskPage() {
 
     const will = ((pkgLoad[cur.packageId] ?? 0) + addKg) / Math.max(1, cap(cur.packageId));
     if (will >= 1) toast.success(`Package ${cur.packageId} is full.`);
-
     gotoNextItemInPackage();
   };
 
@@ -294,8 +328,31 @@ export default function PickTaskPage() {
       {header}
       {TimerPill}
       <Grid columns={{ base: 1, md: 12 }} gap={6}>
-        {/* Packages */}
-        <GridItem colSpan={{ base: 12, md: 3 }}>
+        {/* Left: sizes + packages */}
+        <GridItem colSpan={{ base: 12, md: 2 }}></GridItem>
+               <GridItem colSpan={{ base: 12, md: 12 }}>
+          <Card.Root rounded="2xl" borderWidth="1px">
+            <Card.Header>
+              <HStack justify="space-between" w="full">
+                <Heading size="md">Overall</Heading>
+                <Text color="fg.muted">Order {task.orderId}</Text>
+              </HStack>
+            </Card.Header>
+            <Card.Body>
+              <VStack align="start" gap={3}>
+                <Text fontSize="lg">
+                  {done}/{total} items
+                </Text>
+                <Progress.Root value={overall} size="lg" w="full">
+                  <Progress.Track />
+                  <Progress.Range />
+                </Progress.Root>
+              </VStack>
+            </Card.Body>
+        
+          </Card.Root>
+        </GridItem>
+        <GridItem colSpan={{ base: 12, md: 12}}>
           <Card.Root rounded="2xl" borderWidth="1px">
             <Card.Header>
               <HStack justify="space-between" w="full">
@@ -304,55 +361,23 @@ export default function PickTaskPage() {
               </HStack>
             </Card.Header>
             <Card.Body>
-              <VStack align="stretch" gap={3}>
-                {pkgMeta.map((p) => (
-                  <Button
-                    key={p.packageId}
-                    size="lg"
-                    variant={selectedPkg === p.packageId ? "outline" : "ghost"} // no solid fill
-                    colorPalette="teal"
-                    borderWidth={selectedPkg === p.packageId ? "2px" : "1px"}
-                    onClick={() => {
-                      setSelectedPkg(p.packageId);
-                      setIndexInPkg(0);
-                    }}
-                    rounded="xl"
-                    py={5}
-                  >
-                    <VStack w="full" align="stretch" gap={2}>
-                      <HStack justify="space-between" w="full">
-                        <HStack gap={3}>
-                          <Text fontSize="lg" fontWeight="semibold">
-                            {p.packageId} • Size {p.sizeCode}
-                            <Text as="span" color="fg.muted" ml="1">
-                              x{p.count}
-                            </Text>
-                          </Text>
-                          <Badge variant="subtle" colorPalette="teal">
-                            {p.targetUse}
-                          </Badge>
-                        </HStack>
-                        <HStack gap={2}>
-                          <Badge variant="outline">{p.pct}%</Badge>
-                          <Badge variant="surface" colorPalette="purple">
-                            Pending {p.pending}
-                          </Badge>
-                        </HStack>
-                      </HStack>
-                      <Progress.Root value={p.pct} w="full">
-                        <Progress.Track />
-                        <Progress.Range />
-                      </Progress.Root>
-                    </VStack>
-                  </Button>
-                ))}
-              </VStack>
+              <SizeStrip
+                sizes={sizeCount}
+                clickable
+                onPickSize={(sz) => {
+                  const pid = firstPendingPkgBySize(sz);
+                  if (!pid) return;
+                  setSelectedPkg(pid);
+                  setIndexInPkg(0);
+                }}
+              />
+              
             </Card.Body>
           </Card.Root>
         </GridItem>
-
-        {/* Current item / instructions */}
-        <GridItem colSpan={{ base: 12, md: 6 }}>
+ 
+        {/* Middle: current item */}
+        <GridItem colSpan={{ base: 12, md: 12 }}>
           <Card.Root rounded="2xl" borderWidth="1px">
             <Card.Header>
               <HStack justify="space-between" w="full">
@@ -377,7 +402,6 @@ export default function PickTaskPage() {
               ) : cur ? (
                 <VStack align="stretch" gap={5}>
                   <Image src={cur.imageUrl} alt={cur.name} rounded="lg" maxH="320px" objectFit="cover" />
-
                   <HStack gap={3} wrap="wrap">
                     <Badge size="lg" variant="surface" colorPalette="purple">
                       Shelf {cur.shelf}
@@ -389,12 +413,10 @@ export default function PickTaskPage() {
                       Package {selectedPkg}
                     </Badge>
                   </HStack>
-
                   <HStack gap={6} align="center">
                     <Text fontSize="lg">Units required</Text>
                     <Badge size="lg">{cur.unitsRequired}</Badge>
                   </HStack>
-
                   <HStack gap={3} wrap="wrap">
                     <Button size="lg" variant="outline" onClick={confirmArrival}>
                       Confirm arrival
@@ -434,13 +456,7 @@ export default function PickTaskPage() {
             </Card.Body>
             <Card.Footer>
               <HStack gap={3} wrap="wrap">
-                <Button
-                  size="lg"
-                  colorPalette="teal"
-                  onClick={saveAndNext}
-                  disabled={!cur}
-                  rounded="full"
-                >
+                <Button size="lg" colorPalette="teal" onClick={saveAndNext} disabled={!cur} rounded="full">
                   Continue
                 </Button>
                 <Button
@@ -456,46 +472,8 @@ export default function PickTaskPage() {
           </Card.Root>
         </GridItem>
 
-        {/* Overall */}
-        <GridItem colSpan={{ base: 12, md: 3 }}>
-          <Card.Root rounded="2xl" borderWidth="1px">
-            <Card.Header>
-              <HStack justify="space-between" w="full">
-                <Heading size="md">Overall</Heading>
-                <Text color="fg.muted">Order {task.orderId}</Text>
-              </HStack>
-            </Card.Header>
-            <Card.Body>
-              <VStack align="start" gap={3}>
-                <Text fontSize="lg">
-                  {done}/{total} items
-                </Text>
-                <Progress.Root value={overall} size="lg" w="full">
-                  <Progress.Track />
-                  <Progress.Range />
-                </Progress.Root>
-              </VStack>
-            </Card.Body>
-            <Card.Footer>
-              <Button
-                size="lg"
-                colorPalette="teal"
-                onClick={() => {
-                  if (done < total) {
-                    toast.error("Items still pending");
-                    return;
-                  }
-                  toast.success(
-                    `Order completed. Place on delivery shelf ${task.deliveryShelf.row}-${task.deliveryShelf.bay}`,
-                  );
-                  setTimeout(() => navigate("/picker/dashboard"), 800);
-                }}
-              >
-                Finish order
-              </Button>
-            </Card.Footer>
-          </Card.Root>
-        </GridItem>
+        {/* Right: overall */}
+
       </Grid>
     </>
   );
