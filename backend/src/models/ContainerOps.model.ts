@@ -38,6 +38,7 @@ export const CONTAINER_OPS_STATES = [
   "picked",         // items allocated for picking
   "packaged",       // items packaged into an order package
   "dispatched",     // handed off to delivery personnel
+  "depleted",       // container emptied or contents fully used; slot freed for reassignment
 ] as const;
 export type ContainerOpsState = (typeof CONTAINER_OPS_STATES)[number];
 

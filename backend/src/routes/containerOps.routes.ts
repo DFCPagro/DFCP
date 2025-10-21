@@ -4,10 +4,27 @@ import * as ctrl from "../controllers/containerOps.controller";
 
 const router = Router();
 
-// Add a pick audit on a container (complements shelf.consume)
-router.post("/:id/pick", authenticate, authorize("picker", "opManager", "admin"), ctrl.recordPicked);
+// ---- NEW: fetch by Mongo _id ----
+router.get(
+  "/:id",
+  authenticate,
+  authorize("picker", "opManager", "admin"),
+  ctrl.getByMongoId
+);
 
-// If slot reached 0kg, optionally flip containerOps state
+// ---- NEW: fetch by business containerId ----
+// Put this BEFORE generic "/:id" routes if you ever use conflicting strings.
+// Here we use a distinct path segment to avoid ambiguity.
+router.get(
+  "/by-container-id/:containerId",
+  authenticate,
+  authorize("picker", "opManager", "admin"),
+  ctrl.getByContainerId
+);
+
+// Existing
+router.post("/:id", authenticate, authorize("picker", "opManager", "admin"), ctrl.recordPicked);
+router.post("/:id/pick", authenticate, authorize("picker", "opManager", "admin"), ctrl.recordPicked);
 router.post("/:id/mark-depleted", authenticate, authorize("opManager", "admin"), ctrl.markDepletedIfZero);
 
 export default router;

@@ -1,0 +1,90 @@
+# no "version:" key needed with Compose v2
+x-health-mongo-primary: &mongo_primary_test >
+  mongosh --quiet --eval '
+  try {
+    var s = rs.status();
+    (s.ok===1) && s.members && s.members.some(m => m.stateStr==="PRIMARY") ? quit(0) : quit(1)
+  } catch (e) { quit(1) }'
+
+services:
+  mongo:
+    image: mongo:7.0
+    command: ["--replSet","rs0","--bind_ip_all"]
+    # Do NOT publish 27017 to host to avoid conflicts. (If you need host access, map 27018:27017)
+    # ports:
+    #   - "27018:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo-init-replica.js:/docker-entrypoint-initdb.d/mongo-init-replica.js:ro
+    healthcheck:
+      test: ["CMD-SHELL", *mongo_primary_test]
+      interval: 2s
+      timeout: 2s
+      retries: 50
+      start_period: 2s
+
+  backend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev"
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: development
+      # Force internal DNS host for container-to-container
+      MONGODB_URI: mongodb://mongo:27017/yourdb?replicaSet=rs0
+    volumes:
+      - ./backend:/app
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:${PORT-3000}${API_PREFIX-/api/v1}/health || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    env_file:
+      - ./frontend/.env
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Optional: auto-seed ON STARTUP (remove this block if you prefer manual seeding)
+  autoseed:
+    image: node:20-alpine
+    working_dir: /app
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongo:27017/yourdb?replicaSet=rs0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: >
+      sh -lc "
+      echo '🧩 waiting for Mongo PRIMARY...';
+      until mongosh --quiet --eval 'try{var s=rs.status();(s.ok===1)&&s.members&&s.members.some(m=>m.stateStr==\"PRIMARY\")?quit(0):quit(1)}catch(e){quit(1)}';
+      do echo '...'; sleep 1; done;
+      echo '🚀 seeding database...';
+      npm ci;
+      npm run db:rebuild:static && npm run seed:ams && npm run seed:orders;
+      echo '✅ seeding done';
+      "
+    restart: "no"
+
+volumes:
+  mongo_data:

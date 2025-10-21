@@ -10,6 +10,25 @@ import ApiError from "../utils/ApiError";
  */
 
 export namespace ContainerOpsService {
+  export async function getByMongoId(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new ApiError(400, "Invalid containerOps id");
+    }
+    const doc = await ContainerOps.findById(id);
+    if (!doc) throw new ApiError(404, "ContainerOps not found");
+    return doc.toObject();
+  }
+
+  /** Get a container by its business containerId (e.g. printed/QR id) */
+  export async function getByContainerId(containerId: string) {
+    if (!containerId?.trim()) {
+      throw new ApiError(400, "containerId is required");
+    }
+    const doc = await ContainerOps.findOne({ containerId });
+    if (!doc) throw new ApiError(404, "ContainerOps not found");
+    return doc.toObject();
+  }
+
   export async function recordPicked(args: {
     containerOpsId: string;
     amountKg: number;
@@ -39,32 +58,65 @@ export namespace ContainerOpsService {
    * This is optional; many flows keep the state 'shelved' until moved.
    */
   export async function markDepletedIfZero(args: {
-    containerOpsId: string;
-    shelfId: string;
-    slotId: string;
-  }) {
-    const { containerOpsId, shelfId, slotId } = args;
-    const shelf = await Shelf.findById(shelfId);
-    if (!shelf) throw new ApiError(404, "Shelf not found");
+  containerOpsId: string;        // Mongo _id
+  shelfMongoId: string;          // Mongo _id (see Fix #1)
+  slotId: string;
+  actorUserId?: string;          // for audit
+}) {
+  const { containerOpsId, shelfMongoId, slotId, actorUserId } = args;
 
-    const slot = shelf.slots.find((s) => s.slotId === slotId);
-    if (!slot) throw new ApiError(404, "Slot not found");
-    if (!slot.containerOpsId) return { changed: false };
+  const shelf = await Shelf.findById(shelfMongoId);
+  if (!shelf) throw new ApiError(404, "Shelf not found");
 
-    if ((slot.currentWeightKg || 0) > 0) return { changed: false };
+  const slot = shelf.slots.find((s) => s.slotId === slotId);
+  if (!slot) throw new ApiError(404, "Slot not found");
 
-    const ops = await ContainerOps.findById(containerOpsId);
-    if (!ops) return { changed: false };
-
-    ops.state = "sorted"; // or 'stored' depending on your policy
-    ops.auditTrail.push({
-      userId: undefined as any,
-      action: "depleted",
-      note: "Slot reached 0kg",
-      timestamp: new Date(),
-      meta: { shelfId, slotId },
-    } as any);
-    await ops.save();
-    return { changed: true, containerOps: ops.toObject() };
+  if (!slot.containerOpsId) return { changed: false, reason: "slot-empty" };
+  if (String(slot.containerOpsId) !== String(containerOpsId)) {
+    return { changed: false, reason: "slot-occupied-by-different-container" };
   }
+  if ((slot.currentWeightKg || 0) > 0) return { changed: false, reason: "weight-not-zero" };
+
+  const ops = await ContainerOps.findById(containerOpsId);
+  if (!ops) return { changed: false, reason: "container-not-found" };
+
+  // 1) Free the slot (and decrement occupiedSlots if it was counted as occupied)
+  await Shelf.updateOne(
+    { _id: shelfMongoId },
+    {
+      $set: {
+        "slots.$[s].containerOpsId": null,
+        "slots.$[s].occupiedAt": null,
+        "slots.$[s].emptiedAt": new Date(),
+        updatedAt: new Date(),
+      },
+      // NOTE: if you tracked the slot as occupied, dec it here; if not, remove this $inc.
+      $inc: { occupiedSlots: -1 },
+    },
+    { arrayFilters: [{ "s.slotId": slotId }] }
+  );
+
+  // 2) Update ContainerOps state to something that means “empty”
+  ops.state = "depleted"; // <-- add to CONTAINER_OPS_STATES
+  ops.location = {
+    area: "warehouse", // or "delivery"/where it goes next
+    zone: null,
+    aisle: null,
+    shelfId: null,     // leaving shelf
+    slotId: null,
+    updatedAt: new Date(),
+  } as any;
+
+  ops.auditTrail.push({
+    userId: actorUserId ?? undefined,
+    action: "depleted",
+    note: `Slot ${slotId} reached 0kg and was freed`,
+    timestamp: new Date(),
+    meta: { shelfMongoId, slotId },
+  } as any);
+
+  await ops.save();
+
+  return { changed: true, containerOps: ops.toObject() };
+}
 }
