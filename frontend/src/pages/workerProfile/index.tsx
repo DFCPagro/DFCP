@@ -16,8 +16,13 @@ import {
   Input,
   Switch,
   Separator,
+  Kbd,
+  SimpleGrid,
+  IconButton,
+  Icon,
 } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
+import { Play, Settings2, Trophy, Coins, Flame, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { PATHS } from "@/routes/paths";
 import { fetchPickerProfile, savePreferences, type PickerProfile } from "./data";
@@ -38,6 +43,7 @@ export default function WorkerProfile() {
   const [nickname, setNickname] = useState("");
   const [audio, setAudio] = useState(true);
   const [haptics, setHaptics] = useState(false);
+  const [editingNick, setEditingNick] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -56,7 +62,7 @@ export default function WorkerProfile() {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === "g") navigate(PATHS.pickerDashboard);
-      if (k === "s") navigate(PATHS.pickerDashboard);
+      if (k === "o") navigate(PATHS.orders);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -70,189 +76,268 @@ export default function WorkerProfile() {
   }, [profile]);
 
   if (loading || !profile) return <Box p={4}><Text>Loading…</Text></Box>;
+  const xpProgress = xpPct(profile.xp);
 
   return (
-    <Box p={4} maxW="1200px" mx="auto">
-      {/* top bar */}
-      <HStack
-        justify="space-between"
-        mb={3}
-        bg={`${ACCENT}.50`}
+    <Box p={4} maxW="1280px" mx="auto">
+      {/* Master header */}
+      <Card.Root
+        overflow="hidden"
+        rounded="xl"
         borderWidth="1px"
-        borderColor={`${ACCENT}.200`}
-        rounded="md"
-        px={3}
-        py={2}
+        bgGradient={`linear(to-r, ${ACCENT}.50, white)`}
+        mb={5}
       >
-        <VStack align="start" gap={0}>
-          <Heading size="sm" color={`${ACCENT}.900`}>Worker profile</Heading>
-          <Text color="fg.muted" fontSize="xs">
-            {profile.site} • Shift {profile.shift.start}–{profile.shift.end}
-          </Text>
-        </VStack>
-      </HStack>
+        <Card.Body p={{ base: 4, md: 5 }}>
+          <HStack justify="space-between" align="center" gap={4}>
+            <HStack gap={4}>
+              <Avatar.Root boxSize={{ base: 12, md: 16 }}>
+                <Avatar.Fallback name={profile.name} />
+              </Avatar.Root>
+              <VStack align="start" gap={1}>
+                <HStack gap={2} wrap="wrap">
+                  <Heading size="md" color={`${ACCENT}.900`}>
+                    {nickname || profile.name}
+                  </Heading>
+                  <Badge variant="solid" colorPalette="amber">{profile.level}</Badge>
+                  <Badge variant="subtle" colorPalette="purple">
+                    <HStack gap={1}>
+                      <Icon as={Trophy} boxSize={3.5} />
+                      <Text fontSize="xs">{profile.streakDays}d</Text>
+                    </HStack>
+                  </Badge>
+                  <Badge variant="subtle" colorPalette="orange">
+                    <HStack gap={1}>
+                      <Icon as={Coins} boxSize={3.5} />
+                      <Text fontSize="xs">{profile.coins}</Text>
+                    </HStack>
+                  </Badge>
+                </HStack>
+                <Text fontSize="sm" color="fg.muted">
+                  {profile.site} • Shift {profile.shift.start}–{profile.shift.end}
+                </Text>
+                <HStack gap={2}>
+                  <Kbd size="sm">G</Kbd>
+                  <Text fontSize="xs" color="fg.muted">Start</Text>
+                  <Kbd size="sm">O</Kbd>
+                  <Text fontSize="xs" color="fg.muted">Orders</Text>
+                </HStack>
+              </VStack>
+            </HStack>
 
-      {/* ===== Layout: two cards on top, one full-width bottom ===== */}
-      <Grid columns={{ base: 1, lg: 12 }} gap={3}>
-        {/* PROFILE (left) */}
+            <HStack gap={2}>
+              <Button size="sm" colorPalette={ACCENT} onClick={() => navigate(PATHS.pickerDashboard)}>
+                <HStack gap={1.5}><Icon as={Play} boxSize={4} /><Text>Start</Text></HStack>
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => navigate(PATHS.orders)}>
+                Orders
+              </Button>
+              <IconButton aria-label="settings" size="sm" variant="ghost">
+                <Icon as={Settings2} boxSize={4} />
+              </IconButton>
+            </HStack>
+          </HStack>
+
+          <Box mt={4}>
+            <HStack justify="space-between" mb={1}>
+              <Text fontSize="xs" color="fg.muted">Level progress</Text>
+              <Text fontSize="xs" color="fg.muted">{profile.xp % 1000}/1000 XP</Text>
+            </HStack>
+            <Progress.Root value={xpProgress} h="2" rounded="md">
+              <Progress.Track />
+              <Progress.Range />
+            </Progress.Root>
+          </Box>
+        </Card.Body>
+      </Card.Root>
+
+      {/* Body */}
+      <Grid columns={{ base: 1, lg: 12 }} gap={5}>
+        {/* Left column */}
         <GridItem colSpan={{ base: 12, lg: 7 }}>
-          <Card.Root rounded="md" borderWidth="1px" borderColor="gray.200">
-            <Card.Header py={2} px={3}>
-              <Heading size="xs" textTransform="uppercase" letterSpacing="widest" color={`${ACCENT}.900`}>
-                Profile
-              </Heading>
-            </Card.Header>
-            <Card.Body p={3} maxH={PANEL_MAX_H} overflowY="auto">
-              <HStack align="start" gap={3}>
-                <Avatar.Root boxSize="10">
-                  <Avatar.Fallback name={profile.name} />
-                </Avatar.Root>
-                <VStack align="start" gap={1} w="full">
-                  <HStack justify="space-between" w="full">
-                    <Heading size="sm">{nickname || profile.name}</Heading>
-                    <Badge variant="solid" colorPalette="amber">{profile.level}</Badge>
-                  </HStack>
-                  <HStack gap={1} wrap="wrap">
-                    <Badge size="sm" variant="solid" colorPalette={ACCENT}>Picker</Badge>
-                    <Badge size="sm" variant="outline">{profile.id}</Badge>
-                    <Badge size="sm" variant="subtle" colorPalette="amber">🪙 {profile.coins}</Badge>
-                    <Badge size="sm" variant="subtle" colorPalette="purple">🔥 {profile.streakDays}d</Badge>
-                  </HStack>
-                  <Text color="fg.muted" fontSize="sm">{profile.email}</Text>
-
-                  <VStack align="stretch" gap={1} mt={1}>
-                    <Text fontSize="xs" color="fg.muted">Level progress</Text>
-                    <Progress.Root value={xpPct(profile.xp)} h="1">
-                      <Progress.Track />
-                      <Progress.Range />
-                    </Progress.Root>
-                    <Text fontSize="xs" color="fg.muted">{profile.xp % 1000}/1000 XP</Text>
-                  </VStack>
-
-                  <HStack justify="space-between" w="full" mt={1}>
-                    <Text>Availability</Text>
-                    <Switch.Root
-                      size="sm"
-                      checked={available}
-                      onCheckedChange={(e) => {
-                        setAvailable(e.checked);
-                        toast.success(e.checked ? "Available" : "Away");
-                      }}
-                    >
-                      <Switch.Control />
-                    </Switch.Root>
-                  </HStack>
-
-                  <HStack gap={1.5} mt={1}>
-                    <Button size="xs" colorPalette={ACCENT} onClick={() => navigate(PATHS.pickerDashboard)}>
-                      Start picking
-                    </Button>
-                    <Button size="xs" variant="outline" onClick={() => navigate(PATHS.orders)}>
-                      My orders
-                    </Button>
-                  </HStack>
-                </VStack>
+          <Card.Root rounded="xl" borderWidth="1px">
+            <Card.Header px={4} py={3}>
+              <HStack justify="space-between" w="full">
+                <Heading size="xs" textTransform="uppercase" letterSpacing="widest" color={`${ACCENT}.900`}>
+                  Profile & Preferences
+                </Heading>
+                <Badge variant="outline">{profile.id}</Badge>
               </HStack>
-
-              <Separator my={3} />
-
-              {/* Preferences */}
-              <Card.Root rounded="sm" borderWidth="1px" borderColor="gray.200">
-                <Card.Header py={2} px={3}>
-                  <Heading size="xs" color={`${ACCENT}.900`}>Preferences</Heading>
-                </Card.Header>
-                <Card.Body p={3}>
-                  <VStack align="stretch" gap={2}>
-                    <VStack align="stretch" gap={1}>
-                      <Text fontSize="xs" color="fg.muted">Nickname</Text>
-                      <Input
-                        size="sm"
-                        value={nickname}
-                        onChange={(e) => setNickname(e.target.value)}
-                        placeholder="Leaderboard name"
-                      />
-                    </VStack>
-                    <HStack justify="space-between">
-                      <Text>Audio cues</Text>
-                      <Switch.Root size="sm" checked={audio} onCheckedChange={(e) => setAudio(e.checked)}>
-                        <Switch.Control />
-                      </Switch.Root>
+            </Card.Header>
+            <Card.Body p={4} maxH={PANEL_MAX_H} overflowY="auto">
+              <VStack align="stretch" gap={4}>
+                {/* Identity */}
+                <HStack align="start" justify="space-between">
+                  <VStack align="start" gap={1}>
+                    <HStack>
+                      <Text fontWeight="semibold">{nickname || profile.name}</Text>
+                      <IconButton
+                        aria-label="edit nickname"
+                        size="xs"
+                        variant="ghost"
+                        onClick={() => setEditingNick((v) => !v)}
+                      >
+                        <Icon as={Pencil} boxSize={3.5} />
+                      </IconButton>
                     </HStack>
-                    <HStack justify="space-between">
-                      <Text>Haptics</Text>
-                      <Switch.Root size="sm" checked={haptics} onCheckedChange={(e) => setHaptics(e.checked)}>
-                        <Switch.Control />
-                      </Switch.Root>
-                    </HStack>
-                    <Button
-                      size="xs"
-                      disabled={saving}
-                      alignSelf="flex-start"
-                      onClick={async () => {
-                        try {
-                          setSaving(true);
-                          await savePreferences({ nickname, audio, haptics, available });
-                          toast.success("Saved");
-                        } finally {
-                          setSaving(false);
-                        }
-                      }}
-                    >
-                      {saving ? "Saving…" : "Save"}
-                    </Button>
+                    <Text color="fg.muted" fontSize="sm">{profile.email}</Text>
                   </VStack>
-                </Card.Body>
-              </Card.Root>
+
+                  <Card.Root borderWidth="1px" rounded="md" minW="210px">
+                    <Card.Body p={3}>
+                      <VStack align="stretch" gap={2}>
+                        <HStack justify="space-between">
+                          <Text fontSize="xs" color="fg.muted">Accuracy</Text>
+                          <Badge size="sm" variant="subtle" colorPalette={accColor}>
+                            {profile.metrics.accuracy.toFixed(1)}%
+                          </Badge>
+                        </HStack>
+                        <Progress.Root value={profile.metrics.accuracy} max={100} h="2" rounded="sm">
+                          <Progress.Track />
+                          <Progress.Range />
+                        </Progress.Root>
+                      </VStack>
+                    </Card.Body>
+                  </Card.Root>
+                </HStack>
+
+                {editingNick && (
+                  <HStack>
+                    <Input
+                      size="sm"
+                      value={nickname}
+                      onChange={(e) => setNickname(e.target.value)}
+                      placeholder="Leaderboard name"
+                    />
+                    <Button size="sm" onClick={() => setEditingNick(false)}>Done</Button>
+                  </HStack>
+                )}
+
+                <Separator />
+
+                {/* Toggles */}
+                <SimpleGrid columns={{ base: 1, sm: 3 }} gap={3}>
+                  <ToggleCard
+                    label="Available"
+                    checked={available}
+                    onChange={(v) => {
+                      setAvailable(v);
+                      toast.success(v ? "Available" : "Away");
+                    }}
+                  />
+                  <ToggleCard label="Audio cues" checked={audio} onChange={setAudio} />
+                  <ToggleCard label="Haptics" checked={haptics} onChange={setHaptics} />
+                </SimpleGrid>
+
+                <HStack gap={2}>
+                  <Button size="sm" colorPalette={ACCENT} onClick={() => navigate(PATHS.pickerDashboard)}>
+                    <HStack gap={1.5}><Icon as={Play} boxSize={4} /><Text>Start picking</Text></HStack>
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate(PATHS.orders)}>My orders</Button>
+                  <Button
+                    size="sm"
+                    disabled={saving}
+                    onClick={async () => {
+                      try {
+                        setSaving(true);
+                        await savePreferences({ nickname, audio, haptics, available });
+                        toast.success("Saved");
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                  >
+                    {saving ? "Saving…" : "Save"}
+                  </Button>
+                </HStack>
+              </VStack>
             </Card.Body>
           </Card.Root>
         </GridItem>
 
-        {/* PERFORMANCE (right) */}
+        {/* Right column */}
         <GridItem colSpan={{ base: 12, lg: 5 }}>
-          <Card.Root rounded="md" borderWidth="1px" borderColor="gray.200">
-            <Card.Header py={2} px={3}>
+          <Card.Root rounded="xl" borderWidth="1px">
+            <Card.Header px={4} py={3}>
               <Heading size="xs" textTransform="uppercase" letterSpacing="widest" color={`${ACCENT}.900`}>
                 Performance
               </Heading>
             </Card.Header>
-            <Card.Body p={3} maxH={PANEL_MAX_H} overflowY="auto">
-              <Grid columns={{ base: 2 }} gap={3}>
-                <Card.Root rounded="sm" borderWidth="1px">
-                  <Card.Body p={3}>
-                    <VStack gap={0.5} align="start">
-                      <Text fontSize="xs" color="fg.muted">Orders</Text>
-                      <Heading size="md" color={`${ACCENT}.900`}>{profile.metrics.orders}</Heading>
+            <Card.Body p={4} maxH={PANEL_MAX_H} overflowY="auto">
+              <SimpleGrid columns={{ base: 2 }} gap={3}>
+                <StatTile label="Orders" value={profile.metrics.orders} />
+                <StatTile label="Lines" value={profile.metrics.lines} />
+                <StatTile label="Speed" value={`${profile.metrics.speed} l/hr`} />
+                <StatTile label="Streak" value={`${profile.streakDays} days`} />
+              </SimpleGrid>
+            </Card.Body>
+          </Card.Root>
+        </GridItem>
+
+        {/* Progress: Daily quests / Achievements */}
+        <GridItem colSpan={12}>
+          <Card.Root rounded="xl" borderWidth="1px">
+            <Card.Header px={4} py={3}>
+              <Heading size="xs" textTransform="uppercase" letterSpacing="widest" color={`${ACCENT}.900`}>
+                Progress
+              </Heading>
+            </Card.Header>
+            <Card.Body p={4}>
+              <Grid columns={{ base: 1, md: 2 }} gap={4} alignItems="start">
+                {/* Daily quests */}
+                <Card.Root rounded="lg" borderWidth="1px" borderColor={`${ACCENT}.200`}>
+                  <Card.Header py={2} px={3} bg="green.50" borderBottomWidth="1px">
+                    <HStack justify="space-between">
+                      <Heading size="xs" color={`${ACCENT}.900`}>Daily quests</Heading>
+                      <Badge variant="subtle" colorPalette="green">Today</Badge>
+                    </HStack>
+                  </Card.Header>
+                  <Card.Body p={3} maxH="420px" overflowY="auto">
+                    <VStack align="stretch" gap={3}>
+                      {profile.quests.map((q) => (
+                        <Card.Root key={q.id} borderWidth="1px" rounded="md">
+                          <Card.Body p={3}>
+                            <VStack align="stretch" gap={2}>
+                              <HStack justify="space-between">
+                                <Text fontWeight="semibold">{q.title}</Text>
+                                <Badge variant="solid" colorPalette="green">+{q.reward} XP</Badge>
+                              </HStack>
+                              <Text fontSize="sm" color="fg.muted">{q.goal}</Text>
+                              <Progress.Root value={q.progress} h="2" rounded="sm">
+                                <Progress.Track />
+                                <Progress.Range />
+                              </Progress.Root>
+                            </VStack>
+                          </Card.Body>
+                        </Card.Root>
+                      ))}
                     </VStack>
                   </Card.Body>
                 </Card.Root>
-                <Card.Root rounded="sm" borderWidth="1px">
-                  <Card.Body p={3}>
-                    <VStack gap={0.5} align="start">
-                      <Text fontSize="xs" color="fg.muted">Lines</Text>
-                      <Heading size="md" color={`${ACCENT}.900`}>{profile.metrics.lines}</Heading>
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-                <Card.Root rounded="sm" borderWidth="1px">
-                  <Card.Body p={3}>
-                    <VStack gap={1} align="stretch">
-                      <Text fontSize="xs" color="fg.muted">Accuracy</Text>
-                      <Badge size="sm" variant="subtle" alignSelf="flex-start" colorPalette={accColor}>
-                        {profile.metrics.accuracy.toFixed(1)}%
-                      </Badge>
-                      <Progress.Root value={profile.metrics.accuracy} max={100} h="1">
-                        <Progress.Track />
-                        <Progress.Range />
-                      </Progress.Root>
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-                <Card.Root rounded="sm" borderWidth="1px">
-                  <Card.Body p={3}>
-                    <VStack gap={0.5} align="start">
-                      <Text fontSize="xs" color="fg.muted">Speed</Text>
-                      <Heading size="md" color={`${ACCENT}.900`}>{profile.metrics.speed}</Heading>
-                      <Text fontSize="xs" color="fg.muted">lines/hr</Text>
+
+                {/* Achievements */}
+                <Card.Root rounded="lg" borderWidth="1px" borderColor="purple.200">
+                  <Card.Header py={2} px={3} bg="purple.50" borderBottomWidth="1px">
+                    <HStack justify="space-between">
+                      <Heading size="xs" color={`${ACCENT}.900`}>Achievements</Heading>
+                      <Badge variant="subtle" colorPalette="purple">{profile.achievements.length}</Badge>
+                    </HStack>
+                  </Card.Header>
+                  <Card.Body p={3} maxH="420px" overflowY="auto">
+                    <VStack align="stretch" gap={3}>
+                      {profile.achievements.map((a) => (
+                        <Card.Root key={a.id} borderWidth="1px" rounded="md">
+                          <Card.Body p={3}>
+                            <HStack align="start" gap={3}>
+                              <Badge variant="subtle" colorPalette="purple" rounded="md">🏆</Badge>
+                              <VStack align="start" gap={1}>
+                                <Text fontWeight="semibold">{a.name}</Text>
+                                <Text fontSize="sm" color="fg.muted">{a.desc}</Text>
+                              </VStack>
+                            </HStack>
+                          </Card.Body>
+                        </Card.Root>
+                      ))}
                     </VStack>
                   </Card.Body>
                 </Card.Root>
@@ -260,85 +345,45 @@ export default function WorkerProfile() {
             </Card.Body>
           </Card.Root>
         </GridItem>
-
-     {/* PROGRESS (full width, no scroll) */}
-{/* PROGRESS (two parts: Daily quests + Achievements) */}
-<GridItem colSpan={12}>
-  <Card.Root rounded="md" borderWidth="1px" borderColor="gray.200">
-    <Card.Header py={2} px={3}>
-      <Heading size="xs" textTransform="uppercase" letterSpacing="widest" color={`${ACCENT}.900`}>
-        Progress
-      </Heading>
-    </Card.Header>
-
-    <Card.Body p={3}>
-      <Grid columns={{ base: 1, md: 2 }} gap={3} alignItems="start">
-        {/* Daily quests */}
-        <Card.Root rounded="md" borderWidth="1px" borderColor={`${ACCENT}.200`}>
-          <Card.Header py={2} px={3} bg="green.50" borderBottomWidth="1px">
-            <Heading size="xs" color={`${ACCENT}.900`}>Daily quests</Heading>
-          </Card.Header>
-          <Card.Body p={3}>
-            <VStack align="stretch" gap={3}>
-              {profile.quests.map((q) => (
-                <Card.Root key={q.id} rounded="md" borderWidth="1px" borderColor="gray.200">
-                  <Card.Body p={3}>
-                    <VStack align="stretch" gap={1.5}>
-                      <HStack justify="space-between" align="center">
-                        <Text fontWeight="semibold" fontSize="md">{q.title}</Text>
-                        <Badge variant="solid" colorPalette="green">+{q.reward} XP</Badge>
-                      </HStack>
-                      <Text fontSize="sm" color="fg.muted">{q.goal}</Text>
-                      <Progress.Root value={q.progress} h="1">
-                        <Progress.Track bg="gray.200" />
-                        <Progress.Range bg="black" />
-                      </Progress.Root>
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-              ))}
-            </VStack>
-          </Card.Body>
-        </Card.Root>
-
-        {/* Achievements */}
-        <Card.Root rounded="md" borderWidth="1px" borderColor={`${ACCENT}.200`}>
-          <Card.Header py={2} px={3} bg="green.50" borderBottomWidth="1px">
-            <Heading size="xs" color={`${ACCENT}.900`}>Achievements</Heading>
-          </Card.Header>
-          <Card.Body p={3}>
-            <VStack align="stretch" gap={3}>
-              {profile.achievements.map((a) => (
-                <Card.Root key={a.id} rounded="md" borderWidth="1px" borderColor="gray.200">
-                  <Card.Body p={3}>
-                    <VStack align="start" gap={1}>
-                      <Badge variant="subtle" colorPalette="purple" rounded="md">🏆</Badge>
-                      <Text fontWeight="semibold" fontSize="md">{a.name}</Text>
-                      <Box
-                        as="span"
-                        px="2"
-                        py="1"
-                        bg="gray.100"
-                        borderRadius="sm"
-                        borderWidth="1px"
-                        color="fg.muted"
-                        fontSize="sm"
-                      >
-                        {a.desc}
-                      </Box>
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-              ))}
-            </VStack>
-          </Card.Body>
-        </Card.Root>
-      </Grid>
-    </Card.Body>
-  </Card.Root>
-</GridItem>
-
       </Grid>
     </Box>
+  );
+}
+
+/* Helpers */
+
+function StatTile({ label, value }: { label: string; value: number | string }) {
+  return (
+    <Card.Root borderWidth="1px" rounded="lg">
+      <Card.Body p={3}>
+        <VStack align="start" gap={0.5}>
+          <Text fontSize="xs" color="fg.muted">{label}</Text>
+          <Heading size="md" color={`${ACCENT}.900`}>{value}</Heading>
+        </VStack>
+      </Card.Body>
+    </Card.Root>
+  );
+}
+
+function ToggleCard({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <Card.Root borderWidth="1px" rounded="md">
+      <Card.Body p={3}>
+        <HStack justify="space-between">
+          <Text>{label}</Text>
+          <Switch.Root size="sm" checked={checked} onCheckedChange={(e) => onChange(e.checked)}>
+            <Switch.Control />
+          </Switch.Root>
+        </HStack>
+      </Card.Body>
+    </Card.Root>
   );
 }
