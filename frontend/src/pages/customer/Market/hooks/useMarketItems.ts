@@ -22,8 +22,8 @@ export type UseMarketItemsOptions = {
   sort?: SortKey;
 
   /** Paging config */
-  page?: number;        // 1-based
-  pageSize?: number;    // default 16
+  page?: number; // 1-based
+  pageSize?: number; // default 16
 
   /** If provided, called when a fresh fetch completes */
   onFetched?: (items: MarketItem[]) => void;
@@ -32,8 +32,8 @@ export type UseMarketItemsOptions = {
 export type UseMarketItems = {
   // Raw data
   allItems: MarketItem[];
-  isLoading: boolean;   // first load
-  isFetching: boolean;  // subsequent refetches
+  isLoading: boolean; // first load
+  isFetching: boolean; // subsequent refetches
   error: string | null;
 
   // Derived lists
@@ -60,7 +60,6 @@ function getUnitPriceUSD(it: MarketItem): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-
 /* ------------------------------ Name helpers ------------------------------ */
 function norm(s: string | undefined | null) {
   return (s ?? "").trim().toLowerCase();
@@ -84,7 +83,9 @@ export function useMarketItems({
   const [isLoading, setLoading] = useState(false);
   const [isFetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currPage, setCurrPage] = useState<number>(Math.max(1, Math.floor(page)));
+  const [currPage, setCurrPage] = useState<number>(
+    Math.max(1, Math.floor(page))
+  );
 
   // keep page in sync with external `page` prop
   useEffect(() => {
@@ -93,7 +94,7 @@ export function useMarketItems({
 
   // request in-flight guard
   const reqIdRef = useRef(0);
-
+  // console.log("useMarketItems marketStockId", marketStockId);
   const fetchItems = useCallback(async () => {
     if (!shouldFetch || !marketStockId) {
       setAllItems([]);
@@ -109,11 +110,11 @@ export function useMarketItems({
 
     try {
       const arr = await getFlatItemsByMarketStockId(marketStockId);
+      // console.log("Fetched items:", arr);
       if (reqId !== reqIdRef.current) return;
 
       setAllItems(arr);
       onFetched?.(arr);
-
     } catch (e: any) {
       if (reqId !== reqIdRef.current) return;
       setError(e?.message ?? "Failed to load market items");

@@ -270,7 +270,7 @@ export default function MarketPage() {
 
     // 2) Validate we can resolve the LC id from the address
     const lcId = addr.logisticCenterId ?? null;
-    console.log("customer addresses", addresses);
+    // console.log("customer addresses", addresses);
     const logisticsCenterId = lcId;
     const deliveryDate = shift.date ?? null; // ISO yyyy-mm-dd
     const shiftName = shift.shift ?? null; // "morning" | "afternoon" | ...
@@ -300,10 +300,10 @@ export default function MarketPage() {
       deliveryDate,
       shift: shiftName,
     });
-    console.log(
-      "checkout: navigate to /checkout with",
-      Object.fromEntries(qs.entries())
-    );
+    // console.log(
+    //   "checkout: navigate to /checkout with",
+    //   Object.fromEntries(qs.entries())
+    // );
 
     navigate(`/checkout?${qs.toString()}`);
   }, [isActive, shift, selection, navigate]);
@@ -366,6 +366,7 @@ export default function MarketPage() {
 
   // ---- Derived: page items filtered with search predicate from index ----
   const visiblePageItems = useMemo(() => {
+    // console.log("filtering pageItems", pageItems.length);
     return pageItems.filter(matchFilterDebounced);
   }, [pageItems, matchFilterDebounced]);
 
@@ -411,7 +412,7 @@ export default function MarketPage() {
               onPageChange={handlePageChange}
               onAdd={({ item, qty }) => addToCart(item, qty)}
               allItemsForRelated={allItems}   // ✅ add this line
-/>
+            />
 
           </>
         )}

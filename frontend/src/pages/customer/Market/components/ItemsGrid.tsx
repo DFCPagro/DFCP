@@ -64,7 +64,7 @@ function ItemsGridBase({
   const renderSkeletons = isLoading
   const showEmpty = !isLoading && !error && items.length === 0
   // console.log("ItemsGrid received items:", items);
-  
+
   return (
     <Stack gap="4" width="full">
       {/* Error */}
@@ -92,18 +92,18 @@ function ItemsGridBase({
       >
         {renderSkeletons
           ? Array.from({ length: (columns.lg ?? 4) * 2 }).map((_, i) => (
-              <GridItem key={`s-${i}`}>
-                <Box borderWidth="1px" borderRadius="lg" overflow="hidden" minH={minCardHeight} p="0">
-                  <Skeleton height="80px" />
-                  <Stack gap="2" p="3">
-                    <Skeleton height="18px" />
-                    <Skeleton height="14px" />
-                    <Skeleton height="10px" />
-                    <Skeleton height="36px" />
-                  </Stack>
-                </Box>
-              </GridItem>
-            ))
+            <GridItem key={`s-${i}`}>
+              <Box borderWidth="1px" borderRadius="lg" overflow="hidden" minH={minCardHeight} p="0">
+                <Skeleton height="80px" />
+                <Stack gap="2" p="3">
+                  <Skeleton height="18px" />
+                  <Skeleton height="14px" />
+                  <Skeleton height="10px" />
+                  <Skeleton height="36px" />
+                </Stack>
+              </Box>
+            </GridItem>
+          ))
           : items.map((it) => (
             <GridItem key={itemKey(it)}>
               <MarketItemCard item={it} onAdd={onAdd} allItemsForRelated={allItemsForRelated} />
@@ -157,7 +157,7 @@ function ItemsGridBase({
 /** Defensive unique key for a MarketItem */
 function itemKey(it: MarketItem): string {
   if (it.stockId) return it.stockId;                          // "<itemId>_<farmerId>"
-  if (it.docId ) return `${it.docId}`; // stable within doc
+  if (it.docId) return `${it.docId}`; // stable within doc
   return `${it.itemId}:${it.farmerId ?? it.farmerName ?? "unknown"}`;
 }
 
