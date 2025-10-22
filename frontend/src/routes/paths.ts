@@ -9,6 +9,9 @@ export const PATHS = {
   jobs: "/jobs",
   jobApplication: "/job-application",
 
+  //logistic center
+  logisticCenter: "/logistic-center",
+
   // customer pages
   market: "/market",
   cart: "/cart",

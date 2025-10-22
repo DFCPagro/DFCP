@@ -1,6 +1,6 @@
 // src/components/layout/NavBar.tsx
 import { Box, Flex, Link as CLink, Image as CImage } from "@chakra-ui/react";
-import {StyledIconButton} from "@/components/ui/IconButton";
+import { StyledIconButton } from "@/components/ui/IconButton";
 import { FiMenu } from "react-icons/fi";
 import { Link as RouterLink } from "react-router-dom";
 
@@ -16,7 +16,6 @@ import AccountMenu from "./AccountMenu";
 // ✅ use your custom color-mode utilities (next-themes + Chakra)
 import { useColorModeValue, ColorModeButton } from "@/components/ui/color-mode";
 import logo from "/DFCPlogo.png";
-
 
 export default function NavBar() {
   // use your hook instead of Chakra's
@@ -38,23 +37,31 @@ export default function NavBar() {
       borderColor={border}
       position="sticky"
       top={0}
-      zIndex={1000}
+      zIndex={9999}
     >
       <Flex h="14" align="center" px="3" gap="3">
         {/* Burger appears when items overflow (or if there are none) */}
-          {(isOverflowing || !items?.length) && (
-            <StyledIconButton aria-label="Open menu" variant="ghost" onClick={openDrawer}>
-              <FiMenu />
-            </StyledIconButton>
-          )}
-          
+        {(isOverflowing || !items?.length) && (
+          <StyledIconButton
+            aria-label="Open menu"
+            variant="ghost"
+            onClick={openDrawer}
+          >
+            <FiMenu />
+          </StyledIconButton>
+        )}
+
         {/* Brand */}
-        <CLink asChild  _hover={{ textDecoration: "none" }}>
+        <CLink asChild _hover={{ textDecoration: "none" }}>
           <RouterLink to="/">
-          <CImage src={logo} alt="Simple Market" height="8" objectFit="contain"/>
+            <CImage
+              src={logo}
+              alt="Simple Market"
+              height="8"
+              objectFit="contain"
+            />
           </RouterLink>
         </CLink>
-
 
         {/* Right cluster */}
         <Flex align="center" gap="2" ml="auto" minW={0}>
@@ -65,7 +72,11 @@ export default function NavBar() {
             // Keep a measurable element for overflow detection even when hidden
             <Box
               ref={ref as any}
-              style={{ position: "absolute", left: -9999, visibility: "hidden" }}
+              style={{
+                position: "absolute",
+                left: -9999,
+                visibility: "hidden",
+              }}
             />
           )}
 
@@ -74,8 +85,6 @@ export default function NavBar() {
 
           {/* Theme toggle (your component) */}
           <ColorModeButton />
-
-          
         </Flex>
       </Flex>
 

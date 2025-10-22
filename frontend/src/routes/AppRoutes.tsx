@@ -33,6 +33,7 @@ const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
 const CSManagerDashboard = lazy(() => import("@/pages/csManager/Dashboard"));
+const LogisticCenter = lazy(() => import("@/pages/LogisticCenter"));
 
 const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
 const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"));
@@ -60,6 +61,15 @@ export default function AppRoutes() {
           <Route path={PATHS.notFound} element={<NotFound />} />
           <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
           <Route path={PATHS.QRExample} element={< QRExample />} />
+
+        </Route>
+        {/* --- Public, no Footer --- */}
+        <Route
+          element={
+            <AppShell showFooter={false} px={0} py={0} maxW="container.md" />
+          }
+        >
+          <Route path={PATHS.logisticCenter} element={< LogisticCenter />} />
         </Route>
 
         {/* --- Public, immersive (no chrome) --- */}

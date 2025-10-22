@@ -88,7 +88,15 @@ export default function Footer() {
   const subtext = useColorModeValue("gray.600", "gray.400");
 
   return (
-    <Box as="footer" bg={bg} borderTop="1px solid" borderColor={border} mt="10">
+    <Box
+      as="footer"
+      zIndex={9999}
+      // bg="transparent"
+      bg={bg}
+      borderTop="1px solid"
+      borderColor={border}
+      mt="10"
+    >
       <Box
         maxW="7xl"
         mx="auto"
