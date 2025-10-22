@@ -10,16 +10,25 @@ type DecodedPayload = {
 } & Record<string, unknown>;
 
 /** Access token: short-lived */
-export function signAccessToken(userId: string) {
+export function signAccessToken(userId: string, logisticCenterId: string) {
   const expiresIn = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
-  return jwt.sign({ sub: userId }, process.env.JWT_ACCESS_SECRET as string, { expiresIn });
+  return jwt.sign(
+    { sub: userId, logisticCenterId },
+    process.env.JWT_ACCESS_SECRET as string,
+    { expiresIn }
+  );
 }
 
 /** Refresh token: long-lived */
-export function signRefreshToken(userId: string) {
+export function signRefreshToken(userId: string, logisticCenterId: string) {
   const expiresIn = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
-  return jwt.sign({ sub: userId }, process.env.JWT_REFRESH_SECRET as string, { expiresIn });
+  return jwt.sign(
+    { sub: userId, logisticCenterId },
+    process.env.JWT_REFRESH_SECRET as string,
+    { expiresIn }
+  );
 }
+
 
 /** SHA-256 hash (store only hashes of refresh tokens) */
 export function hashToken(token: string) {
@@ -48,10 +57,11 @@ export async function storeRefreshToken(
 export async function rotateRefreshToken(
   oldToken: string,
   userId: string,
+  logisticCenterId: string,
   meta: { userAgent?: string; ip?: string } = {}
 ) {
   await Token.deleteOne({ user: userId, tokenHash: hashToken(oldToken) });
-  const newToken = signRefreshToken(userId);
+  const newToken = signRefreshToken(userId, logisticCenterId);
   await storeRefreshToken(newToken, userId, meta);
   return newToken;
 }

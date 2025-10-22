@@ -4,7 +4,13 @@ import { roles, Role } from "../utils/constants";
 import { Request, Response, NextFunction } from "express";
 import { User } from "../models";
 
-export interface JWTPayload { sub: string; iat?: number; exp?: number; }
+export interface JWTPayload {
+  sub: string;
+  iat?: number;
+  exp?: number;
+  logisticCenterId?: string;
+}
+
 
 /**
  * Required authentication (for protected routes)
@@ -19,7 +25,7 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
     if (!user) throw new ApiError(401, "User not found");
     // @ts-ignore attach user to req
     req.user = user;
-
+    req.logisticCenterId = user.logisticCenterId ?? null;
     next();
   } catch {
     throw new ApiError(401, "Invalid or expired token");
@@ -30,20 +36,30 @@ export const authenticate = async (req: Request, _res: Response, next: NextFunct
  * Optional authentication (for public GET routes)
  * - If Authorization header is missing: continue as guest
  * - If present but invalid: respond 401
- * - If valid: attaches req.user so controllers can return privileged data
+ * - If valid: attaches req.user and logisticCenterId
  */
-export const authenticateIfPresent = async (req: Request, _res: Response, next: NextFunction) => {
+export const authenticateIfPresent = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+) => {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
   if (!token) return next(); // guest
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET as string) as JWTPayload;
+    const payload = jwt.verify(
+      token,
+      process.env.JWT_ACCESS_SECRET as string
+    ) as JWTPayload;
+
     const user = await User.findById(payload.sub);
     if (!user) throw new ApiError(401, "User not found");
-    // @ts-ignore
+
     req.user = user;
+    req.logisticCenterId = payload.logisticCenterId ?? undefined;
+    
     next();
   } catch {
     throw new ApiError(401, "Invalid or expired token");

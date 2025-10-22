@@ -71,7 +71,6 @@ export async function login({
   const user = await findUserByEmail(email);
   if (!user) throw new ApiError(401, "Invalid credentials");
 
-  // Optional gate: block inactive accounts
   if (user.activeStatus === false) {
     throw new ApiError(403, "Account is not active");
   }
@@ -80,13 +79,17 @@ export async function login({
   if (!ok) throw new ApiError(401, "Invalid credentials");
 
   const userId = String((user as any).id ?? (user as any)._id);
-  const accessToken = tokenService.signAccessToken(userId);
-  const refreshToken = tokenService.signRefreshToken(userId);
+  const logisticCenterId = String((user as any).logisticCenterId);
+
+  const accessToken = tokenService.signAccessToken(userId, logisticCenterId);
+  const refreshToken = tokenService.signRefreshToken(userId, logisticCenterId);
 
   return {
     name: user.name,
     role: user.role,
+    logisticCenterId,
     accessToken,
     refreshToken,
   };
 }
+

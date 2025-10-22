@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 import ApiError from "../utils/ApiError";
 import * as tokenService from "../services/token.service";
-import { register as registerSvc, login as loginSvc } from "../services/auth.service";
+import {
+  register as registerSvc,
+  login as loginSvc,
+} from "../services/auth.service";
 import { getPublicUserById } from "../services/user.service";
 
 /**
@@ -19,8 +22,9 @@ export async function register(req: Request, res: Response) {
  * Returns { name, role, accessToken, refreshToken }.
  */
 export async function login(req: Request, res: Response) {
-  const { name, role, accessToken, refreshToken } = await loginSvc(req.body);
-  res.json({ name, role, accessToken, refreshToken });
+  const { name, role, accessToken, refreshToken, logisticCenterId } =
+    await loginSvc(req.body);
+  res.json({ name, role, logisticCenterId, accessToken, refreshToken });
 }
 
 /**
@@ -30,17 +34,30 @@ export async function login(req: Request, res: Response) {
  */
 export async function refresh(req: Request, res: Response) {
   const token =
-    typeof req.body?.refreshToken === "string" ? req.body.refreshToken : undefined;
+    typeof req.body?.refreshToken === "string"
+      ? req.body.refreshToken
+      : undefined;
 
   if (!token) throw new ApiError(401, "Missing refresh token");
 
   const payload = await tokenService.verifyRefreshToken(token);
   if (!payload?.sub) throw new ApiError(401, "Invalid refresh token");
 
-  const newAccess = tokenService.signAccessToken(payload.sub);
-  const newRefresh = tokenService.signRefreshToken(payload.sub);
+  const logisticCenterId = String(payload.logisticCenterId ?? "");
 
-  res.json({ tokens: { access: newAccess, refresh: newRefresh } });
+  const newAccess = tokenService.signAccessToken(payload.sub, logisticCenterId);
+  const newRefresh = tokenService.signRefreshToken(
+    payload.sub,
+    logisticCenterId
+  );
+
+  res.json({
+    tokens: {
+      access: newAccess,
+      refresh: newRefresh,
+    },
+    logisticCenterId,
+  });
 }
 
 /**
@@ -50,12 +67,18 @@ export async function refresh(req: Request, res: Response) {
  */
 export async function logout(req: Request, res: Response) {
   const token =
-    typeof req.body?.refreshToken === "string" ? req.body.refreshToken : undefined;
+    typeof req.body?.refreshToken === "string"
+      ? req.body.refreshToken
+      : undefined;
 
   if (token) {
-    const payload = await tokenService.verifyRefreshToken(token).catch(() => null);
+    const payload = await tokenService
+      .verifyRefreshToken(token)
+      .catch(() => null);
     if (payload?.sub) {
-      await tokenService.revokeRefreshToken(token, payload.sub).catch(() => void 0);
+      await tokenService
+        .revokeRefreshToken(token, payload.sub)
+        .catch(() => void 0);
     }
   }
 
@@ -76,5 +99,6 @@ export async function me(req: Request, res: Response) {
   const id = String(current._id ?? current.id ?? current.sub ?? "");
   if (!id) throw new ApiError(401, "Unauthorized");
 
-  res.json(await getPublicUserById(id));
+  const logisticCenterId = current.logisticCenterId ?? null;
+  res.json({ ...(await getPublicUserById(id)), logisticCenterId });
 }
