@@ -17,7 +17,7 @@ import ItemList from "@/components/common/ItemList";
 import { fetchOrders } from "@/api/orders";
 
 // reuse the same helpers used by Orders
-import { toItemRows, pickCurrency } from "@/pages/Orders/components/helpers";
+import { toItemRows, pickCurrency } from "@/pages/customer/customerOrders/components/helpers";
 
 
 // canonical statuses

@@ -6,7 +6,6 @@ export type Price = {
   c?: number | null;
 };
 
-// ABC helper for quality standards
 export type ABC = {
   A?: string | null;
   B?: string | null;
@@ -20,34 +19,67 @@ export type QualityStandards = {
   pressure?: ABC;
   colorDescription?: ABC;
   colorPercentage?: ABC;
-  weightPerUnit?: ABC;     // prefer this key
-  weightPerUnitG?: ABC;    // fallback (backend syncs if needed)
+  weightPerUnit?: ABC;     // preferred key
+  weightPerUnitG?: ABC;    // fallback; backend syncs if needed
   diameterMM?: ABC;
   qualityGrade?: ABC;
   maxDefectRatioLengthDiameter?: ABC;
   rejectionRate?: ABC;
 };
 
-export type Item = {
-  _id: string;                 // server returns stringified ObjectId
+export type SellModes = {
+  byKg?: boolean;          // default true
+  byUnit?: boolean;        // default false
+  unitBundleSize?: number; // default 1
+};
+
+/** Persisted fields (match Mongoose schema) */
+export type ItemBase = {
+  _id: string;
   category: ItemCategory;
   type: string;
-  variety?: string | null;
-  imageUrl?: string | null;
+  variety: string | null;            // present, can be null
+  imageUrl: string | null;
 
-  // NEW
-  season?: string | null;
-  tolerance?: string | null;   // shown as ±2% if missing
+  season: string | null;
+  farmerTips: string | null;
+  customerInfo: string[];            // backend default []
+  caloriesPer100g: number | null;
+
+  price?: Price;                     // may be absent
+
+  // weight/area metadata
+  avgWeightPerUnitGr: number | null;
+  sdWeightPerUnitGr: number;         // default 0
+  avgQmPerUnit: number | null;
+  weightPerUnitG: number | null;     // legacy alias
+
+  // selling modes
+  sellModes?: SellModes;
+
+  // optional unit price override
+  pricePerUnitOverride: number | null;
+
+  // quality & tolerances
   qualityStandards?: QualityStandards;
+  tolerance: string;                 // default "0.02"
 
-  farmerTips?: string | null;
-  customerInfo?: string[];
-  caloriesPer100g?: number | null;
-  price?: Price;
+  // audit
   lastUpdated?: string;
   createdAt?: string;
   updatedAt?: string;
 };
+
+/** Virtuals included in JSON (toJSON.virtuals = true) */
+export type ItemDerived = {
+  itemId: string;
+  name: string;
+  pricePerKg: number | null;
+  pricePerUnit: number | null;
+  unitMode: "kg" | "unit" | "mixed";
+};
+
+export type Item = ItemBase & Partial<ItemDerived>;
 
 export type ItemsListResponse = {
   items: Item[];

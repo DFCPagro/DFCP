@@ -13,7 +13,7 @@ import {
 } from "@chakra-ui/react";
 import { MapPin, CircleX } from "lucide-react";
 import ItemList from "@/components/common/ItemList";
-import type { OrderRowAPI } from "../../../types/orders";
+import type { OrderRowAPI } from "@/types/orders";
 import OrderTimeline from "./OrderTimeline";
 import {
   STATUS_EMOJI,
