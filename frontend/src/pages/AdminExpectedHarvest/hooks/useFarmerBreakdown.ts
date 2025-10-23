@@ -2,8 +2,8 @@
 import { useMemo } from "react";
 import {
   type HarvestShift,
-  type FarmerSectionHarvestRecord,
-  SHIFTS,
+  // type FarmerSectionHarvestRecord,
+  // SHIFTS,
 } from "@/api/fakes/farmerSectionHarvest";
 import { farmerNameById } from "@/api/fakes/farmers";
 import { useFarmerSectionHarvest } from "./useFarmerSectionHarvest";

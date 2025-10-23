@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import {useEffect, useState } from "react";
 import {
   Box,
   Grid,
@@ -11,7 +11,7 @@ import {
   Button,
   VStack,
 } from "@chakra-ui/react";
-import { MapPin, CircleX } from "lucide-react";
+import { MapPin, CircleX} from "lucide-react";
 import ItemList from "@/components/common/ItemList";
 import type { OrderRowAPI } from "@/types/orders";
 import OrderTimeline from "./OrderTimeline";
@@ -44,14 +44,18 @@ export default function OrderCard({
   onOpenNote,
 }: Props) {
   if (!order) return null;
+const onlyDelivery = isOldStatus((order as any).status);
+const [timelineOpen, setTimelineOpen] = useState(!onlyDelivery);
 
-  const [timelineOpen, setTimelineOpen] = useState(false);
-
+useEffect(() => {
+  setTimelineOpen(!onlyDelivery);
+}, [onlyDelivery, order?.id]); 
   const ui = normalizeStatus((order as any).status);
   const emoji = STATUS_EMOJI[ui];
   const statusLabel = STATUS_LABEL[ui];
-  const onlyDelivery = isOldStatus((order as any).status);
+
   const deliveryTime = formatDeliveryTime(order);
+  const orderTime=order.createdAt||"";
 
   const currency = pickCurrency((order as any).items ?? []) ?? "₪";
   const rowsBase = toItemRows((order as any).items ?? []);
@@ -67,19 +71,36 @@ export default function OrderCard({
         alignItems="center"
       >
         <GridItem minW={0}>
-          <HStack gap={2}>
-            <Text fontWeight="bold">Delivery time:</Text>
-            <Text
-              as="span"
-              maxW="100%"
-              overflow="hidden"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              title={deliveryTime}
-            >
-              {deliveryTime}
-            </Text>
-          </HStack>
+<VStack align="start" gap={1}>
+  <HStack gap={2} maxW="100%">
+    <Text as="span" fontWeight="bold">Order time:</Text>
+    <Text
+      as="span"
+      maxW="70%"
+      overflow="hidden"
+      textOverflow="clip"
+      whiteSpace="nowrap"
+      title={orderTime}
+    >
+      {orderTime}
+    </Text>
+  </HStack>
+
+  <HStack gap={2} maxW="100%">
+    <Text as="span" fontWeight="bold">Delivery time:</Text>
+    <Text
+      as="span"
+      maxW="70%"
+      overflow="hidden"
+      textOverflow="ellipsis"
+      whiteSpace="nowrap"
+      title={deliveryTime}
+    >
+      {deliveryTime}
+    </Text>
+  </HStack>
+</VStack>
+
         </GridItem>
 
         <GridItem justifySelf="center" zIndex={10}>
@@ -145,11 +166,11 @@ export default function OrderCard({
         </GridItem>
       </Grid>
 
-      {timelineOpen && (
-        <Box mt={3}>
-          <OrderTimeline status={(order as any).status} />
-        </Box>
-      )}
+{timelineOpen && (
+  <Box mt={3}>
+    <OrderTimeline status={(order as any).status} />
+  </Box>
+)}
 
       {isOpen && (
         <VStack align="stretch" mt={3} gap={3}>

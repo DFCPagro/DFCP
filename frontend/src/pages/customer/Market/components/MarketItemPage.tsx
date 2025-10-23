@@ -96,7 +96,7 @@ function MarketItemPageBase({
   onAddToCart,
   onOpenItem,
   title,
-  debugJson = false,
+//  debugJson = false,
   allItemsForRelated,
 }: MarketItemPageProps) {
   // internal active item state so clicking related replaces the viewed item
@@ -279,7 +279,12 @@ useEffect(() => {
                 <Text fontSize="xs" color="fg.muted">{calories} kcal / 100g</Text>
               )}
             </Stack>
+               <Stack gap="2">
+              <Text fontWeight="semibold">Recepies Suggestion </Text>
+             
+            </Stack>
           </Stack>
+          
 
           <Box flex={{ base: "1", md: "0 0 45%" }}>
             <RightPurchasePanel item={activeItem} onAddToCart={onAddToCart} />

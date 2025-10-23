@@ -223,13 +223,13 @@ export default function OrdersIndex() {
   };
 
   // -------- MAP DERIVED VALUES --------
-  const uiForMap = useMemo<UIStatus>(
-    () =>
-      orderForMap
-        ? (normalizeStatus((orderForMap as any).status) as UIStatus)
-        : "pending",
-    [orderForMap]
-  );
+  // const uiForMap = useMemo<UIStatus>(
+  //   () =>
+  //     orderForMap
+  //       ? (normalizeStatus((orderForMap as any).status) as UIStatus)
+  //       : "pending",
+  //   [orderForMap]
+  // );
 
   const dest = useMemo<PointValue | undefined>(() => {
     if (!orderForMap) return undefined;

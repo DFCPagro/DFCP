@@ -1,6 +1,6 @@
 // src/pages/AdminExpectedHarvest/components/FilterBar.tsx
 import { memo } from "react";
-import { Stack, VStack, Field, NativeSelect } from "@chakra-ui/react";
+import { Stack, Field, NativeSelect } from "@chakra-ui/react";
 import {
   FAKE_ITEMS,
   SHIFTS,
