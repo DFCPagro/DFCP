@@ -1,23 +1,28 @@
-import { Box } from "@chakra-ui/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Box, Card, HStack, IconButton } from "@chakra-ui/react"
+import { Tooltip } from "@/components/ui/tooltip"
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
+import { ZoomIn, ZoomOut, RefreshCcw } from "lucide-react"
+import FloatingToolbar from "./FloatingToolbar"
 
 /**
- * Board (pan + zoom) with command API:
+ * Board (pan + zoom) with built-in floating controls.
+ *
+ * Events:
  * - "board:control" { type: "zoomIn" | "zoomOut" | "reset" }
  * - "board:focus"   { x, y, scale? }  // x,y in content-space pixels
- *
- * Listens on BOTH the board element AND window (so emitters can just dispatch to window).
  */
 export default function Board({
   children,
   minScale = 0.4,
   maxScale = 3,
   initialScale = 1,
+  controls = true,
 }: {
-  children: any
+  children: ReactNode
   minScale?: number
   maxScale?: number
   initialScale?: number
+  controls?: boolean
 }) {
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const [scale, setScale] = useState(initialScale)
@@ -81,7 +86,6 @@ export default function Board({
     lastPosRef.current = null
   }
 
-  // Command handlers (shared for element + window)
   const handleControl = useCallback(
     (payload: { type: "zoomIn" | "zoomOut" | "reset" } | undefined) => {
       if (!payload) return
@@ -117,7 +121,7 @@ export default function Board({
     [scale, minScale, maxScale],
   )
 
-  // Register listeners on BOTH the element and the window
+  // Register listeners on element + window
   useEffect(() => {
     const vp = viewportRef.current
     if (!vp) return
@@ -152,8 +156,8 @@ export default function Board({
       borderWidth="1px"
       borderColor="gameCanvasBorder"
       boxShadow="gameCanvasShadow"
-      bgImage={`linear-gradient(transparent 23px, rgba(255,255,255,0.05) 24px),
-          linear-gradient(90deg, transparent 23px, rgba(255,255,255,0.05) 24px)`}
+      bgImage={`linear-gradient(transparent 23px, var(--colors-gameGridLine) 24px),
+                linear-gradient(90deg, transparent 23px, var(--colors-gameGridLine) 24px)`}
       bgSize="24px 24px"
       onMouseDown={(e) => startPan(e.clientX, e.clientY)}
       onMouseMove={(e) => movePan(e.clientX, e.clientY)}
@@ -181,6 +185,13 @@ export default function Board({
       >
         {children}
       </Box>
+
+      {controls && (
+        <Box position="absolute" left="4px" bottom={"100px"}  borderRadius="16px" zIndex={2}>
+          <FloatingToolbar/>
+        </Box>
+        
+      )}
     </Box>
   )
 }

@@ -2,30 +2,33 @@ import { Box } from "@chakra-ui/react"
 import Topbar from "./components/Topbar"
 import Canvas from "./components/Canvas"
 import { worldLayout as DEFAULT_WORLD } from "@/data/worldLayout"
-import WorldMap from "./components/world/WorldMap"
-import FloatingToolbar from "./components/FloatingToolbar"
+import LogisticMap from "@/components/common/LogisticMap"
 import HUDControls from "./components/HUDControls"
 import ScanDialog from "./components/ScanDialog"
 import ShelfDetailDialog from "./components/ShelfDetailDialog"
 import { useUIStore } from "@/store/useUIStore"
 import { shelvesByZoneToCells } from "@/data/mockWorldShelves"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { filterShelvesByUI } from "@/selectors/filterShelves"
 import { getShelfPixelCenter } from "@/utils/worldMath"
+import type { MapMode } from "@/types/map"
 
 export default function App() {
   const { detailShelf, filterType, onlyAvoid, crowdedOnly } = useUIStore()
   const shelvesRaw = shelvesByZoneToCells()
+  // const [mode, setMode] = useState<MapMode>("manager") // toggle this from UI if needed
+  const [mode, setMode] = useState<MapMode>("manager") // toggle this from UI if needed
+  const [targetShelfId, setTargetShelfId] = useState<string | null>("C-1-2") // demo target for picker mode
 
-  // Apply HUD filters
+  // Apply HUD filters only in manager mode
   const shelves = useMemo(
-    () => filterShelvesByUI(shelvesRaw, { filterType, onlyAvoid, crowdedOnly }),
-    [shelvesRaw, filterType, onlyAvoid, crowdedOnly],
+    () => (mode === "manager" ? filterShelvesByUI(shelvesRaw, { filterType, onlyAvoid, crowdedOnly }) : shelvesRaw),
+    [shelvesRaw, filterType, onlyAvoid, crowdedOnly, mode],
   )
 
   const world = DEFAULT_WORLD
 
-  // Go-to-shelf wiring
+  // Go-to-shelf wiring (works in both modes)
   useEffect(() => {
     const handler = (e: Event) => {
       const ce = e as CustomEvent<{ shelfId: string }>
@@ -34,13 +37,11 @@ export default function App() {
       const pos = getShelfPixelCenter(world, shelves, shelfId)
       if (!pos) return
       window.dispatchEvent(new CustomEvent("board:focus", { detail: { x: pos.x, y: pos.y, scale: 1.2 } }))
+      setTargetShelfId(shelfId)
     }
     window.addEventListener("app:gotoShelf", handler as any)
     return () => window.removeEventListener("app:gotoShelf", handler as any)
   }, [world, shelves])
-
-  // Determine whether any filter is active; if yes, hideNulls=true
-  const hideNulls = filterType !== "all" || onlyAvoid || crowdedOnly
 
   return (
     <>
@@ -60,13 +61,19 @@ export default function App() {
       {/* App */}
       <Box minH="100dvh" color="text" position="relative" zIndex={1}>
         <Topbar />
+
         <Canvas>
-          <WorldMap world={world} shelvesByZone={shelves} hideNulls={hideNulls} />
+          <LogisticMap
+            mode={mode}
+            world={world}
+            shelvesByZone={shelves}
+            targetShelfId={mode === "picker" ? targetShelfId : null}
+            hideNulls={mode === "manager" ? filterType !== "all" || onlyAvoid || crowdedOnly : false}
+          />
         </Canvas>
 
-        {/* Floating UI */}
-        <FloatingToolbar />
-        <HUDControls />
+        {/* Manager-only HUD (hide in picker mode) */}
+        {mode === "manager" && <HUDControls />}
 
         {/* Dialogs */}
         <ScanDialog />
