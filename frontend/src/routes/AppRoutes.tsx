@@ -20,7 +20,7 @@ const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
 const FarmerDashboard = lazy(() => import("@/pages/farmer/FarmerDashboard"));
 const FarmerCropManagement = lazy(() => import("@/pages/farmer/FarmerCropManagement"));
 const Market = lazy(() => import("@/pages/customer/Market"));
-const Cart = lazy(() => import("@/pages/customer/Cart"));
+
 const Checkout = lazy(() => import("@/pages/customer/Checkout"));
 const Profile = lazy(() => import("@/pages/customer/Profile"));
 const Orders = lazy(() => import("@/pages/customer/customerOrders"));
@@ -240,7 +240,7 @@ export default function AppRoutes() {
             </AuthGuard>
           }
         >
-          <Route path={PATHS.cart} element={<Cart />} />
+        
           <Route path={PATHS.checkout} element={<Checkout />} />
         </Route>
 
