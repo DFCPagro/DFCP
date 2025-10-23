@@ -11,7 +11,7 @@
 
 import { api } from "./config";
 import type { CreateOrderBody, Order, OrderRowAPI } from "@/types/orders";
-import type { CSOrdersResponse } from "@/types/cs.orders";
+import type { CSOrdersResponse, OrderStatus } from "@/types/cs.orders";
 export type ApiError = {
   status: number;
   message: string;
@@ -174,6 +174,16 @@ export async function confirmOrderByCustomerToken(
   return data;
 }
 
+type GetOrdersForShiftParams = {
+  logisticCenterId: string;
+  date: string;       // yyyy-mm-dd
+  shiftName: string;
+  status?: OrderStatus;     // optional; server may ignore
+  page?: number;
+  limit?: number;
+  fields?: string[];        // optional projection
+};
+
 /** Fetch order details via an ops token (for logistics staff). */
 export async function getOrderByOpsToken(token: string) {
   const { data } = await api.get(`/orders/by-ops-token/${token}`);
@@ -182,11 +192,22 @@ export async function getOrderByOpsToken(token: string) {
 
 
 
-export async function getOrdersForShift(params: {
-  logisticCenterId: string;
-  date: string;
-  shiftName: string;
-}): Promise<CSOrdersResponse> {
-  const { data } = await api.get("/orders/by-shift", { params });
-  return (data?.data ?? data) as CSOrdersResponse; // unwrap if enveloped
+export async function getOrdersForShift(params: GetOrdersForShiftParams): Promise<CSOrdersResponse> {
+  const { logisticCenterId, date, shiftName, status, page, limit, fields } = params;
+
+  // Only send defined params
+  const query: Record<string, any> = {
+    logisticCenterId,
+    date,
+    shiftName,
+  };
+  if (status) query.status = status;
+  if (page) query.page = page;
+  if (limit) query.limit = limit;
+  if (fields?.length) query.fields = fields.join(",");
+
+  const { data } = await api.get("/orders/by-shift", { params: query });
+  // support enveloped or raw
+  const payload = (data?.data ?? data) as CSOrdersResponse;
+  return payload;
 }

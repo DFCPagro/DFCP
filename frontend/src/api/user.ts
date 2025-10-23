@@ -2,6 +2,7 @@ import { api } from "./config";
 import { z } from "zod";
 import { AddressListSchema, type Address } from "@/types/address";
 
+
 /* ---------- Zod helpers (null/undefined → safe types) ---------- */
 
 // required string: null/undefined -> "", everything -> String(v)
@@ -82,4 +83,15 @@ export async function updateUserAddress(
 ): Promise<Address[]> {
   const { data } = await api.patch(`/users/addresses/${id}`, patch);
   return AddressListSchema.parse(data?.data ?? data);
+}
+
+export const ContactInfo = z.object({
+  name: zOptionalString,
+  email: zEmailString,        // <- tolerant to null → ""
+  phone: zRequiredString, });
+
+export async function getContactInfoById(id: string): Promise<Contact> {
+  const { data } = await api.get(`/users/contact-info/${id}`);
+  const res = data?.data ?? data;
+  return ContactInfo.parse(res);
 }

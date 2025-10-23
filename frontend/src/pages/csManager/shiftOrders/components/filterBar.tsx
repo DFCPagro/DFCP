@@ -1,5 +1,5 @@
 import { HStack, Select, Switch, Text, createListCollection } from "@chakra-ui/react";
-import type { CSOrderStatus } from "@/types/cs.orders";
+import type { OrderStatus } from "@/types/cs.orders";
 
 type Props = {
   status?: string;
@@ -8,7 +8,7 @@ type Props = {
   setProblemOnly: (v: boolean) => void;
 };
 
-const statuses: CSOrderStatus[] = [
+const statuses: OrderStatus[] = [
   "pending",
   "confirmed",
   "farmer",
@@ -24,8 +24,6 @@ const statuses: CSOrderStatus[] = [
 
 type SelectItem = { id: string; label: string };
 
-// In Chakra v3 Select, the collection resolves the "value" from each item's `id`.
-// No `getItemValue` prop exists — only `items` and optional `itemToString`.
 const SELECT_ITEMS: SelectItem[] = [
   { id: "", label: "All" },
   ...statuses.map((s) => ({ id: s, label: s })),
@@ -36,15 +34,10 @@ const collection = createListCollection<SelectItem>({
   itemToString: (item) => item.label,
 });
 
-export function FilterBar({
-  status,
-  setStatus,
-  problemOnly,
-  setProblemOnly,
-}: Props) {
+export function FilterBar({ status, setStatus, problemOnly, setProblemOnly }: Props) {
   return (
-    <HStack gap="4" flexWrap="wrap">
-      <HStack gap="2">
+    <HStack gap="4" flexWrap="wrap" position="relative" zIndex="1">
+      <HStack gap="2" opacity={problemOnly ? 0.5 : 1}>
         <Text fontWeight="medium">Status</Text>
 
         <Select.Root
@@ -55,6 +48,7 @@ export function FilterBar({
             const v = e.value?.[0] ?? "";
             setStatus(v ? v : undefined);
           }}
+          disabled={problemOnly} // while "Problem only" is on
         >
           <Select.Trigger w="220px">
             <Select.ValueText placeholder="All" />
@@ -70,15 +64,15 @@ export function FilterBar({
       </HStack>
 
       <HStack gap="2">
-        {/* Chakra v3 Switch is namespaced */}
         <Switch.Root
           checked={problemOnly}
           onCheckedChange={(e) => setProblemOnly(e.checked)}
           size="sm"
         >
           <Switch.Control />
+          {/* make the label part of the control so the whole row toggles */}
+          <Switch.Label cursor="pointer">Problem only</Switch.Label>
         </Switch.Root>
-        <Text>Problem only</Text>
       </HStack>
     </HStack>
   );

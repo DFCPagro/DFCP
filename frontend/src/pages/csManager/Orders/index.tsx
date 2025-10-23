@@ -12,7 +12,7 @@ import {
   Separator,
 } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
-
+import {PATHS} from "@/routes/paths";
 // 🔁 Reuse the dashboard hook + card for the left side
 import { useCSShiftSummaries } from "../Dashboard/hooks/useCSShiftSummaries";
 import { ShiftSummaryCard } from "../Dashboard/components/ShiftSummaryCard";
@@ -149,7 +149,9 @@ export default function CSManagerOrdersPage() {
             rows={summaryRows}
             loading={summaryLoading}
             onViewShift={(row) =>
-              nav(`/csManager/orders?date=${row.dateISO}&shift=${row.shift}`)
+              nav(  
+                { pathname: PATHS.csManagerShiftOrders,
+                  search: `?date=${row.dateISO}&shift=${row.shift}`,})
             }
           />
 
