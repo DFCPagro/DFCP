@@ -203,87 +203,93 @@ function unitsToKgDelta({
 export async function adjustAvailableKgByFOAtomic(args: {
   docId: string;
   farmerOrderId: string;
-  deltaKg: number;
+  deltaKg: number;                  // negative => reserve, positive => release
   enforceEnoughForReserve?: boolean;
   session?: ClientSession | null;
 }) {
   const { docId, farmerOrderId, deltaKg, enforceEnoughForReserve = true, session } = args;
 
   if (!Number.isFinite(deltaKg) || deltaKg === 0) {
-    throw Object.assign(new Error("BadRequest"), { name: "BadRequest", details: ["deltaKg must be non-zero finite"] });
+    const err: any = new Error("deltaKg must be a non-zero finite number");
+    err.name = "BadRequest";
+    throw err;
   }
 
-  const elemFilter: any = { farmerOrderId: new Types.ObjectId(farmerOrderId) };
+  const _docId = new Types.ObjectId(docId);
+  const _foId  = new Types.ObjectId(farmerOrderId);
+
+  // 1) Atomic $inc with preconditions in the FILTER (never in $set value)
+  const filter: any = { _id: _docId, "items.farmerOrderId": _foId };
+
+  // For reservations, ensure enough stock BEFORE we $inc negatively
   if (enforceEnoughForReserve && deltaKg < 0) {
-    elemFilter["currentAvailableQuantityKg"] = { $gte: Math.abs(deltaKg) };
+    filter["items.currentAvailableQuantityKg"] = { $gte: Math.abs(deltaKg) };
   }
 
-  // $inc then clamp to [0..originalCommittedQuantityKg]
-  const res = await AvailableMarketStockModel.updateOne(
-    { _id: new Types.ObjectId(docId) },
-    {
-      $inc: { "items.$[elem].currentAvailableQuantityKg": deltaKg },
-      $set: {
-        "items.$[elem].currentAvailableQuantityKg": {
-          $cond: [
-            { $gt: ["$items.$[elem].currentAvailableQuantityKg", "$items.$[elem].originalCommittedQuantityKg"] },
-            "$items.$[elem].originalCommittedQuantityKg",
-            {
-              $cond: [
-                { $lt: ["$items.$[elem].currentAvailableQuantityKg", 0] },
-                0,
-                "$items.$[elem].currentAvailableQuantityKg",
-              ],
-            },
-          ],
-        },
-      },
-    } as any,
-    {
-      arrayFilters: [{ elem: elemFilter }],
-      session: session ?? undefined,
-    }
+  const incRes = await AvailableMarketStockModel.updateOne(
+    filter,
+    { $inc: { "items.$.currentAvailableQuantityKg": deltaKg } },
+    { session: session ?? undefined }
   );
 
-  if (res.matchedCount === 0 || res.modifiedCount === 0) {
-    const e: any = new Error("BadRequest");
-    e.name = "BadRequest";
-    e.details = [
-      `Failed to update AMS.kg for farmerOrderId=${farmerOrderId} (delta=${deltaKg}).`,
-    ];
-    throw e;
+  if (incRes.matchedCount === 0 || incRes.modifiedCount === 0) {
+    const err: any = new Error(
+      `Failed to update AMS.kg for farmerOrderId=${farmerOrderId} (delta=${deltaKg}).`
+    );
+    err.name = "BadRequest";
+    if (enforceEnoughForReserve && deltaKg < 0) {
+      err.details = ["Not enough KG available to reserve"];
+    }
+    throw err;
   }
 
-  // Recompute availableUnitsEstimate if unit/mixed
+  // 2) Clamp in a SECOND step using a numeric literal (no expressions in the value)
+  //    Read the line, compute clamped number, write that number back if needed.
   try {
     const doc = await AvailableMarketStockModel.findOne(
-      { _id: new Types.ObjectId(docId), "items.farmerOrderId": new Types.ObjectId(farmerOrderId) },
+      { _id: _docId, "items.farmerOrderId": _foId },
       { "items.$": 1 }
     ).lean();
 
     const line = (doc as any)?.items?.[0];
     if (!line) return { ok: true };
 
+    const orig = Number(line.originalCommittedQuantityKg) || 0;
+    let cur   = Number(line.currentAvailableQuantityKg)   || 0;
+
+    // Clamp to [0 .. original]
+    if (cur < 0 || cur > orig) {
+      const clamped = Math.max(0, Math.min(cur, orig));
+
+      await AvailableMarketStockModel.updateOne(
+        { _id: _docId, "items.farmerOrderId": _foId },
+        { $set: { "items.$.currentAvailableQuantityKg": clamped } },
+        { session: session ?? undefined }
+      );
+      cur = clamped;
+    }
+
+    // Recompute availableUnitsEstimate if unit/mixed with an avg defined
     const unity = line.unitMode === "unit" || line.unitMode === "mixed";
-    const avg = line.estimates?.avgWeightPerUnitKg ?? null;
-    if (unity && avg) {
+    const avg   = line?.estimates?.avgWeightPerUnitKg ?? null;
+    if (unity && Number.isFinite(avg) && avg > 0) {
       const est = conservativeUnitsFromKg(
-        line.currentAvailableQuantityKg,
+        cur,
         avg,
-        line.estimates?.sdKg ?? 0,
-        line.estimates?.zScore ?? 1.28,
-        line.estimates?.shrinkagePct ?? 0.02,
-        Math.max(1, line.estimates?.unitBundleSize ?? 1)
+        line?.estimates?.sdKg ?? 0,
+        line?.estimates?.zScore ?? 1.28,
+        line?.estimates?.shrinkagePct ?? 0.02,
+        Math.max(1, line?.estimates?.unitBundleSize ?? 1)
       );
 
       await AvailableMarketStockModel.updateOne(
-        { _id: new Types.ObjectId(docId) },
-        { $set: { "items.$[elem].estimates.availableUnitsEstimate": est } },
-        { arrayFilters: [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }] }
-      ).exec();
+        { _id: _docId, "items.farmerOrderId": _foId },
+        { $set: { "items.$.estimates.availableUnitsEstimate": est } },
+        { session: session ?? undefined }
+      );
     }
   } catch (e) {
-    warn("adjustAvailableKgByFOAtomic.reestimate.error", e);
+    warn("adjustAvailableKgByFOAtomic.postClampOrEstimate.error", e);
   }
 
   return { ok: true };
@@ -301,35 +307,43 @@ export async function adjustAvailableUnitsByFOAtomic(args: {
 
   if (!Number.isFinite(unitsDelta) || unitsDelta === 0) return { ok: true };
 
-  // We need avg/sd/bundle to convert units → kg
+  const _docId = new Types.ObjectId(docId);
+  const _foId  = new Types.ObjectId(farmerOrderId);
+
+  // Read the line to compute kgDelta (we need avg/sd/bundle)
   const doc = await AvailableMarketStockModel.findOne(
-    { _id: new Types.ObjectId(docId), "items.farmerOrderId": new Types.ObjectId(farmerOrderId) },
+    { _id: _docId, "items.farmerOrderId": _foId },
     { "items.$": 1 }
   ).lean();
 
   const line = (doc as any)?.items?.[0];
-  if (!line) throw new Error("AMS line not found for farmerOrderId");
+  if (!line) {
+    const err: any = new Error("AMS line not found for farmerOrderId");
+    err.name = "BadRequest";
+    throw err;
+  }
 
   const unity = line.unitMode === "unit" || line.unitMode === "mixed";
-  const avg = line.estimates?.avgWeightPerUnitKg ?? null;
-  if (!unity || !avg) {
-    throw Object.assign(new Error("BadRequest"), {
-      name: "BadRequest",
-      details: ["This item is not sold by unit or missing avgWeightPerUnitKg"],
-    });
+  const avg   = line?.estimates?.avgWeightPerUnitKg ?? null;
+  if (!unity || !(Number.isFinite(avg) && avg > 0)) {
+    const err: any = new Error("This item is not sold by unit or missing avgWeightPerUnitKg");
+    err.name = "BadRequest";
+    err.details = ["Expected unit/mixed mode with estimates.avgWeightPerUnitKg > 0"];
+    throw err;
   }
 
   const kgDelta = unitsToKgDelta({
     unitsDelta,
     avgKg: avg,
-    sdKg: line.estimates?.sdKg ?? 0,
-    zScore: line.estimates?.zScore ?? 1.28,
-    shrinkagePct: line.estimates?.shrinkagePct ?? 0.02,
-    bundle: Math.max(1, line.estimates?.unitBundleSize ?? 1),
+    sdKg: line?.estimates?.sdKg ?? 0,
+    zScore: line?.estimates?.zScore ?? 1.28,
+    shrinkagePct: line?.estimates?.shrinkagePct ?? 0.02,
+    bundle: Math.max(1, line?.estimates?.unitBundleSize ?? 1),
   });
 
   if (kgDelta === 0) return { ok: true };
 
+  // Delegate to the KG helper (which does atomic $inc + safe clamp)
   return adjustAvailableKgByFOAtomic({
     docId,
     farmerOrderId,
@@ -338,6 +352,7 @@ export async function adjustAvailableUnitsByFOAtomic(args: {
     session,
   });
 }
+
 
 /* ------------------------------ add/update/remove ------------------------------ */
 
@@ -503,87 +518,80 @@ export async function addItemToAvailableMarketStock(params: {
 export async function updateItemQtyStatusAtomic(params: {
   docId: string;
   farmerOrderId: string;
-  currentAvailableQuantityKg?: number;
+  currentAvailableQuantityKg?: number;             // absolute set (we will clamp)
   status?: "active" | "soldout" | "removed";
 }) {
   const { docId, farmerOrderId, currentAvailableQuantityKg, status } = params;
 
-  // Validate and compute set object
+  const _docId = new Types.ObjectId(docId);
+  const _foId  = new Types.ObjectId(farmerOrderId);
+
+  // Nothing to do?
+  if (typeof currentAvailableQuantityKg !== "number" && !status) {
+    return await AvailableMarketStockModel.findById(docId);
+  }
+
+  // Read line to know original for clamping
+  const doc = await AvailableMarketStockModel.findOne(
+    { _id: _docId, "items.farmerOrderId": _foId },
+    { "items.$": 1 }
+  ).lean();
+
+  const line = (doc as any)?.items?.[0];
+  if (!line) throw new Error("AvailableMarketStock not found or FO not matched");
+
   const updates: any = {};
-  const filters: any[] = [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }];
 
   if (typeof currentAvailableQuantityKg === "number") {
     if (currentAvailableQuantityKg < 0) throw new Error("Quantity cannot be negative");
-
-    // clamp in-place with $set + $cond, but also guard against exceeding original
-    updates["items.$[elem].currentAvailableQuantityKg"] = {
-      $cond: [
-        { $gt: [currentAvailableQuantityKg, "$items.$[elem].originalCommittedQuantityKg"] },
-        "$items.$[elem].originalCommittedQuantityKg",
-        currentAvailableQuantityKg,
-      ],
-    };
+    const orig = Number(line.originalCommittedQuantityKg) || 0;
+    const clamped = Math.max(0, Math.min(currentAvailableQuantityKg, orig));
+    updates["items.$.currentAvailableQuantityKg"] = clamped;
   }
 
   if (status) {
-    updates["items.$[elem].status"] = status;
+    updates["items.$.status"] = status;
   }
 
-  if (Object.keys(updates).length === 0) {
-    return await AvailableMarketStockModel.findById(docId); // nothing to do
+  if (Object.keys(updates).length > 0) {
+    await AvailableMarketStockModel.updateOne(
+      { _id: _docId, "items.farmerOrderId": _foId },
+      { $set: updates }
+    );
   }
 
-  const res = await AvailableMarketStockModel.updateOne(
-    { _id: new Types.ObjectId(docId) },
-    { $set: updates } as any,
-    { arrayFilters: filters}
-  );
-
-  if (res.matchedCount === 0) throw new Error("AvailableMarketStock not found or FO not matched");
-
-  // Recompute estimate if we changed quantity
+  // Recompute estimate if we touched quantity
   if (typeof currentAvailableQuantityKg === "number") {
-    try {
-      const doc = await AvailableMarketStockModel.findOne(
-        { _id: new Types.ObjectId(docId), "items.farmerOrderId": new Types.ObjectId(farmerOrderId) },
-        { "items.$": 1 }
-      ).lean();
+    const fresh = await AvailableMarketStockModel.findOne(
+      { _id: _docId, "items.farmerOrderId": _foId },
+      { "items.$": 1 }
+    ).lean();
 
-      const line = (doc as any)?.items?.[0];
-      if (line) {
-        const unity = line.unitMode === "unit" || line.unitMode === "mixed";
-        const avg = line.estimates?.avgWeightPerUnitKg ?? null;
-        if (unity && avg) {
-          const est = conservativeUnitsFromKg(
-            line.currentAvailableQuantityKg,
-            avg,
-            line.estimates?.sdKg ?? 0,
-            line.estimates?.zScore ?? 1.28,
-            line.estimates?.shrinkagePct ?? 0.02,
-            Math.max(1, line.estimates?.unitBundleSize ?? 1)
-          );
+    const ln = (fresh as any)?.items?.[0];
+    if (ln) {
+      const unity = ln.unitMode === "unit" || ln.unitMode === "mixed";
+      const avg   = ln?.estimates?.avgWeightPerUnitKg ?? null;
 
-          await AvailableMarketStockModel.updateOne(
-            { _id: new Types.ObjectId(docId) },
-            { $set: { "items.$[elem].estimates.availableUnitsEstimate": est } },
-            { arrayFilters: [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }] }
-          ).exec();
+      if (unity && Number.isFinite(avg) && avg > 0) {
+        const est = conservativeUnitsFromKg(
+          ln.currentAvailableQuantityKg,
+          avg,
+          ln?.estimates?.sdKg ?? 0,
+          ln?.estimates?.zScore ?? 1.28,
+          ln?.estimates?.shrinkagePct ?? 0.02,
+          Math.max(1, ln?.estimates?.unitBundleSize ?? 1)
+        );
 
-          dbg("updateItemQtyStatusAtomic.reestimate", {
-            farmerOrderId,
-            newKg: line.currentAvailableQuantityKg,
-            estUnits: est,
-          });
-        } else if (line.estimates) {
-          await AvailableMarketStockModel.updateOne(
-            { _id: new Types.ObjectId(docId) },
-            { $set: { "items.$[elem].estimates.availableUnitsEstimate": null } },
-            { arrayFilters: [{ elem: { farmerOrderId: new Types.ObjectId(farmerOrderId) } }] }
-          ).exec();
-        }
+        await AvailableMarketStockModel.updateOne(
+          { _id: _docId, "items.farmerOrderId": _foId },
+          { $set: { "items.$.estimates.availableUnitsEstimate": est } }
+        );
+      } else if (ln?.estimates) {
+        await AvailableMarketStockModel.updateOne(
+          { _id: _docId, "items.farmerOrderId": _foId },
+          { $set: { "items.$.estimates.availableUnitsEstimate": null } }
+        );
       }
-    } catch (e) {
-      warn("updateItemQtyStatusAtomic.reestimate.error", e);
     }
   }
 

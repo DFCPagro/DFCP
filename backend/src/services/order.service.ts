@@ -209,63 +209,82 @@ export async function createOrderForCustomer(
       }
 
       // 3) Create Order (items snapshot normalized)
-      const orderPayload: any = {
-        customerId: customerOID,
-        deliveryAddress: payload.deliveryAddress,
-        deliveryDate: payload.deliveryDate,
-        LogisticsCenterId: lcOID,
-        // Take the authoritative shift from AMS to avoid mismatch
-        shiftName: (ams as any).availableShift,
-        amsId: amsOID,
-        ...(typeof (payload as any).tolerancePct === "number"
-          ? { tolerancePct: (payload as any).tolerancePct }
-          : {}),
-        items: (payload.items as PayloadItem[]).map((it) => {
-          const line = byFO.get(String((it as any).farmerOrderId));
-          const n = normalizeItem(it, line);
+const orderPayload: any = {
+  customerId: customerOID,
 
-          // Prefer AMS pricePerKg; fall back to payload.pricePerKg if provided
-          const pricePerKg = Number.isFinite((line as any)?.pricePerKg)
-            ? Number((line as any).pricePerKg)
-            : Number.isFinite((it as any).pricePerKg)
-            ? Number((it as any).pricePerKg)
-            : 0;
+  // 🔧 map to old AddressSchema keys expected by Mongoose
+  deliveryAddress: {
+    address: payload.deliveryAddress.address,
+    lnt: payload.deliveryAddress.lnt,
+    alt: payload.deliveryAddress.alt,
+    ...(payload.deliveryAddress.logisticCenterId
+      ? { logisticCenterId: payload.deliveryAddress.logisticCenterId }
+      : {}),
+  },
 
-          const snapshot: any = {};
-          const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
-          if (Number.isFinite(snapAvg) && (snapAvg as number) > 0)
-            snapshot.avgWeightPerUnitKg = snapAvg;
-          const snapSd = line?.estimates?.sdKg;
-          if (Number.isFinite(snapSd) && (snapSd as number) > 0)
-            snapshot.stdDevKg = snapSd;
+  deliveryDate: payload.deliveryDate,
+  LogisticsCenterId: lcOID,
+  shiftName: (ams as any).availableShift,
+  amsId: amsOID,
+  ...(typeof (payload as any).tolerancePct === "number"
+    ? { tolerancePct: (payload as any).tolerancePct }
+    : {}),
+  items: (payload.items as PayloadItem[]).map((it) => {
+    const line = byFO.get(String((it as any).farmerOrderId));
+    const n = normalizeItem(it, line);
 
-          return {
-            itemId: toOID((it as any).itemId),
-            name: (it as any).name,
-            imageUrl: (it as any).imageUrl ?? "",
-            category: (it as any).category ?? "",
-            // keep legacy field name in Order schema if needed:
-            pricePerUnit: pricePerKg, // legacy: "per KG" stored in pricePerUnit
-            pricePerKg,               // explicit
-            derivedUnitPrice:
-              n.unitMode === "unit" || n.unitMode === "mixed"
-                ? deriveUnitPrice(
-                    pricePerKg,
-                    n.avg || line?.estimates?.avgWeightPerUnitKg || null
-                  )
-                : null,
-            unitMode: n.unitMode,
-            quantityKg: n.quantityKg,
-            units: n.units,
-            estimatesSnapshot: Object.keys(snapshot).length
-              ? snapshot
-              : undefined,
-            sourceFarmerName: (it as any).sourceFarmerName,
-            sourceFarmName: (it as any).sourceFarmName,
-            farmerOrderId: toOID((it as any).farmerOrderId),
-          };
-        }),
-      };
+    const pricePerKg = Number.isFinite((line as any)?.pricePerKg)
+      ? Number((line as any).pricePerKg)
+      : Number.isFinite((it as any).pricePerKg)
+      ? Number((it as any).pricePerKg)
+      : 0;
+
+    const snapshot: any = {};
+    const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
+    if (Number.isFinite(snapAvg) && (snapAvg as number) > 0)
+      snapshot.avgWeightPerUnitKg = snapAvg;
+    const snapSd = line?.estimates?.sdKg;
+    if (Number.isFinite(snapSd) && (snapSd as number) > 0)
+      snapshot.stdDevKg = snapSd;
+
+    // derive farmer names if optional in Zod
+    const sourceFarmerName =
+      (it as any).sourceFarmerName ??
+      (line as any)?.farmerName ??
+      (line as any)?.farmer?.name ??
+      "Unknown Farmer";
+
+    const sourceFarmName =
+      (it as any).sourceFarmName ??
+      (line as any)?.farmName ??
+      (line as any)?.farmer?.farmName ??
+      "Unknown Farm";
+
+    return {
+      itemId: toOID((it as any).itemId),
+      name: (it as any).name,
+      imageUrl: (it as any).imageUrl ?? "",
+      category: (it as any).category ?? "",
+      pricePerUnit: pricePerKg,
+      pricePerKg,
+      derivedUnitPrice:
+        n.unitMode === "unit" || n.unitMode === "mixed"
+          ? deriveUnitPrice(
+              pricePerKg,
+              n.avg || line?.estimates?.avgWeightPerUnitKg || null
+            )
+          : null,
+      unitMode: n.unitMode,
+      quantityKg: n.quantityKg,
+      units: n.units,
+      estimatesSnapshot: Object.keys(snapshot).length ? snapshot : undefined,
+      sourceFarmerName,
+      sourceFarmName,
+      farmerOrderId: toOID((it as any).farmerOrderId),
+    };
+  }),
+};
+
 
       const created = await Order.create([orderPayload], { session });
       orderDoc = created[0];

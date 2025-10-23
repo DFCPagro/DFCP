@@ -1,5 +1,4 @@
 import { Box, HStack, VStack, Text } from "@chakra-ui/react"
-import { useSelectionStore } from "@/store/useSelectionStore"
 import type { ShelfDTO } from "@/types/logisticCenter"
 import { useUIStore } from "@/store/useUIStore"
 import { Tooltip } from "@/components/ui/tooltip"
@@ -9,18 +8,43 @@ function pct(a: number, b: number) {
   return Math.max(0, Math.min(100, Math.round((a / b) * 100)))
 }
 
+/**
+ * Visual policy for slots (subtle, game-like, low-noise):
+ * - FREE (no containerOpsId): green (available)
+ * - OCCUPIED with remaining capacity <= 10%: red (critical / "under X kg")
+ * - OCCUPIED with remaining capacity <= 30%: yellow (warning / getting full)
+ * - Otherwise: teal/green (healthy)
+ *
+ * We tint each slot background with a low-alpha color and color the slot border.
+ * This avoids rainbow noise while still conveying state at-a-glance.
+ */
+// const CRIT_REMAINING = 0.10
+// const WARN_REMAINING = 0.30
+
+const CRIT_REMAINING = 0.10
+const WARN_REMAINING = 0.30
+
+function slotColor(remainFrac: number, isFree: boolean) {
+  if (isFree) return { bg: "rgba(34,197,94,0.28)", border: "lime.500" } // free -> green
+  if (remainFrac <= CRIT_REMAINING) return { bg: "rgba(239,68,68,0.32)", border: "red.500" } // critical
+  if (remainFrac <= WARN_REMAINING) return { bg: "rgba(234,179,8,0.32)", border: "yellow.500" } // warning
+  return { bg: "rgba(45,212,191,0.26)", border: "teal.400" } // healthy occupied
+}
+
 export default function Cell({
   code,
   shelf,
   size,
-  hideWhenNull = false, // NEW: hide cells with no shelf (filtered out)
+  hideWhenNull = false,
 }: {
   code: string
   shelf: ShelfDTO | null
   size: { w: number; h: number }
   hideWhenNull?: boolean
 }) {
-  // If this cell was filtered out and we want to hide, render a spacer that preserves grid size
+  // selection is DISABLED by request; we only open detail on click
+  const openDetail = useUIStore((s) => s.openDetail)
+
   if (!shelf && hideWhenNull) {
     return (
       <Box
@@ -31,14 +55,10 @@ export default function Cell({
         maxW={`${size.w}px`}
         maxH={`${size.h}px`}
         flexShrink={0}
-        visibility="hidden" // keeps layout, hides visuals
+        visibility="hidden"
       />
     )
   }
-
-  const toggle = useSelectionStore((s) => s.toggle)
-  const isSelected = useSelectionStore((s) => s.isSelected(code))
-  const openDetail = useUIStore((s) => s.openDetail)
 
   const occupied = shelf ? shelf.occupiedSlots : 0
   const maxSlots = shelf ? shelf.maxSlots : 3
@@ -61,10 +81,10 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
 
   const handleClick = () => {
     if (!shelf) return
-    toggle(code)
     openDetail(shelf)
   }
 
+  // Determine how many visual slots to render (up to 3)
   const visibleSlots = Math.min(maxSlots, 3)
 
   return (
@@ -83,7 +103,7 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
         outline="none"
         onClick={handleClick}
         _hover={{ boxShadow: shelf ? "inset 0 0 0 2px var(--colors-lime-500)" : undefined }}
-        css={isSelected ? { boxShadow: "inset 0 0 0 2px var(--colors-brand-500)" } : glow ? { boxShadow: glow } : undefined}
+        css={glow ? { boxShadow: glow } : undefined}
         position="relative"
         w={`${size.w}px`}
         h={`${size.h}px`}
@@ -111,24 +131,34 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
 
         {/* Status dots */}
         {shelf && (
-          <>
-            <Box
-              position="absolute"
-              top="4px"
-              left="4px"
-              w="8px"
-              h="8px"
-              borderRadius="full"
-              bg={busy >= 80 ? "red.500" : busy >= 50 ? "lime.500" : "brand.600"}
-              title={`Busy: ${busy}`}
-            />
-            {avoid && (
-              <Box position="absolute" top="4px" right="4px" w="8px" h="8px" borderRadius="full" bg="yellow.400" title="Avoid" />
-            )}
-          </>
-        )}
+  <Box
+    position="absolute"
+    top="4px"
+    left="4px"
+    w="8px"
+    h="8px"
+    borderRadius="full"
+    bg={
+      busy >= 80
+        ? "red.500" // critical
+        : avoid
+        ? "yellow.400" // avoid
+        : busy >= 50
+        ? "lime.500" // moderate
+        : "brand.600" // normal
+    }
+    title={
+      busy >= 80
+        ? `Critical: Busy ${busy}/100`
+        : avoid
+        ? "Avoid"
+        : `Busy: ${busy}`
+    }
+  />
+)}
 
-        {/* mini shelf */}
+
+        {/* Mini shelf (centered) */}
         <HStack
           w="72%"
           h="48%"
@@ -143,8 +173,16 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
           justify="space-between"
         >
           {Array.from({ length: visibleSlots }).map((_, i) => {
-            const filled = i < Math.min(occupied, visibleSlots)
-            const alpha = 0.25 + (capacityPct / 100) * 0.45
+            // pull real slot data when available
+            const s = shelf?.slots?.[i]
+            const isFree = !s || !s.containerOpsId
+            const capacity = s?.capacityKg ?? (shelf ? shelf.maxWeightKg / Math.max(1, shelf.maxSlots) : 1)
+            const current = s?.currentWeightKg ?? 0
+            const remaining = Math.max(0, capacity - current)
+            const remainFrac = Math.max(0, Math.min(1, remaining / capacity))
+            const colors = slotColor(remainFrac, isFree)
+
+            // Subtle bar at top as a state "cap", plus tint background
             return (
               <VStack
                 key={i}
@@ -152,9 +190,21 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
                 minW={0}
                 h="42%"
                 border="2px solid"
-                borderColor="gameShelfSlot"
-                borderRadius="3px"
-                bg={filled ? `rgba(16,185,129,${alpha.toFixed(2)})` : "transparent"}
+                borderColor={colors.border}
+                borderRadius="5px"
+                position="relative"
+                bg={colors.bg}
+                _before={{
+                  content: '""',
+                  position: "absolute",
+                  top: "2px",
+                  left: "3px",
+                  right: "3px",
+                  height: "5px",
+                  borderRadius: "3px",
+                  backgroundColor: colors.border,
+                  opacity: 0.9,
+                }}
               />
             )
           })}

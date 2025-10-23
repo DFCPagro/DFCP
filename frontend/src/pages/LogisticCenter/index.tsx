@@ -65,7 +65,7 @@ export default function App() {
         </Canvas>
 
         {/* Floating UI */}
-        {/* <FloatingToolbar /> */}
+        <FloatingToolbar />
         <HUDControls />
 
         {/* Dialogs */}

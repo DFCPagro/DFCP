@@ -86,8 +86,8 @@ export const CreateOrderItemSnapshotSchema = z.union([LegacyItemSchema, NewItemS
 
 // ----- Address (keep permissive, but fix keys) -----
 const DeliveryAddressSchema = z.object({
-  lng: z.number(),                 // ← was "lnt"
-  lat: z.number(),                 // ← was "alt"
+  lnt: z.number(),              
+  alt: z.number(),               
   address: z.string().min(3),
   logisticCenterId: z.string().optional(),
 }).strict();
