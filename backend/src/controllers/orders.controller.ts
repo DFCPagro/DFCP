@@ -32,8 +32,9 @@ function ensureOwnerOrStaff(req: Request, orderCustomerId: Types.ObjectId) {
 
 export async function postCreateOrder(req: Request, res: Response) {
   try {
+    console.log("Creating order with body:", req.body);
     const parsed = CreateOrderInputSchema.parse(req.body);
-
+    console.log("Parsed order input:", parsed);
     const userId = (req as any).user?._id || (req as any).user?.id;
     if (!userId) throw new ApiError(401, "Unauthorized");
 

@@ -1,6 +1,6 @@
 // src/types/order.ts
 // Frontend types aligned to backend src/models/order.model.ts
-
+import type {Address} from "./address";
 /* ---------------------------------- Enums --------------------------------- */
 
 export type OrderStatus =
@@ -58,11 +58,6 @@ export type CreateOrderItemInput = {
   estimatesSnapshot?: EstimatesSnapshot;
 };
 
-export type Address = {
-  address: string;
-  lng: number;
-  lat: number;
-};
 export type CreateOrderBody = {
   /** Full address object as per AddressSchema (backend requires deliveryAddress) */
   deliveryAddress: Address;

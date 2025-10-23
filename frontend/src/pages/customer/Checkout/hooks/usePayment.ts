@@ -207,8 +207,8 @@ const canSubmit = useMemo(() => {
       shiftName,
       deliveryAddress: {
         address: address!.address,
-        lng: address!.lnt,
-        lat: address!.alt,
+        lnt: address!.lnt,
+        alt: address!.alt,
       },
       items: orderItems,
       // Optional: tolerancePct — leave undefined to use backend default
