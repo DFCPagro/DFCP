@@ -37,7 +37,7 @@ export default function NavBar() {
       borderColor={border}
       position="sticky"
       top={0}
-      zIndex={9999}
+      zIndex={100}
     >
       <Flex h="14" align="center" px="3" gap="3">
         {/* Burger appears when items overflow (or if there are none) */}

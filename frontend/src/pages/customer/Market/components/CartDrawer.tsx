@@ -102,7 +102,7 @@ function useConfirm() {
       <Portal>
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content style={{ zIndex: 10000 }}>
+          <Dialog.Content style={{ zIndex: 120 }}>
             <Dialog.Header>
               <Dialog.Title>{pending?.title ?? "Confirm"}</Dialog.Title>
               <Dialog.CloseTrigger asChild>
