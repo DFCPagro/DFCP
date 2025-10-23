@@ -21,7 +21,7 @@ export type CartLine = {
 
   /* server identity (optional but recommended for checkout preflight) */
   docId?: string;
- 
+
   stockId?: string; // "<itemId>_<farmerId>"
   itemId: string;
 
@@ -171,6 +171,7 @@ export type CartContext = {
   logisticCenterId: string;
   date: string; // YYYY-MM-DD
   shift: "morning" | "afternoon" | "evening" | "night";
+  amsId?: string; // optional advanced field
 };
 
 function getCartContextStorageKey(): string | null {
@@ -196,6 +197,7 @@ function readSavedContext(): CartContext | null {
         logisticCenterId: obj.logisticCenterId.trim(),
         date: obj.date,
         shift: String(obj.shift).toLowerCase() as CartContext["shift"],
+        amsId: typeof obj.amsId === "string" ? obj.amsId.trim() : undefined,
       };
     }
     return null;
@@ -211,6 +213,7 @@ function saveContext(ctx: CartContext): void {
     logisticCenterId: String(ctx.logisticCenterId || "").trim(),
     date: ctx.date,
     shift: String(ctx.shift).toLowerCase() as CartContext["shift"],
+    amsId: typeof ctx.amsId === "string" ? String(ctx.amsId).trim() : undefined,
   };
   localStorage.setItem(k, JSON.stringify(normalized));
 }
@@ -250,6 +253,8 @@ function contextDiff(
     diffs.push({ field: "date", saved: a.date, incoming: b.date });
   if (a.shift !== b.shift)
     diffs.push({ field: "shift", saved: a.shift, incoming: b.shift });
+  if (a.amsId !== b.amsId)
+    diffs.push({ field: "amsId", saved: a.amsId, incoming: b.amsId });
   return diffs;
 }
 
@@ -449,6 +454,10 @@ export function getCart(context?: Partial<CartContext>): SharedCart {
         logisticCenterId: String(context.logisticCenterId!).trim(),
         date: String(context.date!),
         shift: String(context.shift!).toLowerCase() as CartContext["shift"],
+        amsId:
+          typeof context.amsId === "string"
+            ? String(context.amsId).trim()
+            : undefined,
       };
 
       const saved = readSavedContext();
@@ -504,6 +513,10 @@ export function setCart(
       logisticCenterId: String(context.logisticCenterId!).trim(),
       date: String(context.date!),
       shift: String(context.shift!).toLowerCase() as CartContext["shift"],
+      amsId:
+        typeof context.amsId === "string"
+          ? String(context.amsId).trim()
+          : undefined,
     };
     const saved = readSavedContext();
     if (!saved) {

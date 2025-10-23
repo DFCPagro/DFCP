@@ -57,7 +57,7 @@ export type PaymentSectionProps = {
     totals: MoneyTotals;
 
     // Callbacks
-    onSuccess?: (orderId: string) => void; // navigate away, clear cart, etc.
+    onSuccess?: () => void; // navigate away, clear cart, etc.
     onBack?: () => void; // return to summary step
 };
 

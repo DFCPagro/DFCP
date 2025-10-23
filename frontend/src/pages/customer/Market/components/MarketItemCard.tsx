@@ -219,7 +219,7 @@ function MarketItemCardBase({
           <HStack justify="space-between">
             <Text fontWeight="medium">{priceLabel}</Text>
             {availableUnits < 100 ? (
-              <Text fontSize="sm" color="fg.muted">
+              <Text fontSize="sm" color="fg.warning">
                 {availableUnits} units available
               </Text>
             ) : null}
@@ -294,17 +294,17 @@ function MarketItemCardBase({
           <Dialog.Backdrop />
           <Dialog.Positioner>
             <Dialog.Content
-             p="0"
-        bg="transparent"
-        shadow="none"
-        _focusVisible={{ boxShadow: "none" }}
-        w="100vw"                 // full viewport width
-        maxW="100vw"
-        h="100vh"                 // let the positioner center vertically too
-        display="flex"            // center the child (your page box)
-        justifyContent="center"
-        alignItems="center"
-      >
+              p="0"
+              bg="transparent"
+              shadow="none"
+              _focusVisible={{ boxShadow: "none" }}
+              w="100vw"                 // full viewport width
+              maxW="100vw"
+              h="100vh"                 // let the positioner center vertically too
+              display="flex"            // center the child (your page box)
+              justifyContent="center"
+              alignItems="center"
+            >
               <MarketItemPage
                 item={item}
                 onClose={closeQuickView}

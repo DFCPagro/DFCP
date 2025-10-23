@@ -108,14 +108,18 @@ export function useMarketSearchIndex({
 
     // Scoring helper
     const score = (candidate: string) => {
-      // exact prefix -> highest; word prefix -> mid; substring -> low
-      if (candidate.startsWith(q)) return 100 - (candidate.length - q.length);
-      // word-prefix: " q" inside words
-      if (candidate.includes(` ${q}`)) return 70 - candidate.indexOf(` ${q}`);
-      // substring anywhere
-      const idx = candidate.indexOf(q);
-      if (idx >= 0) return 40 - idx;
-      return -1e9; // not matched
+      if (candidate.startsWith(q)) {
+        // strong preference for exact prefix; slight tie-break by shorter remainder
+        return 100 - (candidate.length - q.length);
+      }
+      // word-start after a space
+      const wordIdx = candidate.indexOf(` ${q}`);
+      if (wordIdx >= 0) {
+        // prefer earlier word positions
+        return 70 - wordIdx;
+      }
+      // no middle-of-word substring matches
+      return -1e9;
     };
 
     const pool: Array<{ s: SearchSuggestion; rank: number }> = [];
@@ -179,10 +183,16 @@ export function useMarketSearchIndex({
   const matchFilter = useMemo(() => {
     const q = (text ?? "").trim().toLowerCase();
     if (!q) return () => true;
+
+    // prefix-only: at label start OR at word-start (space + q)
     return (it: MarketItem) => {
       const name = (it.name ?? "").toLowerCase();
       const farmer = (it.farmerName ?? "").toLowerCase();
-      return name.includes(q) || farmer.includes(q);
+
+      const nameMatches = name.startsWith(q) || name.includes(` ${q}`);
+      const farmerMatches = farmer.startsWith(q) || farmer.includes(` ${q}`);
+
+      return nameMatches || farmerMatches;
     };
   }, [text]);
 

@@ -35,7 +35,7 @@ type UsePaymentDeps = {
   /** Lines from the Market cart (unchanged shape for callers) */
   cartLines: SharedCartLine[];
   /** Optional success handler */
-  onSuccess?: (orderId: string) => void;
+  onSuccess?: () => void;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -56,7 +56,7 @@ function mapCartLineToOrderItem(line: SharedCartLine): CreateOrderItemInput {
   };
 
   const explicitUnitMode = (line as any).unitMode;
-  const legacyQtyKg      = num((line as any).quantity);     // 👈 fallback (your cart has this)
+  const legacyQtyKg = num((line as any).quantity); // 👈 fallback (your cart has this)
 
   // Prefer explicit mode; otherwise infer from present fields
   const unitMode: UnitMode = (() => {
@@ -64,24 +64,24 @@ function mapCartLineToOrderItem(line: SharedCartLine): CreateOrderItemInput {
     if (v === "unit" || v === "kg" || v === "mixed") return v as UnitMode;
     if (num((line as any).units)) return "unit";
     if (num((line as any).quantityKg)) return "kg";
-    if (legacyQtyKg) return "kg";                            // 👈 legacy implies kg
+    if (legacyQtyKg) return "kg"; // 👈 legacy implies kg
     return "kg";
   })();
 
   // Use explicit fields; if missing, fall back to legacy quantity→kg
-  const units      = num((line as any).units);
+  const units = num((line as any).units);
   const quantityKg = num((line as any).quantityKg) ?? legacyQtyKg; // 👈 here
 
   // avgWeightPerUnitKg is REQUIRED only when reserving by units
   const avgWeightPerUnitKg = num((line as any).avgWeightPerUnitKg);
   const estimatesSnapshot =
     (unitMode === "unit" || unitMode === "mixed") && (units ?? 0) > 0
-      ? (avgWeightPerUnitKg && avgWeightPerUnitKg > 0
-          ? { avgWeightPerUnitKg }
-          : undefined)
-      : (avgWeightPerUnitKg && avgWeightPerUnitKg > 0
-          ? { avgWeightPerUnitKg }
-          : undefined);
+      ? avgWeightPerUnitKg && avgWeightPerUnitKg > 0
+        ? { avgWeightPerUnitKg }
+        : undefined
+      : avgWeightPerUnitKg && avgWeightPerUnitKg > 0
+        ? { avgWeightPerUnitKg }
+        : undefined;
 
   return {
     itemId: String((line as any).itemId ?? (line as any).id ?? ""),
@@ -116,8 +116,6 @@ function mapCartLineToOrderItem(line: SharedCartLine): CreateOrderItemInput {
   };
 }
 
-
-
 /* -------------------------------------------------------------------------- */
 /*                                Hook: Public                                 */
 /* -------------------------------------------------------------------------- */
@@ -147,41 +145,41 @@ export function usePayment(deps: UsePaymentDeps) {
     if (!Array.isArray(deps.cartLines) || deps.cartLines.length === 0)
       return [];
     return deps.cartLines.map(mapCartLineToOrderItem).filter((it) => {
-  const hasId = !!it.itemId;
-  const hasAnyQty =
-    (typeof it.units === "number" && it.units > 0) ||
-    (typeof it.quantityKg === "number" && it.quantityKg > 0);
-  const needsAvg =
-    (it.unitMode === "unit" || it.unitMode === "mixed") && (it.units ?? 0) > 0;
-  const hasAvg =
-    !needsAvg || (it.estimatesSnapshot?.avgWeightPerUnitKg ?? 0) > 0;
-  return hasId && hasAnyQty && hasAvg;
-});
-
+      const hasId = !!it.itemId;
+      const hasAnyQty =
+        (typeof it.units === "number" && it.units > 0) ||
+        (typeof it.quantityKg === "number" && it.quantityKg > 0);
+      const needsAvg =
+        (it.unitMode === "unit" || it.unitMode === "mixed") &&
+        (it.units ?? 0) > 0;
+      const hasAvg =
+        !needsAvg || (it.estimatesSnapshot?.avgWeightPerUnitKg ?? 0) > 0;
+      return hasId && hasAnyQty && hasAvg;
+    });
   }, [deps.cartLines]);
 
   /* ---------------------------- Compute canSubmit ----------------------------- */
 
-const canSubmit = useMemo(() => {
-  const { amsId, logisticsCenterId, deliveryDate, /* shiftName, */ address } =
-    deps.context;
+  const canSubmit = useMemo(() => {
+    const { amsId, logisticsCenterId, deliveryDate, /* shiftName, */ address } =
+      deps.context;
 
-  if (!amsId || !logisticsCenterId || !deliveryDate || !address) return false;
-  if (!method) return false;
+    if (!amsId || !logisticsCenterId || !deliveryDate || !address) return false;
+    if (!method) return false;
 
-  if (String(method).toLowerCase() === "card") {
-    if (
-      !card.holder.trim() ||
-      !/^\d[\d\s-]{11,}$/.test(card.cardNumber) ||
-      !/^\d{2}$/.test(card.expMonth) ||
-      !/^\d{2,4}$/.test(card.expYear) ||
-      !/^\d{3,4}$/.test(card.cvc)
-    ) return false;
-  }
+    if (String(method).toLowerCase() === "card") {
+      if (
+        !card.holder.trim() ||
+        !/^\d[\d\s-]{11,}$/.test(card.cardNumber) ||
+        !/^\d{2}$/.test(card.expMonth) ||
+        !/^\d{2,4}$/.test(card.expYear) ||
+        !/^\d{3,4}$/.test(card.cvc)
+      )
+        return false;
+    }
 
-  return orderItems.length > 0;
-}, [deps.context, method, card, orderItems]);
-
+    return orderItems.length > 0;
+  }, [deps.context, method, card, orderItems]);
 
   /* ------------------------------ Submit handler ------------------------------ */
 
@@ -224,15 +222,9 @@ const canSubmit = useMemo(() => {
         type: "success",
       });
 
-      // If your API returns an id you want to surface:
-      const orderId =
-        (result as any)?.data?.id ??
-        (result as any)?.id ??
-        (result as any)?.data?.orderId ??
-        (result as any)?.orderId;
-
-      if (orderId && typeof deps.onSuccess === "function") {
-        deps.onSuccess(String(orderId));
+      console.log("Order created");
+      if (typeof deps.onSuccess === "function") {
+        deps.onSuccess();
       }
     } catch (err: any) {
       const message =

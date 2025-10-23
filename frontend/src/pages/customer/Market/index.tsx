@@ -89,9 +89,10 @@ export default function MarketPage() {
       logisticCenterId: lc,
       date: shift.date, // ISO yyyy-mm-dd
       shift: shift.shift, // "morning" | "afternoon" | ...
+      amsId: shift.marketStockId ?? null,
     };
   }, [isActive, address, shift]);
-
+  console.log("cartCtx", cartCtx);
   // local state init (plain read; may be replaced when cartCtx becomes ready)
   const [cartLines, setCartLines] = useState<SharedCartLine[]>(
     () => getSharedCart().lines

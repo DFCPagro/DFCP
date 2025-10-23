@@ -7,12 +7,15 @@ import { useCheckoutState } from "./hooks/useCheckoutState";
 import PreflightGuard from "./components/PreflightGuard";
 import CheckoutSummary from "./components/CheckoutSummary";
 import PaymentSection from "./components/PaymentSection";
+import { PATHS } from "@/routes/paths";
+import {
+  clearCart,
+} from "@/utils/marketCart.shared";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { context, cartLines, totals, preflight, actions } = useCheckoutState();
   console.log("CheckoutPage render", { cartLines });
-  const clearCart = actions.clear;
   const [step, setStep] = useState<1 | 2>(1);
 
   const goToPayment = useCallback(() => setStep(2), []);
@@ -31,17 +34,15 @@ export default function CheckoutPage() {
   const canProceedToPayment = useMemo(() => preflight.ok, [preflight.ok]);
 
   const handleOrderSuccess = useCallback(
-    (orderId: string) => {
+    () => {
       try {
         clearCart(); // clear local cart after successful creation
       } catch {
         // ignore if already cleared by another tab
       }
-      if (orderId) {
-        navigate(`/orders/${orderId}`);
-      } else {
-        navigate(`/orders`);
-      }
+      console.log("Order successful, navigating to orders page");
+      navigate(PATHS.orders);
+
     },
     [clearCart, navigate]
   );

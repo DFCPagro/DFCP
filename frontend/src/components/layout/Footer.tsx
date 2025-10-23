@@ -90,7 +90,7 @@ export default function Footer() {
   return (
     <Box
       as="footer"
-      zIndex={9999}
+      zIndex={10}
       // bg="transparent"
       bg={bg}
       borderTop="1px solid"
