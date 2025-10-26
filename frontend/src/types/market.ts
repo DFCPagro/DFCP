@@ -63,6 +63,7 @@ export const MarketStockLineBackendSchema = z.object({
 
   // price per KG
   pricePerUnit: z.number().nonnegative(),
+  pricePerKg: z.number().nonnegative().optional(),
 
   // LEGACY (kept for compatibility; new backend moves this inside estimates)
   avgWeightPerUnitKg: z.number().nonnegative().optional(),
@@ -112,6 +113,7 @@ export const MarketStockLineSchema = z.object({
   category: z.string(),
 
   pricePerUnit: z.number().nonnegative(),
+  pricePerKg: z.number().nonnegative().optional(),
 
   // Keep legacy top-level avgWeightPerUnitKg for existing UI
   avgWeightPerUnitKg: z.number().nonnegative().optional(),
@@ -164,7 +166,7 @@ export const MarketItemSchema = z.object({
   category: z.string(),
 
   pricePerUnit: z.number().nonnegative(),
-
+  pricePerKg: z.number().nonnegative().optional(), // derived in API layer for convenience
   // Keep legacy field; UI already expects it
   avgWeightPerUnitKg: z.number().nonnegative().optional(),
 
@@ -206,6 +208,12 @@ export function flattenMarketDocToItems(doc: MarketStockDoc): MarketItem[] {
     category: ln.category,
 
     pricePerUnit: ln.pricePerUnit,
+    pricePerKg:ln.pricePerKg ?? (
+      // derive pricePerKg if possible (unitMode must be "unit" or "mixed" and avgWeightPerUnitKg must be present)
+      (ln.unitMode === "unit" || ln.unitMode === "mixed") && Number.isFinite(ln.avgWeightPerUnitKg) && ln.avgWeightPerUnitKg! > 0 
+        ? +(ln.pricePerUnit / ln.avgWeightPerUnitKg!).toFixed(4)
+        : undefined
+    ),
 
     // Keep legacy top-level on the UI item
     avgWeightPerUnitKg:

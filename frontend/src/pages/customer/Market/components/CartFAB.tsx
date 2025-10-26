@@ -3,26 +3,13 @@ import { Box, IconButton, Tooltip } from "@chakra-ui/react"
 import { FiShoppingCart } from "react-icons/fi"
 
 export type CartFABProps = {
-  /** Open the Cart Drawer */
   onClick: () => void
-
-  /** Number of items in cart (badge is hidden when 0 or undefined) */
   count?: number
-
-  /** Accessible label (default: "Open cart") */
   ariaLabel?: string
-
-  /** Positioning (default: 16px from left, 24px + safe-area from bottom) */
   left?: string | number
   bottom?: string | number
-
-  /** z-index (default: 40, below PinButton’s default 50) */
   zIndex?: number
-
-  /** Disable interactions (default: false) */
   disabled?: boolean
-
-  /** Tooltip text (default: "Cart") */
   tooltip?: string
 }
 
@@ -36,7 +23,6 @@ function CartFABBase({
   disabled = false,
   tooltip = "Cart",
 }: CartFABProps) {
-  // clamp badge text
   const badgeText =
     typeof count === "number" && count > 0 ? (count > 99 ? "99+" : String(count)) : null
 
@@ -62,7 +48,6 @@ function CartFABBase({
         </Tooltip.Positioner>
       </Tooltip.Root>
 
-      {/* Item count badge */}
       {badgeText ? (
         <Box
           position="absolute"

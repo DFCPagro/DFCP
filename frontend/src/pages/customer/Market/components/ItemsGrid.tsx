@@ -15,10 +15,24 @@ import {
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi"
 import type { MarketItem } from "@/types/market"
 import { MarketItemCard } from "./MarketItemCard"
+export type MarketItemCardProps = {
+  item: MarketItem;
+  unit: boolean; // true=units, false=kg
+  onClick?: (item: MarketItem) => void;
+  onAdd?: (payload: { item: MarketItem; qty: number }) => void;
+  adding?: boolean;
+  minQty?: number;
+  maxQty?: number;
+  allItemsForRelated?: MarketItem[];
+};
 
 export type ItemsGridProps = {
   /** Items to render on the current page */
   items: MarketItem[]
+
+  /** Units mode: true=units, false=kg */
+  unit: boolean
+  onUnitChange: (next: boolean) => void;   // <-- add
 
   /** Loading flags (first load vs subsequent) */
   isLoading?: boolean
@@ -32,22 +46,25 @@ export type ItemsGridProps = {
   totalPages: number // >= 1
   totalItems?: number // optional for small summary
   onPageChange: (p: number) => void
-  onAdd?: (payload: { item: MarketItem; qty: number }) => void;
+
+  /** Add handler; qty matches mode (units or kg) */
+  onAdd?: (payload: { item: MarketItem; qty: number }) => void
+
   /** Layout */
-  minCardHeight?: string // for consistent skeleton sizing; default "280px"
-  columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number } // responsive columns
+  minCardHeight?: string // default "280px"
+  columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number }
   gutter?: string // grid gap; default "4"
 
-  allItemsForRelated?: MarketItem[];
+  allItemsForRelated?: MarketItem[]
 }
-
-
 
 /**
  * Paged grid of market items (Chakra UI v3).
  */
 function ItemsGridBase({
   items,
+  unit,
+  onUnitChange,
   isLoading = false,
   isFetching = false,
   error = null,
@@ -63,11 +80,9 @@ function ItemsGridBase({
 }: ItemsGridProps) {
   const renderSkeletons = isLoading
   const showEmpty = !isLoading && !error && items.length === 0
-  // console.log("ItemsGrid received items:", items);
 
   return (
     <Stack gap="4" width="full">
-      {/* Error */}
       {error ? (
         <Alert.Root status="error" borderRadius="md">
           <Alert.Indicator />
@@ -79,7 +94,6 @@ function ItemsGridBase({
         </Alert.Root>
       ) : null}
 
-      {/* Grid */}
       <Grid
         templateColumns={{
           base: `repeat(${columns.base ?? 2}, minmax(0, 1fr))`,
@@ -92,33 +106,37 @@ function ItemsGridBase({
       >
         {renderSkeletons
           ? Array.from({ length: (columns.lg ?? 4) * 2 }).map((_, i) => (
-            <GridItem key={`s-${i}`}>
-              <Box borderWidth="1px" borderRadius="lg" overflow="hidden" minH={minCardHeight} p="0">
-                <Skeleton height="80px" />
-                <Stack gap="2" p="3">
-                  <Skeleton height="18px" />
-                  <Skeleton height="14px" />
-                  <Skeleton height="10px" />
-                  <Skeleton height="36px" />
-                </Stack>
-              </Box>
-            </GridItem>
-          ))
+              <GridItem key={`s-${i}`}>
+                <Box borderWidth="1px" borderRadius="lg" overflow="hidden" minH={minCardHeight} p="0">
+                  <Skeleton height="80px" />
+                  <Stack gap="2" p="3">
+                    <Skeleton height="18px" />
+                    <Skeleton height="14px" />
+                    <Skeleton height="10px" />
+                    <Skeleton height="36px" />
+                  </Stack>
+                </Box>
+              </GridItem>
+            ))
           : items.map((it) => (
-            <GridItem key={itemKey(it)}>
-              <MarketItemCard item={it} onAdd={onAdd} allItemsForRelated={allItemsForRelated} />
-            </GridItem>
-          ))}
+        <GridItem key={`${unit ? "u" : "k"}-${itemKey(it)}`}>
+<MarketItemCard
+  item={it}
+  unit={unit}
+  onUnitChange={onUnitChange}                 // <-- add
+  onAdd={onAdd}
+  allItemsForRelated={allItemsForRelated}
+/>
+</GridItem>
+            ))}
       </Grid>
 
-      {/* Empty state */}
       {showEmpty ? (
         <Box py="10" textAlign="center" color="fg.muted">
           <Text>No items match your filters.</Text>
         </Box>
       ) : null}
 
-      {/* Pager */}
       <HStack justifyContent="center" gap="3" py="2">
         <IconButton
           aria-label="Previous page"
@@ -156,11 +174,10 @@ function ItemsGridBase({
 
 /** Defensive unique key for a MarketItem */
 function itemKey(it: MarketItem): string {
-  if (it.stockId) return it.stockId;                          // "<itemId>_<farmerId>"
-  if (it.docId) return `${it.docId}`; // stable within doc
-  return `${it.itemId}:${it.farmerId ?? it.farmerName ?? "unknown"}`;
+  const anyIt = it as any
+  if (anyIt.stockId) return anyIt.stockId
+  if (anyIt.docId) return String(anyIt.docId)
+  return `${anyIt.itemId ?? anyIt.id ?? anyIt.name}:${anyIt.farmerId ?? anyIt.farmerName ?? "unknown"}`
 }
-
-
 
 export const ItemsGrid = memo(ItemsGridBase)

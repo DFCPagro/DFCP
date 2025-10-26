@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -12,40 +12,53 @@ import {
   Text,
   VisuallyHidden,
   useBreakpointValue,
-} from "@chakra-ui/react"
-import { FiChevronDown, FiChevronLeft, FiChevronRight, FiSearch, FiShoppingBag, FiUser } from "react-icons/fi"
-import CategoryFilter, { type CatCode } from "@/components/feature/market/CategoryFilter"
-import type { SortKey } from "../hooks/useMarketFilters"
-import type { SearchSuggestion } from "../hooks/useMarketSearchIndex"
+} from "@chakra-ui/react";
+import {
+  FiChevronDown,
+  FiChevronLeft,
+  FiChevronRight,
+  FiSearch,
+  FiShoppingBag,
+  FiUser,
+} from "react-icons/fi";
+import CategoryFilter, { type CatCode } from "@/components/feature/market/CategoryFilter";
+import type { SortKey } from "../hooks/useMarketFilters";
+import type { SearchSuggestion } from "../hooks/useMarketSearchIndex";
 
 export type StickyFilterBarProps = {
   // Layout
-  offsetTop?: number // px offset from top header (default: 0)
-  zIndex?: number // stacking context (default: 10)
+  offsetTop?: number;
+  zIndex?: number;
+
+  // Unit toggle
+  unit: boolean;
+  onUnitChange: (next: boolean) => void;
 
   // State
-  category: string | null
-  search: string
-  sort: SortKey
-  page: number
-  totalPages: number
-  totalItems?: number
-  pageSize?: number
+  category: string | null;
+  search: string;
+  sort: SortKey;
+  page: number;
+  totalPages: number;
+  totalItems?: number;
+  pageSize?: number;
 
-  // Suggestions from useMarketSearchIndex
-  suggestions: SearchSuggestion[]
+  // Suggestions
+  suggestions: SearchSuggestion[];
 
   // Events
-  onCategoryChange: (cat: string | null) => void
-  onSearchChange: (text: string) => void
-  onPickSuggestion: (s: SearchSuggestion) => void
-  onSortChange: (key: SortKey) => void
-  onPageChange: (p: number) => void
-}
+  onCategoryChange: (cat: string | null) => void;
+  onSearchChange: (text: string) => void;
+  onPickSuggestion: (s: SearchSuggestion) => void;
+  onSortChange: (key: SortKey) => void;
+  onPageChange: (p: number) => void;
+};
 
 function StickyFilterBarBase({
   offsetTop = 0,
   zIndex = 10,
+  unit,
+  onUnitChange,
   category,
   search,
   sort,
@@ -60,108 +73,85 @@ function StickyFilterBarBase({
   onSortChange,
   onPageChange,
 }: StickyFilterBarProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null)
-  const inputRef = useRef<HTMLInputElement | null>(null)
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Dropdown open + positioning (Portal anchored to input)
-  const [open, setOpen] = useState(false)
-  const [dropdownPos, setDropdownPos] = useState<{ left: number; top: number; width: number } | null>(null)
-  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const [open, setOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] =
+    useState<{ left: number; top: number; width: number } | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // Keyboard navigation
-  const [activeIndex, setActiveIndex] = useState<number>(-1)
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
 
-  const showDropdown = open && suggestions.length > 0 && (search?.trim()?.length ?? 0) > 0
-  const listboxId = "market-search-suggestions"
+  const showDropdown = open && suggestions.length > 0 && (search?.trim()?.length ?? 0) > 0;
+  const listboxId = "market-search-suggestions";
 
   const updateDropdownPos = useCallback(() => {
-    const el = inputRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    setDropdownPos({ left: Math.round(r.left), top: Math.round(r.bottom), width: Math.round(r.width) })
-  }, [])
+    const el = inputRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setDropdownPos({ left: Math.round(r.left), top: Math.round(r.bottom), width: Math.round(r.width) });
+  }, []);
 
-  // Keep dropdown glued to the input on open/type/scroll/resize
   useEffect(() => {
-    if (!open) return
-    updateDropdownPos()
+    if (!open) return;
+    updateDropdownPos();
 
-    const onScroll = () => updateDropdownPos()
-    const onResize = () => updateDropdownPos()
+    const onScroll = () => updateDropdownPos();
+    const onResize = () => updateDropdownPos();
 
-    const scrollHandler = () => requestAnimationFrame(onScroll)
-    const resizeHandler = () => requestAnimationFrame(onResize)
+    const scrollHandler = () => requestAnimationFrame(onScroll);
+    const resizeHandler = () => requestAnimationFrame(onResize);
 
-    window.addEventListener("scroll", scrollHandler, true)
-    window.addEventListener("resize", resizeHandler)
+    window.addEventListener("scroll", scrollHandler, true);
+    window.addEventListener("resize", resizeHandler);
 
     return () => {
-      window.removeEventListener("scroll", scrollHandler, true)
-      window.removeEventListener("resize", resizeHandler)
-    }
-  }, [open, updateDropdownPos, search])
+      window.removeEventListener("scroll", scrollHandler, true);
+      window.removeEventListener("resize", resizeHandler);
+    };
+  }, [open, updateDropdownPos, search]);
 
-  // Close on outside click, but allow clicks inside the Portal dropdown
   useEffect(() => {
-    if (!showDropdown) return
+    if (showDropdown) setActiveIndex(0);
+    else setActiveIndex(-1);
+  }, [showDropdown, suggestions]);
 
-    const onDocMouseDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      const root = rootRef.current
-      const drop = dropdownRef.current
-      const insideRoot = !!root && root.contains(t)
-      const insideDrop = !!drop && drop.contains(t)
-      if (!insideRoot && !insideDrop) setOpen(false)
-    }
-
-    // Use capture so we run before other handlers; we only close if truly outside
-    document.addEventListener("mousedown", onDocMouseDown, true)
-    return () => document.removeEventListener("mousedown", onDocMouseDown, true)
-  }, [showDropdown])
-
-  // Reset active index when suggestions change or dropdown opens
-  useEffect(() => {
-    if (showDropdown) setActiveIndex(0)
-    else setActiveIndex(-1)
-  }, [showDropdown, suggestions])
-
-  // Keyboard navigation
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (!showDropdown) {
-        // Open the dropdown with arrows if we have suggestions
         if ((e.key === "ArrowDown" || e.key === "ArrowUp") && suggestions.length > 0) {
-          setOpen(true)
-          setActiveIndex(0)
-          e.preventDefault()
+          setOpen(true);
+          setActiveIndex(0);
+          e.preventDefault();
         }
-        if (e.key === "Escape" || e.key === "Tab") setOpen(false)
-        return
+        if (e.key === "Escape" || e.key === "Tab") setOpen(false);
+        return;
       }
 
       if (e.key === "ArrowDown") {
-        e.preventDefault()
-        setActiveIndex((prev) => (prev + 1) % suggestions.length)
+        e.preventDefault();
+        setActiveIndex((prev) => (prev + 1) % suggestions.length);
       } else if (e.key === "ArrowUp") {
-        e.preventDefault()
-        setActiveIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length)
+        e.preventDefault();
+        setActiveIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
       } else if (e.key === "Enter") {
-        e.preventDefault()
-        const s = suggestions[activeIndex] ?? suggestions[0]
+        e.preventDefault();
+        const s = suggestions[activeIndex] ?? suggestions[0];
         if (s) {
-          onSearchChange(s.label)
-          onPickSuggestion(s)
-          setOpen(false)
+          onSearchChange(s.label);
+          onPickSuggestion(s);
+          setOpen(false);
         }
       } else if (e.key === "Escape" || e.key === "Tab") {
-        setOpen(false)
+        setOpen(false);
       }
     },
-    [showDropdown, suggestions, activeIndex, onPickSuggestion, onSearchChange],
-  )
+    [showDropdown, suggestions, activeIndex, onPickSuggestion, onSearchChange]
+  );
 
-  const pageLabel = useMemo(() => `${page}/${Math.max(1, totalPages)}`, [page, totalPages])
-  const showRightSide = useBreakpointValue({ base: true, md: true }) ?? true
+  const pageLabel = useMemo(() => `${page}/${Math.max(1, totalPages)}`, [page, totalPages]);
+  const showRightSide = useBreakpointValue({ base: true, md: true }) ?? true;
 
   return (
     <Box
@@ -203,17 +193,17 @@ function StickyFilterBarBase({
                 placeholder="Search items or farmers…"
                 value={search}
                 onClick={() => {
-                  setOpen(true)
-                  updateDropdownPos()
+                  setOpen(true);
+                  updateDropdownPos();
                 }}
                 onFocus={() => {
-                  setOpen(true)
-                  updateDropdownPos()
+                  setOpen(true);
+                  updateDropdownPos();
                 }}
                 onChange={(e) => {
-                  onSearchChange(e.target.value)
-                  if (!open) setOpen(true)
-                  updateDropdownPos()
+                  onSearchChange(e.target.value);
+                  if (!open) setOpen(true);
+                  updateDropdownPos();
                 }}
                 onKeyDown={handleKeyDown}
                 aria-autocomplete="list"
@@ -225,7 +215,6 @@ function StickyFilterBarBase({
               />
             </HStack>
 
-            {/* Portal Dropdown */}
             {showDropdown && dropdownPos ? (
               <Portal>
                 <Box
@@ -246,7 +235,7 @@ function StickyFilterBarBase({
                   zIndex="modal"
                 >
                   {suggestions.map((s, idx) => {
-                    const isActive = idx === activeIndex
+                    const isActive = idx === activeIndex;
                     return (
                       <HStack
                         key={`${s.kind}:${s.key}`}
@@ -262,15 +251,14 @@ function StickyFilterBarBase({
                         bg={isActive ? "bg.emphasized" : undefined}
                         _hover={{ bg: "bg.subtle" }}
                         onMouseDown={(e) => {
-                          // Keep focus on input and avoid outside-click handler closing early
-                          e.preventDefault()
-                          e.stopPropagation()
+                          e.preventDefault();
+                          e.stopPropagation();
                         }}
                         onMouseEnter={() => setActiveIndex(idx)}
                         onClick={() => {
-                          onSearchChange(s.label)
-                          onPickSuggestion(s)
-                          setOpen(false)
+                          onSearchChange(s.label);
+                          onPickSuggestion(s);
+                          setOpen(false);
                         }}
                       >
                         <Icon as={s.kind === "item" ? FiShoppingBag : FiUser} />
@@ -283,7 +271,7 @@ function StickyFilterBarBase({
                           ) : null}
                         </Stack>
                       </HStack>
-                    )
+                    );
                   })}
                 </Box>
               </Portal>
@@ -355,28 +343,37 @@ function StickyFilterBarBase({
                   {totalItems} items
                 </Text>
               ) : null}
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onUnitChange(!unit)}
+                aria-pressed={unit}
+              >
+                {unit ? "Units" : "Kg"}
+              </Button>
             </HStack>
           </HStack>
         ) : null}
       </HStack>
     </Box>
-  )
+  );
 }
 
 function sortLabel(k: SortKey): string {
   switch (k) {
     case "priceAsc":
-      return "Price ↑"
+      return "Price ↑";
     case "priceDesc":
-      return "Price ↓"
+      return "Price ↓";
     case "nameAsc":
-      return "Name A–Z"
+      return "Name A–Z";
     case "nameDesc":
-      return "Name Z–A"
+      return "Name Z–A";
     case "relevance":
     default:
-      return "Relevance"
+      return "Relevance";
   }
 }
 
-export const StickyFilterBar = memo(StickyFilterBarBase)
+export const StickyFilterBar = memo(StickyFilterBarBase);
