@@ -1,5 +1,5 @@
 import { Box, Stack, Heading, Separator, SimpleGrid } from "@chakra-ui/react";
-import { CreateOrdersCard } from "./components/CreateOrdersCard";
+import { CreateOrdersCard } from "./components/CreateStockCard";
 import { ShiftStatsCard } from "./components/ShiftStatsCard";
 import { useManagerCreateOptions } from "./hooks/useManagerCreateOptions";
 import { useManagerShiftStats } from "./hooks/useManagerShiftStats";
@@ -30,9 +30,8 @@ export default function FarmerManagerDashboardPage() {
 
         {/* Two main cards side by side on desktop, stacked on mobile */}
         <SimpleGrid columns={{ base: 1, lg: 2 }} gap="6" alignItems="start">
-          <CreateOrdersCard title="Create Orders" rows={rows} />
+          <CreateOrdersCard rows={rows} />
           <ShiftStatsCard
-            title="Current & Upcoming Shifts"
             stats={stats}
             loading={statsLoading}
           />

@@ -18,7 +18,7 @@ export type ShiftStatsCardProps = {
 };
 
 function ShiftStatsCardBase({
-  title = "Current & Upcoming Shifts",
+
   stats,
   loading,
   onViewShift,
@@ -39,7 +39,7 @@ function ShiftStatsCardBase({
   return (
     <Box borderWidth="1px" borderColor="border" rounded="lg" p="4" bg="bg" w="full">
       <Stack gap="4">
-        <Heading size="md">{title}</Heading>
+        <Heading size="md">Current & Upcoming Shifts</Heading>
 
         {loading ? (
           <Stack gap="2">

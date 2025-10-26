@@ -18,7 +18,6 @@ export type CreateOrdersCardProps = {
 };
 
 function CreateOrdersCardBase({
-  title = "Create Orders",
   rows,
   loading,
   onAddShift,
@@ -39,7 +38,7 @@ function CreateOrdersCardBase({
   return (
     <Box borderWidth="1px" borderColor="border" rounded="lg" p="4" bg="bg" w="full">
       <Stack gap="4">
-        <Heading size="md">{title}</Heading>
+        <Heading size="md">Create Stock</Heading>
 
         {loading ? (
           <Stack gap="2">
