@@ -16,14 +16,9 @@ import {
 import { toaster } from "@/components/ui/toaster";
 import type { FormEvent } from "react";
 import { PATHS } from "@/routes/paths";
-import type { User } from "@/types/auth";
-import { useSessionStore } from "@/store/session";
 import { getDefaultLanding } from "@/config/nav.defaults";
 
 type LoginForm = { email: string; password: string };
-type LoginResponse = { user: User; token: string };
-
-// If you want to avoid casting at call sites:
 type RouteState = { from?: { pathname?: string } } | null;
 
 export default function Login() {
@@ -32,15 +27,14 @@ export default function Login() {
   const state = (location.state as RouteState) ?? null;
 
   const setAuth = useAuthStore((s) => s.setAuth);
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const { mutate, isPending } = useMutation<LoginResponse, unknown, LoginForm>({
-    mutationFn: loginApi,
-    onSuccess: ({ user, token }) => {
-      // 1) Persist auth + sync session via store/auth.ts
-      setAuth({ user, token });
+  const { mutate, isPending } = useMutation({
+    mutationFn: (form: LoginForm) => loginApi(form),
+    onSuccess: ({ user, token, logisticCenterId }) => {
+      // setAuth is already called inside loginApi, but keeping this as a no-op safety
+      setAuth({ user, token, logisticCenterId });
 
       // 2) Nice toast
       toaster.create({ title: "Welcome back!", type: "success" });
@@ -50,6 +44,23 @@ export default function Login() {
       let to: string;
 
       to = getDefaultLanding(role);
+      // Basic sanity—ensure center id is present for work dashboards
+      if (!logisticCenterId && user.role !== "customer") {
+        toaster.create({
+          title: "No logistics center linked to your account.",
+          description: "Ask an admin to assign a center before continuing.",
+          type: "warning",
+        });
+      }
+
+      toaster.create({ title: "Welcome back!", type: "success" });
+
+      // Role-aware landing (fall back to `from` if provided)
+      const redirectFromState = state?.from?.pathname;
+      if (redirectFromState) {
+        navigate(redirectFromState, { replace: true });
+        return;
+      }
 
       navigate(to, { replace: true });
     },
@@ -91,7 +102,6 @@ export default function Login() {
           />
         </Field.Root>
 
-        {/* Chakra UI v3 Button uses `loading` */}
         <Button type="submit" loading={isPending} width="full">
           Sign in
         </Button>
@@ -106,3 +116,5 @@ export default function Login() {
     </Box>
   );
 }
+
+

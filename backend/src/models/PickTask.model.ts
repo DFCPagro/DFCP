@@ -44,6 +44,20 @@ const PickItemSchema = new Schema(
   { _id: false }
 );
 
+
+// ✨ extracted for readability (no functional change)
+const TargetSlotSchema = new Schema(
+  {
+    itemId: { type: Types.ObjectId, ref: "Item", required: true },
+    shelfId: { type: Types.ObjectId, ref: "Shelf", required: true },
+    slotId: { type: String, required: true },
+    plannedKg: { type: Number, required: true, min: 0 },
+    crowdScore: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
+
 /**
  * Each shelf assignment tells the picker which container to take and
  * how much product to remove.  When an item spans multiple
@@ -84,21 +98,7 @@ const PickTaskSchema = new Schema(
      * this task and the expected crowd score for that shelf.  Services
      * populate this when computing suggestions.
      */
-    targetSlots: {
-      type: [
-        new Schema(
-          {
-            itemId: { type: Types.ObjectId, ref: "Item", required: true },
-            shelfId: { type: Types.ObjectId, ref: "Shelf", required: true },
-            slotId: { type: String, required: true },
-            plannedKg: { type: Number, required: true, min: 0 },
-            crowdScore: { type: Number, required: true },
-          },
-          { _id: false }
-        ),
-      ],
-      default: [],
-    },
+    targetSlots: { type: [TargetSlotSchema], default: [] },
     auditTrail: { type: [AuditEntrySchema], default: [] },
   },
   { timestamps: true }

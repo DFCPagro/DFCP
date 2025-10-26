@@ -6,7 +6,7 @@
 
 import { Types } from "mongoose";
 import PickTask from "@/models/PickTask.model";
-import CrowdState from "@/models/CrowdState.model.ts";
+import CrowdState from "@/models/CrowdState.model";
 import { PersistedCrowdService } from "./crowdPersistence.service";
 import ApiError from "@/utils/ApiError";
 
@@ -22,6 +22,7 @@ export namespace PickTaskService {
       state: "pending",
     }).lean();
     if (!tasks.length) return null;
+
     // compute crowd scores
     const withScores = await Promise.all(
       tasks.map(async (task) => {
@@ -43,14 +44,17 @@ export namespace PickTaskService {
         return { task, score };
       })
     );
+
     // sort by score ascending
     withScores.sort((a, b) => a.score - b.score);
     const best = withScores[0];
+
     // update the task with computed score
     await PickTask.updateOne(
       { _id: best.task._id },
       { $set: { aggregateCrowdScore: best.score } }
     );
+
     return best.task;
   }
 
@@ -63,10 +67,12 @@ export namespace PickTaskService {
     if (!task) throw new ApiError(404, "PickTask not found");
     if (task.state !== "pending")
       throw new ApiError(400, "Task already started");
+
     task.state = "in_progress";
     task.set("assignedTo", new Types.ObjectId(userId));
     task.startedAt = new Date();
     await task.save();
+
     // bump crowd counters for all shelves referenced in targetSlots or assignments
     const slots = task.targetSlots?.length
       ? task.targetSlots
@@ -91,9 +97,11 @@ export namespace PickTaskService {
     if (!task) throw new ApiError(404, "PickTask not found");
     if (task.state !== "in_progress")
       throw new ApiError(400, "Task not in progress");
+
     task.state = "completed";
     task.completedAt = new Date();
     await task.save();
+
     const slots = task.targetSlots?.length
       ? task.targetSlots
       : (task as any).shelfAssignments;

@@ -94,18 +94,19 @@ const SortingInfoSchema = new Schema(
  * `slotId` identify the exact location.  For warehouse overflow
  * only the zone and aisle are stored.
  */
-const LocationSchema = new Schema(
-  {
+ const LocationSchema = new Schema(
+   {
     // 'warehouse' | 'shelf' | 'pickerShelf' | 'out'
-    area: { type: String, enum: ["warehouse", "shelf", "pickerShelf", "out"], default: "warehouse" },
+     area: { type: String, enum: ["warehouse", "shelf", "pickerShelf", "out"], default: "warehouse" },
+    // For warehouse/out: zone/aisle optional. For shelf/pickerShelf: shelfId + slotId are used.
     zone: { type: String, default: null },
     aisle: { type: String, default: null },
     shelfId: { type: Types.ObjectId, ref: "Shelf", default: null },
     slotId: { type: String, default: null },
-    updatedAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
+     updatedAt: { type: Date, default: Date.now },
+   },
+   { _id: false }
+ );
 
 /**
  * Primary schema for container operations.  One document per
@@ -165,6 +166,15 @@ ContainerOpsSchema.index({ logisticCenterId: 1, "location.area": 1, "location.zo
 
 // Attach toJSON plugin for friendly JSON representations
 ContainerOpsSchema.plugin(toJSON as any);
+
+// ✨ keep location.updatedAt fresh if location changes
+ContainerOpsSchema.pre("save", function (next) {
+  const doc = this as ContainerOpsDoc;
+  if (doc.isModified("location")) {
+    doc.set("location.updatedAt", new Date());
+  }
+  next();
+});
 
 // Types inferred from the schema
 export type ContainerOps = InferSchemaType<typeof ContainerOpsSchema>;

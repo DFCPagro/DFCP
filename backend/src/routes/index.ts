@@ -22,6 +22,7 @@ import containerOpsRoutes from "./containerOps.routes";
 import pickTaskRoutes from "./pickTask.routes";
 import reconciliationRoutes from "./reconciliation.routes";
 import farmerInventoryRoutes from "./farmerInventory.route";
+import worldLayoutRoutes from "./worldLayout.routes";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use("/pick-tasks", pickTaskRoutes);
 // 🧱 Warehouse / LC ops
 router.use("/shelves", shelfRoutes); // /shelves/:id, /shelves/:id/slots/place, etc.
 router.use("/container-ops", containerOpsRoutes); // /container-ops/:id/pick, /container-ops/:id/mark-depleted
+router.use("/world-layout", worldLayoutRoutes);
 
 // Existing
 router.use("/items", itemRoutes);

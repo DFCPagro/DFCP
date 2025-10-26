@@ -8,7 +8,7 @@
 // A shelf is considered crowded when score >= threshold (default 2.0).
 
 import { Types } from "mongoose";
-import CrowdState from "@/models/CrowdState.model.ts";
+import CrowdState from "@/models/CrowdState.model";
 import Shelf from "@/models/Shelf.model";
 
 export namespace PersistedCrowdService {
@@ -27,19 +27,23 @@ export namespace PersistedCrowdService {
     const id = new Types.ObjectId(shelfId);
     const inc: any = {};
     inc[`${kind}Count`] = delta;
+
     const state = await CrowdState.findOneAndUpdate(
       { shelfId: id },
       { $inc: inc, $set: { updatedAt: new Date() } },
       { new: true, upsert: true }
     );
+
     // fetch occupied slots for liveContainers count
     const shelf = await Shelf.findById(id).select("occupiedSlots").lean();
     const liveContainers = shelf?.occupiedSlots ?? 0;
+
     const busyScore =
       (state.pickCount ?? 0) * 1.0 +
       (state.sortCount ?? 0) * 0.7 +
       (state.auditCount ?? 0) * 0.3 +
       liveContainers * 0.5;
+
     state.busyScore = busyScore;
     await state.save();
     return state;
@@ -56,13 +60,16 @@ export namespace PersistedCrowdService {
       // ensure at least default state exists
       state = await CrowdState.create({ shelfId: id });
     }
+
     const shelf = await Shelf.findById(id).select("occupiedSlots").lean();
     const liveContainers = shelf?.occupiedSlots ?? 0;
+
     const score =
       (state.pickCount ?? 0) * 1.0 +
       (state.sortCount ?? 0) * 0.7 +
       (state.auditCount ?? 0) * 0.3 +
       liveContainers * 0.5;
+
     return {
       crowded: score >= threshold,
       score,
@@ -82,11 +89,11 @@ export namespace PersistedCrowdService {
    * non-crowded shelves for placement or picking.
    */
   export async function getNonCrowded(limit = 10, threshold = 2.0) {
-    // join shelves and crowd states
     const states = await CrowdState.find({ busyScore: { $lt: threshold } })
       .sort({ busyScore: 1 })
       .limit(limit)
       .lean();
+
     const result = await Promise.all(
       states.map(async (cs) => {
         const shelf = await Shelf.findById(cs.shelfId)
@@ -98,6 +105,7 @@ export namespace PersistedCrowdService {
         };
       })
     );
+
     return result;
   }
 }

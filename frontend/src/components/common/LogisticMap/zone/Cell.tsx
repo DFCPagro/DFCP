@@ -1,3 +1,4 @@
+// FILE: src/components/common/LogisticMap/zone/Cell.tsx
 import { Box, HStack, VStack, Text } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import type { ShelfDTO } from "@/types/logisticCenter";
@@ -10,16 +11,21 @@ function pct(a: number, b: number) {
   return Math.max(0, Math.min(100, Math.round((a / b) * 100)));
 }
 
-const CRIT_REMAINING = 0.1;
-const WARN_REMAINING = 0.3;
+/** New thresholds are based on FILL (current/capacity), not remaining */
+const CRIT_FILL = 0.1; // ≤10% full → red (near empty)
+const WARN_FILL = 0.3; // ≤30% full → yellow (low)
 
-function slotColor(remainFrac: number, isFree: boolean) {
-  if (isFree) return { bg: "rgba(34,197,94,0.28)", border: "lime.500" };
-  if (remainFrac <= CRIT_REMAINING)
-    return { bg: "rgba(239,68,68,0.32)", border: "red.500" };
-  if (remainFrac <= WARN_REMAINING)
-    return { bg: "rgba(234,179,8,0.32)", border: "yellow.500" };
-  return { bg: "rgba(45,212,191,0.26)", border: "teal.400" };
+/** New color logic:
+ *  - Green = free slot (no container)
+ *  - Red   = near empty (fill ≤ 10%)
+ *  - Yellow= low (10% < fill ≤ 30%)
+ *  - Blue/Teal = healthy/full (> 30%)
+ */
+function slotColor(fillFrac: number, isFree: boolean) {
+  if (isFree) return { bg: "rgba(34,197,94,0.28)", border: "lime.500" };        // 🟩 free
+  if (fillFrac <= CRIT_FILL) return { bg: "rgba(239,68,68,0.32)", border: "red.500" };      // 🟥 near empty
+  if (fillFrac <= WARN_FILL) return { bg: "rgba(234,179,8,0.32)", border: "yellow.500" };   // 🟨 low
+  return { bg: "rgba(45,212,191,0.26)", border: "teal.400" };                                  // 🟦 healthy/full
 }
 
 /** Animations for target/highlight effect */
@@ -67,6 +73,7 @@ export default function Cell({
 
   const occupied = shelf ? shelf.occupiedSlots : 0;
   const maxSlots = shelf ? shelf.maxSlots : 3;
+  // This is now "% filled" overall (shelf current / shelf capacity)
   const capacityPct = shelf ? pct(shelf.currentWeightKg, shelf.maxWeightKg) : 0;
   const busy = shelf ? shelf.busyScore : 0;
   const avoid = shelf ? shelf.isTemporarilyAvoid : false;
@@ -78,7 +85,7 @@ export default function Cell({
         : "Empty location"
       : shelf
         ? `${shelf.shelfId}
-${occupied}/${maxSlots} slots • ${capacityPct}% load
+${occupied}/${maxSlots} slots • ${capacityPct}% filled
 busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
         : "Empty location";
 
@@ -244,7 +251,7 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
           />
         )}
 
-        {/* Mini shelf */}
+        {/* Mini shelf with up to 3 visual slots */}
         <HStack
           w="72%"
           h="48%"
@@ -266,18 +273,20 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
           {Array.from({ length: visibleSlots }).map((_, i) => {
             const s = shelf?.slots?.[i];
             const isFree = !s || !s.containerOpsId;
+
             const capacity =
               s?.capacityKg ??
               (shelf ? shelf.maxWeightKg / Math.max(1, shelf.maxSlots) : 1);
+
             const current = s?.currentWeightKg ?? 0;
-            const remaining = Math.max(0, capacity - current);
-            const remainFrac = Math.max(0, Math.min(1, remaining / capacity));
+            // Use FILL (current / capacity)
+            const fillFrac = Math.max(0, Math.min(1, current / Math.max(1, capacity)));
 
             // In picker mode: reduce color noise unless cell is highlighted
             const colors =
               variant === "picker" && !isTarget
                 ? { bg: "rgba(255,255,255,0.08)", border: "gameShelfSlot" }
-                : slotColor(remainFrac, isFree);
+                : slotColor(fillFrac, isFree);
 
             return (
               <VStack
@@ -319,7 +328,7 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
           color={isTarget ? "brand.300" : "gameCode"}
           opacity=".95"
           textShadow={isTarget ? "0 0 6px rgba(59,130,246,.55)" : undefined}
-          whiteSpace="nowrap" // optional, prevents wrap
+          whiteSpace="nowrap"
         >
           {shelf ? shelf.shelfId : code}
         </Text>

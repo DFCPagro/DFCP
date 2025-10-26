@@ -48,75 +48,74 @@ export namespace ContainerOpsService {
       meta: { amountKg },
     } as any);
 
-    // remain 'shelved' unless you want to change states on thresholds
+    // remain 'shelved' unless thresholds are hit elsewhere
     await ops.save();
     return ops.toObject();
   }
 
   /**
-   * If a slot is emptied (0kg), you may want to set state=sorted or out.
+   * If a slot is emptied (0kg), you may want to set state=depleted or out.
    * This is optional; many flows keep the state 'shelved' until moved.
    */
   export async function markDepletedIfZero(args: {
-  containerOpsId: string;        // Mongo _id
-  shelfMongoId: string;          // Mongo _id (see Fix #1)
-  slotId: string;
-  actorUserId?: string;          // for audit
-}) {
-  const { containerOpsId, shelfMongoId, slotId, actorUserId } = args;
+    containerOpsId: string;        // Mongo _id
+    shelfMongoId: string;          // Mongo _id
+    slotId: string;
+    actorUserId?: string;          // for audit
+  }) {
+    const { containerOpsId, shelfMongoId, slotId, actorUserId } = args;
 
-  const shelf = await Shelf.findById(shelfMongoId);
-  if (!shelf) throw new ApiError(404, "Shelf not found");
+    const shelf = await Shelf.findById(shelfMongoId);
+    if (!shelf) throw new ApiError(404, "Shelf not found");
 
-  const slot = shelf.slots.find((s) => s.slotId === slotId);
-  if (!slot) throw new ApiError(404, "Slot not found");
+    const slot = shelf.slots.find((s) => s.slotId === slotId);
+    if (!slot) throw new ApiError(404, "Slot not found");
 
-  if (!slot.containerOpsId) return { changed: false, reason: "slot-empty" };
-  if (String(slot.containerOpsId) !== String(containerOpsId)) {
-    return { changed: false, reason: "slot-occupied-by-different-container" };
-  }
-  if ((slot.currentWeightKg || 0) > 0) return { changed: false, reason: "weight-not-zero" };
+    if (!slot.containerOpsId) return { changed: false, reason: "slot-empty" };
+    if (String(slot.containerOpsId) !== String(containerOpsId)) {
+      return { changed: false, reason: "slot-occupied-by-different-container" };
+    }
+    if ((slot.currentWeightKg || 0) > 0) return { changed: false, reason: "weight-not-zero" };
 
-  const ops = await ContainerOps.findById(containerOpsId);
-  if (!ops) return { changed: false, reason: "container-not-found" };
+    const ops = await ContainerOps.findById(containerOpsId);
+    if (!ops) return { changed: false, reason: "container-not-found" };
 
-  // 1) Free the slot (and decrement occupiedSlots if it was counted as occupied)
-  await Shelf.updateOne(
-    { _id: shelfMongoId },
-    {
-      $set: {
-        "slots.$[s].containerOpsId": null,
-        "slots.$[s].occupiedAt": null,
-        "slots.$[s].emptiedAt": new Date(),
-        updatedAt: new Date(),
+    // 1) Free the slot (and decrement occupiedSlots if it was counted as occupied)
+    await Shelf.updateOne(
+      { _id: shelfMongoId },
+      {
+        $set: {
+          "slots.$[s].containerOpsId": null,
+          "slots.$[s].occupiedAt": null,
+          "slots.$[s].emptiedAt": new Date(),
+          updatedAt: new Date(),
+        },
+        $inc: { occupiedSlots: -1 },
       },
-      // NOTE: if you tracked the slot as occupied, dec it here; if not, remove this $inc.
-      $inc: { occupiedSlots: -1 },
-    },
-    { arrayFilters: [{ "s.slotId": slotId }] }
-  );
+      { arrayFilters: [{ "s.slotId": slotId }] }
+    );
 
-  // 2) Update ContainerOps state to something that means “empty”
-  ops.state = "depleted"; // <-- add to CONTAINER_OPS_STATES
-  ops.location = {
-    area: "warehouse", // or "delivery"/where it goes next
-    zone: null,
-    aisle: null,
-    shelfId: null,     // leaving shelf
-    slotId: null,
-    updatedAt: new Date(),
-  } as any;
+    // 2) Set ContainerOps to the explicit depleted state
+    ops.state = "depleted";
+    ops.location = {
+      area: "warehouse", // or wherever it logically goes next
+      zone: null,
+      aisle: null,
+      shelfId: null,
+      slotId: null,
+      updatedAt: new Date(),
+    } as any;
 
-  ops.auditTrail.push({
-    userId: actorUserId ?? undefined,
-    action: "depleted",
-    note: `Slot ${slotId} reached 0kg and was freed`,
-    timestamp: new Date(),
-    meta: { shelfMongoId, slotId },
-  } as any);
+    ops.auditTrail.push({
+      userId: actorUserId ?? undefined,
+      action: "depleted",
+      note: `Slot ${slotId} reached 0kg and was freed`,
+      timestamp: new Date(),
+      meta: { shelfMongoId, slotId },
+    } as any);
 
-  await ops.save();
+    await ops.save();
 
-  return { changed: true, containerOps: ops.toObject() };
-}
+    return { changed: true, containerOps: ops.toObject() };
+  }
 }

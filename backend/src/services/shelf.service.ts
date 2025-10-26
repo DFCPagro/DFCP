@@ -1,3 +1,4 @@
+// FILE: src/services/shelf.service.ts
 import { Types, startSession } from "mongoose";
 import Shelf from "../models/Shelf.model";
 import ContainerOps from "../models/ContainerOps.model";
@@ -6,6 +7,34 @@ import { PersistedCrowdService } from "./crowdPersistence.service";
 import { isObjId } from "@/utils/validations/mongose";
 
 export namespace ShelfService {
+  /**
+   * List shelves by logistic center with optional filters.
+   * Used by controller: GET /shelves?centerId=...&zone=A&type=picker
+   */
+export async function list(args: {
+  logisticCenterId: string;
+  zone?: string;
+  type?: "picker" | "warehouse" | "staging" | "sorting" | "out" | string;
+}) {
+  const { logisticCenterId, zone, type } = args;
+  if (!Types.ObjectId.isValid(logisticCenterId)) {
+    throw new ApiError(400, "Invalid logisticCenterId");
+  }
+
+  const query: any = { logisticCenterId: new Types.ObjectId(logisticCenterId) };
+  if (zone && typeof zone === "string") query.zone = zone.toUpperCase();
+  if (type && typeof type === "string") query.type = type.toLowerCase();
+
+  const rows = await Shelf.find(query).lean();
+  return rows;
+}
+
+
+  // Backward-compat wrapper (older code may call this)
+  export async function listByCenter(centerId: string) {
+    return list({ logisticCenterId: centerId });
+  }
+
   /** Fetch one shelf (lean) with optional guards. */
   export async function getShelfById(shelfId: string) {
     const s = await Shelf.findById(shelfId).lean();
@@ -28,7 +57,7 @@ export namespace ShelfService {
 
   /**
    * Place a container into a specific slot.  Uses a MongoDB transaction and
-   * idempotency key to guarantee that repeated requests do not double‑place
+   * idempotency key to guarantee that repeated requests do not double-place
    * containers.  Also updates ContainerOps.distributedWeights and totalWeightKg.
    */
   export async function placeContainer(args: {
@@ -49,33 +78,42 @@ export namespace ShelfService {
       throw new ApiError(400, "weightKg must be a number");
     }
     if (weightKg < 0) throw new ApiError(400, "Weight must be >= 0");
+
     const session = await startSession();
     let result: any;
+
     await session.withTransaction(async () => {
       const shelf = await Shelf.findById(shelfMongoId).session(session);
       if (!shelf) throw new ApiError(404, "Shelf not found");
+
       const ops = await ContainerOps.findById(containerOpsId).session(session);
       if (!ops) throw new ApiError(404, "ContainerOps not found");
+
       if (String(ops.logisticCenterId) !== String(shelf.logisticCenterId)) {
         throw new ApiError(
           400,
           "Container and shelf belong to different logistics centers"
         );
       }
+
       const slot = shelf.slots.find((s) => s.slotId === slotId);
       if (!slot) throw new ApiError(404, "Slot not found on shelf");
       if (slot.containerOpsId) throw new ApiError(400, "Slot is occupied");
       if (slot.capacityKg != null && weightKg > slot.capacityKg) {
         throw new ApiError(400, "Exceeds slot capacity");
       }
+
       // update shelf slot
       (slot as any).containerOpsId = new Types.ObjectId(containerOpsId);
       slot.currentWeightKg = weightKg;
       slot.occupiedAt = new Date();
       (slot as any).emptiedAt = null;
+
+      // aggregate convenience (pre-save hook also ensures consistency)
       shelf.currentWeightKg = (shelf.currentWeightKg || 0) + weightKg;
       shelf.occupiedSlots = (shelf.occupiedSlots || 0) + 1;
       await shelf.save({ session });
+
       // update container
       ops.state = "shelved";
       ops.location = {
@@ -86,10 +124,12 @@ export namespace ShelfService {
         slotId,
         updatedAt: new Date(),
       } as any;
+
       // distributed weights
       ops.distributedWeights = ops.distributedWeights || [];
       ops.distributedWeights.push({ shelfId: shelf._id, slotId, weightKg });
       ops.totalWeightKg = (ops.totalWeightKg || 0) + weightKg;
+
       ops.auditTrail.push({
         userId: isObjId(userId as any)
           ? new Types.ObjectId(userId as any)
@@ -99,10 +139,14 @@ export namespace ShelfService {
         timestamp: new Date(),
         meta: { shelfId: shelf._id, slotId },
       } as any);
+
       await ops.save({ session });
+
       result = { shelf: shelf.toObject(), containerOps: ops.toObject() };
     });
+
     await session.endSession();
+
     // bump crowd counters for sort operation (placing counts as sorting)
     await PersistedCrowdService.bump(String(shelfMongoId), +1, "sort");
     return result;
@@ -121,24 +165,30 @@ export namespace ShelfService {
   }) {
     const { shelfMongoId, slotId, amountKg, userId } = args;
     if (amountKg <= 0) throw new ApiError(400, "amountKg must be > 0");
+
     const session = await startSession();
     let response: any;
+
     await session.withTransaction(async () => {
       const shelf = await Shelf.findById(shelfMongoId).session(session);
       if (!shelf) throw new ApiError(404, "Shelf not found");
+
       const slot = shelf.slots.find((s) => s.slotId === slotId);
       if (!slot) throw new ApiError(404, "Slot not found");
       if (!slot.containerOpsId) throw new ApiError(400, "Slot is empty");
       if ((slot.currentWeightKg || 0) < amountKg) {
         throw new ApiError(400, "Not enough weight in slot");
       }
-      // update shelf weight
+
+      // update shelf weight (pre-save hook will keep aggregates consistent)
       slot.currentWeightKg = (slot.currentWeightKg || 0) - amountKg;
       shelf.currentWeightKg = (shelf.currentWeightKg || 0) - amountKg;
       await shelf.save({ session });
+
       const ops = await ContainerOps.findById(
         (slot as any).containerOpsId
       ).session(session);
+
       if (ops) {
         // update distributedWeights and total
         const dw = ops.distributedWeights || [];
@@ -155,8 +205,10 @@ export namespace ShelfService {
         ops.distributedWeights = dw;
         ops.totalWeightKg = Math.max(0, (ops.totalWeightKg || 0) - amountKg);
         if (ops.totalWeightKg <= 0) {
-          ops.state = "sorted";
+          // explicit depleted state from updated model
+          ops.state = "depleted";
         }
+
         ops.auditTrail.push({
           userId: new Types.ObjectId(userId),
           action: "pick_consume",
@@ -164,14 +216,17 @@ export namespace ShelfService {
           timestamp: new Date(),
           meta: { shelfId: shelf._id, slotId, amountKg },
         } as any);
+
         await ops.save({ session });
       }
+
       response = {
         shelf: shelf.toObject(),
         slotId,
         remainingKg: slot.currentWeightKg ?? 0,
       };
     });
+
     await session.endSession();
     return response;
   }
@@ -187,28 +242,36 @@ export namespace ShelfService {
     userId: string | Types.ObjectId;
   }) {
     const { shelfMongoId, slotId, toArea = "warehouse", userId } = args;
+
     const session = await startSession();
     let res: any;
+
     await session.withTransaction(async () => {
       const shelf = await Shelf.findById(shelfMongoId).session(session);
       if (!shelf) throw new ApiError(404, "Shelf not found");
+
       const slot = shelf.slots.find((s) => s.slotId === slotId);
       if (!slot) throw new ApiError(404, "Slot not found");
       if (!slot.containerOpsId) throw new ApiError(400, "Slot already empty");
+
       const opsId = (slot as any).containerOpsId;
       const prevKg = slot.currentWeightKg || 0;
+
       // clear slot
       slot.currentWeightKg = 0;
       slot.occupiedAt = slot.occupiedAt || new Date();
       slot.emptiedAt = new Date();
       (slot as any).containerOpsId = null;
+
       // shelf counters
       shelf.currentWeightKg = Math.max(
         0,
         (shelf.currentWeightKg || 0) - prevKg
       );
       shelf.occupiedSlots = Math.max(0, (shelf.occupiedSlots || 0) - 1);
+
       await shelf.save({ session });
+
       const ops = await ContainerOps.findById(opsId).session(session);
       if (ops) {
         // remove distributedWeights for this slot
@@ -225,6 +288,7 @@ export namespace ShelfService {
           dw.splice(idx, 1);
           ops.distributedWeights = dw;
         }
+
         ops.location = {
           area: toArea,
           zone: null,
@@ -233,6 +297,7 @@ export namespace ShelfService {
           slotId: null,
           updatedAt: new Date(),
         } as any;
+
         ops.auditTrail.push({
           userId: new Types.ObjectId(userId),
           action: "shelf_empty",
@@ -240,10 +305,13 @@ export namespace ShelfService {
           timestamp: new Date(),
           meta: { shelfId: shelf._id, slotId, toArea, prevKg },
         } as any);
+
         await ops.save({ session });
       }
+
       res = { shelf: shelf.toObject(), slotId };
     });
+
     await session.endSession();
     return res;
   }
@@ -259,20 +327,43 @@ export namespace ShelfService {
     userId: string | Types.ObjectId;
   }) {
     const { fromShelfId, fromSlotId, toShelfId, toSlotId, userId } = args;
+
     const session = await startSession();
     let output: any;
+
     await session.withTransaction(async () => {
       const from = await Shelf.findById(fromShelfId).session(session);
       if (!from) throw new ApiError(404, "Source shelf not found");
+
       const src = from.slots.find((s) => s.slotId === fromSlotId);
       if (!src || !src.containerOpsId)
         throw new ApiError(400, "Source slot is empty");
+
       const to = await Shelf.findById(toShelfId).session(session);
       if (!to) throw new ApiError(404, "Target shelf not found");
+
       const dst = to.slots.find((s) => s.slotId === toSlotId);
       if (!dst) throw new ApiError(404, "Target slot not found");
       if (dst.containerOpsId) throw new ApiError(400, "Target slot occupied");
+
       const moveKg = src.currentWeightKg || 0;
+
+      // capacity guard on destination
+      if (dst.capacityKg != null && moveKg > dst.capacityKg) {
+        throw new ApiError(
+          400,
+          `Target slot capacity exceeded (cap=${dst.capacityKg}, move=${moveKg})`
+        );
+      }
+
+      // same LC guard
+      if (String(from.logisticCenterId) !== String(to.logisticCenterId)) {
+        throw new ApiError(
+          400,
+          "Source and target shelves belong to different logistics centers"
+        );
+      }
+
       // fill destination
       (dst as any).containerOpsId = (src as any).containerOpsId;
       dst.currentWeightKg = moveKg;
@@ -280,6 +371,7 @@ export namespace ShelfService {
       (dst as any).emptiedAt = null;
       to.currentWeightKg = (to.currentWeightKg || 0) + moveKg;
       to.occupiedSlots = (to.occupiedSlots || 0) + 1;
+
       // vacate source
       const opsId = (src as any).containerOpsId;
       (src as any).containerOpsId = null;
@@ -287,7 +379,9 @@ export namespace ShelfService {
       src.emptiedAt = new Date();
       from.currentWeightKg = Math.max(0, (from.currentWeightKg || 0) - moveKg);
       from.occupiedSlots = Math.max(0, (from.occupiedSlots || 0) - 1);
+
       await Promise.all([from.save({ session }), to.save({ session })]);
+
       const ops = await ContainerOps.findById(opsId).session(session);
       if (ops) {
         // update distributedWeights
@@ -303,6 +397,7 @@ export namespace ShelfService {
         // add new entry
         dw.push({ shelfId: to._id, slotId: toSlotId, weightKg: moveKg });
         ops.distributedWeights = dw;
+
         ops.location = {
           area: "shelf",
           zone: to.zone ?? null,
@@ -311,6 +406,7 @@ export namespace ShelfService {
           slotId: toSlotId,
           updatedAt: new Date(),
         } as any;
+
         ops.auditTrail.push({
           userId: new Types.ObjectId(userId),
           action: "shelf_move",
@@ -318,10 +414,13 @@ export namespace ShelfService {
           timestamp: new Date(),
           meta: { fromShelfId, fromSlotId, toShelfId, toSlotId, moveKg },
         } as any);
+
         await ops.save({ session });
       }
+
       output = { from: from.toObject(), to: to.toObject(), movedKg: moveKg };
     });
+
     await session.endSession();
     return output;
   }

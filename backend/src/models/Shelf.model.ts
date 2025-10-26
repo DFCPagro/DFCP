@@ -1,4 +1,3 @@
-// models/Shelf.model.ts
 import {
   Schema,
   model,
@@ -24,8 +23,8 @@ const ShelfSlotSchema = new Schema(
     emptiedAt: { type: Date, default: null },
 
     // live activity on *this slot* (e.g., a sorter/picker working here)
-    liveActiveTasks: { type: Number, default: 0, min: 0 }, // in-flight tasks at the slot
-    lastTaskPingAt: { type: Date, default: null },         // last “I’m working here” ping
+    liveActiveTasks: { type: Number, default: 0, min: 0 },
+    lastTaskPingAt: { type: Date, default: null },
   },
   { _id: false }
 );
@@ -36,10 +35,16 @@ const ShelfSchema = new Schema(
     shelfId: { type: String, required: true },
     type: { type: String, enum: SHELF_TYPES, required: true },
 
-    // physical layout (optional)
+    // physical layout (optional, in sync with frontend)
     zone: { type: String, default: null },
     aisle: { type: String, default: null },
     level: { type: String, default: null },
+
+    // ✨ new in DB to match frontend DTO
+    row: { type: Number, default: null },
+    col: { type: Number, default: null },
+    canvasX: { type: Number, default: null },
+    canvasY: { type: Number, default: null },
 
     // capacities
     maxSlots: { type: Number, required: true, min: 1 },
@@ -49,30 +54,47 @@ const ShelfSchema = new Schema(
     slots: { type: [ShelfSlotSchema], default: [] },
 
     // aggregated metrics for quick balancing decisions
-    currentWeightKg: { type: Number, default: 0 },
-    occupiedSlots: { type: Number, default: 0 },
+    currentWeightKg: { type: Number, default: 0, min: 0 },
+    occupiedSlots: { type: Number, default: 0, min: 0 },
 
-    // --- NEW: congestion awareness ---
-    liveActiveTasks: { type: Number, default: 0, min: 0 }, // total in-flight tasks on this shelf
+    // congestion awareness
+    liveActiveTasks: { type: Number, default: 0, min: 0 },
     lastTaskPingAt: { type: Date, default: null },
-
-    // a rolling, cheap-to-compute crowding indicator (0–100), updated by your services
     busyScore: { type: Number, default: 0, min: 0, max: 100 },
-
-    // optional soft flags for assignment logic
-    isTemporarilyAvoid: { type: Boolean, default: false },  // e.g. traffic jam or maintenance
+    isTemporarilyAvoid: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
-// Uniques & lookups
+// Indexes
 ShelfSchema.index({ logisticCenterId: 1, shelfId: 1 }, { unique: true });
-ShelfSchema.index({ logisticCenterId: 1, type: 1, zone: 1 });
-ShelfSchema.index({ liveActiveTasks: 1, busyScore: 1 }); // fast “find less crowded”
-// for quick free-slot search:
+ShelfSchema.index({ logisticCenterId: 1, type: 1, zone: 1, row: 1, col: 1 });
+ShelfSchema.index({ liveActiveTasks: 1, busyScore: 1 });
 ShelfSchema.index({ logisticCenterId: 1, type: 1, occupiedSlots: 1, currentWeightKg: 1 });
 
 ShelfSchema.plugin(toJSON as any);
+
+// Guard & aggregate maintenance when slots are edited directly
+ShelfSchema.pre("save", function (next) {
+  const doc = this as ShelfDoc;
+
+  if (doc.slots && doc.maxSlots && doc.slots.length > doc.maxSlots) {
+    return next(new Error(`slots.length (${doc.slots.length}) exceeds maxSlots (${doc.maxSlots}) for shelf ${doc.shelfId}`));
+  }
+
+  if (doc.isModified("slots") || doc.isModified("maxSlots") || doc.isModified("maxWeightKg")) {
+    let occupied = 0;
+    let total = 0;
+    for (const s of doc.slots) {
+      total += s.currentWeightKg || 0;
+      if (s.containerOpsId) occupied += 1;
+    }
+    doc.set("occupiedSlots", occupied);
+    doc.set("currentWeightKg", total);
+  }
+
+  next();
+});
 
 // ---------- helpers you can call from services ----------
 
@@ -95,18 +117,15 @@ ShelfSchema.statics.applySlotChange = async function ({
     $inc: {
       currentWeightKg: deltaWeightKg,
       ...(setOccupied ? { occupiedSlots: 1 } : { occupiedSlots: -1 }),
+      [`slots.$[s].currentWeightKg`]: deltaWeightKg,
     },
-    $set: { updatedAt: new Date() },
+    $set: {
+      updatedAt: new Date(),
+      ...(setOccupied
+        ? { "slots.$[s].occupiedAt": new Date(), "slots.$[s].emptiedAt": null }
+        : { "slots.$[s].emptiedAt": new Date(), "slots.$[s].occupiedAt": null }),
+    },
   };
-  // update slot subdoc too
-  update.$inc[`slots.$[s].currentWeightKg`] = deltaWeightKg;
-  if (setOccupied) {
-    update.$set[`slots.$[s].occupiedAt`] = new Date();
-    update.$set[`slots.$[s].emptiedAt`] = null;
-  } else {
-    update.$set[`slots.$[s].emptiedAt`] = new Date();
-    update.$set[`slots.$[s].occupiedAt`] = null;
-  }
 
   return this.updateOne(filter, update, {
     arrayFilters: [{ "s.slotId": slotId }],
@@ -153,7 +172,7 @@ ShelfSchema.statics.findLeastCrowded = function ({
   const q: any = { logisticCenterId };
   if (type) q.type = type;
   return this.find(q)
-    .sort({ isTemporarilyAvoid: 1, liveActiveTasks: 1, busyScore: 1, occupiedSlots: 1 })
+    .sort({ isTemporarilyAvoid: 1, liveActiveTasks: 1, busyScore: 1, occupiedSlots: 1, currentWeightKg: 1 })
     .limit(limit)
     .lean();
 };
