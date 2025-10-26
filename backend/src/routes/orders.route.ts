@@ -2,6 +2,7 @@
 import { Router } from "express";
 import { authenticate, authorize } from "../middlewares/auth";
 import * as ctrl from "../controllers/orders.controller";
+import { postPackOrder } from "../controllers/packing.controller"; // ⬅️ add this
 
 const router = Router();
 
@@ -12,9 +13,15 @@ router.post("/", ctrl.postCreateOrder);
 router.get("/my", authenticate, ctrl.getMyOrders);
 
 // NEW: summary (admin + csManager)
-router.get("/summary",authorize("admin", "csManager"),ctrl.getOrdersSummary);
-
+router.get("/summary", authorize("admin", "csManager"), ctrl.getOrdersSummary);
 
 // NEW: list orders for a given LC + date + shift (admin + csManager)
-router.get( "/by-shift",authorize("admin", "csManager"),ctrl.getOrdersForShift);
+router.get(
+  "/by-shift",
+  authorize("admin", "csManager"),
+  ctrl.getOrdersForShift
+);
+
+router.post("/:id/pack", authorize("admin", "csManager", "tManager"), postPackOrder); // ⬅️ add
+
 export default router;
