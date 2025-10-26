@@ -3,6 +3,24 @@ import mongoose, { Schema, model, InferSchemaType, HydratedDocument } from "mong
 import { PackageSize } from "./PackageSize";
 
 export type Fragility = "very_fragile" | "fragile" | "normal" | "sturdy";
+// src/models/ItemPacking.ts
+import { Types } from "mongoose";
+
+export type PackingInfoInput = {
+  bulkDensityKgPerL: number;
+  litersPerKg: number;
+  fragility: "very_fragile" | "fragile" | "normal" | "sturdy";
+  allowMixing: boolean;
+  requiresVentedBox: boolean;
+  minBoxType: string;
+  maxWeightPerBoxKg?: number;
+  notes?: string | null; // ✅ nullable/optional
+};
+
+export type ItemPackingCreateInput = {
+  items: { itemId: Types.ObjectId | string; packing: PackingInfoInput }[];
+  units?: { notes?: string | null }; // ✅ nullable/optional
+};
 
 const PackingInfoSchema = new Schema(
   {
@@ -27,10 +45,11 @@ const PackingInfoSchema = new Schema(
     allowMixing: { type: Boolean, required: true },
     requiresVentedBox: { type: Boolean, required: true },
 
-    // Matches your JSON values like "Small" | "Medium" | "Large"
-    minBoxType: { type: String, required: true, enum: ["Small", "Medium", "Large"], index: true },
+    // Was enum: ["Small","Medium","Large"] — remove the static enum,
+    // we validate dynamically against PackageSize below.
+    minBoxType: { type: String, required: true, index: true },
 
-    // Optional, omitted when not present in JSON
+    // Optional
     maxWeightPerBoxKg: { type: Number, min: 0.001, default: undefined },
     notes: { type: String, default: null },
   },
@@ -39,11 +58,8 @@ const PackingInfoSchema = new Schema(
 
 const PackingItemSchema = new Schema(
   {
-    // Your 24-hex strings cast cleanly to ObjectId
-    itemId: { type: Schema.Types.ObjectId, required: true, index: true },
-    type: { type: String, required: true, trim: true },
-    variety: { type: String, required: true, trim: true },
-    category: { type: String, required: true, enum: ["fruit", "vegetable"], index: true },
+    // Link only to Item
+    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
     packing: { type: PackingInfoSchema, required: true },
   },
   { _id: false }
@@ -90,11 +106,14 @@ const ItemPackingSchema = new Schema(
   { collection: "item_packings", timestamps: true, minimize: true }
 );
 
-// Helpful multikey index for queries by produce metadata
-ItemPackingSchema.index(
-  { "items.type": 1, "items.variety": 1, "items.category": 1 },
-  { name: "items_type_variety_category" }
-);
+// ✅ Replace the old multikey index (which referenced removed fields)
+// ItemPackingSchema.index(
+//   { "items.type": 1, "items.variety": 1, "items.category": 1 },
+//   { name: "items_type_variety_category" }
+// );
+
+// ✅ New helpful index for your new shape
+ItemPackingSchema.index({ "items.itemId": 1 }, { name: "items_itemId" });
 
 // toJSON
 ItemPackingSchema.set("toJSON", {
@@ -107,7 +126,6 @@ ItemPackingSchema.set("toJSON", {
   },
 });
 
-
 PackingInfoSchema.path("minBoxType").validate({
   validator: async function (v: string) {
     // Skip if unset (schema already requires it)
@@ -117,7 +135,6 @@ PackingInfoSchema.path("minBoxType").validate({
   },
   message: (props: any) => `No PackageSize found with key "${props.value}".`,
 });
-
 
 PackingInfoSchema.pre("validate", async function (next) {
   try {
@@ -148,8 +165,6 @@ ItemPackingSchema.virtual("minBoxTypeDocs", {
   foreignField: "key",
   justOne: false,
 });
-
-
 
 // ---------- Types ----------
 type ItemPackingAttrs = InferSchemaType<typeof ItemPackingSchema>;

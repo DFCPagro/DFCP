@@ -4,9 +4,6 @@
     "items": [
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "type": "Strawberry",
-        "variety": "Albion",
-        "category": "fruit",
         "packing": {
           "bulkDensityKgPerL": 0.247,
           "litersPerKg": 4.049,
@@ -15,14 +12,11 @@
           "requiresVentedBox": true,
           "minBoxType": "Small",
           "maxWeightPerBoxKg": 2,
-          "notes": "1 lb clamshell ≈ 1.84 L; ideal top-vented small boxes to reduce compression."
+          "notes": "500 g clamshell units; ideal top-vented small boxes to reduce compression."
         }
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "type": "Tomato",
-        "variety": "Cherry",
-        "category": "vegetable",
         "packing": {
           "bulkDensityKgPerL": 0.637,
           "litersPerKg": 1.57,
@@ -31,14 +25,11 @@
           "requiresVentedBox": true,
           "minBoxType": "Small",
           "maxWeightPerBoxKg": 3,
-          "notes": "Based on 12×1-pint clamshell case ≈ 7.97 lb total."
+          "notes": "Sold as 1 kg packs; based on 12×1-pint clamshell case ≈ 7.97 lb total."
         }
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "type": "Lettuce",
-        "variety": "Romaine",
-        "category": "vegetable",
         "packing": {
           "bulkDensityKgPerL": 0.25,
           "litersPerKg": 4,
@@ -52,9 +43,6 @@
       },
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "type": "Cucumber",
-        "variety": "Persian",
-        "category": "vegetable",
         "packing": {
           "bulkDensityKgPerL": 0.63,
           "litersPerKg": 1.587,
@@ -67,9 +55,6 @@
       },
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "type": "Carrot",
-        "variety": "Nantes",
-        "category": "vegetable",
         "packing": {
           "bulkDensityKgPerL": 0.644,
           "litersPerKg": 1.553,
@@ -82,9 +67,6 @@
       },
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "type": "Spinach",
-        "variety": "Baby",
-        "category": "vegetable",
         "packing": {
           "bulkDensityKgPerL": 0.09,
           "litersPerKg": 11.111,
@@ -93,14 +75,11 @@
           "requiresVentedBox": true,
           "minBoxType": "Small",
           "maxWeightPerBoxKg": 2,
-          "notes": "4 lb foodservice case ≈ 0.71 ft³; extremely airy—watch compression."
+          "notes": "Sold as 500 g bundles; extremely airy—watch compression."
         }
       },
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "type": "Apple",
-        "variety": "Fuji",
-        "category": "fruit",
         "packing": {
           "bulkDensityKgPerL": 0.618,
           "litersPerKg": 1.618,
@@ -113,9 +92,6 @@
       },
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "type": "Banana",
-        "variety": "Cavendish",
-        "category": "fruit",
         "packing": {
           "bulkDensityKgPerL": 0.346,
           "litersPerKg": 2.89,
@@ -128,9 +104,6 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "type": "Orange",
-        "variety": "Navel",
-        "category": "fruit",
         "packing": {
           "bulkDensityKgPerL": 0.62,
           "litersPerKg": 1.613,
@@ -143,9 +116,6 @@
       },
       {
         "itemId": "497bb3e65bf348533160cec0",
-        "type": "Grape",
-        "variety": "Red Globe",
-        "category": "fruit",
         "packing": {
           "bulkDensityKgPerL": 0.6,
           "litersPerKg": 1.667,
@@ -155,6 +125,19 @@
           "minBoxType": "Small",
           "maxWeightPerBoxKg": 4,
           "notes": "Midpoint of literature range; avoid stacking pressure."
+        }
+      },
+      {
+        "itemId": "64f1e2c3a5b6c7d8e9f0a1b2",
+        "packing": {
+          "bulkDensityKgPerL": 0.55,
+          "litersPerKg": 1.818,
+          "fragility": "fragile",
+          "allowMixing": false,
+          "requiresVentedBox": true,
+          "minBoxType": "Small",
+          "maxWeightPerBoxKg": 6,
+          "notes": "12-egg cartons; use vented small boxes to prevent moisture build-up and odor."
         }
       }
     ],

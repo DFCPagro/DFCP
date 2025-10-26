@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 import * as svc from "../services/ItemPacking.service";
 import ApiError from "../utils/ApiError";
+import { itemCategories, type ItemCategory } from "../models/Item.model";
 
 /**
  * GET /item-packings
@@ -22,6 +23,20 @@ export const list = async (req: Request, res: Response) => {
     requiresVentedBox,
   } = req.query;
 
+  // Validate category (if provided) using the shared enum list
+  let cat: ItemCategory | undefined = undefined;
+  if (typeof category === "string") {
+    if (!itemCategories.includes(category as ItemCategory)) {
+      throw new ApiError(400, `invalid category: ${category}`);
+    }
+    cat = category as ItemCategory;
+  }
+
+  // Validate itemId (if provided)
+  if (typeof itemId === "string" && itemId && !Types.ObjectId.isValid(itemId)) {
+    throw new ApiError(400, "Invalid itemId");
+  }
+
   const data = await svc.list({
     page: page ? Number(page) : undefined,
     limit: limit ? Number(limit) : undefined,
@@ -29,7 +44,7 @@ export const list = async (req: Request, res: Response) => {
     populate: String(populate ?? "") === "true",
     type: type as string | undefined,
     variety: variety as string | undefined,
-    category: category as "fruit" | "vegetable" | undefined,
+    category: cat,
     itemId: itemId as string | undefined,
     fragility: fragility as any,
     allowMixing: allowMixing as any,

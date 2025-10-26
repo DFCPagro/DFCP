@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import ApiError from "@/utils/ApiError";
 import {
-  createItem,
+  createItemWithPacking,
   getItemByItemId,
   listItems,
   updateItemByItemId,
@@ -27,8 +27,8 @@ const isPrivileged = (req: Request) => {
 /** Always return a plain object and ensure `_id` exists as a string. */
 const toFullItem = (docOrObj: any) => {
   const obj = docOrObj && typeof docOrObj.toObject === "function" ? docOrObj.toObject() : docOrObj;
-  if (obj && !("_id" in obj) && docOrObj?._id) {
-    obj._id = String(docOrObj._id);
+  if (obj && !("_id" in obj) && (docOrObj as any)?._id) {
+    obj._id = String((docOrObj as any)._id);
   }
   if (obj && obj._id && typeof obj._id !== "string") {
     try { obj._id = String(obj._id); } catch {}
@@ -49,14 +49,35 @@ const toPublicItem = (req: Request, item: any) => {
   };
 };
 
+// Extract details[] from a "ValidationError: a; b; c" message
+function parseValidationDetails(err: any): string[] | null {
+  if (err?.statusCode === 400 && typeof err?.message === "string" && err.message.startsWith("ValidationError")) {
+    return err.message.replace(/^ValidationError:\s*/i, "").split(/\s*;\s*/).filter(Boolean);
+  }
+  return null;
+}
+
 // --- handlers ---
 
+// CREATE (Item + ItemPacking) — packing is REQUIRED in body: { ...itemFields, packing: {...} }
 export async function createItemHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    if (req.body?._id) delete req.body._id; // ignore _id if provided
-    const doc = await createItem(req.body);
+    const body = (req.body ?? {}) as any;
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({ error: "ValidationError", details: ["Body must be an object"] });
+    }
+    if (!body.packing || typeof body.packing !== "object") {
+      return res.status(400).json({ error: "ValidationError", details: ["'packing' is required and must be an object"] });
+    }
+    if (body?._id) delete body._id; // ignore _id if provided
+
+    const doc = await createItemWithPacking(body); // service extracts packing internally
     res.status(201).json(toFullItem(doc));
-  } catch (err) { next(err); }
+  } catch (err: any) {
+    const details = parseValidationDetails(err);
+    if (details) return res.status(400).json({ error: "ValidationError", details });
+    next(err);
+  }
 }
 
 export async function listItemsHandler(req: Request, res: Response, next: NextFunction) {
@@ -145,7 +166,11 @@ export async function patchItemHandler(req: Request, res: Response, next: NextFu
     const updated = await updateItemByItemId(itemId, { $set: req.body }, { returnNew: true });
     if (!updated) return res.status(404).json({ message: "Item not found" });
     res.json(toFullItem(updated));
-  } catch (err) { next(err); }
+  } catch (err: any) {
+    const details = parseValidationDetails(err);
+    if (details) return res.status(400).json({ error: "ValidationError", details });
+    next(err);
+  }
 }
 
 // PUT = full replace (idempotent)
@@ -163,7 +188,11 @@ export async function putItemHandler(req: Request, res: Response, next: NextFunc
     const replaced = await replaceItemByItemId(itemId, { ...req.body, _id: itemId });
     if (!replaced) return res.status(404).json({ message: "Item not found" });
     res.json(toFullItem(replaced));
-  } catch (err) { next(err); }
+  } catch (err: any) {
+    const details = parseValidationDetails(err);
+    if (details) return res.status(400).json({ error: "ValidationError", details });
+    next(err);
+  }
 }
 
 export async function deleteItemHandler(req: Request, res: Response, next: NextFunction) {
@@ -188,7 +217,6 @@ export async function getItemBenefits(req: Request, res: Response, next: NextFun
     const data = await itemBenefits(itemId);
     if (!data) return res.status(404).json({ message: "Item not found" });
 
-    // NOTE: now returns caloriesPer100g key
     res.status(200).json({ data });
   } catch (err) {
     next(err);
@@ -205,7 +233,6 @@ export async function marketItemPage(req: Request, res: Response, next: NextFunc
     const data = await marketItemPageData(itemId, farmerUserId);
     if (!data) throw new ApiError(404, "Item or Farmer not found");
 
-    // NOTE: data.item.caloriesPer100g now
     res.status(200).json({ data });
   } catch (err) {
     next(err);

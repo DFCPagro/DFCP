@@ -1,10 +1,19 @@
-import { FilterQuery, ProjectionType, QueryOptions, UpdateQuery, Types } from "mongoose";
+import mongoose, {
+  FilterQuery,
+  ProjectionType,
+  QueryOptions,
+  UpdateQuery,
+  Types,
+} from "mongoose";
+import ApiError from "../utils/ApiError";
 import ItemModel, {
   itemCategories,
   type Item as ItemType,
   type ItemCategory,
 } from "../models/Item.model";
 import { getFarmerBioByUserId } from "./farmer.service";
+import * as packingSvc from "./ItemPacking.service";
+import { validatePackingInput } from "../validations/items.validation";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Filters & options
@@ -29,21 +38,19 @@ export type ListItemsOptions = {
 const DEFAULT_LIMIT = 20;
 
 // ───────────────────────────────────────────────────────────────────────────────
-// Normalizers for the new model fields
+// Normalizers / Validators
 // ───────────────────────────────────────────────────────────────────────────────
 function normalizeTolerance(input: unknown): string | null {
   if (input == null) return null;
   const raw = String(input).trim();
-  // Accept "±2%", "+/-2%", "0.02", "2%" etc., store as "0.02"
   const pctMatch = raw.match(/([+-]?\d+(\.\d+)?)\s*%/);
   if (pctMatch) {
-     const val = Number(pctMatch[1]) / 100;
-     return Number.isFinite(val) ? val.toString() : null;
+    const val = Number(pctMatch[1]) / 100;
+    return Number.isFinite(val) ? val.toString() : null;
   }
   const plusMinusMatch = raw.replace(/[±]|(\+\/-)/g, "").trim();
   const asNum = Number(plusMinusMatch);
   if (Number.isFinite(asNum)) {
-    // If value seems like 0.x keep as-is, if looks like 2, treat as 2%
     return (asNum > 1 ? asNum / 100 : asNum).toString();
   }
   return null;
@@ -69,27 +76,23 @@ function normalizeImageUrl(url: unknown): string | null {
 
 function normalizeWeights(payload: any) {
   const copy = { ...payload };
-
-  // Legacy alias support at payload level (your schema hook also covers nested QS)
-  if ((copy.avgWeightPerUnitGr == null) && (copy.weightPerUnitG != null)) {
+  if (copy.avgWeightPerUnitGr == null && copy.weightPerUnitG != null) {
     copy.avgWeightPerUnitGr = copy.weightPerUnitG;
   }
-
-  // Default sdWeightPerUnitGr to 0 if supplied as null/undefined
   if (copy.sdWeightPerUnitGr == null) copy.sdWeightPerUnitGr = 0;
-
   return copy;
 }
 
 function normalizeBeforeWrite(payload: Partial<ItemType>): Partial<ItemType> {
   const p: any = { ...payload };
 
-  // tolerance → "0.02" style string
+  // tolerance → "0.02"
   if ("tolerance" in p) {
     const t = normalizeTolerance(p.tolerance);
     if (t != null) p.tolerance = t;
-    else if (p.tolerance == null) {/* keep null/undefined */} 
-    else delete p.tolerance; // bad format → drop and let model default
+    else if (p.tolerance == null) {
+      /* keep null/undefined */
+    } else delete p.tolerance;
   }
 
   // sellModes defaults
@@ -105,25 +108,222 @@ function normalizeBeforeWrite(payload: Partial<ItemType>): Partial<ItemType> {
   // weight helpers
   Object.assign(p, normalizeWeights(p));
 
-  // keep price as given (schema validates min >= 0)
+  // egg/dairy: UNIT-ONLY; clear KG prices
+  if (p.category === "egg_dairy") {
+    p.sellModes = {
+      ...(p.sellModes || {}),
+      byKg: false,
+      byUnit: true,
+      unitBundleSize: Math.max(1, Number(p.sellModes?.unitBundleSize ?? 12)),
+    };
+    if (p.price && typeof p.price === "object") {
+      p.price = { a: null, b: null, c: null } as any;
+    }
+  }
+
   return p;
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-// CRUD
-// ───────────────────────────────────────────────────────────────────────────────
-export async function createItem(payload: Partial<ItemType>): Promise<ItemType> {
-  const normalized = normalizeBeforeWrite(payload);
-  const doc = await ItemModel.create(normalized as any);
-  return doc.toObject ? (doc.toObject() as ItemType) : (doc as unknown as ItemType);
+/** Merge existing + patch to get effective state for validation. */
+function mergeEffective(
+  existing: Partial<ItemType> | null,
+  patch: Partial<ItemType>
+): Partial<ItemType> {
+  const base = existing ? { ...existing } : {};
+  const next = { ...base, ...patch };
+  if (patch.sellModes)
+    next.sellModes = { ...(base as any).sellModes, ...patch.sellModes } as any;
+  if (patch.price)
+    next.price = { ...(base as any).price, ...patch.price } as any;
+  return next;
 }
 
-export async function getItemByItemId(_id: string, projection?: ProjectionType<ItemType>) {
+/** Validate business rules; throw ApiError(400, "ValidationError: …") */
+function validateItemBusinessRules(effective: Partial<ItemType>) {
+  const issues: string[] = [];
+
+  const category = effective.category as ItemCategory | undefined;
+  const sell = (effective as any).sellModes || {};
+  const byKg = sell.byKg !== false; // default true for non-eggs
+  const byUnit = !!sell.byUnit;
+  const unitBundleSize = Number(sell.unitBundleSize ?? 1);
+
+  if (category && !itemCategories.includes(category)) {
+    issues.push(`invalid category: ${category}`);
+  }
+
+  if (category === "egg_dairy") {
+    if (byKg)
+      issues.push(
+        "egg_dairy items cannot be sold by KG (sellModes.byKg must be false)"
+      );
+    if (!byUnit)
+      issues.push(
+        "egg_dairy items must be sold by UNIT (sellModes.byUnit must be true)"
+      );
+    if (
+      Number.isFinite((effective as any).price?.a) &&
+      (effective as any).price?.a != null
+    ) {
+      issues.push(
+        "egg_dairy items cannot set price.a (per KG) — use pricePerUnitOverride"
+      );
+    }
+    if ((effective as any).pricePerUnitOverride == null) {
+      issues.push(
+        "egg_dairy items require pricePerUnitOverride (price per single unit)"
+      );
+    }
+  } else {
+    if (!byKg && !byUnit) {
+      issues.push("at least one sell mode must be true (byKg or byUnit)");
+    }
+    if (byKg && (effective as any).price?.a == null) {
+      issues.push("byKg=true requires price.a (price per KG)");
+    }
+    if (
+      byUnit &&
+      (effective as any).pricePerUnitOverride == null &&
+      (effective as any).avgWeightPerUnitGr == null
+    ) {
+      issues.push(
+        "byUnit=true requires either pricePerUnitOverride OR avgWeightPerUnitGr"
+      );
+    }
+  }
+
+  if (byUnit && (!Number.isFinite(unitBundleSize) || unitBundleSize < 1)) {
+    issues.push(
+      "sellModes.unitBundleSize must be a number >= 1 when byUnit=true"
+    );
+  }
+
+  if (issues.length) {
+    throw new ApiError(400, `ValidationError: ${issues.join("; ")}`);
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// CREATE (Item + ItemPacking in one transaction)
+// ───────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Accepts a single payload that includes both item fields and a `packing` object.
+ * Example body:
+ * {
+ *   category, type, variety, ...,
+ *   packing: { bulkDensityKgPerL, litersPerKg, fragility, allowMixing, requiresVentedBox, minBoxType, ... }
+ * }
+ */
+export type CreateItemWithPackingBody = Partial<ItemType> & {
+  packing: {
+    bulkDensityKgPerL: number;
+    litersPerKg: number;
+    fragility: "very_fragile" | "fragile" | "normal" | "sturdy";
+    allowMixing: boolean;
+    requiresVentedBox: boolean;
+    minBoxType: string;
+    maxWeightPerBoxKg?: number;
+    notes?: string | null;
+  };
+};
+
+export async function createItemWithPacking(body: CreateItemWithPackingBody) {
+  if (!body || typeof body !== "object") {
+    throw new ApiError(400, "ValidationError: Body must be an object");
+  }
+
+  const { packing, ...itemPayload } = body as CreateItemWithPackingBody;
+  if (!packing || typeof packing !== "object") {
+    throw new ApiError(400, "ValidationError: 'packing' is required and must be an object");
+  }
+
+  // 1) validate item + packing
+  const normalized = normalizeBeforeWrite(itemPayload);
+  validateItemBusinessRules(normalized);
+
+  const packingIssues = validatePackingInput(packing);
+  if (packingIssues.length) {
+    throw new ApiError(400, `ValidationError: ${packingIssues.join("; ")}`);
+  }
+
+  // 2) transaction
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    // 2a) create item
+    const [itemDoc] = await ItemModel.create([normalized as any], { session });
+
+    // 2b) (optional but recommended) prevent duplicate packing for this item across docs
+    const existing = await mongoose
+      .model("ItemPacking")
+      .findOne({ "items.itemId": itemDoc._id })
+      .session(session)
+      .lean();
+    if (existing) {
+      throw new ApiError(409, "Packing already exists for this item");
+    }
+
+    // 2c) create packing via the PACKING SERVICE (reused!)
+    const packingDoc = await packingSvc.create(
+      {
+        items: [
+          {
+            itemId: itemDoc._id,
+            packing: {
+              ...packing,
+              notes: packing.notes ?? null,
+            }, // only itemId + packing
+          },
+        ],
+      },
+      { session } // same txn
+    );
+
+    await session.commitTransaction();
+
+    // Return both so the controller has everything
+    return {
+      item: itemDoc.toObject ? itemDoc.toObject() : (itemDoc as any),
+      packing: packingDoc, // packingSvc.create returns toJSON()
+    };
+  } catch (err: any) {
+    await session.abortTransaction();
+
+    if (err?.name === "ValidationError") {
+      const details = Object.values(err.errors || {})
+        .map((e: any) => e?.message)
+        .filter(Boolean);
+      throw new ApiError(
+        400,
+        details.length
+          ? `ValidationError: ${details.join("; ")}`
+          : "ValidationError: invalid payload"
+      );
+    }
+    throw err;
+  } finally {
+    session.endSession(); // single place to end the session
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// CRUD (rest) — unchanged except for business-rule validation on write paths
+// ───────────────────────────────────────────────────────────────────────────────
+
+export async function getItemByItemId(
+  _id: string,
+  projection?: ProjectionType<ItemType>
+) {
   if (!Types.ObjectId.isValid(_id)) return null;
   return ItemModel.findById(_id, projection).exec();
 }
 
-export async function getItemByMongoId(id: string, projection?: ProjectionType<ItemType>) {
+export async function getItemByMongoId(
+  id: string,
+  projection?: ProjectionType<ItemType>
+) {
   if (!Types.ObjectId.isValid(id)) return null;
   return ItemModel.findById(id, projection).exec();
 }
@@ -160,7 +360,12 @@ export async function listItems(
   const lean = opts.lean ?? true;
 
   const [items, total] = await Promise.all([
-    ItemModel.find(query, projection, { sort, skip, limit, lean } as QueryOptions).exec(),
+    ItemModel.find(query, projection, {
+      sort,
+      skip,
+      limit,
+      lean,
+    } as QueryOptions).exec(),
     ItemModel.countDocuments(query).exec(),
   ]);
 
@@ -181,17 +386,24 @@ export async function updateItemByItemId(
   if (!Types.ObjectId.isValid(_id)) return null;
   const { upsert = false, returnNew = true } = opts;
 
-  // normalize only $set payload (don’t mutate other operators)
+  // normalize only $set payload
   const nextUpdate: UpdateQuery<ItemType> = { ...update };
   if ((nextUpdate as any).$set) {
     (nextUpdate as any).$set = normalizeBeforeWrite((nextUpdate as any).$set);
   }
 
-  const doc = await ItemModel.findOneAndUpdate(
-    { _id },
-    nextUpdate,
-    { upsert, new: returnNew, runValidators: true }
-  ).exec();
+  // validate effective result (existing + $set)
+  const existing = await ItemModel.findById(_id).lean<ItemType>().exec();
+  if (!existing) return null;
+  const setPayload = ((nextUpdate as any).$set ?? {}) as Partial<ItemType>;
+  const effective = mergeEffective(existing, setPayload);
+  validateItemBusinessRules(effective);
+
+  const doc = await ItemModel.findOneAndUpdate({ _id }, nextUpdate, {
+    upsert,
+    new: returnNew,
+    runValidators: true,
+  }).exec();
   return doc;
 }
 
@@ -201,6 +413,7 @@ export async function replaceItemByItemId(
 ) {
   if (!Types.ObjectId.isValid(_id)) return null;
   const normalized = normalizeBeforeWrite(replacement);
+  validateItemBusinessRules(normalized);
   const doc = await ItemModel.findOneAndReplace(
     { _id },
     { ...normalized, _id } as any,
@@ -233,11 +446,8 @@ function normalizeSort(input: string) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
-// MARKET PAGE helpers (fixed field names)
+// MARKET PAGE helpers
 // ───────────────────────────────────────────────────────────────────────────────
-/*
-FOR MARKET PAGE
-*/
 export type ItemBenefits = {
   customerInfo: string[];
   caloriesPer100g: number | null;
@@ -246,7 +456,6 @@ export type ItemBenefits = {
 export async function itemBenefits(_id: string): Promise<ItemBenefits> {
   if (!Types.ObjectId.isValid(_id)) return null;
 
-  // FIX: select the correct field name "caloriesPer100g"
   const doc = await ItemModel.findById(_id)
     .select({ customerInfo: 1, caloriesPer100g: 1, _id: 0 })
     .lean();
@@ -260,21 +469,28 @@ export async function itemBenefits(_id: string): Promise<ItemBenefits> {
   return {
     customerInfo: customerInfoArr,
     caloriesPer100g:
-      typeof (doc as any).caloriesPer100g === "number" ? (doc as any).caloriesPer100g : null,
+      typeof (doc as any).caloriesPer100g === "number"
+        ? (doc as any).caloriesPer100g
+        : null,
   };
 }
 
 export type MarketItemPageResult = {
   item: { customerInfo: string[]; caloriesPer100g: number | null };
-  farmer: { logo: string | null; farmName: string; farmLogo: string | null; farmerBio: string | null };
+  farmer: {
+    logo: string | null;
+    farmName: string;
+    farmLogo: string | null;
+    farmerBio: string | null;
+  };
 } | null;
 
-/**
- * Returns both item benefits and farmer bio (by farmer's userId)
- */
-export async function marketItemPageData(itemId: string, farmerUserId: string): Promise<MarketItemPageResult> {
-
-  if (!Types.ObjectId.isValid(itemId) || !Types.ObjectId.isValid(farmerUserId)) return null;
+export async function marketItemPageData(
+  itemId: string,
+  farmerUserId: string
+): Promise<MarketItemPageResult> {
+  if (!Types.ObjectId.isValid(itemId) || !Types.ObjectId.isValid(farmerUserId))
+    return null;
 
   const [itemInfo, farmerInfo] = await Promise.all([
     itemBenefits(itemId),
@@ -282,7 +498,7 @@ export async function marketItemPageData(itemId: string, farmerUserId: string): 
   ]);
 
   if (!itemInfo || !farmerInfo) return null;
-  console.log("farmerBio:", farmerInfo.farmerBio);
+
   return {
     item: {
       customerInfo: itemInfo.customerInfo,

@@ -12,71 +12,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
     "lastUpdated": "2025-07-15T10:03:54.618Z",
-    "price": {
-      "a": 2.5,
-      "b": 2,
-      "c": 1.5
-    },
+    "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 20,
     "season": "November-February",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Apple",
     "variety": "Fuji",
@@ -95,71 +47,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
     "lastUpdated": "2025-07-15T10:03:54.618Z",
-    "price": {
-      "a": 3,
-      "b": 2,
-      "c": 1.5
-    },
+    "price": { "a": 3, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 15,
     "season": "July-October",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Banana",
     "variety": "Cavendish",
@@ -178,71 +82,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
-    "price": {
-      "a": 5,
-      "b": 3,
-      "c": 2.5
-    },
+    "price": { "a": 5, "b": 3, "c": 2.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 25,
     "season": "July-October",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Orange",
     "variety": "Navel",
@@ -259,73 +115,25 @@
       "Supports a healthy immune system"
     ],
     "farmerTips": "Harvest early in the morning for best shelf life.",
-    "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
+    "imageUrl": "https://www.shopfreshandgreen.com/cdn/shop/products/Grapes-min_728x.png?v=1743777076",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
-    "price": {
-      "a": 3,
-      "b": 2.5,
-      "c": 1.7
-    },
+    "price": { "a": 3, "b": 2.5, "c": 1.7 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 1,
     "season": "March-June",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Grapes",
     "variety": "Red Globe",
@@ -334,7 +142,7 @@
   {
     "_id": "30eb71d9a20cb517be34112f",
     "avgQmPerUnit": 0.01,
-    "avgWeightPerUnitGr": 18,
+    "avgWeightPerUnitGr": 500,
     "caloriesPer100g": 42,
     "category": "fruit",
     "customerInfo": [
@@ -344,71 +152,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
     "lastUpdated": "2025-07-15T10:03:54.618Z",
-    "price": {
-      "a": 20,
-      "b": 17,
-      "c": 16
-    },
+    "price": { "a": 20, "b": 17, "c": 16 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 4,
     "season": "March-June",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Strawberry",
     "variety": "Albion",
@@ -417,7 +177,7 @@
   {
     "_id": "ad126949daa1c7dd61ffcc4c",
     "avgQmPerUnit": 0.05,
-    "avgWeightPerUnitGr": 15,
+    "avgWeightPerUnitGr": 1000,
     "caloriesPer100g": 68,
     "category": "vegetable",
     "customerInfo": [
@@ -427,71 +187,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
-    "price": {
-      "a": 2.5,
-      "b": 2,
-      "c": 1.5
-    },
+    "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 3,
     "season": "November-February",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Tomato",
     "variety": "Cherry",
@@ -510,71 +222,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
-    "price": {
-      "a": 7,
-      "b": 6,
-      "c": 5.5
-    },
+    "price": { "a": 7, "b": 6, "c": 5.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 80,
     "season": "November-February",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Lettuce",
     "variety": "Romaine",
@@ -593,71 +257,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
-    "price": {
-      "a": 3.5,
-      "b": 3,
-      "c": 2.5
-    },
+    "price": { "a": 3.5, "b": 3, "c": 2.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 8,
     "season": "November-February",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Cucumber",
     "variety": "Persian",
@@ -676,71 +292,23 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
-    "price": {
-      "a": 2.5,
-      "b": 2,
-      "c": 1.5
-    },
+    "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 10,
     "season": "July-October",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Carrot",
     "variety": "Nantes",
@@ -749,7 +317,7 @@
   {
     "_id": "f68140ef8273c40bbae48b98",
     "avgQmPerUnit": 0.2,
-    "avgWeightPerUnitGr": 3,
+    "avgWeightPerUnitGr": 500,
     "caloriesPer100g": 62,
     "category": "vegetable",
     "customerInfo": [
@@ -759,74 +327,50 @@
     "farmerTips": "Harvest early in the morning for best shelf life.",
     "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
-    "price": {
-      "a": 2.5,
-      "b": 2,
-      "c": 1.5
-    },
+    "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": null,
     "qualityStandards": {
-      "acidityPercentage": {
-        "A": "0.4-0.6%",
-        "B": "0.3-0.39%",
-        "C": "below 0.3%"
-      },
-      "brix": {
-        "A": "13%+",
-        "B": "11-12.9%",
-        "C": "9-10.9%"
-      },
-      "colorDescription": {
-        "A": "Bright coloration",
-        "B": "Moderate coloration",
-        "C": "Pale or uneven coloration"
-      },
-      "colorPercentage": {
-        "A": "85-100%",
-        "B": "60-84%",
-        "C": "under 60%"
-      },
-      "diameterMM": {
-        "A": "75mm+",
-        "B": "65-74mm",
-        "C": "under 65mm"
-      },
-      "maxDefectRatioLengthDiameter": {
-        "A": "≤3%",
-        "B": "≤5%",
-        "C": "≤7%"
-      },
-      "pressure": {
-        "A": "7.5 kg/cm²",
-        "B": "6-7.4 kg/cm²",
-        "C": "below 6 kg/cm²"
-      },
-      "qualityGrade": {
-        "A": "Premium",
-        "B": "Standard",
-        "C": "Below Standard"
-      },
-      "rejectionRate": {
-        "A": "≤2%",
-        "B": "≤4%",
-        "C": "≤6%"
-      },
-      "weightPerUnitG": {
-        "A": "180g+",
-        "B": "150-179g",
-        "C": "under 150g"
-      }
+      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
+      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
+      "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
+      "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
+      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
+      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
+      "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
     "sdWeightPerUnitGr": 0.5,
     "season": "July-October",
-    "sellModes": {
-      "byKg": true,
-      "byUnit": true,
-      "unitBundleSize": 1
-    },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Spinach",
     "variety": "Baby",
     "weightPerUnitG": null
+  },
+  {
+    "_id": "64f1e2c3a5b6c7d8e9f0a1b2",
+    "category": "egg_dairy",
+    "type": "Eggs",
+    "variety": "Free Range",
+    "imageUrl": "https://cdn.example.com/eggs/free-range-12.jpg",
+    "season": "all year",
+    "farmerTips": "Keep refrigerated at 4°C or below.",
+    "customerInfo": [
+      "Pasture-raised, Grade A",
+      "12-pack, recyclable carton"
+    ],
+    "caloriesPer100g": 155,
+    "price": { "a": 5, "b": 5, "c": 5 },
+    "pricePerUnitOverride": 5,
+    "sellModes": { "byKg": false, "byUnit": true, "unitBundleSize": 12 },
+    "avgWeightPerUnitGr": 60,
+    "sdWeightPerUnitGr": 6,
+    "avgQmPerUnit": null,
+    "weightPerUnitG": 1.2,
+    "qualityStandards": {},
+    "tolerance": "0.02",
+    "lastUpdated": "2025-07-15T10:03:54.619Z"
   }
 ]

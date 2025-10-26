@@ -1,4 +1,3 @@
-// scripts/seeds/seed.ams.ts
 /**
  * Seed: next TWO AMS docs (empty), then for each shift:
  *   - pick 5 items (full Item docs)
@@ -205,6 +204,49 @@ type UnitMode = (typeof UNIT_MODES)[number];
 const isUnitMode = (v: any): v is UnitMode =>
   v === "kg" || v === "unit" || v === "mixed";
 
+// ---------- Pricing helpers (fix) ----------
+function getDerivedPerUnit(item: any): number | 0.5 {
+  const category = String(item?.category || "").toLowerCase();
+  const byUnit = !!item?.sellModes?.byUnit;
+  if (!byUnit) return 0.5 ;
+
+  // eggs/dairy: use override
+  if (category === "egg_dairy") {
+    return typeof item?.pricePerUnitOverride === "number"
+      ? item.pricePerUnitOverride
+      : 0.5;
+  }
+
+  // non-egg: override wins
+  if (typeof item?.pricePerUnitOverride === "number") return item.pricePerUnitOverride;
+
+  // else derive from price.a and avgWeightPerUnitGr
+  const a = Number(item?.price?.a);
+  const wGr = Number(item?.avgWeightPerUnitGr);
+  if (Number.isFinite(a) && Number.isFinite(wGr) && wGr > 0) {
+    return a * (wGr / 1000);
+  }
+  return 0.5;
+}
+
+function getSafePerKg(item: any): number | 0.5{
+  const category = String(item?.category || "").toLowerCase();
+
+  // usual case
+  const a = Number(item?.price?.a);
+  if (category !== "egg_dairy" && Number.isFinite(a) && a > 0) return a;
+
+  // egg/dairy: synthesize per-kg from unit override and avg weight
+  if (category === "egg_dairy") {
+    const perUnit = getDerivedPerUnit(item); // expects override
+    const wGr = Number(item?.avgWeightPerUnitGr);
+    if (Number.isFinite(perUnit) && Number.isFinite(wGr) && wGr > 0) {
+      return perUnit / (wGr / 1000); // €/kg = €/unit ÷ kg/unit
+    }
+  }
+  return 0.5;
+}
+
 // -----------------------------
 // Seed
 // -----------------------------
@@ -259,6 +301,7 @@ async function seed() {
         id: String(it._id),
         type: it.type,
         variety: it.variety,
+        category: it.category,
       }))
     );
 
@@ -270,21 +313,24 @@ async function seed() {
       const amsId = await ensureAMSId(STATIC_LC_ID, s.ymd, s.name);
 
       for (const itemDoc of items) {
-        // sanity: need base price per KG
-        const basePricePerKg = Number(itemDoc?.price?.a);
-        if (!Number.isFinite(basePricePerKg) || basePricePerKg < 0) {
+        // ---- FIX: compute prices robustly ----
+        const pricePerKg = getSafePerKg(itemDoc);
+        if (!Number.isFinite(pricePerKg) || (pricePerKg as number) <= 0) {
           console.warn(
-            `[WARN] Missing/invalid price.a for item ${String(
+            `[WARN] Unable to determine pricePerKg for item ${String(
               itemDoc._id
-            )} — skipping`
+            )} (${itemDoc.type} ${itemDoc.variety ?? ""}) — skipping AMS line`
           );
-          continue;
+          continue; // do not attempt AMS for this item
         }
 
-        for (const farmer of FARMERS) {
-          const committedKg = isEggs(itemDoc) ? 80 : randInt(50, 80);
+        const derivedPerUnit = getDerivedPerUnit(itemDoc); // may be null
+        const category = String(itemDoc?.category || "").toLowerCase();
 
-          // Create FarmerOrder (aligned with model: ObjectId fields)
+        for (const farmer of FARMERS) {
+          const committedKg = category === "egg_dairy" ? 80 : randInt(50, 80);
+
+          // ---------- FarmerOrder (unchanged) ----------
           const created = await FarmerOrder.create({
             createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
             updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
@@ -310,18 +356,18 @@ async function seed() {
             forcastedQuantityKg: committedKg,
 
             orders: [],
-            containers: [], // important: empty for now
+            containers: [],
             historyAuditTrail: [],
           });
 
-          // track summary (optional, no logic impact)
+          // track summary
           summary.farmerOrders.total += 1;
           summary.farmerOrders.byFarmer.set(
             farmer.farmerName,
             (summary.farmerOrders.byFarmer.get(farmer.farmerName) ?? 0) + 1
           );
 
-          // --- Attach containers (kept as-is) ---
+          // containers (unchanged)
           const containers = [
             {
               containerId: CONTAINERA,
@@ -351,28 +397,18 @@ async function seed() {
               farmLogo: farmer.farmLogo ?? undefined,
             },
             committedKg,
-            unitConfig: { zScore: 1.28, shrinkagePct: 0.02 }, // optional tuning
+            unitConfig: { zScore: 1.28, shrinkagePct: 0.02 },
           });
 
-          // Ensure links & pricing per new schema
+          // Ensure links & mode
           (amsLine as any).farmerOrderId = created._id;
-
-          // Required now: price per KG from Item.price.a
-          const pricePerKg = basePricePerKg;
-
-          // Only include pricePerUnit for unit/mixed; otherwise null
-          const unitMode: "kg" | "unit" | "mixed" =
+          const unitMode: UnitMode =
             (amsLine as any).unitMode === "unit" ||
             (amsLine as any).unitMode === "mixed"
               ? (amsLine as any).unitMode
               : "kg";
 
-          const pricePerUnit =
-            unitMode === "unit" || unitMode === "mixed"
-              ? Number((amsLine as any).pricePerUnit ?? pricePerKg)
-              : null;
-
-          // Estimates: map legacy key if the builder uses avgWeightPerUnit
+          // Map estimates with safe defaults
           const rawEst = (amsLine as any).estimates ?? {};
           const estimates = {
             avgWeightPerUnitKg:
@@ -380,9 +416,8 @@ async function seed() {
                 ? rawEst.avgWeightPerUnitKg
                 : typeof rawEst.avgWeightPerUnit === "number"
                 ? rawEst.avgWeightPerUnit
-                : 0.5, // safe default
+                : 0.5,
             sdKg: typeof rawEst.sdKg === "number" ? rawEst.sdKg : 0.02,
-            // let the pre-save hook compute/adjust this; setting 0 is fine
             availableUnitsEstimate:
               typeof rawEst.availableUnitsEstimate === "number"
                 ? rawEst.availableUnitsEstimate
@@ -399,7 +434,7 @@ async function seed() {
                 : 0.02,
           };
 
-          // Push to AMS via service (NO _id in the payload)
+          // ---------- AMS add (FIX: include price.a) ----------
           await addItemToAvailableMarketStock({
             docId: amsId,
             item: {
@@ -408,10 +443,15 @@ async function seed() {
               imageUrl: (amsLine as any).imageUrl ?? null,
               category: (amsLine as any).category,
 
-              // NEW schema: explicit per-KG price (required)
-              pricePerKg,
+              // service expects item.price.a; provide both legacy and new fields
+              price: { a: pricePerKg, b: null, c: null },
+              pricePerKg: pricePerKg,
+
               // Optional per-unit price only for unit/mixed
-              pricePerUnit,
+              pricePerUnit:
+                unitMode === "unit" || unitMode === "mixed"
+                  ? derivedPerUnit
+                  : null,
 
               originalCommittedQuantityKg: committedKg,
               currentAvailableQuantityKg: committedKg,
@@ -428,8 +468,8 @@ async function seed() {
               status: (amsLine as any).status ?? "active",
             } as any,
           });
-        } // end for FARMERS
-      } // end for items
+        } // end FARMERS
+      } // end items
 
       // summary snapshot for this shift
       const doc = await getAvailableMarketStockByKey({
@@ -447,7 +487,7 @@ async function seed() {
         lines: doc?.items?.length ?? 0,
         byMode,
       });
-    } // end for shifts
+    } // end shifts
 
     // -------- summary output --------
     console.log("\n===== SEED SUMMARY =====");

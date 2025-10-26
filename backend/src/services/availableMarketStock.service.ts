@@ -364,7 +364,7 @@ export async function addItemToAvailableMarketStock(params: {
     imageUrl?: string | null;
     category: string;
 
-    // Caller-sent pricePerUnit is ignored (see below)
+    // Caller-sent pricePerUnit is ignored (authoritative from Item)
     pricePerUnit?: number | null;
 
     originalCommittedQuantityKg: number;
@@ -379,6 +379,12 @@ export async function addItemToAvailableMarketStock(params: {
     status?: "active" | "soldout" | "removed";
   };
 }) {
+  function round2(n: number | null | undefined) {
+    return typeof n === "number" && isFinite(n)
+      ? Math.round(n * 100) / 100
+      : null;
+  }
+
   const { docId } = params;
   const { unitMode: _ignoreUM, estimates: _ignoreEst, ...item } = params.item as any;
 
@@ -403,15 +409,36 @@ export async function addItemToAvailableMarketStock(params: {
     variety: 1,
   }).lean();
 
-  if (!it || !it.price || typeof (it as any).price.a !== "number") {
+  if (!it) throw new Error("Item not found");
+
+  const category = String(it?.category ?? "").toLowerCase();
+
+  // 1a) Determine reliable pricePerKg
+  let pricePerKg: number | null = null;
+  const a = (it as any)?.price?.a;
+  if (category !== "egg_dairy" && typeof a === "number" && isFinite(a) && a >= 0) {
+    pricePerKg = a;
+  } else if (category === "egg_dairy") {
+    const perUnitOverride = (it as any)?.pricePerUnitOverride;
+    const avgGr = (it as any)?.avgWeightPerUnitGr;
+    if (
+      typeof perUnitOverride === "number" &&
+      perUnitOverride >= 0 &&
+      typeof avgGr === "number" &&
+      isFinite(avgGr) &&
+      avgGr > 0
+    ) {
+      pricePerKg = perUnitOverride / (avgGr / 1000);
+    }
+  }
+  if (!Number.isFinite(pricePerKg) || (pricePerKg as number) < 0) {
     throw new Error("Item price.a not found");
   }
-
-  const pricePerKg: number = (it as any).price.a;
+  pricePerKg = Number(pricePerKg);
 
   // 2) Determine selling mode (new + legacy fallback)
   let byUnit: boolean = !!(it as any).sellModes?.byUnit;
-  let byKg: boolean = (it as any).sellModes?.byKg !== false; // default true
+  let byKg: boolean = (it as any).sellModes?.byKg !== false;
   let unitBundleSize: number = Math.max(1, (it as any).sellModes?.unitBundleSize ?? 1);
 
   if (!(it as any).sellModes) {
@@ -425,9 +452,9 @@ export async function addItemToAvailableMarketStock(params: {
   if (byUnit && byKg) unitMode = "mixed";
   else if (byUnit) unitMode = "unit";
 
-  // 3) Compute pricePerUnit ONLY from Item (ignore caller)
-  const avgGr: number | null = (it as any).avgWeightPerUnitGr ?? null; // grams
-  const sdGr: number = (it as any).sdWeightPerUnitGr ?? 0;             // grams
+  // 3) Compute pricePerUnit
+  const avgGr: number | null = (it as any).avgWeightPerUnitGr ?? null;
+  const sdGr: number = (it as any).sdWeightPerUnitGr ?? 0;
   const hasAvg = typeof avgGr === "number" && avgGr > 0;
 
   let pricePerUnit: number | null = null;
@@ -437,7 +464,7 @@ export async function addItemToAvailableMarketStock(params: {
       pricePerUnit = override;
     } else if (hasAvg) {
       pricePerUnit = pricePerKg * (avgGr! / 1000);
-    } // else null
+    }
   }
 
   // 4) Estimates (grams → kg)
@@ -458,27 +485,51 @@ export async function addItemToAvailableMarketStock(params: {
     );
   }
 
-  // 5) Payload — prefer authoritative category/image from Item
+  // 5) Bundle enrichments — all inside estimates (schema-safe)
+  const isBundle = (unitMode === "unit" || unitMode === "mixed");
+  const bundleWeightKg =
+    isBundle && typeof avgWeightPerUnitKg === "number"
+      ? unitBundleSize * avgWeightPerUnitKg
+      : null;
+
+  const perBundlePrice =
+    typeof pricePerUnit === "number"
+      ? pricePerUnit * unitBundleSize
+      : typeof bundleWeightKg === "number"
+      ? pricePerKg * bundleWeightKg
+      : null;
+
+  const bundleNote =
+    isBundle
+      ? [
+          "Bundle:",
+          `${Math.max(1, unitBundleSize)}×`,
+          typeof avgWeightPerUnitKg === "number" ? `~${round2(avgWeightPerUnitKg)} kg` : null,
+          typeof bundleWeightKg === "number" ? `≈ ${round2(bundleWeightKg)} kg` : null,
+          typeof perBundlePrice === "number" ? `, ~${round2(perBundlePrice)} per bundle` : null,
+        ].filter(Boolean).join(" ")
+      : null;
+
+  // 6) Payload — fully schema-safe
   const payload: any = {
     itemId: new Types.ObjectId(item.itemId),
     displayName: item.displayName,
     imageUrl: it?.imageUrl ?? item.imageUrl ?? null,
     category: it?.category ?? item.category,
 
-    pricePerKg,
-    pricePerUnit,
+    pricePerKg: pricePerKg * 1.2,
+    pricePerUnit: pricePerUnit * 1.2 ?? null,
 
     originalCommittedQuantityKg: item.originalCommittedQuantityKg,
     currentAvailableQuantityKg: item.currentAvailableQuantityKg,
 
     farmerOrderId: item.farmerOrderId ? new Types.ObjectId(item.farmerOrderId) : null,
-
     farmerID: new Types.ObjectId(item.farmerID),
     farmerName: item.farmerName,
     farmName: item.farmName,
     farmLogo: item.farmLogo ?? null,
 
-    unitMode, // "kg" | "unit" | "mixed"
+    unitMode,
 
     estimates: {
       avgWeightPerUnitKg,
@@ -487,12 +538,16 @@ export async function addItemToAvailableMarketStock(params: {
       unitBundleSize,
       zScore,
       shrinkagePct,
+      // new bundle enrichments (safe inside estimates)
+      bundleWeightKg: typeof bundleWeightKg === "number" ? round2(bundleWeightKg) : null,
+      perBundlePrice: typeof perBundlePrice === "number" ? round2(perBundlePrice) : null,
+      bundleNote, // new textual note (safe nested property)
     },
 
     status: item.status ?? "active",
   };
 
-  // 6) Persist
+  // 7) Persist
   const updated = await AvailableMarketStockModel.findByIdAndUpdate(
     docId,
     { $push: { items: payload } },
@@ -501,7 +556,6 @@ export async function addItemToAvailableMarketStock(params: {
 
   if (!updated) throw new Error(`Failed to update AvailableMarketStock ${docId}`);
 
-  // (no subdoc _id here by design)
   dbg("AMS addItem> saved", {
     farmerOrderId: payload.farmerOrderId?.toString() ?? null,
     unitMode,
@@ -509,10 +563,14 @@ export async function addItemToAvailableMarketStock(params: {
     pricePerUnit,
     avgWeightPerUnitKg,
     availableUnitsEstimate,
+    bundleWeightKg: payload.estimates.bundleWeightKg,
+    perBundlePrice: payload.estimates.perBundlePrice,
   });
 
   return updated;
 }
+
+
 
 /** Update item quantity and/or status by FarmerOrderId */
 export async function updateItemQtyStatusAtomic(params: {
