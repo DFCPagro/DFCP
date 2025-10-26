@@ -19,7 +19,6 @@ export default function LogisticMap({
 }) {
   const target: HighlightTarget =
     targetShelfId ? parseShelfId(targetShelfId.replace(/\s+/g, "")) : null
-
   return (
     <Board controls>
       <WorldMap

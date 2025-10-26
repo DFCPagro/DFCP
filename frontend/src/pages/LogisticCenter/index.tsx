@@ -1,4 +1,3 @@
-// FILE: src/App.tsx
 import { Box } from "@chakra-ui/react";
 import Topbar from "./components/Topbar";
 import Canvas from "./components/Canvas";
@@ -36,7 +35,7 @@ export default function App() {
   } = useShelves(centerId, { type: "picker" });
 
   const [mode, setMode] = useState<MapMode>("manager");
-  const [targetShelfId, setTargetShelfId] = useState<string | null>(null);
+  const [targetShelfId, setTargetShelfId] = useState<string | null>("1-A-1");
 
   // Apply HUD filters only in manager mode
   const shelves = useMemo(

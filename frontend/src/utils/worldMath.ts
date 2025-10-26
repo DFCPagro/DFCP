@@ -1,57 +1,59 @@
-import type { WorldSpec, WorldZone, ShelfDTO } from "@/types/logisticCenter"
+// FILE: src/utils/worldMath.ts
+import type { WorldSpec, WorldZone, ShelfDTO } from "@/types/logisticCenter";
 
 /**
- * These constants MUST mirror the ones used in AbsoluteZone.tsx
+ * ----- RENDER CONSTANTS (mirror AbsoluteZone.tsx) -----
  */
-const PAD = 16
-const GAP = 8
-const AXES_LEFT = 26 // when showRowIndex = true
-const AXES_TOP = 20  // when showColIndex = true
+const PAD = 16;
+const GAP = 8;
+const AXES_LEFT = 26; // when showRowIndex = true
+const AXES_TOP = 20;  // when showColIndex = true
 
 // These limits mirror the clamps used in AbsoluteZone
-const CELL_MIN_W = 34
-const CELL_MAX_W = 72
-const CELL_MIN_H = 30
-const CELL_MAX_H = 68
+const CELL_MIN_W = 34;
+const CELL_MAX_W = 72;
+const CELL_MIN_H = 30;
+const CELL_MAX_H = 68;
 
-/** meters -> pixels using world's PPM */
-export const px = (world: WorldSpec) => (m: number) => Math.round(m * world.pixelsPerMeter)
+/** meters -> px */
+export const px = (world: WorldSpec) => (m: number) =>
+  Math.round(m * world.pixelsPerMeter);
 
 /** Find zone by id */
 export function getZone(world: WorldSpec, id: string): WorldZone | undefined {
-  return world.zones.find((z) => z.id === id)
+  return world.zones.find((z) => z.id === id);
 }
 
 /**
- * Compute effective grid metrics for a zone, EXACTLY as AbsoluteZone does.
- * Returns pixel sizes & offsets to top-left corner of the grid area inside the card.
+ * Compute effective grid metrics for a zone, EXACTLY as your AbsoluteZone does.
+ * Returns pixel sizes & offsets to top-left corner of the grid area inside the zone card.
  */
 export function computeZoneGridMetrics(world: WorldSpec, zone: WorldZone) {
-  const toPx = px(world)
-  const boxW = toPx(zone.width)
-  const boxH = toPx(zone.height)
+  const toPx = px(world);
+  const boxW = toPx(zone.width);
+  const boxH = toPx(zone.height);
 
-  const axesLeft = zone.grid.showRowIndex ? AXES_LEFT : 0
-  const axesTop = zone.grid.showColIndex ? AXES_TOP : 0
+  const axesLeft = zone.grid.showRowIndex ? AXES_LEFT : 0;
+  const axesTop = zone.grid.showColIndex ? AXES_TOP : 0;
 
-  const innerW = Math.max(0, boxW - PAD * 2 - axesLeft - 6)
-  const innerH = Math.max(0, boxH - PAD * 2 - (axesTop + 10))
+  const innerW = Math.max(0, boxW - PAD * 2 - axesLeft - 6);
+  const innerH = Math.max(0, boxH - PAD * 2 - (axesTop + 10));
 
-  const rawCellW = Math.floor((innerW - GAP * (zone.grid.cols - 1)) / zone.grid.cols)
-  const rawCellH = Math.floor((innerH - GAP * (zone.grid.rows - 1)) / zone.grid.rows)
+  const rawCellW = Math.floor((innerW - GAP * (zone.grid.cols - 1)) / zone.grid.cols);
+  const rawCellH = Math.floor((innerH - GAP * (zone.grid.rows - 1)) / zone.grid.rows);
 
-  const cellW = Math.max(CELL_MIN_W, Math.min(CELL_MAX_W, rawCellW))
-  const cellH = Math.max(CELL_MIN_H, Math.min(CELL_MAX_H, rawCellH))
+  const cellW = Math.max(CELL_MIN_W, Math.min(CELL_MAX_W, rawCellW));
+  const cellH = Math.max(CELL_MIN_H, Math.min(CELL_MAX_H, rawCellH));
 
-  const gridW = zone.grid.cols * cellW + (zone.grid.cols - 1) * GAP
-  const gridH = zone.grid.rows * cellH + (zone.grid.rows - 1) * GAP
+  const gridW = zone.grid.cols * cellW + (zone.grid.cols - 1) * GAP;
+  const gridH = zone.grid.rows * cellH + (zone.grid.rows - 1) * GAP;
 
-  const gridOffsetX = Math.max(0, (innerW - gridW) / 2)
-  const gridOffsetY = Math.max(0, (innerH - gridH) / 2)
+  const gridOffsetX = Math.max(0, (innerW - gridW) / 2);
+  const gridOffsetY = Math.max(0, (innerH - gridH) / 2);
 
   // Absolute offsets from the card's top-left (which itself is at (zone.x, zone.y) in meters)
-  const absGridLeft = PAD + axesLeft + gridOffsetX
-  const absGridTop = PAD + axesTop + gridOffsetY
+  const absGridLeft = PAD + axesLeft + gridOffsetX;
+  const absGridTop = PAD + axesTop + gridOffsetY;
 
   return {
     cellW,
@@ -61,43 +63,74 @@ export function computeZoneGridMetrics(world: WorldSpec, zone: WorldZone) {
     absGridTop,
     boxW,
     boxH,
-  }
+  };
 }
 
 /**
- * Parse shelf id like "C-3-6" -> { zoneId: "C", row: 3, col: 6 }
+ * Parse shelf id in either format:
+ *  - "A-3-6" (zone-row-col)
+ *  - "1-A-1" (row-zone-col)
+ * Also accepts underscores instead of dashes.
  */
 export function parseShelfId(id: string): { zoneId: string; row: number; col: number } | null {
-  const m = id.match(/^([A-Za-z]+)[-_](\d+)[-_](\d+)$/)
-  if (!m) return null
-  return { zoneId: m[1].toUpperCase(), row: Number(m[2]), col: Number(m[3]) }
+  if (!id) return null;
+  const s = id.trim().replace(/\s+/g, "");
+  const parts = s.split(/[-_]/);
+  if (parts.length !== 3) return null;
+
+  // Try zone-first: A, 3, 6
+  if (/^[A-Za-z]+$/.test(parts[0]) && /^\d+$/.test(parts[1]) && /^\d+$/.test(parts[2])) {
+    const zoneId = parts[0].toUpperCase();
+    const row = Number(parts[1]);
+    const col = Number(parts[2]);
+    if (!row || !col) return null;
+    return { zoneId, row, col };
+  }
+
+  // Try row-first: 1, A, 1
+  if (/^\d+$/.test(parts[0]) && /^[A-Za-z]+$/.test(parts[1]) && /^\d+$/.test(parts[2])) {
+    const row = Number(parts[0]);
+    const zoneId = parts[1].toUpperCase();
+    const col = Number(parts[2]);
+    if (!row || !col) return null;
+    return { zoneId, row, col };
+  }
+
+  return null;
 }
 
 /**
  * Compute the *content-space* pixel center of a shelf cell (before Board transforms).
  * You can send this to the Board via "board:focus" to center the viewport on it.
+ *
+ * shelvesByZone shape: Record<zoneId, Record<"row-col", ShelfDTO|null>>
  */
 export function getShelfPixelCenter(
   world: WorldSpec,
   shelvesByZone: Record<string, Record<string, ShelfDTO | null>>,
-  shelfId: string,
+  shelfId: string
 ): { x: number; y: number } | null {
-  const parsed = parseShelfId(shelfId)
-  if (!parsed) return null
-  const zone = getZone(world, parsed.zoneId)
-  if (!zone) return null
+  const parsed = parseShelfId(shelfId);
+  if (!parsed) return null;
 
-  const toPx = px(world)
-  const zoneLeft = toPx(zone.x)
-  const zoneTop = toPx(zone.y)
-  const { cellW, cellH, gap, absGridLeft, absGridTop } = computeZoneGridMetrics(world, zone)
+  const zone = getZone(world, parsed.zoneId);
+  if (!zone) return null;
 
-  const c = parsed.col - 1
-  const r = parsed.row - 1
-  const cellLeft = zoneLeft + absGridLeft + c * (cellW + gap)
-  const cellTop = zoneTop + absGridTop + r * (cellH + gap)
+  // If you want, you could verify the shelf exists in shelvesByZone here:
+  // const candidate = shelvesByZone?.[parsed.zoneId]?.[`${parsed.row}-${parsed.col}`];
+  // if (candidate == null) return null;
 
-  const centerX = cellLeft + cellW / 2
-  const centerY = cellTop + cellH / 2
-  return { x: centerX, y: centerY }
+  const toPx = px(world);
+  const zoneLeft = toPx(zone.x);
+  const zoneTop = toPx(zone.y);
+  const { cellW, cellH, gap, absGridLeft, absGridTop } = computeZoneGridMetrics(world, zone);
+
+  const c = parsed.col - 1;
+  const r = parsed.row - 1;
+  const cellLeft = zoneLeft + absGridLeft + c * (cellW + gap);
+  const cellTop = zoneTop + absGridTop + r * (cellH + gap);
+
+  const centerX = cellLeft + cellW / 2;
+  const centerY = cellTop + cellH / 2;
+  return { x: centerX, y: centerY };
 }
