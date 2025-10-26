@@ -21,14 +21,15 @@ export const PATHS = {
   deliveryNote: "/orders/:id/note", // DeliveryNote page
 
   // farmer pages
-  farmerDashboard: "/FarmerDashboard",
-  FarmerCropManagement: "/farmer/crops",
+  FarmerDashboard: "/farmer/FarmDashboard",
+  FarmerCropManagement: "/farmer/FarmCropManagement",
 
   // item manager
   ItemsManagment: "/admin/items",
 
   MapExample: "/map-example",
   QRExample: "/qr-example",
+
   // admin pages
   adminDashboard: "/admin/dashboard",
   JobAppReview: "/admin/jobReview",
@@ -38,11 +39,10 @@ export const PATHS = {
   // driver pages
   shipments: "/shipments",
 
-
   // picker pages
   pickerDashboard: "/picker/dashboard",
-  pickerTask: "/picker/task/:taskId", 
-  pickerSchedule:"/picker/Schedule",         // ← add this
+  pickerTask: "/picker/task/:taskId",
+  pickerSchedule: "/picker/Schedule", // ← add this
 
   // public QR routes
   ops: "/o/:token",
@@ -51,16 +51,18 @@ export const PATHS = {
   aggregationView: "/ag/:token",
   containerView: "/c/:barcode",
 
-
   // csManager pages
   csManagerDashboard: "/csManager/dashboard",
   csManagerOrders: "/csManager/orders",
   csManagerShiftOrders: "/csManager/shift-orders",
 
-  
-//all worker pages
-workerProfile: "/workerProfile",
+  //fManager pages
+  fManagerDashboard: "/fManager/dashboard",
+  fManagerCreateStock: "/fManager/create-stock",
+  fManagerItemManagement: "/fManager/item-management",
+
+  //all worker pages
+  workerProfile: "/workerProfile",
 
   notFound: "/404",
 } as const;
-

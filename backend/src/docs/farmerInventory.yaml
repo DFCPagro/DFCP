@@ -1,0 +1,343 @@
+openapi: 3.0.3
+info:
+  title: Farmer Inventory API
+  version: "1.0.0"
+  description: |
+    CRUD-lite endpoints for farmer inventory.
+    Scope: farmer-facing endpoints under `/farmer/inventory` with farmer ownership enforced.
+servers:
+  - url: /api/v1
+tags:
+  - name: FarmerInventory
+    description: Manage inventory amounts for farmer items.
+
+paths:
+  /farmer/inventory:
+    get:
+      tags: [FarmerInventory]
+      summary: List farmer inventory
+      description: |
+        Returns a list of inventory rows filtered by optional query params.
+        When called by a **farmer** user, results are automatically scoped to the authenticated farmer.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: farmerId
+          schema: { type: string }
+          description: Filter by farmer id (ignored for farmer role; auto-scoped to self).
+        - in: query
+          name: itemId
+          schema: { type: string }
+          description: Filter by item id.
+        - in: query
+          name: logisticCenterId
+          schema: { type: string }
+          description: Filter by logistic center id.
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+          description: Optional pagination page (1-based).
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100 }
+          description: Optional page size.
+      responses:
+        "200":
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerInventoryListResponse"
+              examples:
+                ok:
+                  value:
+                    data:
+                      - id: "6710c2c0bb5e2a4e2a2d2d11"
+                        farmerId: "66f7a1c0e5b6d9d7d1b1a111"
+                        itemId: "30eb71d9a20cb517be34112f"
+                        logisticCenterId: "66e007000000000000000001"
+                        agreementAmountKg: 250
+                        currentAvailableAmountKg: 120
+                        createdAt: "2025-10-24T10:00:00.000Z"
+                        updatedAt: "2025-10-24T10:15:00.000Z"
+                    page: 1
+                    limit: 20
+                    total: 1
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [FarmerInventory]
+      summary: Create a farmer inventory record
+      description: |
+        Creates a single inventory row.  
+        If caller is **farmer**, `farmerId` is enforced as the authenticated farmer’s id.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FarmerInventoryCreate"
+            examples:
+              create:
+                value:
+                  farmerId: "66f7a1c0e5b6d9d7d1b1a111"
+                  itemId: "30eb71d9a20cb517be34112f"
+                  logisticCenterId: "66e007000000000000000001"
+                  agreementAmountKg: 250
+                  currentAvailableAmountKg: 120
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerInventory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /farmer/inventory/{id}:
+    get:
+      tags: [FarmerInventory]
+      summary: Get a single inventory record by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+          description: Document id
+      responses:
+        "200":
+          description: Inventory row
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerInventory"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [FarmerInventory]
+      summary: Update (partial) an inventory record by id
+      description: |
+        Partial update; typically used to set `agreementAmountKg` and/or `currentAvailableAmountKg`.
+        Both amounts must be non-negative; if both provided, `currentAvailableAmountKg <= agreementAmountKg`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+          description: Document id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FarmerInventoryPatch"
+            examples:
+              update-available:
+                value:
+                  currentAvailableAmountKg: 140
+              update-both:
+                value:
+                  agreementAmountKg: 300
+                  currentAvailableAmountKg: 200
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FarmerInventory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ObjectId:
+      type: string
+      description: MongoDB ObjectId as a string
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          nullable: true
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    FarmerInventoryBase:
+      type: object
+      properties:
+        farmerId:
+          $ref: "#/components/schemas/ObjectId"
+        itemId:
+          $ref: "#/components/schemas/ObjectId"
+        logisticCenterId:
+          $ref: "#/components/schemas/ObjectId"
+        agreementAmountKg:
+          type: number
+          minimum: 0
+        currentAvailableAmountKg:
+          type: number
+          minimum: 0
+
+    FarmerInventory:
+      allOf:
+        - $ref: "#/components/schemas/FarmerInventoryBase"
+        - type: object
+          properties:
+            id:
+              $ref: "#/components/schemas/ObjectId"
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+          required: [id]
+
+    FarmerInventoryCreate:
+      type: object
+      required: [farmerId, itemId]
+      properties:
+        farmerId:
+          $ref: "#/components/schemas/ObjectId"
+        itemId:
+          $ref: "#/components/schemas/ObjectId"
+        logisticCenterId:
+          $ref: "#/components/schemas/ObjectId"
+        agreementAmountKg:
+          type: number
+          minimum: 0
+        currentAvailableAmountKg:
+          type: number
+          minimum: 0
+      description: |
+        Create a single inventory row. If both amounts are provided, `currentAvailableAmountKg` must not exceed `agreementAmountKg`.
+
+    FarmerInventoryPatch:
+      type: object
+      properties:
+        agreementAmountKg:
+          type: number
+          minimum: 0
+        currentAvailableAmountKg:
+          type: number
+          minimum: 0
+        logisticCenterId:
+          $ref: "#/components/schemas/ObjectId"
+      description: |
+        Provide any subset of fields to update. If both amounts are present, `currentAvailableAmountKg <= agreementAmountKg` is enforced.
+
+    FarmerInventoryListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FarmerInventory"
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          minimum: 0
+
+  responses:
+    BadRequest:
+      description: Bad Request (validation error)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            badRequest:
+              value:
+                message: "Validation failed"
+                errors:
+                  - param: "agreementAmountKg"
+                    msg: "must be >= 0"
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            forbidden:
+              value:
+                message: "Forbidden"
+
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            notFound:
+              value:
+                message: "FarmerInventory not found"
+
+    Conflict:
+      description: Conflict (duplicate key)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            conflict:
+              value:
+                message: "Conflict"
+                error: { code: 11000 }
+
+    Unprocessable:
+      description: Unprocessable Entity (business rule)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            rule:
+              value:
+                message: "currentAvailableAmountKg cannot be greater than agreementAmountKg"

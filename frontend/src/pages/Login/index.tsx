@@ -18,6 +18,7 @@ import type { FormEvent } from "react";
 import { PATHS } from "@/routes/paths";
 import type { User } from "@/types/auth";
 import { useSessionStore } from "@/store/session";
+import { getDefaultLanding } from "@/config/nav.defaults";
 
 type LoginForm = { email: string; password: string };
 type LoginResponse = { user: User; token: string };
@@ -48,31 +49,7 @@ export default function Login() {
       const role = user?.role;
       let to: string;
 
-      switch (role) {
-        case "admin":
-          to = PATHS.adminDashboard;
-          break;
-
-        case "farmer":
-          to = PATHS.farmerDashboard;
-          break;
-        case "picker":
-          to = PATHS.pickerDashboard;
-          break;
-        case "driver": // if your backend uses "deliverer"/"industrialDeliverer", include them:
-          break
-        case "deliverer":
-          break;
-        case "industrialDeliverer":
-          to = PATHS.shipments;
-        case "csManager":
-          to = PATHS.csManagerDashboard;
-          break;
-
-        default:
-          // fallback for pure customers or unknown role
-          to = PATHS.market;
-      }
+      to = getDefaultLanding(role);
 
       navigate(to, { replace: true });
     },

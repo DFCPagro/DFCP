@@ -10,30 +10,49 @@
 
 import type { MenuRegistry, MenuItem, Mode } from "@/types/menu";
 import { focusManager } from "@tanstack/react-query";
+import { PATHS as P } from "@/routes/paths";
 
 /* ------------------------ Customer menu ------------------------ */
 export const noUserMenu: MenuRegistry["noUser"] = [
-  { type: "link", key: "home", label: "Home", path: "/", exact: true },
-  { type: "link", key: "login", label: "Login", path: "/login" },
-  { type: "link", key: "register", label: "Register", path: "/register" },
+  { type: "link", key: "home", label: "Home", path: P.home, exact: true },
+  { type: "link", key: "login", label: "Login", path: P.login },
+  { type: "link", key: "register", label: "Register", path: P.register },
 ] as const;
+
+// Reusable "market pages" group for all WORKER roles
+export const WORKER_MARKET_GROUP = {
+  type: "group",
+  key: "market",
+  label: "view market",
+  children: [
+    {
+      type: "link",
+      key: "market",
+      label: "Market",
+      path: P.market,
+      exact: true,
+    },
+    { type: "link", key: "orders", label: "MyOrders", path: P.orders },
+    { type: "link", key: "profile", label: "Profile", path: P.profile },
+  ],
+} as const;
 
 const customerMenu: MenuRegistry["customer"] = [
   {
     type: "link",
     key: "market",
     label: "Market",
-    path: "/market",
+    path: P.market,
     exact: true,
   },
   {
     type: "link",
     key: "JobApplication",
     label: "Apply for jobs",
-    path: "/jobs",
+    path: P.jobs,
   },
-  { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-  { type: "link", key: "profile", label: "Profile", path: "/profile" },
+  { type: "link", key: "orders", label: "MyOrders", path: P.orders },
+  { type: "link", key: "profile", label: "Profile", path: P.profile },
 ] as const;
 
 /* ------------------------ Work menus by role ------------------------ */
@@ -59,266 +78,135 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     path: "/farmerDashboard",
   },
 
-  //market pages
-  {
-    type: "group",
-    key: "market",
-    label: "view market",
-    children: [
-      {
-        type: "link",
-        key: "market",
-        label: "Market",
-        path: "/market",
-        exact: true,
-      },
-      {
-        type: "link",
-        key: "JobApplication",
-        label: "Apply for jobs",
-        path: "/jobs",
-      },
-      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-      { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    ],
-  },
+  WORKER_MARKET_GROUP,
 ] as const;
 
 const workAdmin: ReadonlyArray<MenuItem> = [
   {
+    type: "link",
+    key: "admin-dashboard",
+    label: "Dashboard",
+    path: P.adminDashboard,
+  },
+  {
     type: "group",
-    key: "mgr-orders",
-    label: "Orders-WIP",
+    key: "CSManager", // Customer Service Manager
+    label: "CS Manager",
     children: [
       {
         type: "link",
-        key: "mgr-orders-report",
-        label: "Orders Report",
-        path: "/manager/orders/report",
+        key: "CS-M-dashboard",
+        label: "CS-M Dashboard",
+        path: P.csManagerDashboard,
       },
       {
         type: "link",
-        key: "mgr-orders-active",
-        label: "Active Orders",
-        path: "/manager/orders/active",
+        key: "CS-M-orders",
+        label: "CS-M Orders",
+        path: P.csManagerOrders,
       },
       {
         type: "link",
-        key: "mgr-orders-history",
-        label: "Order History",
-        path: "/manager/orders/history",
+        key: "CS-M-shift-orders",
+        label: "CS-M Shift Orders",
+        path: P.csManagerShiftOrders,
       },
     ],
   },
   {
     type: "group",
-    key: "mgr-logistics",
-    label: "Logistics-WIP",
-    children: [
-      {
-        type: "link",
-        key: "mgr-containers",
-        label: "Containers",
-        path: "/manager/containers",
-      },
-    ],
-  },
-  {
-    type: "group",
-    key: "mgr-confirm",
-    label: "Working Links",
-    children: [
-      {
-        type: "link",
-        key: "mgr-admin-items",
-        label: "Manage Items",
-        path: "/admin/items",
-      },
-      {
-        type: "link",
-        key: "mgr-admin-jobReview",
-        label: "Job Application Review",
-        path: "/admin/jobReview",
-      },
-      {
-        type: "link",
-        key: "mgr-expected-harvest",
-        label: "Expected Harvest",
-        path: "/admin/crop-harvest",
-      },
-    ],
-  },
-
-  {
-    type: "group",
-    key: "fManager",
+    key: "FManager", // Farmer Manager
     label: "FManager pages",
     children: [
       {
         type: "link",
-        key: "mgr-farmer-orders",
-        label: "farmer orders",
-        path: "#",
+        key: "F-M-dashboard",
+        label: "F-M Dashboard",
+        path: P.fManagerDashboard,
       },
-      { type: "link", key: "mgr-faramer", label: "manage farmers", path: "#" },
-      { type: "link", key: "mgr-ams", label: "stcok", path: "#" },
-      { type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
+      {
+        type: "link",
+        key: "F-M-create-stock",
+        label: "F-M Create Stock",
+        path: P.fManagerCreateStock,
+      },
+      {
+        type: "link",
+        key: "F-M-item-management",
+        label: "F-M Item Management",
+        path: P.fManagerItemManagement,
+      },
+    ],
+  },
+
+  // just for admin role
+  {
+    type: "group",
+    key: "admin-working-links",
+    label: "Working Links",
+    children: [
+      {
+        type: "link",
+        key: "admin-items-management",
+        label: "Manage Items",
+        path: P.ItemsManagment,
+      },
+      {
+        type: "link",
+        key: "admin-job-review",
+        label: "Job Application Review",
+        path: P.JobAppReview,
+      },
+      {
+        type: "link",
+        key: "admin-expected-harvest",
+        label: "Expected Harvest",
+        path: P.cropHarvest,
+      },
+      {
+        type: "link",
+        key: "admin-package-sizes",
+        label: "Package Sizes",
+        path: P.PackageSizes,
+      },
     ],
   },
 
   {
     type: "group",
-    key: "tManager",
-    label: "TManager pages",
+    key: "TManager",
+    label: "T Manager WIP",
     children: [
-      { type: "link", key: "mgr-packages", label: "pacakages", path: "#" },
+      { type: "link", key: "mgr-packages", label: "packages", path: "#" },
       { type: "link", key: "mgr-deliverers", label: "deliverers", path: "#" },
       { type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
     ],
   },
 
-  //market pages
-  {
-    type: "group",
-    key: "market",
-    label: "view market",
-    children: [
-      {
-        type: "link",
-        key: "market",
-        label: "Market",
-        path: "/market",
-        exact: true,
-      },
-      {
-        type: "link",
-        key: "JobApplication",
-        label: "Apply for jobs",
-        path: "/jobs",
-      },
-      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-      { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    ],
-  },
-] as const;
-
-const workDeliverer: ReadonlyArray<MenuItem> = [
-  {
-    type: "link",
-    key: "drv-schedule",
-    label: "Schedule",
-    path: "/deliverer/schedule",
-    exact: true,
-  },
-  {
-    type: "link",
-    key: "drv-today",
-    label: "Today",
-    path: "/deliverer/schedule/today",
-  },
-  {
-    type: "link",
-    key: "drv-upcoming",
-    label: "Upcoming",
-    path: "/deliverer/schedule/upcoming",
-  },
-  {
-    type: "link",
-    key: "drv-month",
-    label: "Month View",
-    path: "/deliverer/schedule/month",
-  },
-
-  //market pages
-  {
-    type: "group",
-    key: "market",
-    label: "view market",
-    children: [
-      {
-        type: "link",
-        key: "market",
-        label: "Market",
-        path: "/market",
-        exact: true,
-      },
-      {
-        type: "link",
-        key: "JobApplication",
-        label: "Apply for jobs",
-        path: "/jobs",
-      },
-      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-      { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    ],
-  },
-] as const;
-
-const workPicker: ReadonlyArray<MenuItem> = [
-  {
-    type: "link",
-    key: "dashboard",
-    label: "dashboard",
-    path: "picker/dashboard",
-  },
-
-  //market pages
-  {
-    type: "group",
-    key: "market",
-    label: "view market",
-    children: [
-      {
-        type: "link",
-        key: "market",
-        label: "Market",
-        path: "/market",
-        exact: true,
-      },
-      {
-        type: "link",
-        key: "JobApplication",
-        label: "Apply for jobs",
-        path: "/jobs",
-      },
-      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-      { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    ],
-  },
-  { type: "link", key: "profile", label: "profile", path: "workerProfile" },
+  WORKER_MARKET_GROUP,
 ] as const;
 
 const workFManager: ReadonlyArray<MenuItem> = [
   {
     type: "link",
     key: "dashboard",
-    label: "dashboard",
-    path: "",
+    label: "Dashboard",
+    path: P.fManagerDashboard,
+  },
+  {
+    type: "link",
+    key: "create-stock",
+    label: "Create Stock",
+    path: P.fManagerCreateStock,
+  },
+  {
+    type: "link",
+    key: "item-management",
+    label: "Item Management",
+    path: P.fManagerItemManagement,
   },
 
-  //market pages
-  {
-    type: "group",
-    key: "market",
-    label: "view market",
-    children: [
-      {
-        type: "link",
-        key: "market",
-        label: "Market",
-        path: "/market",
-        exact: true,
-      },
-      {
-        type: "link",
-        key: "JobApplication",
-        label: "Apply for jobs",
-        path: "/jobs",
-      },
-      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-      { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    ],
-  },
+  WORKER_MARKET_GROUP,
 ] as const;
 
 const workTManager: ReadonlyArray<MenuItem> = [
@@ -329,32 +217,9 @@ const workTManager: ReadonlyArray<MenuItem> = [
     path: "",
   },
 
-  //market pages
-  {
-    type: "group",
-    key: "market",
-    label: "view market",
-    children: [
-      {
-        type: "link",
-        key: "market",
-        label: "Market",
-        path: "/market",
-        exact: true,
-      },
-      {
-        type: "link",
-        key: "JobApplication",
-        label: "Apply for jobs",
-        path: "/jobs",
-      },
-      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-      { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    ],
-  },
+  WORKER_MARKET_GROUP,
 ] as const;
 
-// in your central registry file
 const workCSManager: ReadonlyArray<MenuItem> = [
   {
     type: "link",
@@ -387,29 +252,50 @@ const workCSManager: ReadonlyArray<MenuItem> = [
     path: "/csManager/analytics",
   },
 
-  //market pages
+  WORKER_MARKET_GROUP,
+] as const;
+
+const workDeliverer: ReadonlyArray<MenuItem> = [
   {
-    type: "group",
-    key: "market",
-    label: "view market",
-    children: [
-      {
-        type: "link",
-        key: "market",
-        label: "Market",
-        path: "/market",
-        exact: true,
-      },
-      {
-        type: "link",
-        key: "JobApplication",
-        label: "Apply for jobs",
-        path: "/jobs",
-      },
-      { type: "link", key: "orders", label: "MyOrders", path: "/orders" },
-      { type: "link", key: "profile", label: "Profile", path: "/profile" },
-    ],
+    type: "link",
+    key: "drv-schedule",
+    label: "Schedule",
+    path: "#",
+    exact: true,
   },
+  {
+    type: "link",
+    key: "drv-today",
+    label: "Today",
+    path: "#",
+  },
+  {
+    type: "link",
+    key: "drv-upcoming",
+    label: "Upcoming",
+    path: "#",
+  },
+  {
+    type: "link",
+    key: "drv-month",
+    label: "Month View",
+    path: "#",
+  },
+
+  WORKER_MARKET_GROUP,
+] as const;
+
+const workPicker: ReadonlyArray<MenuItem> = [
+  {
+    type: "link",
+    key: "dashboard",
+    label: "dashboard",
+    path: "picker/dashboard",
+  },
+
+  WORKER_MARKET_GROUP,
+
+  { type: "link", key: "profile", label: "profile", path: "workerProfile" },
 ] as const;
 
 /* ------------------------ Registry export ------------------------ */
