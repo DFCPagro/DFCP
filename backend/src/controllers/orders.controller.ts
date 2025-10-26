@@ -168,7 +168,7 @@ export async function getOrdersForShift(req: Request, res: Response) {
       limit,
       fields,
     });
-
+    console.log("data:", data);
     return res.status(200).json({ data });
   } catch (err: any) {
     if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });
