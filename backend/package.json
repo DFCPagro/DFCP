@@ -22,9 +22,11 @@
     "db:seed:faker": "npx -y tsx db/seeds/cli.ts seed --mode faker --count \"users=10\" --yes",
     "db:seed:subset": "npx -y tsx db/seeds/cli.ts seed --mode static --fresh --only \"package-sizes,items,item-packing,logistics-centers,available-stock,demand-statistics,users\" --yes",
     "db:rebuild:static": "npm run db:reset && npm run db:seed:static",
+    
     "seed:ams": "ts-node --transpile-only db/seeds/dev/next2-ams.seeder.ts",
     "seed:testorders": "ts-node db/seeds/dev/ordersForTesting.seed.ts",
     "seed:orders": "npx tsx db/seeds/dev/orders.seed.ts",
+    "seed:farmerInventory": "ts-node db/seeds/dev/seed.farmerInventory.ts",
 
     "docker:up": "docker compose -f ../docker-compose.dev.yml up -d",
     "docker:down": "docker compose -f ../docker-compose.dev.yml down",

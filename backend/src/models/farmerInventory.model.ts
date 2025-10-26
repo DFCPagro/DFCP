@@ -16,7 +16,7 @@ const FarmerInventorySchema = new Schema(
       required: true,
       index: true,
     },
-    farmerId: {
+    farmerUserId: {
       type: String,
       required: true,
       index: true,
@@ -24,6 +24,7 @@ const FarmerInventorySchema = new Schema(
     logisticCenterId: { type: String, default: null },
     agreementAmountKg: { type: Number, default: 0, min: 0 },
     currentAvailableAmountKg: { type: Number, default: 0, min: 0 },
+    
   },
   {
     timestamps: true,
