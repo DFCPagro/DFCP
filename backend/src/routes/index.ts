@@ -21,6 +21,7 @@ import shelfRoutes from "./shelf.routes";
 import containerOpsRoutes from "./containerOps.routes";
 import pickTaskRoutes from "./pickTask.routes";
 import reconciliationRoutes from "./reconciliation.routes";
+import farmerInventoryRoutes from "./farmerInventory.route";
 
 const router = Router();
 
@@ -51,5 +52,6 @@ router.use("/shifts", shiftRoutes);
 router.use("/users", userRoutes);
 router.use("/pick-tasks", pickTaskRoutes);
 router.use("/containers", reconciliationRoutes);
+router.use("/farmer-inventory", farmerInventoryRoutes);
 
 export default router;
