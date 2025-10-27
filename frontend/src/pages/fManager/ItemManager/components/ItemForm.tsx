@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo } from "react";
 import {
   Button,
   Field,
@@ -9,31 +9,27 @@ import {
   NumberInput,
   Stack,
   Box,
-} from "@chakra-ui/react"
-import {
-  itemCategories,
-  type ItemFormValues,
-} from "@/api/items"
-import ImagePreview from "./form/sections/ImagePreview"
-import PriceFields from "./form/sections/PriceFields"
-import QualityStandardsSection, { type QualityStandards } from "./form/sections/QualityStandardsSection"
-import { normalizeFormDefaults, useItemFormState } from "./form/useItemFormState"
+} from "@chakra-ui/react";
+import { itemCategories, type ItemFormValues } from "@/api/items";
+import ImagePreview from "./form/sections/ImagePreview";
+import PriceFields from "./form/sections/PriceFields";
+import QualityStandardsSection, { type QualityStandards } from "./form/sections/QualityStandardsSection";
+import { normalizeFormDefaults, useItemFormState } from "./form/useItemFormState";
 
 type Props = {
-  defaultValues?: Partial<ItemFormValues>
-  onSubmit: (values: ItemFormValues) => void | Promise<void>
-  isSubmitting?: boolean
-  mode?: "create" | "edit"
-  /** When true, renders a non-editable, view-only form */
-  readOnly?: boolean
-}
+  defaultValues?: Partial<ItemFormValues>;
+  onSubmit: (values: ItemFormValues) => void | Promise<void>;
+  isSubmitting?: boolean;
+  mode?: "create" | "edit";
+  readOnly?: boolean;
+};
 
 const toNumber = (value: string, fractionDigits = 0): number | null => {
-  const normalized = value.replace(/\s/g, "").replace(",", ".")
-  const n = Number(normalized)
-  if (!Number.isFinite(n)) return null
-  return fractionDigits > 0 ? Number(n.toFixed(fractionDigits)) : Math.trunc(n)
-}
+  const normalized = value.replace(/\s/g, "").replace(",", ".");
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
+  return fractionDigits > 0 ? Number(n.toFixed(fractionDigits)) : Math.trunc(n);
+};
 
 export default function ItemForm({
   defaultValues,
@@ -42,7 +38,12 @@ export default function ItemForm({
   mode = "create",
   readOnly = false,
 }: Props) {
-  const initial = useMemo(() => normalizeFormDefaults(defaultValues), [defaultValues])
+  // Normalize once for initial mount
+  const normalizedDefaults = useMemo(
+    () => normalizeFormDefaults(defaultValues),
+    [defaultValues]
+  );
+
   const {
     values,
     setValues,
@@ -52,35 +53,40 @@ export default function ItemForm({
     validate,
     isDirty,
     isValid,
-  } = useItemFormState(defaultValues)
+  } = useItemFormState(normalizedDefaults);
 
   const setField = <K extends keyof ItemFormValues>(key: K, v: ItemFormValues[K]) =>
-    setValues((s) => ({ ...s, [key]: v }))
+    setValues((s) => ({ ...s, [key]: v }));
 
   const setPrice = (key: "a" | "b" | "c", v: number | null) =>
-    setValues((s) => ({ ...s, price: { ...s.price, [key]: v } }))
+    setValues((s) => ({ ...s, price: { ...s.price, [key]: v } }));
+
+  const markAllTouched = () => {
+    // base fields
+    (Object.keys(values) as (keyof ItemFormValues)[]).forEach((k) => markTouched(k));
+    // nested price keys
+    ["price.a", "price.b", "price.c"].forEach((k) => markTouched(k as any));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const err = validate()
+    e.preventDefault();
+    const err = validate();
     if (Object.keys(err).length === 0) {
-      await onSubmit(values)
+      await onSubmit(values);
     } else {
-      const allTouched: Record<string, boolean> = {}
-      Object.keys(values).forEach((k) => (allTouched[k] = true))
-      ;["price.a", "price.b", "price.c"].forEach((k) => (allTouched[k] = true))
+      markAllTouched();
     }
-  }
+  };
 
-  const countQs = (qs: any | undefined) => {
-    if (!qs) return 0
-    let c = 0
+  const countQs = (qs: QualityStandards | undefined) => {
+    if (!qs) return 0;
+    let c = 0;
     for (const k of Object.keys(qs)) {
-      const row = (qs as any)[k]
-      if (row && (row.A || row.B || row.C)) c++
+      const row = (qs as any)[k];
+      if (row && (row.A || row.B || row.C)) c++;
     }
-    return c
-  }
+    return c;
+  };
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -92,9 +98,9 @@ export default function ItemForm({
             <NativeSelect.Field
               value={values.category}
               onChange={(e) => {
-                if (readOnly) return
-                markTouched("category")
-                setField("category", e.target.value as ItemFormValues["category"])
+                if (readOnly) return;
+                markTouched("category");
+                setField("category", e.target.value as ItemFormValues["category"]);
               }}
               onBlur={() => validate()}
             >
@@ -116,9 +122,9 @@ export default function ItemForm({
             placeholder="e.g. Apple"
             value={values.type}
             onChange={(e) => {
-              if (readOnly) return
-              markTouched("type")
-              setField("type", e.target.value)
+              if (readOnly) return;
+              markTouched("type");
+              setField("type", e.target.value);
             }}
             onBlur={() => validate()}
             readOnly={readOnly}
@@ -135,14 +141,15 @@ export default function ItemForm({
             value={values.variety ?? ""}
             required
             onChange={(e) => {
-              if (readOnly) return
-              markTouched("variety")
-              setField("variety", e.target.value)
+              if (readOnly) return;
+              markTouched("variety");
+              setField("variety", e.target.value);
             }}
             onBlur={() => validate()}
             readOnly={readOnly}
             disabled={readOnly}
           />
+          <Field.ErrorText>{errors["variety"]}</Field.ErrorText>
         </Field.Root>
 
         {/* Image URL + Preview */}
@@ -152,9 +159,9 @@ export default function ItemForm({
             placeholder="https://example.com/image.jpg"
             value={values.imageUrl ?? ""}
             onChange={(e) => {
-              if (readOnly) return
-              markTouched("imageUrl")
-              setField("imageUrl", e.target.value)
+              if (readOnly) return;
+              markTouched("imageUrl");
+              setField("imageUrl", e.target.value);
             }}
             onBlur={() => validate()}
             readOnly={readOnly}
@@ -173,9 +180,9 @@ export default function ItemForm({
             placeholder="e.g. Nov–Mar"
             value={(values as any).season ?? ""}
             onChange={(e) => {
-              if (readOnly) return
-              markTouched("season")
-              setField("season" as any, e.target.value)
+              if (readOnly) return;
+              markTouched("season" as any);
+              setField("season" as any, e.target.value);
             }}
             onBlur={() => validate()}
             readOnly={readOnly}
@@ -191,9 +198,9 @@ export default function ItemForm({
             placeholder="±2%"
             value={(values as any).tolerance ?? ""}
             onChange={(e) => {
-              if (readOnly) return
-              markTouched("tolerance")
-              setField("tolerance" as any, e.target.value)
+              if (readOnly) return;
+              markTouched("tolerance" as any);
+              setField("tolerance" as any, e.target.value);
             }}
             onBlur={() => validate()}
             readOnly={readOnly}
@@ -212,13 +219,13 @@ export default function ItemForm({
             locale="en-US"
             formatOptions={{ useGrouping: false, maximumFractionDigits: 0 }}
             onValueChange={({ value, valueAsNumber }) => {
-              if (readOnly) return
-              markTouched("caloriesPer100g")
+              if (readOnly) return;
+              markTouched("caloriesPer100g");
               const next =
                 value === "" || Number.isNaN(valueAsNumber)
                   ? toNumber(value, 0)
-                  : Math.trunc(valueAsNumber)
-              setField("caloriesPer100g", next == null ? undefined : next)
+                  : Math.trunc(valueAsNumber);
+              setField("caloriesPer100g", next == null ? undefined : next);
             }}
             disabled={readOnly}
           >
@@ -250,12 +257,12 @@ export default function ItemForm({
           </Field.ErrorText>
         </Field.Root>
 
-        {/* Collapsible Quality Standards – now part of the form */}
+        {/* Quality Standards */}
         <QualityStandardsSection
           value={(values as any).qualityStandards as QualityStandards | undefined}
           onChange={(next) => {
-            if (readOnly) return
-            setValues((s) => ({ ...(s as any), qualityStandards: next }))
+            if (readOnly) return;
+            setValues((s) => ({ ...(s as any), qualityStandards: next }));
           }}
           readOnly={readOnly}
         />
@@ -267,12 +274,17 @@ export default function ItemForm({
         {/* Submit */}
         {!readOnly && (
           <Flex justify="flex-end" gap={3} pt={2}>
-            <Button type="submit" colorPalette="teal" loading={isSubmitting} disabled={!isDirty || !isValid}>
+            <Button
+              type="submit"
+              colorPalette="teal"
+              loading={isSubmitting}
+              disabled={!isDirty || !isValid}
+            >
               {mode === "create" ? "Create Item" : "Save Changes"}
             </Button>
           </Flex>
         )}
       </Stack>
     </form>
-  )
+  );
 }

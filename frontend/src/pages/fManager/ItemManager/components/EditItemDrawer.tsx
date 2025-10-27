@@ -1,5 +1,6 @@
-// src/pages/items/components/EditItemDrawer.tsx
+/** @jsxImportSource @emotion/react */
 import * as React from "react";
+import { css } from "@emotion/react";
 import {
   Badge,
   Box,
@@ -23,6 +24,54 @@ type Props = {
   onSubmit: (values: any) => Promise<void> | void;
 };
 
+const contentCss = css`
+  width: min(1080px, 100vw);
+  max-width: 100%;
+  height: 100%;
+  background: var(--chakra-colors-bg);
+  border-left: 1px solid var(--chakra-colors-border);
+  box-shadow: var(--chakra-shadows-2xl);
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+  overflow: hidden;
+`;
+
+const headerCss = css`
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 20px 24px;
+  background: var(--chakra-colors-bg); /* solid for readability */
+  color: var(--chakra-colors-fg);
+  border-bottom: 1px solid var(--chakra-colors-border);
+`;
+
+const accentCss = css`
+  margin-top: 12px;
+  height: 3px;
+  width: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(
+    135deg,
+    var(--chakra-colors-teal-400),
+    var(--chakra-colors-purple-400)
+  );
+`;
+
+const bodyCss = css`
+  padding: 24px;
+  overflow: auto;
+  height: calc(100% - 92px);
+  background:
+    radial-gradient(1200px 400px at 100% -100%, var(--chakra-colors-teal-50), transparent),
+    radial-gradient(1000px 400px at -50% 120%, var(--chakra-colors-purple-50), transparent);
+`;
+
+const backdropCss = css`
+  backdrop-filter: blur(6px);
+  background: color-mix(in oklab, black 30%, transparent);
+`;
+
 export default function EditItemDrawer({
   open,
   setOpen,
@@ -30,7 +79,6 @@ export default function EditItemDrawer({
   isSubmitting,
   onSubmit,
 }: Props) {
-  // Build a nice title & subtitle from the editing item
   const title = React.useMemo(() => {
     if (!editing) return "Edit Item";
     const v = (editing.variety ?? "").trim();
@@ -42,13 +90,9 @@ export default function EditItemDrawer({
     ? new Date(editing.updatedAt).toLocaleString()
     : null;
 
-  // Focus the first editable input when opening
   const initialFocusEl = React.useCallback(() => {
-    // Try “Type” first, fall back to any input
     return (
-      (document.querySelector(
-        'input[placeholder="e.g. Apple"]'
-      ) as HTMLElement) ||
+      (document.querySelector('input[placeholder="e.g. Apple"]') as HTMLElement) ||
       (document.querySelector("input,select,textarea") as HTMLElement) ||
       null
     );
@@ -67,69 +111,92 @@ export default function EditItemDrawer({
       initialFocusEl={initialFocusEl}
     >
       <Portal>
-        <Drawer.Backdrop />
+        <Drawer.Backdrop css={backdropCss} />
         <Drawer.Positioner>
-          <Drawer.Content>
-            {/* Header */}
-            <Drawer.Header
-              display="flex"
-              alignItems="center"
-              justifyContent="space-between"
-              gap="3"
-            >
-              <Stack gap="0">
-                <HStack gap="2" align="baseline">
-                  <Text fontSize="lg" fontWeight="semibold">
-                    {title}
-                  </Text>
-                  {category && <Badge>{category}</Badge>}
-                </HStack>
-                <HStack gap="2" color="fg.muted" fontSize="xs">
-                  {updated && <Text>Last updated: {updated}</Text>}
-                  <HStack gap="1" hideBelow="md">
-                    <Text>Press</Text>
-                    <Kbd>Esc</Kbd>
-                    <Text>to close</Text>
+          <Drawer.Content css={contentCss}>
+            <Drawer.Header css={headerCss}>
+              <HStack justify="space-between" align="center" w="full">
+                <Stack gap="1">
+                  <HStack gap="3" align="baseline">
+                    <Text
+                      fontSize={{ base: "xl", md: "2xl" }}
+                      fontWeight="extrabold"
+                      letterSpacing="tight"
+                    >
+                      {title}
+                    </Text>
+                    {category && (
+                      <Badge
+                        colorScheme="pink"
+                        variant="solid"
+                        fontSize="0.7rem"
+                        px="2"
+                        py="0.5"
+                        rounded="full"
+                      >
+                        {category}
+                      </Badge>
+                    )}
                   </HStack>
-                </HStack>
-              </Stack>
 
-              <Drawer.CloseTrigger asChild>
-                <StyledIconButton
-                  aria-label="Close drawer"
-                  variant="ghost"
-                  size="sm"
-                >
-                  <X size={16} />
-                </StyledIconButton>
-              </Drawer.CloseTrigger>
+                  <HStack gap="3" color="fg.muted" fontSize={{ base: "xs", md: "sm" }}>
+                    {updated && <Text>Last updated: {updated}</Text>}
+                    <HStack gap="1.5" hideBelow="md">
+                      <Text>Press</Text>
+                      <Kbd fontSize="sm">Esc</Kbd>
+                      <Text>to close</Text>
+                    </HStack>
+                  </HStack>
+                </Stack>
+
+                <Drawer.CloseTrigger asChild>
+                  <StyledIconButton
+                    aria-label="Close drawer"
+                    variant="ghost"
+                    size="md"
+                    disabled={isSubmitting}
+                  >
+                    <X size={20} />
+                  </StyledIconButton>
+                </Drawer.CloseTrigger>
+              </HStack>
+
+              <Box css={accentCss} />
             </Drawer.Header>
 
-            {/* Body */}
-            <Drawer.Body>
-              {editing ? (
-                <ItemForm
-                  key={editing._id ?? "edit-form"}
-                  mode="edit"
-                  isSubmitting={isSubmitting}
-                  defaultValues={{
-                    category: editing.category,
-                    type: editing.type,
-                    variety: editing.variety ?? "",
-                    imageUrl: editing.imageUrl ?? "",
-                    caloriesPer100g: editing.caloriesPer100g ?? undefined,
-                    price: editing.price ?? { a: null, b: null, c: null },
-
-                    // Extras (you added these to editing defaults earlier)
-                    season: editing.season ?? "",
-                    tolerance: editing.tolerance ?? "",
-                    qualityStandards: editing.qualityStandards ?? undefined,
-                  }}
-                  onSubmit={onSubmit}
-                />
-              ) : (
-                <Box color="fg.muted">No item selected</Box>
-              )}
+            <Drawer.Body asChild>
+              <Box css={bodyCss}>
+                {editing ? (
+                  <Box
+                    border="1px dashed"
+                    borderColor="border"
+                    rounded="2xl"
+                    p={{ base: 4, md: 6 }}
+                    bg="bg.panel"
+                    backdropFilter="saturate(120%) blur(2px)"
+                  >
+                    <ItemForm
+                      key={editing._id ?? "edit-form"}
+                      mode="edit"
+                      isSubmitting={isSubmitting}
+                      defaultValues={{
+                        category: editing.category,
+                        type: editing.type,
+                        variety: editing.variety ?? "",
+                        imageUrl: editing.imageUrl ?? "",
+                        caloriesPer100g: editing.caloriesPer100g ?? undefined,
+                        price: editing.price ?? { a: null, b: null, c: null },
+                        season: editing.season ?? "",
+                        tolerance: editing.tolerance ?? "",
+                        qualityStandards: editing.qualityStandards ?? undefined,
+                      }}
+                      onSubmit={onSubmit}
+                    />
+                  </Box>
+                ) : (
+                  <Box color="fg.muted">No item selected</Box>
+                )}
+              </Box>
             </Drawer.Body>
           </Drawer.Content>
         </Drawer.Positioner>

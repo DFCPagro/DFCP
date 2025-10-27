@@ -1,4 +1,5 @@
-import * as React from "react"
+// src/pages/items/components/ItemsCards.tsx
+import * as React from "react";
 import {
   Badge,
   Box,
@@ -11,36 +12,29 @@ import {
   Stack,
   Text,
   useDisclosure,
-} from "@chakra-ui/react"
-import { Eye, Pencil, Trash2 } from "lucide-react"
-import type { ItemsTableProps } from "../types"
-import { StyledIconButton } from "@/components/ui/IconButton"
-import ViewItemDrawer from "./ViewItemDrawer"
-import { Tooltip } from "@/components/ui/tooltip"
+} from "@chakra-ui/react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
+import type { ItemsTableProps } from "../types";
+import { StyledIconButton } from "@/components/ui/IconButton";
+import ViewItemDrawer from "./ViewItemDrawer";
+import { Tooltip } from "@/components/ui/tooltip";
 
 function fmtUpdatedAt(date?: string | null) {
-  if (!date) return "-"
+  if (!date) return "-";
   try {
-    return new Date(date).toLocaleString()
+    return new Date(date).toLocaleString();
   } catch {
-    return "-"
+    return "-";
   }
 }
 
-function fmtPrice(p?: { a?: number | null; b?: number | null; c?: number | null }) {
-  if (!p) return "-"
-  const parts = [p.a, p.b, p.c].map((v) => (v == null ? "-" : v))
-  return `A ${parts[0]} · B ${parts[1]} · C ${parts[2]}`
-}
-
-function Title({ type, variety }: { type: string; variety?: string | null }) {
-  const v = (variety ?? "").trim()
-  return (
-    <Text fontWeight="semibold" fontSize="lg" lineClamp={1}>
-      {v ? `${type} ${v}` : type}
-    </Text>
-  )
-}
+const categoryColor: Record<string, string> = {
+  fruit: "pink",
+  vegetables: "green",
+  dairy: "blue",
+  breads: "orange",
+  legumes: "purple",
+};
 
 export default function ItemsCards({
   items,
@@ -48,8 +42,8 @@ export default function ItemsCards({
   onEdit,
   onDelete,
 }: ItemsTableProps) {
-  const view = useDisclosure()
-  const [selected, setSelected] = React.useState<(typeof items)[number] | null>(null)
+  const view = useDisclosure();
+  const [selected, setSelected] = React.useState<(typeof items)[number] | null>(null);
 
   return (
     <Box pos="relative">
@@ -64,6 +58,8 @@ export default function ItemsCards({
           py="1"
           shadow="sm"
           zIndex={1}
+          border="1px solid"
+          borderColor="border"
         >
           <Spinner size="sm" />
           <Text fontSize="xs" color="fg.muted">
@@ -78,30 +74,41 @@ export default function ItemsCards({
             key={it._id}
             variant="elevated"
             overflow="hidden"
-            _hover={{ translateY: "-2px", shadow: "lg" }}
-            transition="all 0.15s ease"
+            borderRadius="2xl"
+            border="1px solid"
+            borderColor="border"
+            _hover={{ translateY: "-3px", shadow: "xl" }}
+            transition="transform 0.15s ease, box-shadow 0.15s ease"
           >
             {/* Media */}
-            <Box bg="blackAlpha.50" position="relative">
+            <Box position="relative" bg="bg.muted">
               <Image
                 src={it.imageUrl || "https://picsum.photos/640/400?grayscale"}
                 alt={`${it.type}${it.variety ? ` ${it.variety}` : ""}`}
                 w="full"
-                h="172px"
+                h="180px"
                 objectFit="cover"
               />
-              {/* quick-view fab on image for better affordance */}
+              {/* overlay gradient for readability */}
+              <Box
+                position="absolute"
+                inset="0"
+                bg="linear-gradient(0deg, rgba(0,0,0,0.45), transparent 55%)"
+              />
+              {/* Quick view button */}
               <Button
                 size="xs"
-                // leftIcon={<Eye size={14} />}
                 position="absolute"
-                right="2"
-                bottom="2"
+                right="3"
+                bottom="3"
                 variant="solid"
+                colorPalette="teal"
+                borderRadius="full"
                 onClick={() => {
-                  setSelected(it)
-                  view.onOpen()
+                  setSelected(it);
+                  view.onOpen();
                 }}
+                gap="1.5"
               >
                 <Eye size={14} />
                 View
@@ -111,21 +118,32 @@ export default function ItemsCards({
             {/* Body */}
             <Card.Body gap="3">
               <Stack gap="1" flex="1" minW="0">
-                <Title type={it.type} variety={it.variety} />
+                <Text fontWeight="semibold" fontSize="lg" lineClamp={1}>
+                  {it.variety?.trim() ? `${it.type} ${it.variety}` : it.type}
+                </Text>
                 <HStack gap="2" wrap="wrap">
-                  <Badge variant="surface">{it.category}</Badge>
-                  {it.season && <Badge variant="subtle">{it.season}</Badge>}
+                  <Badge
+                    variant="solid"
+                    colorPalette={categoryColor[it.category ?? ""] || "gray"}
+                  >
+                    {it.category}
+                  </Badge>
+                  {it.season && (
+                    <Badge variant="subtle" colorPalette="purple">
+                      {it.season}
+                    </Badge>
+                  )}
                 </HStack>
               </Stack>
 
-              {/* Compact meta row */}
+              {/* Meta */}
               <Stack gap="1" fontSize="sm">
                 {it.price && (
-                  <HStack gap="2" wrap="wrap">
-                    <Text fontWeight="medium">Price</Text>
-                    <Badge variant="subtle">A {it.price.a ?? "-"}</Badge>
-                    <Badge variant="subtle">B {it.price.b ?? "-"}</Badge>
-                    <Badge variant="subtle">C {it.price.c ?? "-"}</Badge>
+                  <HStack gap="2" wrap="wrap" align="center">
+                    <Text fontWeight="medium">Price/Qul</Text>
+                    <Badge variant="surface">{it.price.a ?? "-"}$/A</Badge>
+                    <Badge variant="surface">{it.price.b ?? "-"}$/B</Badge>
+                    <Badge variant="surface">{it.price.c ?? "-"}$/C</Badge>
                   </HStack>
                 )}
 
@@ -142,13 +160,14 @@ export default function ItemsCards({
               </Stack>
             </Card.Body>
 
-            {/* Footer with actions */}
-            <Card.Footer justifyContent="flex-end" gap="1">
+            {/* Footer */}
+            <Card.Footer justifyContent="flex-end" gap="1.5">
               <StyledIconButton
                 size="xs"
                 variant="subtle"
                 aria-label="Edit"
                 onClick={() => onEdit(it)}
+                title="Edit item"
               >
                 <Pencil size={16} />
               </StyledIconButton>
@@ -158,6 +177,7 @@ export default function ItemsCards({
                 colorPalette="red"
                 aria-label="Delete"
                 onClick={() => onDelete(it)}
+                title="Delete item"
               >
                 <Trash2 size={16} />
               </StyledIconButton>
@@ -166,8 +186,8 @@ export default function ItemsCards({
         ))}
 
         {items.length === 0 && !isBusy && (
-          <Card.Root variant="subtle">
-            <Card.Body alignItems="center" textAlign="center">
+          <Card.Root variant="subtle" borderRadius="2xl">
+            <Card.Body alignItems="center" textAlign="center" gap="2">
               <Text fontWeight="medium">No items found</Text>
               <Text color="fg.muted" fontSize="sm">
                 Try adjusting filters or search.
@@ -179,5 +199,5 @@ export default function ItemsCards({
 
       <ViewItemDrawer open={view.open} setOpen={view.setOpen} item={selected} />
     </Box>
-  )
+  );
 }
