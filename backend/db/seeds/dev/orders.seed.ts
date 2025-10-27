@@ -29,6 +29,20 @@ const TZ = "Asia/Jerusalem";
 const LC_ID = "66e007000000000000000001";
 const DATA_PATH = path.resolve(__dirname, "../data/orders.data.json");
 
+const ITEM_NAME_BY_ID: Record<string, string> = {
+  "db63c0177cfae45a8385313a": "Apple Fuji",
+  "6873f67b8027abff0fdb32f3": "Banana Cavendish",
+  "bb87115ed0ab8a728b7d9622": "Orange Navel",
+  "497bb3e65bf348533160cec0": "Grapes Red Globe",
+  "30eb71d9a20cb517be34112f": "Strawberry Albion",
+  "ad126949daa1c7dd61ffcc4c": "Tomato Cherry",
+  "39bd70c4db17647c60d33c8f": "Lettuce Romaine",
+  "fa56428339a4f47db7d15600": "Cucumber Persian",
+  "885df3d97431436c3a205ff3": "Carrot Nantes",
+  "f68140ef8273c40bbae48b98": "Spinach Baby",
+  "64f1e2c3a5b6c7d8e9f0a1b2": "Eggs Free Range",
+};
+
 const SHIFT_CONFIG = [
   { name: "morning" as const, startMin: 360, endMin: 720 },
   { name: "afternoon" as const, startMin: 720, endMin: 1080 },

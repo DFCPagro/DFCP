@@ -24,9 +24,9 @@ export async function postPackOrder(req: Request, res: Response) {
       .lean();
     const itemsById = Object.fromEntries(items.map((it: any) => [String(it._id), it]));
 
-    // 3) load all package sizes
+    // 3) load all package sizes (add maxSkusPerBox if you set it)
     const packageSizes = await PackageSizeModel.find({})
-      .select("key innerDimsCm headroomPct usableLiters maxWeightKg vented")
+      .select("key innerDimsCm headroomPct usableLiters maxWeightKg vented maxSkusPerBox")
       .lean();
 
     // 4) compute the plan (stateless)

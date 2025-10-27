@@ -13,7 +13,7 @@
     "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
     "lastUpdated": "2025-07-15T10:03:54.618Z",
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 0.45,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -48,7 +48,7 @@
     "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
     "lastUpdated": "2025-07-15T10:03:54.618Z",
     "price": { "a": 3, "b": 2, "c": 1.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 0.36,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -67,7 +67,7 @@
     "tolerance": "0.02",
     "type": "Banana",
     "variety": "Cavendish",
-    "weightPerUnitG": null
+    "weightPerUnitG": 120
   },
   {
     "_id": "bb87115ed0ab8a728b7d9622",
@@ -83,7 +83,7 @@
     "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 5, "b": 3, "c": 2.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 1.0,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -102,7 +102,7 @@
     "tolerance": "0.02",
     "type": "Orange",
     "variety": "Navel",
-    "weightPerUnitG": null
+    "weightPerUnitG": 200
   },
   {
     "_id": "497bb3e65bf348533160cec0",
@@ -118,7 +118,7 @@
     "imageUrl": "https://www.shopfreshandgreen.com/cdn/shop/products/Grapes-min_728x.png?v=1743777076",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 3, "b": 2.5, "c": 1.7 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 0.02,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -137,7 +137,7 @@
     "tolerance": "0.02",
     "type": "Grapes",
     "variety": "Red Globe",
-    "weightPerUnitG": null
+    "weightPerUnitG": 5
   },
   {
     "_id": "30eb71d9a20cb517be34112f",
@@ -168,7 +168,7 @@
     },
     "sdWeightPerUnitGr": 4,
     "season": "March-June",
-    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": "500kg" },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Strawberry",
     "variety": "Albion",
@@ -185,10 +185,10 @@
       "Supports a healthy immune system"
     ],
     "farmerTips": "Harvest early in the morning for best shelf life.",
-    "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
+    "imageUrl": "https://www.simplyrecipes.com/thmb/3b1X6Yk9bX5n0kYJ8qT0p6Jv0gU=/2000x1333/filters:fill(auto,1)/Simply-Recipes-Cherry-Tomatoes-LEAD-3-2bfbf4f1e1e14f2fa6f4f4c5e4b2e3b5.jpg",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 2.5,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -207,7 +207,7 @@
     "tolerance": "0.02",
     "type": "Tomato",
     "variety": "Cherry",
-    "weightPerUnitG": null
+    "weightPerUnitG": 1000
   },
   {
     "_id": "39bd70c4db17647c60d33c8f",
@@ -223,7 +223,7 @@
     "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 7, "b": 6, "c": 5.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 4.2,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -242,7 +242,7 @@
     "tolerance": "0.02",
     "type": "Lettuce",
     "variety": "Romaine",
-    "weightPerUnitG": null
+    "weightPerUnitG": 600
   },
   {
     "_id": "fa56428339a4f47db7d15600",
@@ -258,7 +258,7 @@
     "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 3.5, "b": 3, "c": 2.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 0.18,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -277,7 +277,7 @@
     "tolerance": "0.02",
     "type": "Cucumber",
     "variety": "Persian",
-    "weightPerUnitG": null
+    "weightPerUnitG": 50
   },
   {
     "_id": "885df3d97431436c3a205ff3",
@@ -293,7 +293,7 @@
     "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 0.18,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -312,7 +312,7 @@
     "tolerance": "0.02",
     "type": "Carrot",
     "variety": "Nantes",
-    "weightPerUnitG": null
+    "weightPerUnitG": 70
   },
   {
     "_id": "f68140ef8273c40bbae48b98",
@@ -328,7 +328,7 @@
     "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 1.25,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -343,7 +343,7 @@
     },
     "sdWeightPerUnitGr": 0.5,
     "season": "July-October",
-    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
+    "sellModes": { "byKg": false, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Spinach",
     "variety": "Baby",
@@ -353,7 +353,7 @@
     "_id": "64f1e2c3a5b6c7d8e9f0a1b2",
     "category": "egg_dairy",
     "type": "Eggs",
-    "variety": "Free Range",
+    "variety": "Free Range (12 pack)",
     "imageUrl": "https://cdn.example.com/eggs/free-range-12.jpg",
     "season": "all year",
     "farmerTips": "Keep refrigerated at 4°C or below.",
@@ -368,7 +368,7 @@
     "avgWeightPerUnitGr": 60,
     "sdWeightPerUnitGr": 6,
     "avgQmPerUnit": null,
-    "weightPerUnitG": 1.2,
+    "weightPerUnitG": 720,
     "qualityStandards": {},
     "tolerance": "0.02",
     "lastUpdated": "2025-07-15T10:03:54.619Z"

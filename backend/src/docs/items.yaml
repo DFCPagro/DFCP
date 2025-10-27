@@ -1,360 +1,14 @@
 openapi: 3.0.3
 info:
-  title: Items API
-  version: 1.1.0
+  title: DFCP Items API
+  version: 1.0.0
+  description: Endpoints for items, packing, and market item page data.
+
+servers:
+  - url: /api/items
 
 tags:
   - name: Items
-    description: Catalog of items (produce). Public GETs support optional auth; privileged fields require admin/fManager.
-
-paths:
-  /items:
-    get:
-      tags: [Items]
-      summary: List items (public; optional auth). If authenticated as admin/fManager returns full items; otherwise public view.
-      description: |
-        Public route with *optional* auth (admin/fManager).  
-        - **Unauthenticated** → returns public projection (minimal fields).  
-        - **Authenticated (admin or fManager)** → returns full items.
-      parameters:
-        - in: query
-          name: category
-          schema:
-            type: string
-            enum: [fruit, vegetable]
-          description: Filter by category
-        - in: query
-          name: type
-          schema: { type: string }
-        - in: query
-          name: variety
-          schema: { type: string }
-        - in: query
-          name: q
-          schema: { type: string }
-          description: Free-text search across type/variety
-        - in: query
-          name: minCalories
-          schema: { type: number }
-        - in: query
-          name: maxCalories
-          schema: { type: number }
-        - in: query
-          name: page
-          schema: { type: integer, minimum: 1, default: 1 }
-        - in: query
-          name: limit
-          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
-        - in: query
-          name: sort
-          schema: { type: string, example: "-updatedAt" }
-          description: Comma-separated fields; prefix with '-' for desc
-      responses:
-        '200':
-          description: Paginated items
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/ItemListPublicResponse'
-                  - $ref: '#/components/schemas/ItemListPrivilegedResponse'
-              examples:
-                public:
-                  summary: Public response
-                  value:
-                    items:
-                      - _id: "66ef1f2e5d8f7a0012ab34cd"
-                        displayName: "Apple Fuji"
-                        category: "fruit"
-                        itemUrl: "/items/66ef1f2e5d8f7a0012ab34cd"
-                    page: 1
-                    limit: 20
-                    total: 1
-                    pages: 1
-                privileged:
-                  summary: Privileged response
-                  value:
-                    items:
-                      - _id: "66ef1f2e5d8f7a0012ab34cd"
-                        type: "Apple"
-                        variety: "Fuji"
-                        category: "fruit"
-                        caloriesPer100g: 52
-                        customerInfo: ["High in vitamin C"]
-                        price: { a: 2.5, b: 2, c: 1.5 }
-                        sellModes: { byKg: true, byUnit: true, unitBundleSize: 1 }
-                        avgWeightPerUnitGr: 180
-                        sdWeightPerUnitGr: 20
-                        tolerance: "0.02"
-                        createdAt: "2025-09-21T08:00:00.000Z"
-                        updatedAt: "2025-10-02T13:00:00.000Z"
-                    page: 1
-                    limit: 20
-                    total: 1
-                    pages: 1
-    post:
-      tags: [Items]
-      summary: Create a new item (admin/fManager)
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/ItemCreate'
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ItemFull'
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-
-  /items/{itemId}:
-    get:
-      tags: [Items]
-      summary: Get an item by ID (public; optional auth)
-      description: |
-        Public route with *optional* auth.
-        - **Unauthenticated** → returns public projection.
-        - **Authenticated (admin/fManager)** → returns full item.
-      parameters:
-        - in: path
-          name: itemId
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-fA-F0-9]{24}$'
-      responses:
-        '200':
-          description: Item
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/ItemPublic'
-                  - $ref: '#/components/schemas/ItemFull'
-        '400':
-          description: Invalid itemId
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-              example: { message: "Invalid itemId" }
-        '404':
-          description: Item not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-              example: { message: "Item not found" }
-    patch:
-      tags: [Items]
-      summary: Partially update an item (admin/fManager)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: itemId
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-fA-F0-9]{24}$'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ItemPatch'
-      responses:
-        '200':
-          description: Updated item
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ItemFull' }
-        '400':
-          description: Invalid itemId or body
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-        '404':
-          description: Item not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-    put:
-      tags: [Items]
-      summary: Replace an item (admin/fManager)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: itemId
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-fA-F0-9]{24}$'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              allOf:
-                - $ref: '#/components/schemas/ItemCreate'
-      responses:
-        '200':
-          description: Replaced item
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ItemFull' }
-        '400':
-          description: Invalid itemId or body
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-        '404':
-          description: Item not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-    delete:
-      tags: [Items]
-      summary: Delete an item (admin)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: itemId
-          required: true
-          schema:
-            type: string
-            pattern: '^[a-fA-F0-9]{24}$'
-      responses:
-        '204':
-          description: Deleted
-        '400':
-          description: Invalid itemId
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-        '404':
-          description: Item not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-
-  /items/benefits/{itemId}:
-    get:
-      tags: [Items]
-      summary: Get item benefits (customer info + calories per 100g)
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: itemId
-          required: true
-          description: The MongoDB ObjectId of the item
-          schema:
-            type: string
-            pattern: '^[a-fA-F0-9]{24}$'
-      responses:
-        '200':
-          description: Item benefits
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    $ref: '#/components/schemas/ItemBenefits'
-              example:
-                data:
-                  customerInfo: ["High in vitamin C", "Good for immunity"]
-                  caloriesPer100g: 52
-        '400':
-          description: Invalid itemId
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-              example: { message: "Invalid itemId" }
-        '404':
-          description: Item not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-              example: { message: "Item not found" }
-
-  /items/marketItemPage/{itemId}/{farmerUserId}:
-    get:
-      tags: [Items]
-      summary: Get both item benefits and farmer bio for the market item page
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: path
-          name: itemId
-          required: true
-          description: The MongoDB ObjectId of the item
-          schema:
-            type: string
-            pattern: '^[a-fA-F0-9]{24}$'
-        - in: path
-          name: farmerUserId
-          required: true
-          description: The MongoDB ObjectId of the farmer's linked User
-          schema:
-            type: string
-            pattern: '^[a-fA-F0-9]{24}$'
-      responses:
-        '200':
-          description: Combined item and farmer info
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [data]
-                properties:
-                  data:
-                    $ref: '#/components/schemas/MarketItemPageData'
-              example:
-                data:
-                  item:
-                    customerInfo: ["High in vitamin C", "Good for immunity"]
-                    caloriesPer100g: 52
-                  farmer:
-                    logo: "https://example.com/user-logo.png"
-                    farmName: "Green Valley Farm"
-                    farmLogo: "https://example.com/farm-logo.png"
-                    farmerBio: "Third-generation farmer specializing in organic apples."
-        '400':
-          description: Invalid itemId or farmerUserId
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-              example: { message: "itemId and farmerUserId are required and must be valid ObjectIds" }
-        '404':
-          description: Item or Farmer not found
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorMessage' }
-              example: { message: "Item or Farmer not found" }
 
 components:
   securitySchemes:
@@ -363,14 +17,63 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      description: MongoDB ObjectId of the item.
+      schema:
+        type: string
+        pattern: '^[a-fA-F0-9]{24}$'
+    FarmerUserId:
+      name: farmerUserId
+      in: path
+      required: true
+      description: MongoDB ObjectId of the farmer's **User** document.
+      schema:
+        type: string
+        pattern: '^[a-fA-F0-9]{24}$'
+    IncludePacking:
+      name: includePacking
+      in: query
+      required: false
+      description: For privileged roles (admin, fManager) only — return the joined item+packing view.
+      schema:
+        type: boolean
+
   schemas:
-    # ---------- Core item shapes ----------
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: ValidationError
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+
+    PaginationMeta:
+      type: object
+      properties:
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1 }
+        total: { type: integer, minimum: 0 }
+        pages: { type: integer, minimum: 0 }
+
+    ItemCategory:
+      type: string
+      enum: [fruit, vegetable, egg_dairy, other]
+
     Price:
       type: object
       properties:
-        a: { type: number, minimum: 0, nullable: true, description: Base price per KG }
-        b: { type: number, minimum: 0, nullable: true }
-        c: { type: number, minimum: 0, nullable: true }
+        a: { type: number, nullable: true, minimum: 0, description: Base price per KG }
+        b: { type: number, nullable: true, minimum: 0 }
+        c: { type: number, nullable: true, minimum: 0 }
 
     SellModes:
       type: object
@@ -379,197 +82,438 @@ components:
         byUnit: { type: boolean, default: false }
         unitBundleSize: { type: integer, minimum: 1, default: 1 }
 
-    QualityStandards:
-      type: object
-      description: Quality/tolerance descriptors (free-form strings per grade).
-      properties:
-        brix:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        acidityPercentage:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        pressure:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        colorDescription:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        colorPercentage:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        weightPerUnitG:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        diameterMM:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        qualityGrade:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        maxDefectRatioLengthDiameter:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-        rejectionRate:
-          type: object
-          properties: { A: {type: string}, B: {type: string}, C: {type: string} }
-
     ItemBase:
       type: object
       properties:
-        _id: { type: string }
-        type: { type: string }
-        variety: { type: string, nullable: true }
-        category:
+        _id:
           type: string
-          enum: [fruit, vegetable]
+          description: Item id (ObjectId as string)
+          example: "68960284330bf1699eee8956"
+        category:
+          $ref: '#/components/schemas/ItemCategory'
+        type: { type: string, example: "Cucumber" }
+        variety: { type: string, nullable: true, example: "Persian" }
         imageUrl: { type: string, nullable: true, format: uri }
         season: { type: string, nullable: true }
         farmerTips: { type: string, nullable: true }
         customerInfo:
           type: array
           items: { type: string }
-          default: []
-        caloriesPer100g: { type: number, minimum: 0, nullable: true }
+        caloriesPer100g: { type: number, nullable: true, minimum: 0 }
         price:
           $ref: '#/components/schemas/Price'
-        avgWeightPerUnitGr: { type: number, minimum: 0, nullable: true }
+        avgWeightPerUnitGr: { type: number, nullable: true, minimum: 0 }
         sdWeightPerUnitGr: { type: number, minimum: 0, default: 0 }
-        avgQmPerUnit: { type: number, minimum: 0, nullable: true }
-        weightPerUnitG: { type: number, minimum: 0, nullable: true, description: Legacy alias for avgWeightPerUnitGr }
-        sellModes: { $ref: '#/components/schemas/SellModes' }
-        pricePerUnitOverride: { type: number, minimum: 0, nullable: true }
-        qualityStandards: { $ref: '#/components/schemas/QualityStandards' }
+        avgQmPerUnit: { type: number, nullable: true, minimum: 0 }
+        weightPerUnitG: { type: number, nullable: true, minimum: 0 }
+        sellModes:
+          $ref: '#/components/schemas/SellModes'
+        pricePerUnitOverride: { type: number, nullable: true, minimum: 0 }
+        qualityStandards:
+          type: object
+          nullable: true
+          additionalProperties: true
         tolerance:
           type: string
+          description: Relative tolerance (stored as string like "0.02")
           example: "0.02"
-          description: Decimal fraction as string (e.g. "0.02" for ±2%)
-        lastUpdated: { type: string, format: date-time }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-
-    ItemFull:
-      allOf:
-        - $ref: '#/components/schemas/ItemBase'
-
-    ItemCreate:
-      type: object
-      required: [category, type, variety]
-      properties:
-        category:
+        lastUpdated:
           type: string
-          enum: [fruit, vegetable]
-        type: { type: string }
-        variety: { type: string }
-        imageUrl: { type: string, nullable: true, format: uri }
-        season: { type: string, nullable: true }
-        farmerTips: { type: string, nullable: true }
-        customerInfo:
-          type: array
-          items: { type: string }
-        caloriesPer100g: { type: number, minimum: 0, nullable: true }
-        price:
-          $ref: '#/components/schemas/Price'
-        avgWeightPerUnitGr: { type: number, minimum: 0, nullable: true }
-        sdWeightPerUnitGr: { type: number, minimum: 0 }
-        avgQmPerUnit: { type: number, minimum: 0, nullable: true }
-        weightPerUnitG: { type: number, minimum: 0, nullable: true }
-        sellModes: { $ref: '#/components/schemas/SellModes' }
-        pricePerUnitOverride: { type: number, minimum: 0, nullable: true }
-        qualityStandards: { $ref: '#/components/schemas/QualityStandards' }
-        tolerance:
+          format: date-time
+        # computed virtuals that may appear on responses
+        name: { type: string, example: "Cucumber Persian" }
+        unitMode:
           type: string
-          example: "0.02"
-        lastUpdated: { type: string, format: date-time }
-
-    ItemPatch:
-      type: object
-      description: Any subset of fields from ItemCreate
-      properties:
-        category: { type: string, enum: [fruit, vegetable] }
-        type: { type: string }
-        variety: { type: string }
-        imageUrl: { type: string, nullable: true, format: uri }
-        season: { type: string, nullable: true }
-        farmerTips: { type: string, nullable: true }
-        customerInfo:
-          type: array
-          items: { type: string }
-        caloriesPer100g: { type: number, minimum: 0, nullable: true }
-        price: { $ref: '#/components/schemas/Price' }
-        avgWeightPerUnitGr: { type: number, minimum: 0, nullable: true }
-        sdWeightPerUnitGr: { type: number, minimum: 0 }
-        avgQmPerUnit: { type: number, minimum: 0, nullable: true }
-        weightPerUnitG: { type: number, minimum: 0, nullable: true }
-        sellModes: { $ref: '#/components/schemas/SellModes' }
-        pricePerUnitOverride: { type: number, minimum: 0, nullable: true }
-        qualityStandards: { $ref: '#/components/schemas/QualityStandards' }
-        tolerance:
-          type: string
-          example: "0.02"
-
-    ItemPublic:
-      type: object
-      description: Public projection for unauthenticated users
-      properties:
-        _id: { type: string }
-        displayName: { type: string }
-        category: { type: string, enum: [fruit, vegetable] }
-        itemUrl: { type: string }
-
-    # ---------- List response wrappers ----------
-    ItemListPublicResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items: { $ref: '#/components/schemas/ItemPublic' }
-        page: { type: integer }
-        limit: { type: integer }
-        total: { type: integer }
-        pages: { type: integer }
-
-    ItemListPrivilegedResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items: { $ref: '#/components/schemas/ItemFull' }
-        page: { type: integer }
-        limit: { type: integer }
-        total: { type: integer }
-        pages: { type: integer }
-
-    # ---------- Market page specific ----------
-    ItemBenefits:
-      type: object
-      properties:
-        customerInfo:
-          type: array
-          items: { type: string }
-        caloriesPer100g:
+          enum: [kg, unit, mixed]
+        pricePerKg:
+          type: number
+          nullable: true
+        pricePerUnit:
+          type: number
+          nullable: true
+        pricePerBundle:
           type: number
           nullable: true
 
-    FarmerBio:
+    ItemPublic:
+      description: Minimal public view
       type: object
       properties:
-        logo: { type: string, nullable: true }
-        farmName: { type: string }
-        farmLogo: { type: string, nullable: true }
-        farmerBio: { type: string, nullable: true }
+        _id: { type: string }
+        displayName: { type: string }
+        category: { $ref: '#/components/schemas/ItemCategory' }
+        itemUrl: { type: string, example: "/items/68960284330bf1699eee8956" }
 
-    MarketItemPageData:
+    PackingInfo:
+      type: object
+      required:
+        - bulkDensityKgPerL
+        - litersPerKg
+        - fragility
+        - allowMixing
+        - requiresVentedBox
+        - minBoxType
+      properties:
+        bulkDensityKgPerL: { type: number, minimum: 0.001 }
+        litersPerKg: { type: number, minimum: 0.001, description: "≈ 1 / bulkDensityKgPerL (±8%)" }
+        fragility:
+          type: string
+          enum: [very_fragile, fragile, normal, sturdy]
+        allowMixing: { type: boolean }
+        requiresVentedBox: { type: boolean }
+        minBoxType:
+          type: string
+          description: PackageSize.key
+          example: "BOX_M"
+        maxWeightPerBoxKg: { type: number, nullable: true, minimum: 0.001 }
+        notes: { type: string, nullable: true }
+
+    ItemWithPacking:
+      allOf:
+        - $ref: '#/components/schemas/ItemBase'
+        - type: object
+          properties:
+            packing:
+              $ref: '#/components/schemas/PackingInfo'
+
+    CreateItemWithPackingBody:
+      allOf:
+        - $ref: '#/components/schemas/ItemBase'
+        - type: object
+          required: [category, type, packing]
+          properties:
+            packing:
+              $ref: '#/components/schemas/PackingInfo'
+      example:
+        category: vegetable
+        type: Cucumber
+        variety: Persian
+        price: { a: 12.5 }
+        sellModes: { byKg: true, byUnit: true, unitBundleSize: 1 }
+        avgWeightPerUnitGr: 120
+        packing:
+          bulkDensityKgPerL: 0.65
+          litersPerKg: 1.54
+          fragility: normal
+          allowMixing: true
+          requiresVentedBox: false
+          minBoxType: BOX_M
+          notes: "Do not overpack; keep cool."
+
+    ListItemsResponsePublic:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginationMeta'
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemPublic'
+
+    ListItemsResponsePriv:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginationMeta'
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemWithPacking'
+
+    DeletePrivilegedResponse:
       type: object
       properties:
+        deleted: { type: boolean, example: true }
         item:
-          $ref: '#/components/schemas/ItemBenefits'
-        farmer:
-          $ref: '#/components/schemas/FarmerBio'
+          anyOf:
+            - $ref: '#/components/schemas/ItemWithPacking'
+            - type: "null"
 
-    # ---------- Errors ----------
-    ErrorMessage:
+    ItemBenefits:
       type: object
-      required: [message]
       properties:
-        message: { type: string }
+        data:
+          type: object
+          properties:
+            customerInfo:
+              type: array
+              items: { type: string }
+            caloriesPer100g:
+              type: number
+              nullable: true
+
+    MarketItemPage:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            item:
+              type: object
+              properties:
+                customerInfo:
+                  type: array
+                  items: { type: string }
+                caloriesPer100g:
+                  type: number
+                  nullable: true
+            farmer:
+              type: object
+              properties:
+                logo: { type: string, nullable: true }
+                farmName: { type: string }
+                farmLogo: { type: string, nullable: true }
+                farmerBio: { type: string, nullable: true }
+
+paths:
+  /:
+    get:
+      tags: [Items]
+      summary: List items
+      description: >
+        Public listing (unauthenticated or non-privileged) returns minimal public items.
+        Privileged users (admin, fManager) receive full items joined with `packing`.
+      security: []  # authenticateIfPresent
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/ItemCategory' }
+        - name: type
+          in: query
+          schema: { type: string }
+        - name: variety
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: minCalories
+          in: query
+          schema: { type: number }
+        - name: maxCalories
+          in: query
+          schema: { type: number }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            description: Comma-separated fields; prefix with '-' for desc (e.g. "-updatedAt,type")
+      responses:
+        '200':
+          description: Items list
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ListItemsResponsePublic'
+                  - $ref: '#/components/schemas/ListItemsResponsePriv'
+    post:
+      tags: [Items]
+      summary: Create item (with packing)
+      description: >
+        Privileged only (admin, fManager). Body must contain `packing` object.
+        If `includePacking=true` is provided and caller is privileged, the joined view is returned.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IncludePacking'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateItemWithPackingBody'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ItemWithPacking'
+                  - type: object
+                    description: Legacy shape (item plus convenience packing snapshot).
+                    properties:
+                      _id: { type: string }
+                      # ...other ItemBase fields possible
+                      packing:
+                        $ref: '#/components/schemas/PackingInfo'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /benefits/{itemId}:
+    get:
+      tags: [Items]
+      summary: Item benefits (market helper)
+      description: Returns customer info and calories for a given item.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ItemBenefits' }
+        '400':
+          description: Invalid itemId
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /marketItemPage/{itemId}/{farmerUserId}:
+    get:
+      tags: [Items]
+      summary: Market item page data
+      description: Aggregated item + farmer bio block for the market item page.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/FarmerUserId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MarketItemPage' }
+        '400':
+          description: Invalid ids
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+
+  /{itemId}:
+    get:
+      tags: [Items]
+      summary: Get item by id
+      description: >
+        Public/unauthenticated returns a minimal public object.
+        Privileged (admin, fManager) always receive the joined item+packing view.
+      security: []  # authenticateIfPresent
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ItemPublic'
+                  - $ref: '#/components/schemas/ItemWithPacking'
+        '400':
+          description: Invalid itemId
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '404':
+          description: Not found
+    patch:
+      tags: [Items]
+      summary: Patch item (partial update)
+      description: Privileged only (admin, fManager). Optionally `includePacking=true` to return joined view.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+        - $ref: '#/components/parameters/IncludePacking'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Partial item fields to update. `_id` (if provided) must match path.
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ItemWithPacking'
+                  - $ref: '#/components/schemas/ItemBase'
+        '400':
+          description: Validation or id mismatch
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+    put:
+      tags: [Items]
+      summary: Replace item (idempotent)
+      description: Privileged only (admin, fManager). Returns joined view for privileged callers.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemBase'
+      responses:
+        '200':
+          description: Replaced
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ItemWithPacking'
+                  - $ref: '#/components/schemas/ItemPublic'
+        '400':
+          description: Validation or id mismatch
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }
+    delete:
+      tags: [Items]
+      summary: Delete item
+      description: >
+        Privileged only (admin).  
+        Non-privileged behavior does not apply. For privileged users, response is 200 with a snapshot; otherwise controller may return 204.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Deleted (privileged snapshot)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeletePrivilegedResponse' }
+        '204':
+          description: Deleted (no content)
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '404': { description: Not found }

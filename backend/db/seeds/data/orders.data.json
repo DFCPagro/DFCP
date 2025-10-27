@@ -15,7 +15,7 @@
     "items": [
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "name": "Item",
+        "name": "Apple Fuji",
         "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 2.5,
@@ -34,7 +34,7 @@
       },
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -53,7 +53,7 @@
       },
       {
         "itemId": "497bb3e65bf348533160cec0",
-        "name": "Item",
+        "name": "Grapes Red Globe",
         "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -72,7 +72,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -91,7 +91,7 @@
       },
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "name": "Item",
+        "name": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
         "category": "fruit",
         "pricePerUnit": 20.0,
@@ -134,7 +134,7 @@
     "items": [
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -153,7 +153,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -172,7 +172,7 @@
       },
       {
         "itemId": "497bb3e65bf348533160cec0",
-        "name": "Item",
+        "name": "Grapes Red Globe",
         "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -191,7 +191,7 @@
       },
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "name": "Item",
+        "name": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
         "category": "fruit",
         "pricePerUnit": 20.0,
@@ -210,7 +210,7 @@
       },
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "name": "Item",
+        "name": "Banana Cavendish",
         "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -253,7 +253,7 @@
     "items": [
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "name": "Item",
+        "name": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
         "category": "fruit",
         "pricePerUnit": 20.0,
@@ -272,7 +272,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -291,7 +291,7 @@
       },
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "name": "Item",
+        "name": "Spinach Baby",
         "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -310,7 +310,7 @@
       },
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "name": "Item",
+        "name": "Apple Fuji",
         "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 2.5,
@@ -329,7 +329,7 @@
       },
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "name": "Item",
+        "name": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
         "category": "vegetable",
         "pricePerUnit": 3.5,
@@ -372,7 +372,7 @@
     "items": [
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -391,7 +391,7 @@
       },
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "name": "Item",
+        "name": "Banana Cavendish",
         "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -410,7 +410,7 @@
       },
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "name": "Item",
+        "name": "Spinach Baby",
         "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -429,7 +429,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -448,7 +448,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -491,7 +491,7 @@
     "items": [
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "name": "Item",
+        "name": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
         "category": "vegetable",
         "pricePerUnit": 3.5,
@@ -510,7 +510,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -529,7 +529,7 @@
       },
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "name": "Item",
+        "name": "Apple Fuji",
         "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 2.5,
@@ -548,7 +548,7 @@
       },
       {
         "itemId": "497bb3e65bf348533160cec0",
-        "name": "Item",
+        "name": "Grapes Red Globe",
         "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -567,7 +567,7 @@
       },
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "name": "Item",
+        "name": "Spinach Baby",
         "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -610,7 +610,7 @@
     "items": [
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -629,7 +629,7 @@
       },
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "name": "Item",
+        "name": "Apple Fuji",
         "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 2.5,
@@ -648,7 +648,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -667,7 +667,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -686,7 +686,7 @@
       },
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "name": "Item",
+        "name": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
         "category": "vegetable",
         "pricePerUnit": 3.5,
@@ -729,7 +729,7 @@
     "items": [
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "name": "Item",
+        "name": "Spinach Baby",
         "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -748,7 +748,7 @@
       },
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -767,7 +767,7 @@
       },
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "name": "Item",
+        "name": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
         "category": "fruit",
         "pricePerUnit": 20.0,
@@ -786,7 +786,7 @@
       },
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "name": "Item",
+        "name": "Apple Fuji",
         "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 2.5,
@@ -805,7 +805,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -848,7 +848,7 @@
     "items": [
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -867,7 +867,7 @@
       },
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "name": "Item",
+        "name": "Banana Cavendish",
         "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -886,7 +886,7 @@
       },
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "name": "Item",
+        "name": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
         "category": "vegetable",
         "pricePerUnit": 3.5,
@@ -905,7 +905,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -924,7 +924,7 @@
       },
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "name": "Item",
+        "name": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
         "category": "fruit",
         "pricePerUnit": 20.0,
@@ -967,7 +967,7 @@
     "items": [
       {
         "itemId": "497bb3e65bf348533160cec0",
-        "name": "Item",
+        "name": "Grapes Red Globe",
         "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -986,7 +986,7 @@
       },
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "name": "Item",
+        "name": "Spinach Baby",
         "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1005,7 +1005,7 @@
       },
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "name": "Item",
+        "name": "Banana Cavendish",
         "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -1024,7 +1024,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1043,7 +1043,7 @@
       },
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "name": "Item",
+        "name": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
         "category": "vegetable",
         "pricePerUnit": 3.5,
@@ -1086,7 +1086,7 @@
     "items": [
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "name": "Item",
+        "name": "Banana Cavendish",
         "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -1105,7 +1105,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -1124,7 +1124,7 @@
       },
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1143,7 +1143,7 @@
       },
       {
         "itemId": "497bb3e65bf348533160cec0",
-        "name": "Item",
+        "name": "Grapes Red Globe",
         "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -1162,7 +1162,7 @@
       },
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "name": "Item",
+        "name": "Spinach Baby",
         "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1205,7 +1205,7 @@
     "items": [
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "name": "Item",
+        "name": "Apple Fuji",
         "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 2.5,
@@ -1224,7 +1224,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -1243,7 +1243,7 @@
       },
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1262,7 +1262,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1281,7 +1281,7 @@
       },
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "name": "Item",
+        "name": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
         "category": "vegetable",
         "pricePerUnit": 3.5,
@@ -1324,7 +1324,7 @@
     "items": [
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "name": "Item",
+        "name": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
         "category": "fruit",
         "pricePerUnit": 20.0,
@@ -1343,7 +1343,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -1362,7 +1362,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1381,7 +1381,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -1400,7 +1400,7 @@
       },
       {
         "itemId": "f68140ef8273c40bbae48b98",
-        "name": "Item",
+        "name": "Spinach Baby",
         "imageUrl": "https://www.kerrysfresh.co.uk/wp-content/uploads/2016/08/Babyleaf-Spinach.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1443,7 +1443,7 @@
     "items": [
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1462,7 +1462,7 @@
       },
       {
         "itemId": "39bd70c4db17647c60d33c8f",
-        "name": "Item",
+        "name": "Lettuce Romaine",
         "imageUrl": "https://draxe.com/wp-content/uploads/2015/02/RomaineLettuceNutritionThumbnail.jpg",
         "category": "vegetable",
         "pricePerUnit": 7.0,
@@ -1481,7 +1481,7 @@
       },
       {
         "itemId": "db63c0177cfae45a8385313a",
-        "name": "Item",
+        "name": "Apple Fuji",
         "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
         "category": "fruit",
         "pricePerUnit": 2.5,
@@ -1500,7 +1500,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1519,7 +1519,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -1562,7 +1562,7 @@
     "items": [
       {
         "itemId": "885df3d97431436c3a205ff3",
-        "name": "Item",
+        "name": "Carrot Nantes",
         "imageUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1581,7 +1581,7 @@
       },
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "name": "Item",
+        "name": "Banana Cavendish",
         "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -1600,7 +1600,7 @@
       },
       {
         "itemId": "30eb71d9a20cb517be34112f",
-        "name": "Item",
+        "name": "Strawberry Albion",
         "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
         "category": "fruit",
         "pricePerUnit": 20.0,
@@ -1619,7 +1619,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1638,7 +1638,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
@@ -1681,7 +1681,7 @@
     "items": [
       {
         "itemId": "497bb3e65bf348533160cec0",
-        "name": "Item",
+        "name": "Grapes Red Globe",
         "imageUrl": "https://www.novelloec.com/wp-content/uploads/2018/07/prodotti-uva-red-globe.png",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -1700,7 +1700,7 @@
       },
       {
         "itemId": "6873f67b8027abff0fdb32f3",
-        "name": "Item",
+        "name": "Banana Cavendish",
         "imageUrl": "https://npr.brightspotcdn.com/dims4/default/654b07d/2147483647/strip/true/crop/930x720+0+0/resize/880x681!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fsites%2Fupr%2Ffiles%2F201903%2FBananas.jpg",
         "category": "fruit",
         "pricePerUnit": 3.0,
@@ -1719,7 +1719,7 @@
       },
       {
         "itemId": "ad126949daa1c7dd61ffcc4c",
-        "name": "Item",
+        "name": "Tomato Cherry",
         "imageUrl": "https://www.newcrop.net/wp-content/uploads/2024/01/R-2.jpg",
         "category": "vegetable",
         "pricePerUnit": 2.5,
@@ -1738,7 +1738,7 @@
       },
       {
         "itemId": "fa56428339a4f47db7d15600",
-        "name": "Item",
+        "name": "Cucumber Persian",
         "imageUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
         "category": "vegetable",
         "pricePerUnit": 3.5,
@@ -1757,7 +1757,7 @@
       },
       {
         "itemId": "bb87115ed0ab8a728b7d9622",
-        "name": "Item",
+        "name": "Orange Navel",
         "imageUrl": "https://specialtyproduce.com/sppics/8521.png",
         "category": "fruit",
         "pricePerUnit": 5.0,
