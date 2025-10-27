@@ -1,91 +1,48 @@
 // src/routes/farmer.routes.ts
+import { Router } from "express";
 import {
-  Router,
-  type RequestHandler,
-  type Request,
-  type Response,
-  type NextFunction,
-} from "express";
-import * as farmerCtrl from "../controllers/farmerOrder.controller";
-import * as opsCtrl from "../controllers/ops.controller";
+  create,
+  updateFarmerStatus,
+  updateStageStatus,
+  getFarmerOrdersUpcoming,
+  getFarmerOrdersForShift,
+  initContainersForFarmerOrder,
+  updateContainerWeights,
+  listMyOrders,
+  getFarmerOrderAndQrs,
+} from "../controllers/farmerOrder.controller";
+// import { listMyOrders, getOrderAndQrs } from "../controllers/ops.controller";
 import { authenticate, authorize } from "../middlewares/auth";
 
 const router = Router();
 
-/** Strictly assert "is a RequestHandler". Throws early with a clear message during dev. */
-function mustHandler(fn: unknown, name: string): RequestHandler {
-  if (typeof fn !== "function") {
-    // eslint-disable-next-line no-console
-    console.error(
-      `[farmer.routes] "${name}" is NOT a function. typeof=`,
-      typeof fn,
-      "value:",
-      fn
-    );
-    throw new Error(`[farmer.routes] ${name} is not a function`);
-  }
-  // Cast through unknown -> RequestHandler to satisfy the router overload
-  return fn as unknown as RequestHandler;
-}
+// Role shortcuts
+const FM = authorize("fManager", "admin");
+const FARMER = authorize("farmer", "fManager", "admin");
+const FARMER_READS = authorize("farmer", "fManager", "admin");
 
-// Middlewares (MUST be RequestHandler)
-const authn: RequestHandler = mustHandler(authenticate, "authenticate");
-// IMPORTANT: authorize must be INVOKED to return a handler
-const authzFM: RequestHandler = mustHandler(
-  authorize("fManager", "admin"),
-  `authorize("fManager","admin")`
-);
-const authzFarmerReads: RequestHandler = mustHandler(
-  authorize("farmer", "fManager", "admin"),
-  `authorize("farmer","fManager","admin")`
-);
-
-// Controllers (your exported handlers take (req,res,next) — treat them as RequestHandler)
-const create: RequestHandler = mustHandler(
-  farmerCtrl.create,
-  "farmerCtrl.create"
-);
-const updateFarmerStatus: RequestHandler = mustHandler(
-  farmerCtrl.updateFarmerStatus,
-  "farmerCtrl.updateFarmerStatus"
-);
-const updateStageStatus: RequestHandler = mustHandler(
-  farmerCtrl.updateStageStatus,
-  "farmerCtrl.updateStageStatus"
-);
-const listMyOrders: RequestHandler = mustHandler(
-  opsCtrl.listMyOrders,
-  "opsCtrl.listMyOrders"
-);
-const getOrderAndQrs: RequestHandler = mustHandler(
-  opsCtrl.getOrderAndQrs,
-  "opsCtrl.getOrderAndQrs"
-);
-
-// Quick health route to prove this Router is mounted
+// Health
 router.get("/__health", (_req, res) =>
   res.json({ ok: true, route: "farmer.routes.__health" })
 );
-router.get(
-  "/summary",
-  authenticate,
-  authorize("admin", "fManager"),
-  farmerCtrl.getFarmerOrdersUpcoming
-);
-router.get(
-  "/by-shift",
-  authenticate,
-  authorize("admin", "fManager"),
-  farmerCtrl.getFarmerOrdersForShift
-);
+
+// Summaries
+router.get("/summary", authenticate, authorize("admin", "fManager"), getFarmerOrdersUpcoming);
+router.get("/by-shift", authenticate, authorize("admin", "fManager"), getFarmerOrdersForShift);
 
 // Writes
-router.post("/", authn, authzFM, create);
-router.patch("/:id/farmer-status", authn, authzFM, updateFarmerStatus);
-router.patch("/:id/stage", authn, authzFM, updateStageStatus);
+router.post("/", authenticate, FM, create);
+router.patch("/:id/farmer-status", authenticate, FM, updateFarmerStatus);
+router.patch("/:id/stage", authenticate, FM, updateStageStatus);
 
 // Reads
-router.get("/", authn, authzFarmerReads, listMyOrders);
-router.get("/:id/print", authn, authzFarmerReads, getOrderAndQrs);
+router.get("/", authenticate, FARMER_READS, listMyOrders);
+router.get("/:id/print", authenticate, FARMER_READS, getFarmerOrderAndQrs);
+
+
+// --- Containers: Farmer Report Flow ---
+router.post("/:id/containers/init", authenticate, FARMER, initContainersForFarmerOrder);
+router.patch("/:id/containers/weights", authenticate, FARMER, updateContainerWeights);
+
 
 export default router;

@@ -451,12 +451,135 @@ export async function ensureOrderPrintPayload(args: {
 
   return payload;
 }
+
+
+export async function ensureFarmerOrderToken(args: {
+  farmerOrderId: string | Types.ObjectId;
+  createdBy: Types.ObjectId;
+  ttlSeconds?: number;
+  usagePolicy?: "single-use" | "multi-use";
+  maxUses?: number | null;
+  issuer?: Types.ObjectId | null;
+  session?: mongoose.ClientSession | null;
+}) {
+  const {
+    farmerOrderId,
+    createdBy,
+    ttlSeconds = 24 * 60 * 60,
+    usagePolicy = "multi-use",
+    maxUses = null,
+    issuer = null,
+    session = null,
+  } = args;
+
+  const foid = new Types.ObjectId(String(farmerOrderId));
+
+  // If you need FO data for claims, fetch it (optional but recommended)
+  const FarmerOrder = (await import("../models/farmerOrder.model")).FarmerOrder;
+  const fo = await FarmerOrder.findById(foid).session(session).lean();
+  if (!fo) throw new ApiError(404, "FarmerOrder not found");
+
+  // Build raw claims (keep naming consistent with ClaimsSchema)
+  const rawClaims = {
+    farmerOrderId: foid,
+    farmerDeliveryId: null,
+    containerId: null,
+    containerOpsId: null,
+    orderId: null,
+    packageId: null,
+    logisticsCenterId: fo.logisticCenterId ? String(fo.logisticCenterId) : null, // NOTE: string
+    shelfId: null,
+    pickTaskId: null,
+    shift: fo.shift || null,
+    deliveryDate: fo.pickUpDate ? new Date(`${fo.pickUpDate}T00:00:00Z`) : null, // optional
+  };
+
+  const canon = canonicalizeClaims(rawClaims);
+
+  // Reuse if exists
+  const existing =
+    (await QRModel.findOne({
+      scope: "farmer-order",
+      subjectType: "FarmerOrder",
+      subjectId: String(foid),
+      status: "active",
+      "claims.farmerOrderId": String(foid),
+    })
+      .session(session)
+      .lean()) || null;
+
+  if (existing) {
+  try {
+    await verifyQRSignature(existing as any);
+    return existing;
+  } catch {
+    // The doc exists but signature doesn't match current secret → mark bad & re-mint
+    await QRModel.updateOne({ _id: (existing as any)._id }, { $set: { status: "void" } }).catch(()=>{});
+    // fall through to mint with the current HMAC
+  }
+}
+
+  // Mint
+  const token = `QR-${crypto.randomUUID()}`;
+  const sig = signPayload({
+    token,
+    scope: "farmer-order",
+    subjectType: "FarmerOrder",
+    subjectId: String(foid),
+    claims: canon,
+  });
+
+  const dbg = String(process.env.QR_DEBUG || "").toLowerCase();
+if (dbg === "log" || dbg === "diff") {
+  const outerMint = {
+    claims: canon,
+    scope: "farmer-order",
+    subjectId: String(foid),
+    subjectType: "FarmerOrder",
+    token,
+  };
+  const secretSha256 = crypto.createHash("sha256").update(HMAC_SECRET).digest("hex");
+  console.log("[QR DEBUG] MINT SECRET_SHA256:", secretSha256);
+  console.log("[QR DEBUG] MINT OUTER:", JSON.stringify(outerMint));
+  console.log("[QR DEBUG] MINT SIG  :", sig);
+}
+
+  const [doc] = await QRModel.create(
+    [
+      {
+        token,
+        sig,
+        scope: "farmer-order",
+        subjectType: "FarmerOrder",
+        subjectId: String(foid),
+        claims: canon,
+        status: "active",
+        usagePolicy,
+        maxUses,
+        maxScansPerHour: 240,
+        createdBy,
+        issuer,
+        notBefore: null,
+        expiresAt: ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000) : null,
+      },
+    ],
+    { session }
+  );
+
+  return doc.toObject();
+}
+
+
+
+
+
 export async function createDeliveryRun(_args: any) {
   throw new ApiError(501, "createDeliveryRun not implemented in this snippet. Import your original implementation and re-export it here.");
 }
 export async function appendContainerScanToStop(_args: any) {
   throw new ApiError(501, "appendContainerScanToStop not implemented in this snippet. Import your original implementation and re-export it here.");
 }
+
 
 // Non-breaking aggregate so existing controllers can keep `import { OpsService }`
 export const OpsService = {
@@ -473,3 +596,4 @@ export const OpsService = {
   createDeliveryRun,
   appendContainerScanToStop,
 };
+
