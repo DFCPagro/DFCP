@@ -78,7 +78,7 @@ const OrderItemSchema = new Schema(
     // Provenance:
     sourceFarmerName: { type: String, required: true, trim: true },
     sourceFarmName: { type: String, required: true, trim: true },
-    farmerOrderId: { type: Schema.Types.ObjectId, ref: "FarmerOrder", required: true, index: true },
+    farmerOrderId: { type: Schema.Types.ObjectId, ref: "FarmerOrder", required: true },
   },
   { _id: false, timestamps: false }
 );

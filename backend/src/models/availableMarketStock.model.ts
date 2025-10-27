@@ -16,7 +16,7 @@ export type UnitMode = (typeof UNIT_MODES)[number];
 // -----------------------------
 const AvailableStockItemSchema = new Schema(
   {
-    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
+    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
 
     displayName: { type: String, required: true, trim: true },
     imageUrl: { type: String, default: null },
@@ -29,9 +29,9 @@ const AvailableStockItemSchema = new Schema(
     currentAvailableQuantityKg: { type: Number, required: true, min: 0 },
     originalCommittedQuantityKg: { type: Number, required: true, min: 0 },
 
-    farmerOrderId: { type: Schema.Types.ObjectId, ref: "FarmerOrder", default: null, index: true },
+    farmerOrderId: { type: Schema.Types.ObjectId, ref: "FarmerOrder", default: null},
 
-    farmerID: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
+    farmerID: { type: Schema.Types.ObjectId, ref: "Farmer", required: true },
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
     farmLogo: { type: String, default: null },

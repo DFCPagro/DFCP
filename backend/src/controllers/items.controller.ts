@@ -9,6 +9,8 @@ import {
   deleteItemByItemId,
   itemBenefits,
   marketItemPageData,
+  listItemsWithPacking,
+  getItemWithPackingById,
 } from "../services/items.service";
 import { itemCategories, PUBLIC_ITEM_PROJECTION } from "../models/Item.model";
 import { Types } from "mongoose";
@@ -57,6 +59,28 @@ function parseValidationDetails(err: any): string[] | null {
   return null;
 }
 
+
+
+function wantsPacking(req: Request) {
+  return String((req.query as any)?.includePacking).toLowerCase() === "true";
+}
+
+async function respondPossiblyWithPacking(
+  req: Request,
+  res: Response,
+  itemId: string,
+  fallbackDocOrObj: any
+) {
+  const privileged = isPrivileged(req);
+  if (privileged && wantsPacking(req)) {
+    const obj = await getItemWithPackingById(itemId);
+    if (!obj) return res.status(404).json({ message: "Item not found" });
+    return res.json(toFullItem(obj)); // has `packing`
+  }
+  return res.json(toFullItem(fallbackDocOrObj));
+}
+
+
 // --- handlers ---
 
 // CREATE (Item + ItemPacking) — packing is REQUIRED in body: { ...itemFields, packing: {...} }
@@ -69,10 +93,24 @@ export async function createItemHandler(req: Request, res: Response, next: NextF
     if (!body.packing || typeof body.packing !== "object") {
       return res.status(400).json({ error: "ValidationError", details: ["'packing' is required and must be an object"] });
     }
-    if (body?._id) delete body._id; // ignore _id if provided
+    if (body?._id) delete body._id;
 
-    const doc = await createItemWithPacking(body); // service extracts packing internally
-    res.status(201).json(toFullItem(doc));
+    const created = await createItemWithPacking(body); // returns { item, packing }
+    const itemId = String(created.item?._id);
+
+    // Privileged + includePacking=true → return the aggregated view (uniform response)
+    const privileged = isPrivileged(req);
+    if (privileged && wantsPacking(req)) {
+      const obj = await getItemWithPackingById(itemId);
+      if (!obj) return res.status(404).json({ message: "Item not found after create" });
+      return res.status(201).json(toFullItem(obj));
+    }
+
+    // default: keep existing (non-joined) response
+    return res.status(201).json({
+      ...toFullItem(created.item),
+      packing: created.packing?.items?.[0]?.packing ?? created.packing, // optional convenience
+    });
   } catch (err: any) {
     const details = parseValidationDetails(err);
     if (details) return res.status(400).json({ error: "ValidationError", details });
@@ -80,12 +118,13 @@ export async function createItemHandler(req: Request, res: Response, next: NextF
   }
 }
 
+
 export async function listItemsHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const {
       category, type, variety, q, minCalories, maxCalories,
       page, limit, sort,
-    } = req.query;
+    } = req.query as Record<string, string | undefined>;
 
     if (category && !itemCategories.includes(String(category) as any)) {
       return res.status(400).json({ message: `invalid category: ${category}` });
@@ -100,33 +139,50 @@ export async function listItemsHandler(req: Request, res: Response, next: NextFu
 
     const privileged = isPrivileged(req);
 
-    const data = await listItems(
+    if (!privileged) {
+      const data = await listItems(
+        {
+          category: category as any,
+          type,
+          variety,
+          q,
+          minCalories: minC,
+          maxCalories: maxC,
+        },
+        {
+          page: page != null ? Number(page) : undefined,
+          limit: limit != null ? Number(limit) : undefined,
+          sort: sort,
+          projection: PUBLIC_ITEM_PROJECTION,
+          lean: true,
+        }
+      );
+      const items = data.items.map((it: any) => toPublicItem(req, it));
+      return res.json({ ...data, items });
+    }
+
+    // privileged → always return with packing
+    const data = await listItemsWithPacking(
       {
         category: category as any,
-        type: typeof type === "string" ? type : undefined,
-        variety: typeof variety === "string" ? variety : undefined,
-        q: typeof q === "string" ? q : undefined,
+        type,
+        variety,
+        q,
         minCalories: minC,
         maxCalories: maxC,
       },
       {
         page: page != null ? Number(page) : undefined,
         limit: limit != null ? Number(limit) : undefined,
-        sort: typeof sort === "string" ? sort : undefined,
-        projection: privileged ? undefined : PUBLIC_ITEM_PROJECTION,
-        lean: !privileged,
+        sort: sort,
       }
     );
-
-    if (!privileged) {
-      const items = data.items.map((it: any) => toPublicItem(req, it));
-      return res.json({ ...data, items });
-    }
-
-    const items = data.items.map((it: any) => toFullItem(it));
+    const items = data.items.map(toFullItem);
     return res.json({ ...data, items });
   } catch (err) { next(err); }
 }
+
+
 
 export async function getItemHandler(req: Request, res: Response, next: NextFunction) {
   try {
@@ -136,19 +192,21 @@ export async function getItemHandler(req: Request, res: Response, next: NextFunc
     }
 
     const privileged = isPrivileged(req);
-    const projection = privileged ? undefined : PUBLIC_ITEM_PROJECTION;
-
-    const doc = await getItemByItemId(itemId, projection);
-    if (!doc) return res.status(404).json({ message: "Item not found" });
 
     if (!privileged) {
+      const doc = await getItemByItemId(itemId, PUBLIC_ITEM_PROJECTION);
+      if (!doc) return res.status(404).json({ message: "Item not found" });
       const obj = (doc as any).toObject ? (doc as any).toObject() : doc;
       return res.json(toPublicItem(req, obj));
     }
 
-    return res.json(toFullItem(doc));
+    const obj = await getItemWithPackingById(itemId);
+    if (!obj) return res.status(404).json({ message: "Item not found" });
+    return res.json(toFullItem(obj)); // includes packing
   } catch (err) { next(err); }
 }
+
+
 
 // PATCH = partial update
 export async function patchItemHandler(req: Request, res: Response, next: NextFunction) {
@@ -165,6 +223,19 @@ export async function patchItemHandler(req: Request, res: Response, next: NextFu
 
     const updated = await updateItemByItemId(itemId, { $set: req.body }, { returnNew: true });
     if (!updated) return res.status(404).json({ message: "Item not found" });
+
+    // If privileged and asked for packing, return the joined view
+    const privileged = isPrivileged(req);
+    const wantsPacking =
+      String((req.query as any)?.includePacking).toLowerCase() === "true";
+
+    if (privileged && wantsPacking) {
+      const obj = await getItemWithPackingById(itemId);
+      if (!obj) return res.status(404).json({ message: "Item not found" });
+      return res.json(toFullItem(obj)); // includes `packing` (or undefined if none)
+    }
+
+    // Default: return the updated item only
     res.json(toFullItem(updated));
   } catch (err: any) {
     const details = parseValidationDetails(err);
@@ -172,6 +243,7 @@ export async function patchItemHandler(req: Request, res: Response, next: NextFu
     next(err);
   }
 }
+
 
 // PUT = full replace (idempotent)
 export async function putItemHandler(req: Request, res: Response, next: NextFunction) {
@@ -187,7 +259,14 @@ export async function putItemHandler(req: Request, res: Response, next: NextFunc
 
     const replaced = await replaceItemByItemId(itemId, { ...req.body, _id: itemId });
     if (!replaced) return res.status(404).json({ message: "Item not found" });
-    res.json(toFullItem(replaced));
+
+    if (isPrivileged(req)) {
+      const joined = await getItemWithPackingById(itemId);
+      if (!joined) return res.status(404).json({ message: "Item not found" });
+      return res.json(toFullItem(joined));
+    }
+
+    return res.json(toPublicItem(req, replaced));
   } catch (err: any) {
     const details = parseValidationDetails(err);
     if (details) return res.status(400).json({ error: "ValidationError", details });
@@ -195,18 +274,37 @@ export async function putItemHandler(req: Request, res: Response, next: NextFunc
   }
 }
 
+
+
 export async function deleteItemHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const { itemId } = req.params;
     if (!ensureValidObjectId(itemId)) {
       return res.status(400).json({ message: "Invalid itemId" });
     }
+
+    const privileged = isPrivileged(req);
+    let beforeJoin: any | null = null;
+
+    if (privileged) {
+      beforeJoin = await getItemWithPackingById(itemId); // snapshot
+    }
+
     const { deletedCount } = await deleteItemByItemId(itemId);
     if (!deletedCount) return res.status(404).json({ message: "Item not found" });
-    res.status(204).send();
+
+    if (privileged) {
+      return res.status(200).json({ deleted: true, item: beforeJoin ? toFullItem(beforeJoin) : null });
+    }
+
+    return res.status(204).send();
   } catch (err) { next(err); }
 }
 
+
+
+
+/*----for market ----*/
 export async function getItemBenefits(req: Request, res: Response, next: NextFunction) {
   try {
     const { itemId } = req.params;

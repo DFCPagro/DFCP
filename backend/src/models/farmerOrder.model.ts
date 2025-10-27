@@ -23,7 +23,7 @@ export type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
 // ---------- sub-schema: linked customer orders (orderId + allocated kg) ----------
 const OrderLinkSchema = new Schema(
   {
-    orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true, index: true },
+    orderId: { type: Schema.Types.ObjectId, ref: "Order", required: true },
     // Store as allocatedQuantityKg; expose alias orderedQuantityKg for readability in JSON/TS
     allocatedQuantityKg: {
       type: Number,
@@ -43,19 +43,19 @@ const FarmerOrderSchema = new Schema(
     updatedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
 
     // identity / relations
-    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
+    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
     type: { type: String, default: "", trim: true },
     variety: { type: String, default: "", trim: true },
     pictureUrl: { type: String, default: "", trim: true },
 
-    farmerId: { type: Schema.Types.ObjectId, ref: "Farmer", required: true, index: true },
+    farmerId: { type: Schema.Types.ObjectId, ref: "Farmer", required: true },
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
 
     // planning / logistics
-    shift: { type: String, enum: SHIFTS, required: true, index: true },
-    pickUpDate: { type: String, required: true, index: true }, // "YYYY-MM-DD"
-    logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", required: true, index: true },
+    shift: { type: String, enum: SHIFTS, required: true},
+    pickUpDate: { type: String, required: true }, // "YYYY-MM-DD"
+    logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", required: true },
 
     // farmer-level approval/ack
     farmerStatus: { type: String, enum: FARMER_APPROVAL_STATUSES, default: "pending", index: true },

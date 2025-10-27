@@ -4,6 +4,7 @@ import {
   InferSchemaType,
   HydratedDocument,
   Model,
+  trusted,
 } from "mongoose";
 import bcrypt from "bcryptjs";
 import toJSON from "../utils/toJSON";
@@ -23,9 +24,9 @@ const AddressSchema = new Schema(
 // ========== User schema (no generics; we infer later) ==========
 const UserSchema = new Schema(
   {
-    uid: { type: String, index: true },
+    uid: { type: String, required: true, unique: true, index: true},
 
-    name: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true, index: true },
 
     email: {
       type: String,
@@ -63,8 +64,7 @@ const UserSchema = new Schema(
 
 // plugins & indexes
 UserSchema.plugin(toJSON as any);
-UserSchema.index({ email: 1 }, { unique: true });
-UserSchema.index({ uid: 1 });
+
 
 // ========== Types inferred from schemas ==========
 export type Address = InferSchemaType<typeof AddressSchema>;

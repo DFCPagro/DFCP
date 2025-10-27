@@ -59,7 +59,7 @@ const PackingInfoSchema = new Schema(
 const PackingItemSchema = new Schema(
   {
     // Link only to Item
-    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true, index: true },
+    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true},
     packing: { type: PackingInfoSchema, required: true },
   },
   { _id: false }

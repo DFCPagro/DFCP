@@ -14,6 +14,7 @@ import ItemModel, {
 import { getFarmerBioByUserId } from "./farmer.service";
 import * as packingSvc from "./ItemPacking.service";
 import { validatePackingInput } from "../validations/items.validation";
+import ItemPacking from "@/models/ItemPacking";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Filters & options
@@ -377,6 +378,103 @@ export async function listItems(
     pages: Math.ceil(total / limit),
   };
 }
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Items + Packing join (privileged views)
+// ───────────────────────────────────────────────────────────────────────────────
+
+export async function listItemsWithPacking(
+  filters: ListItemsFilters = {},
+  opts: ListItemsOptions = {}
+) {
+  const { category, type, variety, q, minCalories, maxCalories } = filters;
+
+  const match: any = {};
+  if (category) match.category = category;
+  if (type) match.type = new RegExp(`^${escapeRegex(type)}$`, "i");
+  if (variety) match.variety = new RegExp(`^${escapeRegex(variety)}$`, "i");
+
+  if (q) {
+    const re = new RegExp(escapeRegex(q), "i");
+    match.$or = [{ type: re }, { variety: re }];
+  }
+
+  if (minCalories != null || maxCalories != null) {
+    match.caloriesPer100g = {};
+    if (minCalories != null) match.caloriesPer100g.$gte = minCalories;
+    if (maxCalories != null) match.caloriesPer100g.$lte = maxCalories;
+  }
+
+  const page = Math.max(1, Number(opts.page ?? 1));
+  const limit = Math.min(100, Math.max(1, Number(opts.limit ?? DEFAULT_LIMIT)));
+  const skip = (page - 1) * limit;
+
+  const sortObj = normalizeSort(opts.sort ?? "-updatedAt");
+
+  // We aggregate from Items and attach the matching packing subdocument for *this* item
+  const pipeline: any[] = [
+    { $match: match },
+    { $sort: sortObj },
+    {
+      $lookup: {
+        from: ItemPacking.collection.name, // collection backing the ItemPacking model
+        let: { itemId: "$_id" },
+        pipeline: [
+          { $unwind: "$items" },
+          { $match: { $expr: { $eq: ["$items.itemId", "$$itemId"] } } },
+          { $project: { _id: 0, packing: "$items.packing" } },
+        ],
+        as: "packingMatches",
+      },
+    },
+    // take first match (there should be at most one)
+    { $addFields: { packing: { $first: "$packingMatches.packing" } } },
+    { $project: { packingMatches: 0 } },
+    { $skip: skip },
+    { $limit: limit },
+  ];
+
+  const countPipeline: any[] = [{ $match: match }, { $count: "total" }];
+
+  const [items, countRes] = await Promise.all([
+    ItemModel.aggregate(pipeline).exec(),
+    ItemModel.aggregate(countPipeline).exec(),
+  ]);
+
+  const total = countRes?.[0]?.total ?? 0;
+  return {
+    items, // each item now has a `packing` field (or undefined if none)
+    page,
+    limit,
+    total,
+    pages: Math.ceil(total / limit),
+  };
+}
+
+export async function getItemWithPackingById(_id: string) {
+  if (!Types.ObjectId.isValid(_id)) return null;
+
+  const res = await ItemModel.aggregate([
+    { $match: { _id: new Types.ObjectId(_id) } },
+    {
+      $lookup: {
+        from: ItemPacking.collection.name,
+        let: { itemId: "$_id" },
+        pipeline: [
+          { $unwind: "$items" },
+          { $match: { $expr: { $eq: ["$items.itemId", "$$itemId"] } } },
+          { $project: { _id: 0, packing: "$items.packing" } },
+        ],
+        as: "packingMatches",
+      },
+    },
+    { $addFields: { packing: { $first: "$packingMatches.packing" } } },
+    { $project: { packingMatches: 0 } },
+  ]).exec();
+
+  return res?.[0] ?? null;
+}
+
 
 export async function updateItemByItemId(
   _id: string,
