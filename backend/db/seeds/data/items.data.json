@@ -153,7 +153,7 @@
     "imageUrl": "https://www.gurneys.com/cdn/shop/files/02165A.webp?v=1729086167",
     "lastUpdated": "2025-07-15T10:03:54.618Z",
     "price": { "a": 20, "b": 17, "c": 16 },
-    "pricePerUnitOverride": null,
+    "pricePerUnitOverride": 10,
     "qualityStandards": {
       "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
@@ -168,11 +168,11 @@
     },
     "sdWeightPerUnitGr": 4,
     "season": "March-June",
-    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
+    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": "500kg" },
     "tolerance": "0.02",
     "type": "Strawberry",
     "variety": "Albion",
-    "weightPerUnitG": null
+    "weightPerUnitG": 500
   },
   {
     "_id": "ad126949daa1c7dd61ffcc4c",
@@ -347,7 +347,7 @@
     "tolerance": "0.02",
     "type": "Spinach",
     "variety": "Baby",
-    "weightPerUnitG": null
+    "weightPerUnitG": 500
   },
   {
     "_id": "64f1e2c3a5b6c7d8e9f0a1b2",
