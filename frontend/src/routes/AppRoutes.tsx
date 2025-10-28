@@ -52,6 +52,7 @@ const CSManagerDashboard = lazy(() => import("@/pages/csManager/Dashboard"));
 //fManager pages
 const FManagerDashboard = lazy(() => import("@/pages/fManager/Dashboard"));
 const FManagerItemManagement = lazy(() => import("@/pages/fManager/ItemManager"));
+const FManagerCreateStock = lazy(() => import("@/pages/fManager/CreateStock"));
 
 
 
@@ -254,6 +255,12 @@ export default function AppRoutes() {
             path={PATHS.fManagerItemManagement}
             element={<RoleGuard allow={["fManager"]}>
               <FManagerItemManagement />
+            </RoleGuard>}
+          />
+          <Route
+            path={PATHS.fManagerCreateStock}
+            element={<RoleGuard allow={["fManager"]}>
+              <FManagerCreateStock />
             </RoleGuard>}
           />
 

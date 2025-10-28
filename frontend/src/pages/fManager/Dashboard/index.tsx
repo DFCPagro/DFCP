@@ -1,24 +1,18 @@
+// src/pages/Dashboard/index.tsx
 import { Box, Stack, Heading, Separator, SimpleGrid } from "@chakra-ui/react";
 import { CreateOrdersCard } from "./components/CreateStockCard";
 import { ShiftStatsCard } from "./components/ShiftStatsCard";
-import { useManagerCreateOptions } from "./hooks/useManagerCreateOptions";
-import { useManagerShiftStats } from "./hooks/useManagerShiftStats";
+import { useManagerSummary } from "./hooks/useManagerSummary";
 
 export default function FarmerManagerDashboardPage() {
-  // Shifts you can still add orders for (today + tomorrow by default)
-  const { rows } = useManagerCreateOptions({
-    horizonDays: 1,        // today + tomorrow
-    includeDisabled: false // hide shifts that already started
-  });
-
-  // Current & upcoming shifts with counts (today + tomorrow)
   const {
-    stats,
-    isLoading: statsLoading,
-    // isFetching, error, refetch // available if you need later
-  } = useManagerShiftStats({
-    horizonDays: 1, // today + tomorrow
-  });
+    current,
+    next,
+    missingShifts,
+    isLoading,
+    isFetching,
+    // tz, lc, error, refetch
+  } = useManagerSummary();
 
   return (
     <Box w="full">
@@ -30,10 +24,14 @@ export default function FarmerManagerDashboardPage() {
 
         {/* Two main cards side by side on desktop, stacked on mobile */}
         <SimpleGrid columns={{ base: 1, lg: 2 }} gap="6" alignItems="start">
-          <CreateOrdersCard rows={rows} />
+          {/* Create Stock (shows (date,shift) with count === 0) */}
+          <CreateOrdersCard rows={missingShifts} loading={isLoading || isFetching} />
+
+          {/* Shift stats (current + upcoming) */}
           <ShiftStatsCard
-            stats={stats}
-            loading={statsLoading}
+            current={current}
+            next={next}
+            loading={isLoading || isFetching}
           />
         </SimpleGrid>
       </Stack>

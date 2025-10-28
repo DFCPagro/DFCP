@@ -1,21 +1,21 @@
 import { HStack, Text, Button, Badge } from "@chakra-ui/react";
-import type { ShiftName } from "@/utils/shifts";
+import type { Shift } from "@/types/farmerOrders"; // new source of truth
 
 export type ShiftRowProps =
   | {
-      variant: "create";
-      dateISO: string;
-      shift: ShiftName;
-      canAdd: boolean;
-      onAdd?: () => void;
-    }
+    variant: "create";
+    dateISO: string;
+    shift: Shift;  // <= lower-case union: "morning" | "afternoon" | ...
+    canAdd: boolean;
+    onAdd?: () => void;
+  }
   | {
-      variant: "stats";
-      dateISO: string;
-      shift: ShiftName;
-      counts: { pending: number; ok: number; problem: number };
-      onView?: () => void;
-    };
+    variant: "stats";
+    dateISO: string;
+    shift: Shift;  // <= same
+    counts: { pending: number; ok: number; problem: number };
+    onView?: () => void;
+  };
 
 /**
  * Shared row for manager dashboard shift lists.
@@ -36,7 +36,7 @@ export function ShiftRow(props: ShiftRowProps) {
     >
       {/* Left side */}
       <Text fontSize="sm" fontWeight="medium">
-        {dateISO} · {shift}
+        {dateISO} · {shift.charAt(0).toUpperCase() + shift.slice(1)}
       </Text>
 
       {/* Right side depends on variant */}
