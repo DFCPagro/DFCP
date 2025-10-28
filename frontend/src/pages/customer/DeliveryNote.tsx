@@ -185,7 +185,7 @@ export default function DeliveryNotePage() {
   );
 
   const currency = useMemo(
-    () => pickCurrency((order as any)?.items ?? []) ?? "₪",
+    () => pickCurrency((order as any)?.items ?? []) ?? "$",
     [order]
   );
 

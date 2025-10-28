@@ -35,6 +35,14 @@ const contentCss = css`
   border-bottom-left-radius: 20px;
   overflow: hidden;
 `;
+const categoryColor: Record<string, string> = {
+  fruit: "pink",
+  vegetable: "teal",
+  dairy: "blue",
+  breads: "orange",
+  legumes: "purple",
+};
+
 
 const headerCss = css`
   position: sticky;
@@ -122,17 +130,20 @@ export default function EditItemDrawer({
                       fontSize={{ base: "xl", md: "2xl" }}
                       fontWeight="extrabold"
                       letterSpacing="tight"
+                      
                     >
                       {title}
                     </Text>
-                    {category && (
+                    {
+                    category  && (
                       <Badge
-                        colorScheme="pink"
+                        color="white"
                         variant="solid"
                         fontSize="0.7rem"
                         px="2"
                         py="0.5"
                         rounded="full"
+                        backgroundColor={`var(--chakra-colors-${categoryColor[category] || "gray"}-500)`}
                       >
                         {category}
                       </Badge>

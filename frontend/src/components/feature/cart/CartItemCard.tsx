@@ -87,7 +87,7 @@ export const CartItemCard: React.FC<Props> = ({ item }) => {
           </HStack>
 
           {/* unit price (always a number now) */}
-          <Text color="gray.500">₪ {unitPrice.toFixed(2)}</Text>
+          <Text color="gray.500">$ {unitPrice.toFixed(2)}</Text>
 
           {/* quantity controls */}
           <HStack gap={2}>

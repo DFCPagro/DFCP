@@ -57,7 +57,7 @@ useEffect(() => {
   const deliveryTime = formatDeliveryTime(order);
   const orderTime=order.createdAt||"";
 
-  const currency = pickCurrency((order as any).items ?? []) ?? "₪";
+  const currency = pickCurrency((order as any).items ?? []) ?? "$";
   const rowsBase = toItemRows((order as any).items ?? []);
   const rows = rowsBase.map((r: any) => ({ ...r, currencySymbol: currency }));
 

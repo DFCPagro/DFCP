@@ -30,7 +30,7 @@ function fmtUpdatedAt(date?: string | null) {
 
 const categoryColor: Record<string, string> = {
   fruit: "pink",
-  vegetables: "green",
+  vegetable: "teal",
   dairy: "blue",
   breads: "orange",
   legumes: "purple",

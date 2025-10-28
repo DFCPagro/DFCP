@@ -15,7 +15,7 @@ import ImagePreview from "./form/sections/ImagePreview";
 import PriceFields from "./form/sections/PriceFields";
 import QualityStandardsSection, { type QualityStandards } from "./form/sections/QualityStandardsSection";
 import { normalizeFormDefaults, useItemFormState } from "./form/useItemFormState";
-
+import { SimpleGrid } from "@chakra-ui/react";
 type Props = {
   defaultValues?: Partial<ItemFormValues>;
   onSubmit: (values: ItemFormValues) => void | Promise<void>;
@@ -91,8 +91,10 @@ export default function ItemForm({
   return (
     <form onSubmit={handleSubmit} noValidate>
       <Stack gap={4}>
+        <SimpleGrid columns={3} gap={4}>
+<Box bg="bg.panel" p={4}>
         {/* Category */}
-        <Field.Root required invalid={!!errors["category"] && touched["category"]}>
+        <Field.Root required invalid={!!errors["category"] && touched["category"]} >
           <Field.Label>Category</Field.Label>
           <NativeSelect.Root disabled={readOnly}>
             <NativeSelect.Field
@@ -114,7 +116,8 @@ export default function ItemForm({
           </NativeSelect.Root>
           <Field.ErrorText>{errors["category"]}</Field.ErrorText>
         </Field.Root>
-
+</Box>
+<Box bg="bg.panel" p={4}>
         {/* Type */}
         <Field.Root required invalid={!!errors["type"] && touched["type"]}>
           <Field.Label>Type</Field.Label>
@@ -132,7 +135,8 @@ export default function ItemForm({
           />
           <Field.ErrorText>{errors["type"]}</Field.ErrorText>
         </Field.Root>
-
+</Box>
+<Box bg="bg.panel" p={4}>
         {/* Variety */}
         <Field.Root required invalid={!!errors["variety"] && touched["variety"]}>
           <Field.Label>Variety</Field.Label>
@@ -151,10 +155,14 @@ export default function ItemForm({
           />
           <Field.ErrorText>{errors["variety"]}</Field.ErrorText>
         </Field.Root>
-
+</Box>
+</SimpleGrid>
         {/* Image URL + Preview */}
+                 <SimpleGrid columns={2} gap={4}>
+<Box bg="bg.panel" p={4}>
         <Field.Root invalid={!!errors["imageUrl"] && touched["imageUrl"]}>
           <Field.Label>Image URL</Field.Label>
+         
           <Input
             placeholder="https://example.com/image.jpg"
             value={values.imageUrl ?? ""}
@@ -172,8 +180,9 @@ export default function ItemForm({
           </Box>
           <Field.ErrorText>{errors["imageUrl"]}</Field.ErrorText>
         </Field.Root>
-
-        {/* Season */}
+</Box>
+  <Box bg="bg.panel" p={4}>
+   {/* Season */}
         <Field.Root invalid={!!errors["season"] && touched["season"]}>
           <Field.Label>Season</Field.Label>
           <Input
@@ -190,26 +199,7 @@ export default function ItemForm({
           />
           <Field.ErrorText>{errors["season"]}</Field.ErrorText>
         </Field.Root>
-
-        {/* Tolerance */}
-        <Field.Root invalid={!!errors["tolerance"] && touched["tolerance"]}>
-          <Field.Label>Tolerance</Field.Label>
-          <Input
-            placeholder="±2%"
-            value={(values as any).tolerance ?? ""}
-            onChange={(e) => {
-              if (readOnly) return;
-              markTouched("tolerance" as any);
-              setField("tolerance" as any, e.target.value);
-            }}
-            onBlur={() => validate()}
-            readOnly={readOnly}
-            disabled={readOnly}
-          />
-          <Field.ErrorText>{errors["tolerance"]}</Field.ErrorText>
-        </Field.Root>
-
-        {/* Calories / 100g */}
+           {/* Calories / 100g */}
         <Field.Root invalid={!!errors["caloriesPer100g"] && touched["caloriesPer100g"]}>
           <Field.Label>Calories / 100g</Field.Label>
           <NumberInput.Root
@@ -237,6 +227,10 @@ export default function ItemForm({
           </NumberInput.Root>
           <Field.ErrorText>{errors["caloriesPer100g"]}</Field.ErrorText>
         </Field.Root>
+</Box>
+
+</SimpleGrid>
+        
 
         {/* Price (A/B/C) */}
         <Field.Root

@@ -133,7 +133,7 @@ export default function ItemList({
           (row as any).docId ??
           String(index);
 
-        const currency = row.currencySymbol ?? "₪";
+        const currency = row.currencySymbol ?? "$";
 
         // ---------- inputs ----------
         const avg = nz(num(row.avgWeightPerUnitKg)); // kg per unit

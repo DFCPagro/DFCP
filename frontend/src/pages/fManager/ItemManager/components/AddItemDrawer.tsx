@@ -11,6 +11,8 @@ import {
   Text,
   Box,
 } from "@chakra-ui/react";
+import { SimpleGrid } from "@chakra-ui/react";
+
 import { X } from "lucide-react";
 import ItemForm from "./ItemForm";
 import { StyledIconButton } from "@/components/ui/IconButton";
