@@ -88,7 +88,7 @@ export async function postPackOrder(req: Request, res: Response) {
       packageSizes,
       overridesById
     );
-
+    //console.log("Packing plan computed:", plan[0].contents);
     return res.json({ data: plan });
   } catch (err: any) {
     console.error("[postPackOrder] error:", err);

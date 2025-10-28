@@ -28,6 +28,16 @@ function pct(n: number) {
   return Math.round(n * 100)
 }
 
+function nameForItem(
+  itemId: string,
+  itemsById?: ItemsById,
+  itemName?: string
+) {
+  if (itemName && itemName.trim().length) return itemName
+  const meta = itemsById?.[itemId]
+  return meta?.displayName || meta?.name || meta?.type || itemId
+}
+
 export default function PackOrderSection({
   orderId,
   itemsById,
@@ -50,8 +60,10 @@ export default function PackOrderSection({
     mutate()
   }
 
-  const totalKg = plan?.boxes.reduce((s, b) => s + b.estWeightKg, 0) ?? 0
-  const totalL = plan?.boxes.reduce((s, b) => s + b.estFillLiters, 0) ?? 0
+  const totalKg = plan?.boxes.reduce((s, b) => s + (b.estWeightKg || 0), 0) ?? 0
+  const totalL = plan?.boxes.reduce((s, b) => s + (b.estFillLiters || 0), 0) ?? 0
+  const totalBoxes = plan?.summary?.totalBoxes ?? plan?.boxes.length ?? 0
+  const warnings = plan?.summary?.warnings ?? []
 
   return (
     <Box borderWidth="1px" borderRadius="md" p="4">
@@ -103,17 +115,17 @@ export default function PackOrderSection({
           <Stack gap="5">
             {/* Summary badges */}
             <HStack flexWrap="wrap" gap="3">
-              <Badge colorPalette="teal">Boxes: {plan.summary.totalBoxes}</Badge>
+              <Badge colorPalette="teal">Boxes: {totalBoxes}</Badge>
               <Badge colorPalette="cyan">Est. kg: {totalKg.toFixed(2)}</Badge>
               <Badge colorPalette="blue">Est. L: {totalL.toFixed(2)}</Badge>
             </HStack>
 
             {/* Warnings */}
-            {plan.summary.warnings.length ? (
+            {warnings.length ? (
               <Box bg="bg.subtle" p="3" borderRadius="md">
                 <Text fontWeight="medium">Warnings</Text>
                 <Stack gap="1" mt="2">
-                  {plan.summary.warnings.map((w, i) => (
+                  {warnings.map((w, i) => (
                     <Text key={i} fontSize="sm" color="fg.muted">
                       • {w}
                     </Text>
@@ -131,7 +143,12 @@ export default function PackOrderSection({
                 <Accordion.Item
                   key={b.boxNo}
                   value={String(b.boxNo)}
-                  style={{ borderWidth: "1px", borderRadius: "0.375rem", overflow: "hidden", marginBottom: "0.5rem" }}
+                  style={{
+                    borderWidth: "1px",
+                    borderRadius: "0.375rem",
+                    overflow: "hidden",
+                    marginBottom: "0.5rem",
+                  }}
                 >
                   <Accordion.ItemTrigger style={{ width: "100%" }}>
                     <HStack justify="space-between" w="full">
@@ -169,13 +186,7 @@ export default function PackOrderSection({
                           <Table.Row key={idx}>
                             <Table.Cell>
                               <Text fontSize="sm">
-                                {itemsById?.[c.itemId]?.displayName ||
-                                  itemsById?.[c.itemId]?.name ||
-                                  itemsById?.[c.itemId]?.type ||
-                                  c.itemId}
-                              </Text>
-                              <Text fontFamily="mono" fontSize="xs" color="fg.muted">
-                                {c.itemId}
+                                {nameForItem(c.itemId, itemsById, (c as any).itemName)}
                               </Text>
                             </Table.Cell>
                             <Table.Cell>
@@ -218,28 +229,47 @@ export default function PackOrderSection({
                     <Table.Row key={row.itemId}>
                       <Table.Cell>
                         <Text fontSize="sm">
-                          {itemsById?.[row.itemId]?.displayName ||
-                            itemsById?.[row.itemId]?.name ||
-                            itemsById?.[row.itemId]?.type ||
-                            row.itemId}
-                        </Text>
-                        <Text fontFamily="mono" fontSize="xs" color="fg.muted">
-                          {row.itemId}
+                          {nameForItem(row.itemId, itemsById, (row as any).itemName)}
                         </Text>
                       </Table.Cell>
-                      <Table.Cell textAlign="end">{row.bags}</Table.Cell>
-                      <Table.Cell textAlign="end">{row.bundles}</Table.Cell>
+                      <Table.Cell textAlign="end">{(row as any).bags ?? "—"}</Table.Cell>
+                      <Table.Cell textAlign="end">{(row as any).bundles ?? "—"}</Table.Cell>
                       <Table.Cell textAlign="end">
-                        {typeof row.totalKg === "number" ? row.totalKg.toFixed(2) : "—"}
+                        {typeof (row as any).totalKg === "number"
+                          ? (row as any).totalKg.toFixed(2)
+                          : "—"}
                       </Table.Cell>
                       <Table.Cell textAlign="end">
-                        {typeof row.totalUnits === "number" ? row.totalUnits : "—"}
+                        {typeof (row as any).totalUnits === "number"
+                          ? (row as any).totalUnits
+                          : "—"}
                       </Table.Cell>
                     </Table.Row>
                   ))}
                 </Table.Body>
               </Table.Root>
             </Box>
+
+            {/* Totals under the table */}
+            <Stack mt="3" gap="1" align="flex-end">
+              <HStack>
+                <Text fontWeight="medium">Total boxes:</Text>
+                <Text>{totalBoxes}</Text>
+              </HStack>
+              <HStack>
+                <Text fontWeight="medium">Total liters:</Text>
+                <Text>{totalL.toFixed(2)} L</Text>
+              </HStack>
+              <HStack>
+                <Text fontWeight="medium">Total weight:</Text>
+                <Text>{totalKg.toFixed(2)} kg</Text>
+              </HStack>
+            </Stack>
+
+            {/* Pack button AFTER the table */}
+            <Button mt="4" onClick={handlePack} colorPalette="teal" disabled={isPending}>
+              {isPending ? <Spinner size="sm" /> : "Pack"}
+            </Button>
           </Stack>
         ) : null}
       </Stack>
