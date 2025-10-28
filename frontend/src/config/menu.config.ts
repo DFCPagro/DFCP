@@ -195,12 +195,6 @@ const workFManager: ReadonlyArray<MenuItem> = [
   },
   {
     type: "link",
-    key: "create-stock",
-    label: "Create Stock",
-    path: P.fManagerCreateStock,
-  },
-  {
-    type: "link",
     key: "item-management",
     label: "Item Management",
     path: P.fManagerItemManagement,

@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import type { ShiftRollup } from "@/types/farmerOrders";
 import { ShiftRow } from "./ShiftRow";
 import { toaster } from "@/components/ui/toaster";
+import { PATHS } from "@/routes/paths";
 
 export type CreateOrdersCardProps = {
   title?: string;
@@ -33,7 +34,7 @@ function CreateOrdersCardBase({
       if (onAddShift) return onAddShift(row);
 
       // Navigate to the Create Stock page with encoded params
-      const url = `/fManager/create-stock/new?date=${encodeURIComponent(row.date)}&shift=${encodeURIComponent(row.shiftName)}`;
+      const url = `${PATHS.fManagerCreateStock}?date=${encodeURIComponent(row.date)}&shift=${encodeURIComponent(row.shiftName)}`;
       navigate(url);
 
       toaster.create({
