@@ -117,20 +117,7 @@ function Content({
                     </Text>
                     <StateChip status={status} created={created} />
                 </HStack>
-                <Text fontSize="sm" color="fg.muted">
-                    AMS: {amsShort}
-                </Text>
             </Stack>
-            <HStack>
-                <Button size="sm" colorPalette="gray" onClick={onChangeSelection}>
-                    Change selection
-                </Button>
-                {status === "success" ? null : (
-                    <Button size="sm" colorPalette="green" onClick={onRetry}>
-                        Retry
-                    </Button>
-                )}
-            </HStack>
         </HStack>
     );
 }

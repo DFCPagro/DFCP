@@ -47,9 +47,7 @@ function NumberCell({ value, unit = "kg" }: { value: number | undefined; unit?: 
     // Round to whole kg for now; adjust to your precision needs.
     const n = Math.round(value);
     return (
-        <Text>
-            {n.toLocaleString()} {unit}
-        </Text>
+        <Text as="span">{n.toLocaleString()} {unit}</Text>
     );
 }
 
