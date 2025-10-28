@@ -1,11 +1,11 @@
 // src/pages/FarmerDashboard/hooks/useIncomingFarmerOrders.ts
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  listFarmerOrders,
-  acceptFarmerOrder as apiAccept,
-  rejectFarmerOrder as apiReject,
-} from "@/api/farmerOrders";
+// import {
+//   listFarmerOrders,
+//   acceptFarmerOrder as apiAccept,
+//   rejectFarmerOrder as apiReject,
+// } from "@/api/farmerOrders";
 import type { FarmerOrderDTO } from "@/types/farmerOrders";
 
 export type UseIncomingParams = {
@@ -32,14 +32,14 @@ export function useIncomingFarmerOrders(params?: UseIncomingParams) {
   /** Load incoming (pending) orders */
   const query = useQuery({
     queryKey: keyPending({ from, to }),
-    queryFn: () => listFarmerOrders({ farmerStatus: "pending", from, to }),
+    // queryFn: () => listFarmerOrders({ farmerStatus: "pending", from, to }),
     staleTime: 15_000,
     enabled,
   });
 
   /** -------- Accept (optimistic: move from pending -> accepted) -------- */
   const acceptMutation = useMutation({
-    mutationFn: async (orderId: string) => apiAccept(orderId),
+    // mutationFn: async (orderId: string) => apiAccept(orderId),
     onMutate: async (orderId: string) => {
       setAcceptingId(orderId);
       // cancel to avoid races
@@ -66,7 +66,10 @@ export function useIncomingFarmerOrders(params?: UseIncomingParams) {
         const candidate: FarmerOrderDTO = { ...moved, farmerStatus: "ok" };
         const dedup = new Map(previousAccepted.map((o) => [o.id, o]));
         dedup.set(candidate.id, candidate);
-        qc.setQueryData<FarmerOrderDTO[]>(keyAccepted(), Array.from(dedup.values()));
+        qc.setQueryData<FarmerOrderDTO[]>(
+          keyAccepted(),
+          Array.from(dedup.values())
+        );
       }
 
       return { previousPending, previousAccepted };
@@ -90,31 +93,31 @@ export function useIncomingFarmerOrders(params?: UseIncomingParams) {
 
   /** -------- Reject (optimistic: remove from pending) -------- */
   const rejectMutation = useMutation({
-    mutationFn: async (payload: { orderId: string; note: string }) =>
-      apiReject(payload.orderId, payload.note),
-    onMutate: async ({ orderId }) => {
-      setRejectingId(orderId);
-      await qc.cancelQueries({ queryKey: keyPending({ from, to }) });
+    mutationFn: async (payload: { orderId: string; note: string }) => {},
+    //   apiReject(payload.orderId, payload.note),
+    // onMutate: async ({ orderId }) => {
+    //   setRejectingId(orderId);
+    //   await qc.cancelQueries({ queryKey: keyPending({ from, to }) });
 
-      const previousPending =
-        qc.getQueryData<FarmerOrderDTO[]>(keyPending({ from, to })) ?? [];
+    //   const previousPending =
+    //     qc.getQueryData<FarmerOrderDTO[]>(keyPending({ from, to })) ?? [];
 
-      // Optimistically remove from pending
-      qc.setQueryData<FarmerOrderDTO[]>(
-        keyPending({ from, to }),
-        previousPending.filter((o) => o.id !== orderId)
-      );
+    //   // Optimistically remove from pending
+    //   qc.setQueryData<FarmerOrderDTO[]>(
+    //     keyPending({ from, to }),
+    //     previousPending.filter((o) => o.id !== orderId)
+    //   );
 
-      return { previousPending };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.previousPending)
-        qc.setQueryData(keyPending({ from, to }), ctx.previousPending);
-    },
-    onSettled: async () => {
-      setRejectingId(null);
-      await qc.invalidateQueries({ queryKey: keyPending({ from, to }) });
-    },
+    //   return { previousPending };
+    // },
+    // onError: (_err, _vars, ctx) => {
+    //   if (ctx?.previousPending)
+    //     qc.setQueryData(keyPending({ from, to }), ctx.previousPending);
+    // },
+    // onSettled: async () => {
+    //   setRejectingId(null);
+    //   await qc.invalidateQueries({ queryKey: keyPending({ from, to }) });
+    // },
   });
 
   /** Public API */

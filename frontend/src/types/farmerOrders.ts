@@ -14,6 +14,8 @@ export const IsoDateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
 
+export type IsoDateString = z.infer<typeof IsoDateString>;
+
 /** One row of aggregated counts for a (date, shift) */
 export const FarmerOrderSumSchema = z.object({
   /** "YYYY-MM-DD" local date */
@@ -51,3 +53,22 @@ export type FarmerOrdersSummary = z.infer<typeof FarmerOrdersSummarySchema>;
 
 export type ShiftRollup = FarmerOrderSum;
 export type FarmerOrdersSummaryResponse = FarmerOrdersSummary;
+
+export interface FarmerOrderDTO {
+  id: string;
+
+  // item identity & labels (you said type/variety won’t be empty)
+  itemId: string;
+  type: string;
+  variety: string;
+  pictureUrl?: string | null;
+
+  // status & quantities
+  farmerStatus: FarmerOrderStatus;
+  forcastedQuantityKg: number; // <-- exact name per your request
+  finalQuantityKg?: number | null;
+
+  // scheduling
+  pickUpDate: string; // "YYYY-MM-DD" (local)
+  shift: Shift;
+}
