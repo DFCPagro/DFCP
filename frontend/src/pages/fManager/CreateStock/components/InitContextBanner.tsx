@@ -105,7 +105,6 @@ function Content({
     // Success / Idle display
     const date = data?.date ?? "—";
     const shift = data?.shift ? titleCase(String(data.shift)) : "—";
-    const amsShort = shortId(data?.amsId);
     const created = data?.created ?? false;
 
     return (
