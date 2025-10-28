@@ -14,6 +14,8 @@ import {
   Portal,
 } from "@chakra-ui/react";
 import { FiTrash2, FiX } from "react-icons/fi";
+import { useLocation } from "react-router-dom";
+import { useUnitPref } from "@/hooks/useUnitPref";
 import { toaster } from "@/components/ui/toaster";
 import type { CartLine } from "@/utils/marketCart.shared";
 
@@ -25,7 +27,6 @@ export type CartDrawerProps = {
   isOpen: boolean;
   onClose: () => void;
   items: CartLine[];
-  unit: boolean;                     // <- reflect market mode only
   onRemove?: (key: string) => void;
   onClear?: () => void;
   onChangeQty?: (key: string, nextUnits: number) => void; // still units under the hood
@@ -49,11 +50,6 @@ function getLineKey(line: CartLine): string {
   return `${item}|${farmer}`;
 }
 
-function getUnitPrice(line: CartLine): number {
-  const n = Number((line as any).pricePerUnit ?? 0);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
-}
-
 function getUnits(line: CartLine): number {
   const n = Number((line as any).quantity);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
@@ -68,11 +64,26 @@ function formatMoneyUSD(val: number): string {
 }
 
 function getAvgUnitKg(line: CartLine): number {
-  const n = Number((line as any).avgWeightPerUnitKg);
+  const n = Number(
+    (line as any).avgWeightPerUnitKg ??
+      (line as any).estimates?.avgWeightPerUnitKg ??
+      0
+  );
   return Number.isFinite(n) && n > 0 ? n : 0.02;
 }
 
+function getUnitPrice(line: CartLine): number {
+  // prefer pricePerUnit; fallback from pricePerKg × avgUnitKg
+  const perUnit = Number((line as any).pricePerUnit);
+  if (Number.isFinite(perUnit) && perUnit >= 0) return perUnit;
+  const pKg = Number((line as any).pricePerKg);
+  const per = getAvgUnitKg(line);
+  return per > 0 && Number.isFinite(pKg) ? pKg * per : 0;
+}
+
 function pricePerKg(line: CartLine): number {
+  const direct = Number((line as any).pricePerKg);
+  if (Number.isFinite(direct) && direct >= 0) return direct;
   const per = getAvgUnitKg(line);
   const pU = getUnitPrice(line);
   return per > 0 ? pU / per : 0;
@@ -150,12 +161,15 @@ function CartDrawerBase({
   isOpen,
   onClose,
   items,
-  unit,
   onRemove,
   onClear,
   onChangeQty,
   onCheckout,
 }: CartDrawerProps) {
+  const { search } = useLocation();
+  const { unit: unitPref } = useUnitPref(search); // "unit" | "kg"
+  const unit = unitPref === "unit";               // boolean for existing code
+
   const { ask, ConfirmDialogInline } = useConfirm();
 
   // Money subtotal (authoritative: units × pricePerUnit)
@@ -164,7 +178,7 @@ function CartDrawerBase({
     [items]
   );
 
-  // Totals
+  // Totals we can display either way
   const { totalUnits, totalApproxKg } = useMemo(() => {
     let units = 0;
     let kg = 0;
@@ -216,17 +230,17 @@ function CartDrawerBase({
         <Drawer.Backdrop />
         <Drawer.Positioner>
           <Drawer.Content>
-         <Drawer.Header>
-  <HStack justify="space-between" width="full">
-    <Stack gap="0">
-      <Text fontWeight="semibold">Your Cart</Text>
-      <Text fontSize="xs" color="fg.muted">{unit ? "Units mode" : "Kg mode"}</Text>
-    </Stack>
-    <IconButton aria-label="Close cart" variant="ghost" onClick={onClose}>
-      <FiX />
-    </IconButton>
-  </HStack>
-</Drawer.Header>
+            <Drawer.Header>
+              <HStack justify="space-between" width="full">
+                <Stack gap="0">
+                  <Text fontWeight="semibold">Your Cart</Text>
+                  <Text fontSize="xs" color="fg.muted">{unit ? "Units mode" : "Kg mode"}</Text>
+                </Stack>
+                <IconButton aria-label="Close cart" variant="ghost" onClick={onClose}>
+                  <FiX />
+                </IconButton>
+              </HStack>
+            </Drawer.Header>
 
             <Drawer.Body>
               <Stack gap="4">
@@ -314,6 +328,8 @@ function CartDrawerBase({
                                       >
                                         +
                                       </IconButton>
+                                      <Separator orientation="vertical" />
+                                      <Text fontSize="xs" color="fg.muted">≈ {approxKg.toFixed(2)} kg</Text>
                                     </HStack>
                                   ) : (
                                     <HStack gap="2" align="center">
@@ -332,7 +348,7 @@ function CartDrawerBase({
                                       >
                                         –
                                       </IconButton>
-                                      <Text fontSize="sm" color="fg.muted">{Math.round(approxKg)} kg</Text>
+                                      <Text fontSize="sm" color="fg.muted">{approxKg.toFixed(2)} kg</Text>
                                       <IconButton
                                         aria-label="Increase kg"
                                         size="xs"
@@ -384,16 +400,31 @@ function CartDrawerBase({
 
                 <Separator />
 
-                {/* Totals */}
+                {/* Totals — switch labels by mode */}
                 <Stack gap="1">
-                  <HStack justify="space-between">
-                    <Text color="fg.muted">Total units</Text>
-                    <Text>{totalUnits}</Text>
-                  </HStack>
-                  <HStack justify="space-between">
-                    <Text color="fg.muted">Total approx weight</Text>
-                    <Text>{totalApproxKg.toFixed(2)} kg</Text>
-                  </HStack>
+                  {unit ? (
+                    <>
+                      <HStack justify="space-between">
+                        <Text color="fg.muted">Total units</Text>
+                        <Text>{totalUnits}</Text>
+                      </HStack>
+                      <HStack justify="space-between">
+                        <Text color="fg.muted">Total approx weight</Text>
+                        <Text>{totalApproxKg.toFixed(2)} kg</Text>
+                      </HStack>
+                    </>
+                  ) : (
+                    <>
+                      <HStack justify="space-between">
+                        <Text color="fg.muted">Total weight</Text>
+                        <Text>{totalApproxKg.toFixed(2)} kg</Text>
+                      </HStack>
+                      <HStack justify="space-between">
+                        <Text color="fg.muted">Total ≈ units</Text>
+                        <Text>{totalUnits}</Text>
+                      </HStack>
+                    </>
+                  )}
                   <HStack justify="space-between">
                     <Text fontWeight="medium">Subtotal</Text>
                     <Text fontWeight="semibold">{formatMoneyUSD(subtotal)}</Text>

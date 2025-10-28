@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Box, Stack, Heading, Separator } from "@chakra-ui/react";
-import { useNavigate } from "react-router-dom";
+import { Box, Stack } from "@chakra-ui/react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { toaster } from "@/components/ui/toaster";
 import type { Address } from "@/types/address";
 
@@ -28,6 +28,8 @@ import {
 import type { MarketItem } from "@/types/market";
 import { getCustomerAddresses } from "@/api/market";
 
+import { useUnitPref } from "@/hooks/useUnitPref";
+
 /* -------------------------------- helpers -------------------------------- */
 
 const EPS = 1e-4;
@@ -43,8 +45,8 @@ function formatAddressShort(a: any): string {
   if (!a) return "—";
   const txt = (a.address ?? "").trim();
   if (txt) return txt;
-  const lat = Number(a.lat ?? a.alt),
-    lng = Number(a.lng ?? a.lng);
+  const lat = Number(a.alt ?? a.lat);
+  const lng = Number(a.lnt ?? a.lng);
   return Number.isFinite(lat) && Number.isFinite(lng)
     ? `${lat.toFixed(5)}, ${lng.toFixed(5)}`
     : "—";
@@ -61,6 +63,7 @@ function formatShiftLabel(s: any): string {
 
 export default function MarketPage() {
   const navigate = useNavigate();
+  const { search } = useLocation();
 
   const {
     isActive,
@@ -74,10 +77,9 @@ export default function MarketPage() {
     revalidate,
   } = useMarketActivation({ autoActivateOnMount: true, keepInvalidInStorage: false });
 
-  // mode state
-  const UNIT_KEY = "unit";
-  const [unit, setUnit] = useState(localStorage.getItem(UNIT_KEY) !== "false");
-  useEffect(() => { localStorage.setItem(UNIT_KEY, String(unit)); }, [unit]);
+  // Unit mode: "unit" | "kg"
+  const { unit, setUnit } = useUnitPref(search);
+  const isUnit = unit === "unit";
 
   // cart context
   const cartCtx = useMemo<SharedCartContext | null>(() => {
@@ -108,9 +110,9 @@ export default function MarketPage() {
     return off;
   }, [cartCtx]);
 
-  // badge count: units in unit-mode, rounded kg in kg-mode
+  // badge count
   const cartCount = useMemo(() => {
-    if (unit) {
+    if (isUnit) {
       return cartLines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
     }
     const kg = cartLines.reduce((sum, l: any) => {
@@ -119,13 +121,12 @@ export default function MarketPage() {
       return sum + units * per;
     }, 0);
     return Math.max(0, Math.round(kg));
-  }, [cartLines, unit]);
+  }, [cartLines, isUnit]);
 
   // drawers
   const [pinOpen, setPinOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
 
-  const [forcePicker, setForcePicker] = useState(false);
   const wasActiveRef = useRef<boolean>(false);
   useEffect(() => {
     const was = wasActiveRef.current;
@@ -144,7 +145,7 @@ export default function MarketPage() {
   // filters
   const {
     category,
-    search,
+    search: searchText,
     debouncedSearch,
     sort,
     page,
@@ -177,48 +178,54 @@ export default function MarketPage() {
   });
 
   // search index
-  const { suggestions: liveSuggestions } = useMarketSearchIndex({ items: allItems, text: search });
+  const { suggestions: liveSuggestions } = useMarketSearchIndex({ items: allItems, text: searchText });
   const { matchFilter: matchFilterDebounced } = useMarketSearchIndex({ items: allItems, text: debouncedSearch });
 
-  // add to cart (stores units)
-  const addToCart = useCallback((item: MarketItem, qtyUnits: number) => {
-    const deltaUnits = Math.max(1, Math.min(50, Math.floor(Number(qtyUnits) || 1)));
+  // add to cart (cart stores units). If UI is kg, convert kg->units by avg weight.
+  const addToCart = useCallback(
+    (item: MarketItem, qtyUnits: number) => {
+      const deltaUnits = Math.max(1, Math.min(50, Math.floor(Number(qtyUnits) || 1)));
 
-    const newLine = marketItemToCartLine(item, deltaUnits);
-    const curr = getSharedCart().lines;
-    const idx = curr.findIndex((l) => (l.key ?? l.stockId) === (newLine.key ?? newLine.stockId));
+      const newLine = marketItemToCartLine(item, deltaUnits);
+      const curr = getSharedCart().lines;
+      const idx = curr.findIndex((l) => (l.key ?? l.stockId) === (newLine.key ?? newLine.stockId));
 
-    let next: SharedCartLine[];
-    if (idx >= 0) {
-      next = [...curr];
-      const prevUnits = Number(next[idx].quantity ?? 0);
-      next[idx] = { ...next[idx], quantity: prevUnits + deltaUnits };
-    } else {
-      next = [...curr, newLine];
-    }
+      let next: SharedCartLine[];
+      if (idx >= 0) {
+        next = [...curr];
+        const prevUnits = Number(next[idx].quantity ?? 0);
+        next[idx] = { ...next[idx], quantity: prevUnits + deltaUnits };
+      } else {
+        next = [...curr, newLine];
+      }
 
-    setSharedCart({ lines: next }, cartCtx ?? undefined);
-    setCartLines(next);
+      setSharedCart({ lines: next }, cartCtx ?? undefined);
+      setCartLines(next);
 
-    const per = Number(item.avgWeightPerUnitKg) || 0.02;
-    const approxKg = deltaUnits * per;
+      const per = Number((item as any).avgWeightPerUnitKg) || Number((item as any).estimates?.avgWeightPerUnitKg) || 0.02;
+      const approxKg = deltaUnits * per;
 
-    toaster.create({
-      title: "Added to cart",
-      description: unit
-        ? `${deltaUnits} unit${deltaUnits > 1 ? "s" : ""} × ${item?.name ?? "Item"}${item?.farmerName ? ` • ${item.farmerName}` : ""}`
-        : `${Math.max(1, Math.round(approxKg))} kg × ${item?.name ?? "Item"}${item?.farmerName ? ` • ${item.farmerName}` : ""} • ≈ ${approxKg.toFixed(2)} kg`,
-      type: "success",
-      duration: 2500,
-    });
-  }, [cartCtx, unit]);
+      toaster.create({
+        title: "Added to cart",
+        description: isUnit
+          ? `${deltaUnits} unit${deltaUnits > 1 ? "s" : ""} × ${((item as any)?.name ?? (item as any)?.displayName ?? "Item")}${(item as any)?.farmerName ? ` • ${(item as any).farmerName}` : ""}`
+          : `${Math.max(1, Math.round(approxKg))} kg × ${((item as any)?.name ?? (item as any)?.displayName ?? "Item")}${(item as any)?.farmerName ? ` • ${(item as any).farmerName}` : ""} • ≈ ${approxKg.toFixed(2)} kg`,
+        type: "success",
+        duration: 2500,
+      });
+    },
+    [cartCtx, isUnit]
+  );
 
-  const removeLineByKey = useCallback((key: string) => {
-    const curr = getSharedCart().lines;
-    const next = curr.filter((l) => (l.key ?? l.stockId) !== key);
-    setSharedCart({ lines: next }, cartCtx ?? undefined);
-    setCartLines(next);
-  }, [cartCtx]);
+  const removeLineByKey = useCallback(
+    (key: string) => {
+      const curr = getSharedCart().lines;
+      const next = curr.filter((l) => (l.key ?? l.stockId) !== key);
+      setSharedCart({ lines: next }, cartCtx ?? undefined);
+      setCartLines(next);
+    },
+    [cartCtx]
+  );
 
   const clearCart = useCallback(async () => {
     clearSharedCart();
@@ -263,47 +270,60 @@ export default function MarketPage() {
       addressJson: JSON.stringify(addr),
       deliveryDate,
       shift: shiftName,
+      unitMode: unit, // "unit" | "kg"
     });
     navigate(`/checkout?${qs.toString()}`);
-  }, [isActive, shift, selection, navigate]);
+  }, [isActive, shift, selection, navigate, unit]);
 
   // UI handlers
-  const handlePickSuggestion = useCallback((s: any) => {
-    setSearch(s.label);
-    setPage(1);
-  }, [setSearch, setPage]);
+  const handlePickSuggestion = useCallback(
+    (s: any) => {
+      setSearch(s.label);
+      setPage(1);
+    },
+    [setSearch, setPage]
+  );
 
   const handleChangeSelectionConfirm = useCallback(async () => {
     await clearCart();
     clearSelection();
   }, [clearCart, clearSelection]);
 
-  const handlePickSelection = useCallback(async ({ address, shift }: { address: any; shift: any }) => {
-    await setSelection({ address, marketStockId: shift.marketStockId });
-  }, [setSelection]);
+  const handlePickSelection = useCallback(
+    async ({ address, shift }: { address: any; shift: any }) => {
+      await setSelection({ address, marketStockId: shift.marketStockId });
+    },
+    [setSelection]
+  );
 
-  const handlePageChange = useCallback((p: number) => {
-    setPage(p);
-    setLocalPage(p);
-  }, [setPage, setLocalPage]);
+  const handlePageChange = useCallback(
+    (p: number) => {
+      setPage(p);
+      setLocalPage(p);
+    },
+    [setPage, setLocalPage]
+  );
 
-  const handleChangeQty = useCallback((key: string, nextUnitsRaw: number) => {
-    const curr = getSharedCart().lines;
-    const idx = curr.findIndex((l) => (l.key ?? l.stockId) === key);
-    if (idx < 0) return;
+  const handleChangeQty = useCallback(
+    (key: string, nextUnitsRaw: number) => {
+      const curr = getSharedCart().lines;
+      const idx = curr.findIndex((l) => (l.key ?? l.stockId) === key);
+      if (idx < 0) return;
 
-    const nextUnits = Math.floor(Number(nextUnitsRaw) || 0);
+      const nextUnits = Math.floor(Number(nextUnitsRaw) || 0);
 
-    let next: SharedCartLine[];
-    if (nextUnits <= 0) {
-      next = curr.filter((_, i) => i !== idx);
-    } else {
-      next = [...curr];
-      next[idx] = { ...next[idx], quantity: Math.min(50, Math.max(1, nextUnits)) };
-    }
-    setSharedCart({ lines: next }, cartCtx ?? undefined);
-    setCartLines(next);
-  }, [cartCtx]);
+      let next: SharedCartLine[];
+      if (nextUnits <= 0) {
+        next = curr.filter((_, i) => i !== idx);
+      } else {
+        next = [...curr];
+        next[idx] = { ...next[idx], quantity: Math.min(50, Math.max(1, nextUnits)) };
+      }
+      setSharedCart({ lines: next }, cartCtx ?? undefined);
+      setCartLines(next);
+    },
+    [cartCtx]
+  );
 
   // filtered page items
   const visiblePageItems = useMemo(() => pageItems.filter(matchFilterDebounced), [pageItems, matchFilterDebounced]);
@@ -323,10 +343,10 @@ export default function MarketPage() {
             <StickyFilterBar
               offsetTop={55}
               category={category}
-              search={search}
+              search={searchText}
               sort={sort}
               page={page}
-              unit={unit}
+              unit={isUnit}
               totalPages={totalPages}
               totalItems={totalItems}
               suggestions={liveSuggestions}
@@ -335,13 +355,13 @@ export default function MarketPage() {
               onPickSuggestion={handlePickSuggestion}
               onSortChange={setSort}
               onPageChange={handlePageChange}
-              onUnitChange={setUnit}
+              onUnitChange={(next: boolean) => setUnit(next ? "unit" : "kg")}
             />
 
             <ItemsGrid
               items={visiblePageItems}
-              unit={unit}
-              onUnitChange={setUnit}
+              unit={isUnit}
+              onUnitChange={(next: boolean) => setUnit(next ? "unit" : "kg")}
               isLoading={itemsLoading}
               isFetching={itemsFetching}
               error={itemsError}
@@ -350,8 +370,12 @@ export default function MarketPage() {
               totalItems={totalItems}
               onPageChange={handlePageChange}
               onAdd={({ item, qty }) => {
-                const per = Number(item.avgWeightPerUnitKg) || 0.25;
-                const unitsToAdd = unit ? Math.floor(qty) : Math.max(1, Math.floor(qty / per));
+                const per =
+                  Number((item as any).avgWeightPerUnitKg) ||
+                  Number((item as any).estimates?.avgWeightPerUnitKg) ||
+                  0.25;
+                // qty comes as units in unit-mode, kg in kg-mode
+                const unitsToAdd = isUnit ? Math.max(1, Math.floor(qty)) : Math.max(1, Math.floor(qty / per));
                 addToCart(item, unitsToAdd);
               }}
               allItemsForRelated={allItems}
@@ -365,13 +389,12 @@ export default function MarketPage() {
       <CartFAB
         count={cartCount}
         onClick={() => setCartOpen(true)}
-        tooltip={unit ? "Cart" : "Cart (kg mode)"}
+        tooltip={isUnit ? "Cart" : "Cart (kg mode)"}
       />
       <CartDrawer
         isOpen={cartOpen}
         onClose={() => setCartOpen(false)}
         items={cartLines}
-        unit={unit}
         onRemove={removeLineByKey}
         onClear={clearCart}
         onChangeQty={handleChangeQty}

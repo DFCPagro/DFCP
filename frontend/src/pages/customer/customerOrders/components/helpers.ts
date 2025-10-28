@@ -1,3 +1,5 @@
+// utils/orders.ts
+
 import type { OrderRowAPI } from "@/types/orders";
 import type { ItemRow } from "@/components/common/ItemList";
 
@@ -44,7 +46,7 @@ export const STATUS_EMOJI: Record<UIStatus, string> = {
 };
 
 export function normalizeStatus(s: string): UIStatus {
-  const key = (s ?? "").toLowerCase().replace(/[\s-]+/g, "_"); // handle spaces + hyphens
+  const key = (s ?? "").toLowerCase().replace(/[\s-]+/g, "_");
   switch (key) {
     case "created":
     case "new":
@@ -70,7 +72,6 @@ export function normalizeStatus(s: string): UIStatus {
     case "packed":
     case "ready_for_delivery":
     case "ready_for_pickup":
-    case "ready_for_pickup": // normalized from ready_for_pickUp
       return "ready_for_pickup";
     case "delivering":
     case "lc_to_customer":
@@ -87,7 +88,7 @@ export function normalizeStatus(s: string): UIStatus {
       return "received";
     case "canceled":
     case "cancelled":
-    case "problem": // treat “problem” as cancelled-like
+    case "problem":
       return "cancelled";
     default:
       return "pending";
@@ -151,34 +152,35 @@ function normHM(v?: string) {
   const m = v.match(/(\d{1,2}):(\d{2})/);
   return m ? `${fmt2(+m[1])}:${m[2]}` : undefined;
 }
+
+/**
+ * Return date and shift separately so the UI can style the shift differently.
+ * - Date is normalized to midnight.
+ * - Shift is picked from common fields, fallback "".
+ */
+export function formatDeliveryTimeParts(o: any) {
+  const d = new Date((toDate(o.deliveryDate) ?? new Date()).setHours(0, 0, 0, 0));
+  const date = fmtDateYY(d);
+  const shift = firstStr(o.shiftName, o.shift, o.deliveryShiftName) ?? "";
+  return { date, shift };
+}
+
+/**
+ * Optional: return an HTML string with a class on the shift.
+ * Use if rendering dangerously or in environments expecting HTML.
+ */
+export function formatDeliveryTimeHTML(o: any, cls = "shiftName") {
+  const { date, shift } = formatDeliveryTimeParts(o);
+  return shift ? `${date} <span class="${cls}">${shift}</span>` : date;
+}
+
+/**
+ * Legacy formatter kept for callers expecting a single string.
+ * Uses parts and concatenates with a space.
+ */
 export function formatDeliveryTime(o: any) {
-  const d =
-    toDate(o.acceptedAt) ??
-    toDate(o.deliveryDate) ??
-    toDate(o.scheduledAt) ??
-    toDate(o.createdAt) ??
-    new Date();
-  const s =
-    normHM(o.acceptedWindowStart) ??
-    normHM(o.deliveryWindowStart) ??
-    normHM(o.windowStart);
-  const e =
-    normHM(o.acceptedWindowEnd) ??
-    normHM(o.deliveryWindowEnd) ??
-    normHM(o.windowEnd);
-  let range = s && e ? `${s}–${e}` : "";
-  if (!range) {
-    const m = String(o.acceptedSlotLabel ?? o.deliverySlot ?? "").match(
-      /(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})/
-    );
-    if (m) {
-      const [h1, m1] = m[1].split(":");
-      const [h2, m2] = m[2].split(":");
-      range = `${fmt2(+h1)}:${m1}–${fmt2(+h2)}:${m2}`;
-    }
-  }
-  if (!range) range = "00:00–00:00";
-  return `${fmtDateYY(d)} ${range}`;
+  const { date, shift } = formatDeliveryTimeParts(o);
+  return shift ? `${date} ${shift}` : date;
 }
 
 // ---- Item rows for ItemList ----
@@ -208,10 +210,9 @@ export function toItemRows(lines: any[]): ItemRow[] {
       line?.farmer?.farmName
     );
     const farmLogo =
-      firstStr(line?.sourceFarmLogo, line?.farmLogo, line?.farmer?.logo) ??
-      undefined;
+      firstStr(line?.sourceFarmLogo, line?.farmLogo, line?.farmer?.logo) ?? undefined;
 
-    const pricePerUnit = toNum(line?.pricePerUnit); // per KG
+    const pricePerUnit = toNum(line?.pricePerUnit);
     const unitMode =
       (line?.unitMode as "kg" | "unit" | "mixed") ?? ("kg" as const);
     const qtyKg = toNumUndef(line?.quantityKg);
@@ -230,19 +231,17 @@ export function toItemRows(lines: any[]): ItemRow[] {
 
     const subtitle =
       farmerName || farmName
-        ? [farmerName, farmName].filter(Boolean).join(" • ")
+        ? [farmerName, farmName].filter(Boolean).join("•")
         : undefined;
 
     return {
       id: line?._id ?? line?.id ?? String(i),
-
       title,
       subtitle,
       imageUrl,
       category,
       farmLogo,
       farmName,
-
       pricePerUnit,
       unitMode,
       qtyKg,
@@ -265,8 +264,7 @@ function asNum(n: any) {
 }
 function arrToLatLng(a: any): LatLng | null {
   if (!Array.isArray(a) || a.length < 2) return null;
-  const a0 = Number(a[0]),
-    a1 = Number(a[1]);
+  const a0 = Number(a[0]), a1 = Number(a[1]);
   if (!Number.isFinite(a0) || !Number.isFinite(a1)) return null;
   const looksLatLng = Math.abs(a0) <= 90 && Math.abs(a1) <= 180;
   const lat = looksLatLng ? a0 : a1;

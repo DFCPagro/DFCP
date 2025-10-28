@@ -1,41 +1,62 @@
-import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react"
+import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   Box, HStack, Icon, IconButton, Separator, Stack, Text,
   Avatar, Image, Badge, Button, Spinner
-} from "@chakra-ui/react"
-import { FiX, FiChevronLeft, FiChevronRight } from "react-icons/fi"
-import type { MarketItem } from "@/types/market"
-import { getMarketItemPage, type MarketItemPageData } from "@/api/market"
+} from "@chakra-ui/react";
+import { FiX, FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import type { MarketItem } from "@/types/market";
+import { getMarketItemPage, type MarketItemPageData } from "@/api/market";
 
 export type MarketItemPageProps = {
-  item: MarketItem
-  unit: boolean                    // true = units, false = kg
-  onUnitChange: (next: boolean) => void
-  onClose: () => void
-  onAddToCart?: (payload: { item: MarketItem; qty: number }) => void // qty matches mode
-  onOpenItem?: (item: MarketItem) => void
-  title?: string
-  debugJson?: boolean
-  allItemsForRelated?: MarketItem[]
-}
+  item: MarketItem;
+  unit: boolean;                    // true = units, false = kg
+  onUnitChange: (next: boolean) => void;
+  onClose: () => void;
+  onAddToCart?: (payload: { item: MarketItem; qty: number }) => void; // qty matches mode
+  onOpenItem?: (item: MarketItem) => void;
+  title?: string;
+  debugJson?: boolean;
+  allItemsForRelated?: MarketItem[];
+};
 
 /* ------------------------------ helpers ------------------------------ */
 function getImageUrl(it: MarketItem) {
-  const anyIt = it as any
-  return anyIt.imageUrl ?? anyIt.img ?? anyIt.photo ?? anyIt.picture ?? undefined
+  const anyIt = it as any;
+  return anyIt.imageUrl ?? anyIt.img ?? anyIt.photo ?? anyIt.picture ?? undefined;
+}
+
+function avgWeightPerUnitKg(it: MarketItem): number {
+  const anyIt = it as any;
+  return (
+    Number(anyIt.estimates?.avgWeightPerUnitKg) ||
+    Number(anyIt.avgWeightPerUnitKg) ||
+    0.25
+  );
 }
 
 function priceOf(it: MarketItem, unitMode: boolean): number {
-  return unitMode ? Number((it as any).pricePerUnit) || 0 : Number((it as any).pricePerKg) || 0
+  const anyIt = it as any;
+  return unitMode ? Number(anyIt.pricePerUnit) || 0 : Number(anyIt.pricePerKg) || 0;
+}
+
+function availableKg(it: MarketItem): number {
+  const anyIt = it as any;
+  const kg = Number(anyIt.currentAvailableQuantityKg ?? anyIt.availableKg ?? 0);
+  return Number.isFinite(kg) && kg > 0 ? kg : 0;
+}
+
+function availableUnits(it: MarketItem): number {
+  const anyIt = it as any;
+  const est = Number(anyIt.estimates?.availableUnitsEstimate);
+  if (Number.isFinite(est) && est > 0) return Math.floor(est);
+  const per = avgWeightPerUnitKg(it);
+  const kg = availableKg(it);
+  if (!per || !kg) return 0;
+  return Math.floor(kg / per);
 }
 
 function availableOf(it: MarketItem, unitMode: boolean): number {
-  const kg = Number((it as any).currentAvailableQuantityKg ?? (it as any).availableKg ?? 0)
-  if (!Number.isFinite(kg) || kg <= 0) return 0
-  if (!unitMode) return kg
-  const per = Number((it as any).avgWeightPerUnitKg)
-  if (!Number.isFinite(per) || per <= 0) return 0
-  return Math.floor(kg / per)
+  return unitMode ? availableUnits(it) : Math.floor(availableKg(it));
 }
 
 /* --------------------------- right purchase --------------------------- */
@@ -45,37 +66,50 @@ function RightPurchasePanel({
   onUnitChange,
   onAddToCart,
 }: {
-  item: MarketItem
-  unit: boolean
-  onUnitChange: (next: boolean) => void
-  onAddToCart?: (p: { item: MarketItem; qty: number }) => void
+  item: MarketItem;
+  unit: boolean;
+  onUnitChange: (next: boolean) => void;
+  onAddToCart?: (p: { item: MarketItem; qty: number }) => void;
 }) {
-  const img = getImageUrl(item)
-  const name = (item as any).name ?? "Item"
-  const farmName = (item as any).farmName ?? ""
-  const farmerName = (item as any).farmerName ?? (item as any).farmer ?? ""
+  const img = getImageUrl(item);
+  const name = (item as any).displayName ?? (item as any).name ?? "Item";
+  const farmName = (item as any).farmName ?? "";
+  const farmerName = (item as any).farmerName ?? (item as any).farmer ?? "";
 
-  const price = priceOf(item, unit)
-  const available = availableOf(item, unit)
+  const per = avgWeightPerUnitKg(item);
+  const price = priceOf(item, unit);
+  const priceOther = priceOf(item, !unit);
+  const available = availableOf(item, unit);
 
-  const priceLabel = `$${price.toFixed(2)}/${unit ? "unit" : "kg"}`
+  const priceLabel = `$${price.toFixed(2)}/${unit ? "unit" : "kg"}`;
+  const altHint =
+    priceOther > 0 ? ` · $${priceOther.toFixed(2)}/${unit ? "kg" : "unit"}` : "";
   const availLabel =
-    available > 0 ? (unit ? `${available} units available` : `${Math.floor(available)} kg available`) : ""
+    available > 0
+      ? unit
+        ? `${available} units available`
+        : `${Math.floor(available)} kg available`
+      : "Out of stock";
 
   // qty is units when unit=true, else kg
-  const STEP = 1
-  const [qty, setQty] = useState<number>(STEP)
-  useEffect(() => setQty(STEP), [unit])
+  const STEP_UNITS = 1;
+  const STEP_KG = 1;
+  const STEP = unit ? STEP_UNITS : STEP_KG;
 
-  const minQty = STEP
-  const maxQty = Math.max(STEP, available || 50)
+  const [qty, setQty] = useState<number>(STEP);
+  useEffect(() => setQty(STEP), [unit]);
 
-  const inc = useCallback(() => setQty((q) => Math.min(maxQty, q + STEP)), [maxQty])
-  const dec = useCallback(() => setQty((q) => Math.max(minQty, q - STEP)), [])
+  const minQty = STEP;
+  const maxQty = Math.max(STEP, available || STEP);
+
+  const inc = useCallback(() => setQty((q) => Math.min(maxQty, q + STEP)), [maxQty, STEP]);
+  const dec = useCallback(() => setQty((q) => Math.max(minQty, q - STEP)), [minQty, STEP]);
+
   const handleAdd = useCallback(() => {
-    const clamped = Math.max(minQty, Math.min(maxQty, qty))
-    onAddToCart?.({ item, qty: clamped })
-  }, [onAddToCart, item, qty, maxQty])
+    const clamped = Math.max(minQty, Math.min(maxQty, qty));
+    // qty matches current mode: units if unit=true, kg if unit=false
+    onAddToCart?.({ item, qty: clamped });
+  }, [onAddToCart, item, qty, maxQty, minQty]);
 
   return (
     <Stack w="100%" gap="4" align="stretch">
@@ -84,13 +118,16 @@ function RightPurchasePanel({
       </Box>
 
       <HStack justify="space-between" align="center">
-        <Stack gap="1">
+        <Stack gap="1" minW={0}>
           <Text fontSize="xl" fontWeight="bold" lineClamp={2}>{name}</Text>
           <Text fontSize="sm" color="fg.muted">
             {farmName ? `from ${farmName}${farmerName ? ` by ${farmerName}` : ""}` : farmerName ? `by ${farmerName}` : ""}
           </Text>
-          <Text fontSize="sm" fontWeight="medium">{priceLabel}</Text>
-          {availLabel ? <Text fontSize="xs" color="fg.muted">{availLabel}</Text> : null}
+          <Text fontSize="sm" fontWeight="medium">{priceLabel}<Text as="span" color="fg.muted">{altHint}</Text></Text>
+          <Text fontSize="xs" color="fg.muted">{availLabel}</Text>
+          {!unit && per ? (
+            <Text fontSize="xs" color="fg.muted">~{per} kg per unit</Text>
+          ) : null}
         </Stack>
 
         <Button size="xs" variant="outline" onClick={() => onUnitChange(!unit)} aria-pressed={unit}>
@@ -102,18 +139,23 @@ function RightPurchasePanel({
         <Text fontSize="sm" color="fg.muted">Quantity {unit ? "(units)" : "(kg)"}</Text>
         <HStack>
           <Button size="sm" variant="outline" onClick={inc} disabled={qty >= maxQty}>+</Button>
-          <Box minW="48px" textAlign="center" fontWeight="semibold" aria-live="polite">
+          <Box minW="56px" textAlign="center" fontWeight="semibold" aria-live="polite">
             {qty}{unit ? "" : " kg"}
           </Box>
           <Button size="sm" variant="outline" onClick={dec} disabled={qty <= minQty}>–</Button>
         </HStack>
       </HStack>
 
-      <Button size="md" colorPalette="teal" onClick={handleAdd} disabled={!onAddToCart}>
+      <Button
+        size="md"
+        colorPalette="teal"
+        onClick={handleAdd}
+        disabled={!onAddToCart || available <= 0 || price <= 0}
+      >
         Add to cart
       </Button>
     </Stack>
-  )
+  );
 }
 
 /* ------------------------------ main page ----------------------------- */
@@ -125,36 +167,35 @@ function MarketItemPageBase({
   onAddToCart,
   onOpenItem,
   title,
-  // debugJson = false,
   allItemsForRelated,
 }: MarketItemPageProps) {
-  const [activeItem, setActiveItem] = useState<MarketItem>(item)
-  const cacheRef = useRef<Map<string, MarketItemPageData>>(new Map())
-  useEffect(() => setActiveItem(item), [item])
+  const [activeItem, setActiveItem] = useState<MarketItem>(item);
+  const cacheRef = useRef<Map<string, MarketItemPageData>>(new Map());
+  useEffect(() => setActiveItem(item), [item]);
 
   const itemName = useMemo(
-    () => title ?? (activeItem as any).name ?? (activeItem as any).displayName ?? "Item",
+    () => title ?? (activeItem as any).displayName ?? (activeItem as any).name ?? "Item",
     [activeItem, title]
-  )
+  );
 
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [server, setServer] = useState<{
-    benefits: string[]
-    farmName?: string
-    farmerBio?: string
-    farmerLogo?: string
-    farmLogo?: string
-    caloriesPer100g?: number
-  } | null>(null)
+    benefits: string[];
+    farmName?: string;
+    farmerBio?: string;
+    farmerLogo?: string;
+    farmLogo?: string;
+    caloriesPer100g?: number;
+  } | null>(null);
 
   useEffect(() => {
-    const itemId = (activeItem as any).itemId ?? (activeItem as any).id
-    const farmerUserId = (activeItem as any).farmerId
-    if (!itemId || !farmerUserId) return
+    const itemId = (activeItem as any).itemId ?? (activeItem as any).id;
+    const farmerUserId = (activeItem as any).farmerId;
+    if (!itemId || !farmerUserId) return;
 
-    const key = `${itemId}_${farmerUserId}`
-    const cached = cacheRef.current.get(key)
+    const key = `${itemId}_${farmerUserId}`;
+    const cached = cacheRef.current.get(key);
     if (cached) {
       setServer({
         benefits: cached.benefits ?? [],
@@ -163,16 +204,16 @@ function MarketItemPageBase({
         farmerLogo: cached.farmerLogo,
         farmLogo: cached.farmLogo,
         caloriesPer100g: cached.caloriesPer100g,
-      })
-      return
+      });
+      return;
     }
 
-    let cancelled = false
-    setLoading(true)
+    let cancelled = false;
+    setLoading(true);
     getMarketItemPage(itemId, farmerUserId)
       .then((data) => {
-        if (cancelled) return
-        cacheRef.current.set(key, data)
+        if (cancelled) return;
+        cacheRef.current.set(key, data);
         setServer({
           benefits: data.benefits ?? [],
           farmName: data.farmName,
@@ -180,44 +221,46 @@ function MarketItemPageBase({
           farmerLogo: data.farmerLogo,
           farmLogo: data.farmLogo,
           caloriesPer100g: data.caloriesPer100g,
-        })
-        setErr(null)
+        });
+        setErr(null);
       })
       .catch((e) => !cancelled && setErr(String(e?.message ?? e)))
-      .finally(() => !cancelled && setLoading(false))
+      .finally(() => !cancelled && setLoading(false));
 
-    return () => { cancelled = true }
-  }, [activeItem])
+    return () => {
+      cancelled = true;
+    };
+  }, [activeItem]);
 
-  const farmName = server?.farmName ?? (activeItem as any).farmName ?? ""
-  const farmerName = (activeItem as any).farmerName ?? (activeItem as any).farmer ?? ""
-  const farmerBio = server?.farmerBio ?? (activeItem as any).farmerBio ?? (activeItem as any).farmBio ?? ""
-  const logoSrc = server?.farmLogo || server?.farmerLogo || ""
+  const farmName = server?.farmName ?? (activeItem as any).farmName ?? "";
+  const farmerName = (activeItem as any).farmerName ?? (activeItem as any).farmer ?? "";
+  const farmerBio = server?.farmerBio ?? (activeItem as any).farmerBio ?? (activeItem as any).farmBio ?? "";
+  const logoSrc = server?.farmLogo || server?.farmerLogo || "";
 
-  const benefitList = server?.benefits?.length ? server.benefits : ["Farm fresh", "Supports local farmers"]
-  const calories = server?.caloriesPer100g
+  const benefitList = server?.benefits?.length ? server.benefits : ["Farm fresh", "Supports local farmers"];
+  const calories = server?.caloriesPer100g;
 
   const related = useMemo(() => {
-    const fid = (activeItem as any).farmerId
-    const currStockId = (activeItem as any).stockId
+    const fid = (activeItem as any).farmerId;
+    const currStockId = (activeItem as any).stockId;
     return (allItemsForRelated ?? [])
       .filter((x: any) => x?.farmerId === fid && x?.stockId !== currStockId)
-      .slice(0, 20)
-  }, [allItemsForRelated, activeItem])
+      .slice(0, 20);
+  }, [allItemsForRelated, activeItem]);
 
-  const rowRef = useRef<HTMLDivElement | null>(null)
-  const scrollBy = (dx: number) => rowRef.current?.scrollBy({ left: dx, behavior: "smooth" })
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const scrollBy = (dx: number) => rowRef.current?.scrollBy({ left: dx, behavior: "smooth" });
 
   const handleOpenItem = useCallback(
     (next: MarketItem) => {
-      setActiveItem(next)
-      onOpenItem?.(next)
+      setActiveItem(next);
+      onOpenItem?.(next);
       requestAnimationFrame(() => {
-        rowRef.current?.closest("[data-item-page-root]")?.scrollTo?.({ top: 0, behavior: "smooth" })
-      })
+        rowRef.current?.closest("[data-item-page-root]")?.scrollTo?.({ top: 0, behavior: "smooth" });
+      });
     },
     [onOpenItem]
-  )
+  );
 
   return (
     <Box
@@ -328,7 +371,7 @@ function MarketItemPageBase({
         </Stack>
       </Stack>
     </Box>
-  )
+  );
 }
 
 /* --------------------------- tiny compact card --------------------------- */
@@ -338,28 +381,29 @@ function CompactItemCard({
   onAddToCart,
   onOpenItem,
 }: {
-  it: MarketItem
-  unit: boolean
-  onAddToCart?: (p: { item: MarketItem; qty: number }) => void
-  onOpenItem?: (item: MarketItem) => void
+  it: MarketItem;
+  unit: boolean;
+  onAddToCart?: (p: { item: MarketItem; qty: number }) => void;
+  onOpenItem?: (item: MarketItem) => void;
 }) {
-  const img = (it as any).imageUrl
-  const name = (it as any).name ?? "Item"
-  const price = priceOf(it, unit)
-  const farmerName = (it as any).farmerName
+  const img = getImageUrl(it);
+  const name = (it as any).displayName ?? (it as any).name ?? "Item";
+  const price = priceOf(it, unit);
+  const farmerName = (it as any).farmerName;
 
-  const open = useCallback(() => onOpenItem?.(it), [onOpenItem, it])
+  const open = useCallback(() => onOpenItem?.(it), [onOpenItem, it]);
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault()
-        open()
+        e.preventDefault();
+        open();
       }
     },
-    [open],
-  )
+    [open]
+  );
 
-  const qty = 1 // default add
+  // qty=1 means 1 unit in unit-mode, or 1 kg in kg-mode
+  const qty = 1;
 
   return (
     <Stack borderWidth="1px" borderRadius="lg" overflow="hidden" minW="180px" maxW="180px" gap="2" p="2" bg="bg">
@@ -372,11 +416,11 @@ function CompactItemCard({
         <Text fontSize="xs">${price.toFixed(2)}/{unit ? "unit" : "kg"}</Text>
       </Stack>
 
-      <Button size="xs" variant="outline" onClick={() => onAddToCart?.({ item: it, qty })}>
+      <Button size="xs" variant="outline" onClick={() => onAddToCart?.({ item: it, qty })} disabled={price <= 0}>
         Add
       </Button>
     </Stack>
-  )
+  );
 }
 
-export const MarketItemPage = memo(MarketItemPageBase)
+export const MarketItemPage = memo(MarketItemPageBase);

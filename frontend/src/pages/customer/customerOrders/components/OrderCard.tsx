@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Box,
   Grid,
@@ -10,15 +10,16 @@ import {
   Text,
   Button,
   VStack,
+  Badge,
 } from "@chakra-ui/react";
-import { MapPin, CircleX} from "lucide-react";
+import { MapPin, CircleX } from "lucide-react";
 import ItemList from "@/components/common/ItemList";
 import type { OrderRowAPI } from "@/types/orders";
 import OrderTimeline from "./OrderTimeline";
 import {
   STATUS_EMOJI,
   STATUS_LABEL,
-  formatDeliveryTime,
+  formatDeliveryTimeParts, // updated
   normalizeStatus,
   pickCurrency,
   pickDeliveryPoint,
@@ -44,18 +45,20 @@ export default function OrderCard({
   onOpenNote,
 }: Props) {
   if (!order) return null;
-const onlyDelivery = isOldStatus((order as any).status);
-const [timelineOpen, setTimelineOpen] = useState(!onlyDelivery);
 
-useEffect(() => {
-  setTimelineOpen(!onlyDelivery);
-}, [onlyDelivery, order?.id]); 
+  const onlyDelivery = isOldStatus((order as any).status);
+  const [timelineOpen, setTimelineOpen] = useState(!onlyDelivery);
+
+  useEffect(() => {
+    setTimelineOpen(!onlyDelivery);
+  }, [onlyDelivery, order?.id]);
+
   const ui = normalizeStatus((order as any).status);
   const emoji = STATUS_EMOJI[ui];
   const statusLabel = STATUS_LABEL[ui];
 
-  const deliveryTime = formatDeliveryTime(order);
-  const orderTime=order.createdAt||"";
+  const { date: deliveryDate, shift: deliveryShift } = formatDeliveryTimeParts(order);
+  const orderTime = order.createdAt || "";
 
   const currency = pickCurrency((order as any).items ?? []) ?? "$";
   const rowsBase = toItemRows((order as any).items ?? []);
@@ -71,36 +74,44 @@ useEffect(() => {
         alignItems="center"
       >
         <GridItem minW={0}>
-<VStack align="start" gap={1}>
-  <HStack gap={2} maxW="100%">
-    <Text as="span" fontWeight="bold">Order time:</Text>
-    <Text
-      as="span"
-      maxW="70%"
-      overflow="hidden"
-      textOverflow="clip"
-      whiteSpace="nowrap"
-      title={orderTime}
-    >
-      {orderTime}
-    </Text>
-  </HStack>
+          <VStack align="start" gap={1}>
+            <HStack gap={2} maxW="100%">
+              <Text as="span" fontWeight="bold">
+                Order time:
+              </Text>
+              <Text
+                as="span"
+                maxW="70%"
+                overflow="hidden"
+                textOverflow="clip"
+                whiteSpace="nowrap"
+                title={orderTime}
+              >
+                {orderTime}
+              </Text>
+            </HStack>
 
-  <HStack gap={2} maxW="100%">
-    <Text as="span" fontWeight="bold">Delivery time:</Text>
-    <Text
-      as="span"
-      maxW="70%"
-      overflow="hidden"
-      textOverflow="ellipsis"
-      whiteSpace="nowrap"
-      title={deliveryTime}
-    >
-      {deliveryTime}
-    </Text>
-  </HStack>
-</VStack>
-
+            <HStack gap={2} maxW="100%">
+              <Text as="span" fontWeight="bold">
+                Expected delivery:
+              </Text>
+              <HStack
+                as="span"
+                maxW="70%"
+                overflow="hidden"
+                whiteSpace="nowrap"
+                title={`${deliveryDate}${deliveryShift ? ` ${deliveryShift}` : ""}`}
+                gap={2}
+              >
+                <Text as="span">{deliveryDate}</Text>
+                {!!deliveryShift && (
+                  <Badge as="span" variant="subtle" borderRadius="md" px="2" py="0.5"    backgroundColor="pink">
+                    {deliveryShift}
+                  </Badge>
+                )}
+              </HStack>
+            </HStack>
+          </VStack>
         </GridItem>
 
         <GridItem justifySelf="center" zIndex={10}>
@@ -166,11 +177,11 @@ useEffect(() => {
         </GridItem>
       </Grid>
 
-{timelineOpen && (
-  <Box mt={3}>
-    <OrderTimeline status={(order as any).status} />
-  </Box>
-)}
+      {timelineOpen && (
+        <Box mt={3}>
+          <OrderTimeline status={(order as any).status} />
+        </Box>
+      )}
 
       {isOpen && (
         <VStack align="stretch" mt={3} gap={3}>

@@ -1,37 +1,58 @@
-import { memo } from "react"
-import { Box, IconButton, Tooltip } from "@chakra-ui/react"
-import { FiShoppingCart } from "react-icons/fi"
+import { memo } from "react";
+import { Box, IconButton, Tooltip } from "@chakra-ui/react";
+import { FiShoppingCart } from "react-icons/fi";
 
+/**
+ * Floating Cart button.
+ * Notes:
+ * - It does NOT read prices or availability. That logic lives in item/card pages.
+ * - You can pass `unitMode` to auto-annotate tooltip/aria with "kg" or "unit" mode.
+ */
 export type CartFABProps = {
-  onClick: () => void
-  count?: number
-  ariaLabel?: string
-  left?: string | number
-  bottom?: string | number
-  zIndex?: number
-  disabled?: boolean
-  tooltip?: string
-}
+  onClick: () => void;
+  count?: number;
+  ariaLabel?: string;
+  left?: string | number;
+  bottom?: string | number;
+  zIndex?: number;
+  disabled?: boolean;
+  tooltip?: string;
+  /** Optional: "unit" | "kg" to reflect current market mode in labels when tooltip not provided */
+  unitMode?: "unit" | "kg";
+};
 
 function CartFABBase({
   onClick,
   count,
-  ariaLabel = "Open cart",
+  ariaLabel,
   left = 16,
   bottom = "calc(24px + env(safe-area-inset-bottom))",
   zIndex = 40,
   disabled = false,
-  tooltip = "Cart",
+  tooltip,
+  unitMode,
 }: CartFABProps) {
   const badgeText =
-    typeof count === "number" && count > 0 ? (count > 99 ? "99+" : String(count)) : null
+    typeof count === "number" && count > 0 ? (count > 99 ? "99+" : String(count)) : null;
+
+  const computedTooltip =
+    tooltip ??
+    (unitMode === "kg"
+      ? "Cart (kg mode)"
+      : unitMode === "unit"
+      ? "Cart (unit mode)"
+      : "Cart");
+
+  const computedAria =
+    ariaLabel ??
+    (unitMode ? `Open cart, ${unitMode} mode` : "Open cart");
 
   return (
     <Box position="fixed" left={left} bottom={bottom} zIndex={zIndex}>
       <Tooltip.Root openDelay={300}>
         <Tooltip.Trigger asChild>
           <IconButton
-            aria-label={ariaLabel}
+            aria-label={computedAria}
             size="lg"
             borderRadius="full"
             colorPalette="teal"
@@ -44,7 +65,7 @@ function CartFABBase({
           </IconButton>
         </Tooltip.Trigger>
         <Tooltip.Positioner>
-          <Tooltip.Content>{tooltip}</Tooltip.Content>
+          <Tooltip.Content>{computedTooltip}</Tooltip.Content>
         </Tooltip.Positioner>
       </Tooltip.Root>
 
@@ -74,7 +95,7 @@ function CartFABBase({
         </Box>
       ) : null}
     </Box>
-  )
+  );
 }
 
-export const CartFAB = memo(CartFABBase)
+export const CartFAB = memo(CartFABBase);

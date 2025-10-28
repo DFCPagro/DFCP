@@ -19,7 +19,7 @@ import { MarketItemPage } from "./MarketItemPage";
 export type MarketItemCardProps = {
   item: MarketItem;
   unit: boolean; // true=units, false=kg
-    onUnitChange: (next: boolean) => void;   // <-- add
+  onUnitChange: (next: boolean) => void;
 
   onClick?: (item: MarketItem) => void;
   onAdd?: (payload: { item: MarketItem; qty: number }) => void; // qty matches mode
@@ -47,17 +47,41 @@ const pickPalette = (name?: string | null) => {
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const roundTo = (v: number, step: number) => Math.round(v / step) * step;
 
+/** avg weight per unit from backend, fallback to 0.25 kg */
+function avgPerUnitKg(it: any): number {
+  return (
+    Number(it?.estimates?.avgWeightPerUnitKg) ||
+    Number(it?.avgWeightPerUnitKg) ||
+    0.25
+  );
+}
+
+/** price from backend: pricePerKg | pricePerUnit */
 function priceOf(it: MarketItem, unitMode: boolean): number {
-  return Number(unitMode ? it.pricePerUnit : (it as any).pricePerKg) || 0;
+  const anyIt = it as any;
+  return unitMode ? Number(anyIt.pricePerUnit) || 0 : Number(anyIt.pricePerKg) || 0;
+}
+
+/** available kg straight from backend: currentAvailableQuantityKg */
+function availableKg(it: MarketItem): number {
+  const anyIt = it as any;
+  const kg = Number(anyIt.currentAvailableQuantityKg ?? anyIt.availableKg ?? 0);
+  return Number.isFinite(kg) && kg > 0 ? kg : 0;
+}
+
+/** available units from backend estimate if present else derive from kg/per */
+function availableUnits(it: MarketItem): number {
+  const anyIt = it as any;
+  const estUnits = Number(anyIt?.estimates?.availableUnitsEstimate);
+  if (Number.isFinite(estUnits) && estUnits > 0) return Math.floor(estUnits);
+  const per = avgPerUnitKg(anyIt);
+  const kg = availableKg(anyIt);
+  if (!per || !kg) return 0;
+  return Math.floor(kg / per);
 }
 
 function availableOf(it: MarketItem, unitMode: boolean): number {
-  const kg = Number((it as any).currentAvailableQuantityKg ?? (it as any).availableKg ?? 0);
-  if (!Number.isFinite(kg) || kg <= 0) return 0;
-  if (!unitMode) return kg; // show kg
-  const per = Number(it.avgWeightPerUnitKg);
-  if (!Number.isFinite(per) || per <= 0) return 0;
-  return Math.floor(kg / per); // show units
+  return unitMode ? availableUnits(it) : Math.floor(availableKg(it));
 }
 
 /* --------------------------------- UI --------------------------------- */
@@ -71,12 +95,11 @@ function MarketItemCardBase({
   adding,
   minQty = 1,
   maxQty = 200,
-
   allItemsForRelated,
 }: MarketItemCardProps) {
   const STEP_KG = 1;
   const DEFAULT_KG = 1;
-const MAX_KG_FALLBACK = 100; // cap when available kg is unknown
+  const MAX_KG_FALLBACK = 100; // cap when available kg is unknown
 
   // qty is units when unit=true, else kg
   const [qty, setQty] = useState<number>(unit ? 1 : DEFAULT_KG);
@@ -91,30 +114,21 @@ const MAX_KG_FALLBACK = 100; // cap when available kg is unknown
     triggerRef.current?.focus?.();
   }, []);
 
-  const img = item.imageUrl;
-  const farmerIcon = item.farmLogo;
-  const farmerName = item.farmerName;
-  const name = item.name;
+  const img = (item as any).imageUrl;
+  const farmerIcon = (item as any).farmLogo;
+  const farmerName = (item as any).farmerName;
+  const name = (item as any).displayName ?? (item as any).name;
   const variety = (item as any).variety as string | undefined;
 
   const price = priceOf(item, unit);
-  useEffect(() => {
-  console.log(
-    "mode", unit ? "units" : "kg",
-    "pricePerUnit", item.pricePerUnit,
-    "pricePerKg", (item as any).pricePerKg,
-    "computed price", price
-  );
-}, [unit, item, price]);
-
+  const per = avgPerUnitKg(item as any);
   const available = availableOf(item, unit);
-const LOW_STOCK_UNITS = 100;
-const LOW_STOCK_KG = 10;
-const showLowStock = unit
-  ? available > 0 && available <= LOW_STOCK_UNITS
-  : available > 0 && available <= LOW_STOCK_KG;
 
-
+  const LOW_STOCK_UNITS = 100;
+  const LOW_STOCK_KG = 10;
+  const showLowStock = unit
+    ? available > 0 && available <= LOW_STOCK_UNITS
+    : available > 0 && available <= LOW_STOCK_KG;
 
   const priceLabel = useMemo(
     () => `$${(Number.isFinite(price) ? price : 0).toFixed(2)}/${unit ? "unit" : "kg"}`,
@@ -122,22 +136,22 @@ const showLowStock = unit
   );
 
   const qtyLabel = unit ? String(qty) : `${qty} kg`;
-const availLabel = unit
-  ? `${available} units available`
-  : `${Math.floor(available)} kg available`;
+  const availLabel = unit
+    ? `${available} units available`
+    : `${Math.floor(available)} kg available`;
 
-const ensureQtySafe = useCallback(
-  (q: number) => {
-    if (unit) {
-      const maxUnits = available > 0 ? Math.floor(available) : Math.max(1, maxQty);
-      return clamp(Math.floor(q) || 1, Math.max(1, minQty), Math.max(1, Math.min(maxQty, maxUnits)));
-    }
-    const maxKg = available > 0 ? Math.floor(available) : MAX_KG_FALLBACK;
-    const stepped = roundTo(q, STEP_KG) || STEP_KG; // STEP_KG = 1
-    return clamp(stepped, STEP_KG, maxKg);
-  },
-  [unit, minQty, maxQty, available]
-);
+  const ensureQtySafe = useCallback(
+    (q: number) => {
+      if (unit) {
+        const maxUnits = available > 0 ? Math.floor(available) : Math.max(1, maxQty);
+        return clamp(Math.floor(q) || 1, Math.max(1, minQty), Math.max(1, Math.min(maxQty, maxUnits)));
+      }
+      const maxKg = available > 0 ? Math.floor(available) : MAX_KG_FALLBACK;
+      const stepped = roundTo(q, STEP_KG) || STEP_KG;
+      return clamp(stepped, STEP_KG, maxKg);
+    },
+    [unit, minQty, maxQty, available]
+  );
 
   const dec = useCallback(() => {
     setQty((q) => (unit ? ensureQtySafe(q - 1) : ensureQtySafe(roundTo(q - STEP_KG, STEP_KG))));
@@ -151,7 +165,7 @@ const ensureQtySafe = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       const q = ensureQtySafe(qty);
-      if (q > 0) onAdd?.({ item, qty: q });
+      if (q > 0) onAdd?.({ item, qty: q }); // qty follows current mode
     },
     [onAdd, item, qty, ensureQtySafe]
   );
@@ -216,12 +230,15 @@ const ensureQtySafe = useCallback(
           ) : null}
 
           {/* Price + availability */}
-        <HStack justify="space-between">
-  <Text fontWeight="medium">{priceLabel}</Text>
-  {showLowStock ? (
-    <Text fontSize="sm" color="fg.warning">{availLabel}</Text>
-  ) : null}
-</HStack>
+          <HStack justify="space-between" align="center">
+            <Text fontWeight="medium">{priceLabel}</Text>
+            <Stack gap="0" align="end">
+              {showLowStock ? <Text fontSize="sm" color="fg.warning">{availLabel}</Text> : null}
+              {!unit && per ? (
+                <Text fontSize="xs" color="fg.muted">~{per} kg per unit</Text>
+              ) : null}
+            </Stack>
+          </HStack>
 
           {/* Qty control */}
           <HStack justify="space-between" align="center">
@@ -236,7 +253,7 @@ const ensureQtySafe = useCallback(
                 –
               </Button>
               <Box minW="48px" textAlign="center" fontWeight="semibold" aria-live="polite">
-                {qtyLabel}
+                {unit ? qty : `${qty} kg`}
               </Box>
               <Button
                 size="xs"
@@ -259,7 +276,7 @@ const ensureQtySafe = useCallback(
             colorPalette="teal"
             onClick={handleAdd}
             loading={!!adding}
-            disabled={unit ? qty < Math.max(1, minQty) : qty < STEP_KG}
+            disabled={available <= 0 || price <= 0}
           >
             <FiShoppingCart />
             <Box as="span" ms="2">Add</Box>
@@ -284,14 +301,14 @@ const ensureQtySafe = useCallback(
               justifyContent="center"
               alignItems="center"
             >
-         <MarketItemPage
-      item={item}
-      unit={unit}                        // <-- add
-      onUnitChange={onUnitChange}        // <-- add
-      onClose={closeQuickView}
-      onAddToCart={({ item: it, qty }) => onAdd?.({ item: it, qty })}
-      allItemsForRelated={allItemsForRelated}
-    />
+              <MarketItemPage
+                item={item}
+                unit={unit}
+                onUnitChange={onUnitChange}
+                onClose={closeQuickView}
+                onAddToCart={({ item: it, qty }) => onAdd?.({ item: it, qty })}
+                allItemsForRelated={allItemsForRelated}
+              />
             </Dialog.Content>
           </Dialog.Positioner>
         </Portal>

@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo } from "react";
 import {
   Alert,
   Box,
@@ -11,55 +11,50 @@ import {
   Spinner,
   Stack,
   Text,
-} from "@chakra-ui/react"
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi"
-import type { MarketItem } from "@/types/market"
-import { MarketItemCard } from "./MarketItemCard"
-export type MarketItemCardProps = {
-  item: MarketItem;
-  unit: boolean; // true=units, false=kg
-  onClick?: (item: MarketItem) => void;
-  onAdd?: (payload: { item: MarketItem; qty: number }) => void;
-  adding?: boolean;
-  minQty?: number;
-  maxQty?: number;
-  allItemsForRelated?: MarketItem[];
-};
+} from "@chakra-ui/react";
+import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import type { MarketItem } from "@/types/market";
+import { MarketItemCard } from "./MarketItemCard";
 
 export type ItemsGridProps = {
   /** Items to render on the current page */
-  items: MarketItem[]
+  items: MarketItem[];
 
   /** Units mode: true=units, false=kg */
-  unit: boolean
-  onUnitChange: (next: boolean) => void;   // <-- add
+  unit: boolean;
+  onUnitChange: (next: boolean) => void;
 
   /** Loading flags (first load vs subsequent) */
-  isLoading?: boolean
-  isFetching?: boolean
+  isLoading?: boolean;
+  isFetching?: boolean;
 
   /** Error message to show as an inline alert */
-  error?: string | null
+  error?: string | null;
 
   /** Paging */
-  page: number // 1-based
-  totalPages: number // >= 1
-  totalItems?: number // optional for small summary
-  onPageChange: (p: number) => void
+  page: number; // 1-based
+  totalPages: number; // >= 1
+  totalItems?: number; // optional for small summary
+  onPageChange: (p: number) => void;
 
   /** Add handler; qty matches mode (units or kg) */
-  onAdd?: (payload: { item: MarketItem; qty: number }) => void
+  onAdd?: (payload: { item: MarketItem; qty: number }) => void;
 
   /** Layout */
-  minCardHeight?: string // default "280px"
-  columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number }
-  gutter?: string // grid gap; default "4"
+  minCardHeight?: string; // default "280px"
+  columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number };
+  gutter?: string; // grid gap; default "4"
 
-  allItemsForRelated?: MarketItem[]
-}
+  allItemsForRelated?: MarketItem[];
+};
 
 /**
  * Paged grid of market items (Chakra UI v3).
+ * Uses backend fields:
+ * - pricePerKg
+ * - pricePerUnit
+ * - currentAvailableQuantityKg
+ * Cards switch display/qty logic by `unit`.
  */
 function ItemsGridBase({
   items,
@@ -78,8 +73,8 @@ function ItemsGridBase({
   columns = { base: 2, md: 3, lg: 5 },
   gutter = "4",
 }: ItemsGridProps) {
-  const renderSkeletons = isLoading
-  const showEmpty = !isLoading && !error && items.length === 0
+  const renderSkeletons = isLoading;
+  const showEmpty = !isLoading && !error && items.length === 0;
 
   return (
     <Stack gap="4" width="full">
@@ -119,15 +114,15 @@ function ItemsGridBase({
               </GridItem>
             ))
           : items.map((it) => (
-        <GridItem key={`${unit ? "u" : "k"}-${itemKey(it)}`}>
-<MarketItemCard
-  item={it}
-  unit={unit}
-  onUnitChange={onUnitChange}                 // <-- add
-  onAdd={onAdd}
-  allItemsForRelated={allItemsForRelated}
-/>
-</GridItem>
+              <GridItem key={`${unit ? "u" : "k"}-${itemKey(it)}`}>
+                <MarketItemCard
+                  item={it}
+                  unit={unit}
+                  onUnitChange={onUnitChange}
+                  onAdd={onAdd}
+                  allItemsForRelated={allItemsForRelated}
+                />
+              </GridItem>
             ))}
       </Grid>
 
@@ -169,15 +164,15 @@ function ItemsGridBase({
         </IconButton>
       </HStack>
     </Stack>
-  )
+  );
 }
 
 /** Defensive unique key for a MarketItem */
 function itemKey(it: MarketItem): string {
-  const anyIt = it as any
-  if (anyIt.stockId) return anyIt.stockId
-  if (anyIt.docId) return String(anyIt.docId)
-  return `${anyIt.itemId ?? anyIt.id ?? anyIt.name}:${anyIt.farmerId ?? anyIt.farmerName ?? "unknown"}`
+  const anyIt = it as any;
+  if (anyIt.stockId) return anyIt.stockId;
+  if (anyIt.docId) return String(anyIt.docId);
+  return `${anyIt.itemId ?? anyIt.id ?? anyIt.name}:${anyIt.farmerId ?? anyIt.farmerName ?? "unknown"}`;
 }
 
-export const ItemsGrid = memo(ItemsGridBase)
+export const ItemsGrid = memo(ItemsGridBase);

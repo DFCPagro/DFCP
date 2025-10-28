@@ -1,36 +1,21 @@
-import { memo, useCallback, useRef } from "react"
-import { Button, Dialog, Portal } from "@chakra-ui/react"
-import type { ReactNode } from "react"
+import { memo, useCallback, useRef, useState } from "react";
+import { Button, Dialog, Portal } from "@chakra-ui/react";
+import type { ReactNode } from "react";
 
 export type ConfirmDialogProps = {
-  /** Controls visibility */
-  isOpen: boolean
-  /** Close the dialog (also used for the Cancel button) */
-  onClose: () => void
-  /** Called when Confirm is pressed (supports async) */
-  onConfirm: () => void | Promise<void>
-
-  /** Title at the top (default: "Are you sure?") */
-  title?: string
-  /** Body text/content. If not provided, children will be used. */
-  body?: ReactNode
-  /** Alternative to `body` */
-  children?: ReactNode
-
-  /** Confirm button label (default: "Confirm") */
-  confirmLabel?: string
-  /** Cancel button label (default: "Cancel") */
-  cancelLabel?: string
-
-  /** Show loading state on the confirm button (parent-controlled) */
-  isWorking?: boolean
-
-  /** If true, confirm button is red and indicates a destructive action */
-  destructive?: boolean
-
-  /** Disable the cancel button (default: false) */
-  disableCancel?: boolean
-}
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void | Promise<void>;
+  title?: string;
+  body?: ReactNode;
+  children?: ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  isWorking?: boolean;
+  destructive?: boolean;
+  disableCancel?: boolean;
+  autoCloseOnConfirm?: boolean; // new
+};
 
 function ConfirmDialogBase({
   isOpen,
@@ -44,25 +29,33 @@ function ConfirmDialogBase({
   isWorking = false,
   destructive = false,
   disableCancel = false,
+  autoCloseOnConfirm = true,
 }: ConfirmDialogProps) {
-  const cancelRef = useRef<HTMLButtonElement | null>(null)
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleClose = useCallback(() => {
-    if (isWorking) return // block closing while working
-    onClose()
-  }, [isWorking, onClose])
+    if (isWorking || submitting) return;
+    onClose();
+  }, [isWorking, submitting, onClose]);
 
   const handleConfirm = useCallback(async () => {
-    await Promise.resolve(onConfirm())
-  }, [onConfirm])
+    if (isWorking || submitting) return;
+    setSubmitting(true);
+    try {
+      await Promise.resolve(onConfirm());
+      if (autoCloseOnConfirm) onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  }, [isWorking, submitting, onConfirm, autoCloseOnConfirm, onClose]);
 
   return (
     <Dialog.Root
       role="alertdialog"
       open={isOpen}
       onOpenChange={(e) => {
-        // only allow external close when not working
-        if (!e.open) handleClose()
+        if (!e.open) handleClose();
       }}
       initialFocusEl={() => cancelRef.current}
     >
@@ -81,7 +74,7 @@ function ConfirmDialogBase({
                 <Button
                   ref={cancelRef}
                   variant="ghost"
-                  disabled={disableCancel || isWorking}
+                  disabled={disableCancel || isWorking || submitting}
                 >
                   {cancelLabel}
                 </Button>
@@ -90,7 +83,7 @@ function ConfirmDialogBase({
               <Button
                 colorPalette={destructive ? "red" : "teal"}
                 onClick={handleConfirm}
-                loading={isWorking}
+                loading={isWorking || submitting}
                 ms="3"
               >
                 {confirmLabel}
@@ -100,7 +93,7 @@ function ConfirmDialogBase({
         </Dialog.Positioner>
       </Portal>
     </Dialog.Root>
-  )
+  );
 }
 
-export const ConfirmDialog = memo(ConfirmDialogBase)
+export const ConfirmDialog = memo(ConfirmDialogBase);
