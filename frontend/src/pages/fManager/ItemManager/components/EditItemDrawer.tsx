@@ -38,7 +38,7 @@ const contentCss = css`
 const categoryColor: Record<string, string> = {
   fruit: "pink",
   vegetable: "teal",
-  dairy: "blue",
+  egg_dairy: "blue",
   breads: "orange",
   legumes: "purple",
 };

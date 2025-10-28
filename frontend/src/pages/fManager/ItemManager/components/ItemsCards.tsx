@@ -31,10 +31,61 @@ function fmtUpdatedAt(date?: string | null) {
 const categoryColor: Record<string, string> = {
   fruit: "pink",
   vegetable: "teal",
-  dairy: "blue",
-  breads: "orange",
-  legumes: "purple",
+  egg_dairy: "blue",
+  other: "gray",
 };
+
+// ---------- helpers ----------
+function titleFor(it: any) {
+  const base = it.variety?.trim() ? `${it.type} ${it.variety}` : it.type;
+  const pack =
+    it.sellModes?.byUnit && (it.sellModes?.unitBundleSize ?? 1) > 1
+      ? ` (${it.sellModes.unitBundleSize} pack)`
+      : "";
+  return `${base}${pack}`;
+}
+
+function isProduce(cat?: string) {
+  return cat === "fruit" || cat === "vegetable";
+}
+
+function fmtWeightPerUnit(it: any) {
+  const g: number | undefined = it.weightPerUnitG ?? it.avgWeightPerUnitGr;
+  if (!g || typeof g !== "number") return "";
+  if (g >= 1000) return `${(g / 1000).toFixed(g % 1000 === 0 ? 0 : 1)} kg`;
+  return `${g} g`;
+}
+
+type SellMode = "kg" | "unit" | "mixed";
+function getSellMode(it: any): SellMode {
+  // derive from your SellModes object with defaults
+  const byKg = it.sellModes?.byKg ?? true;
+  const byUnit = it.sellModes?.byUnit ?? false;
+  if (byKg && byUnit) return "mixed";
+  if (byUnit) return "unit";
+  return "kg";
+}
+
+function sellBadgeLabel(it: any) {
+  const mode = getSellMode(it);
+  const bundle = it.sellModes?.unitBundleSize ?? 1;
+  const bundleTxt = mode === "unit" && bundle > 1 ? ` (${bundle})` : "";
+  if (mode === "kg") return "Sell: kg";
+  if (mode === "unit") return `Sell: unit${bundleTxt}`;
+  return "Sell: mixed";
+}
+
+function sellBadgeColor(it: any) {
+  const mode = getSellMode(it);
+  if (mode === "kg") return "green";
+  if (mode === "unit") return "cyan";
+  return "purple";
+}
+
+function fmtPrice(p?: number | null) {
+  if (p == null) return "-";
+  return `$${p}`;
+}
 
 export default function ItemsCards({
   items,
@@ -62,128 +113,158 @@ export default function ItemsCards({
           borderColor="border"
         >
           <Spinner size="sm" />
-          <Text fontSize="xs" color="fg.muted">
-            Loading…
-          </Text>
+          <Text fontSize="xs" color="fg.muted">Loading…</Text>
         </HStack>
       )}
 
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3, xl: 4 }} gap="5">
-        {items.map((it) => (
-          <Card.Root
-            key={it._id}
-            variant="elevated"
-            overflow="hidden"
-            borderRadius="2xl"
-            border="1px solid"
-            borderColor="border"
-            _hover={{ translateY: "-3px", shadow: "xl" }}
-            transition="transform 0.15s ease, box-shadow 0.15s ease"
-          >
-            {/* Media */}
-            <Box position="relative" bg="bg.muted">
-              <Image
-                src={it.imageUrl || "https://picsum.photos/640/400?grayscale"}
-                alt={`${it.type}${it.variety ? ` ${it.variety}` : ""}`}
-                w="full"
-                h="180px"
-                objectFit="cover"
-              />
-              {/* overlay gradient for readability */}
-              <Box
-                position="absolute"
-                inset="0"
-                bg="linear-gradient(0deg, rgba(0,0,0,0.45), transparent 55%)"
-              />
-              {/* Quick view button */}
-              <Button
-                size="xs"
-                position="absolute"
-                right="3"
-                bottom="3"
-                variant="solid"
-                colorPalette="teal"
-                borderRadius="full"
-                onClick={() => {
-                  setSelected(it);
-                  view.onOpen();
-                }}
-                gap="1.5"
-              >
-                <Eye size={14} />
-                View
-              </Button>
-            </Box>
+        {items.map((it) => {
+          const isEggDairy = it.category === "egg_dairy";
+          const mode = getSellMode(it);
+          const perUnitWeight =
+            mode === "unit" && isProduce(it.category) ? fmtWeightPerUnit(it) : "";
 
-            {/* Body */}
-            <Card.Body gap="3">
-              <Stack gap="1" flex="1" minW="0">
-                <Text fontWeight="semibold" fontSize="lg" lineClamp={1}>
-                  {it.variety?.trim() ? `${it.type} ${it.variety}` : it.type}
-                </Text>
-                <HStack gap="2" wrap="wrap">
-                  <Badge
-                    variant="solid"
-                    colorPalette={categoryColor[it.category ?? ""] || "gray"}
+          return (
+            <Card.Root
+              key={it._id}
+              variant="elevated"
+              overflow="hidden"
+              borderRadius="2xl"
+              border="1px solid"
+              borderColor="border"
+              _hover={{ translateY: "-3px", shadow: "xl" }}
+              transition="transform 0.15s ease, box-shadow 0.15s ease"
+            >
+              {/* Media */}
+              <Box position="relative" bg="bg.muted">
+                <Image
+                  src={it.imageUrl || "https://picsum.photos/640/400?grayscale"}
+                  alt={`${it.type}${it.variety ? ` ${it.variety}` : ""}`}
+                  w="full"
+                  h="180px"
+                  objectFit="cover"
+                />
+                <Box position="absolute" inset="0" bg="linear-gradient(0deg, rgba(0,0,0,0.45), transparent 55%)" />
+                <Button
+                  size="xs"
+                  position="absolute"
+                  right="3"
+                  bottom="3"
+                  variant="solid"
+                  colorPalette="teal"
+                  borderRadius="full"
+                  onClick={() => { setSelected(it); view.onOpen(); }}
+                  gap="1.5"
+                >
+                  <Eye size={14} />
+                  View
+                </Button>
+              </Box>
+
+              {/* Body */}
+              <Card.Body gap="3">
+                {/* Title (no clipping) */}
+                <Stack gap="1" flex="1" minW="0">
+                  <Text
+                    fontWeight="semibold"
+                    fontSize="lg"
+                    whiteSpace="normal"
+                    wordBreak="break-word"
+                    title={titleFor(it)}
                   >
-                    {it.category}
-                  </Badge>
-                  {it.season && (
-                    <Badge variant="subtle" colorPalette="purple">
-                      {it.season}
-                    </Badge>
-                  )}
-                </HStack>
-              </Stack>
-
-              {/* Meta */}
-              <Stack gap="1" fontSize="sm">
-                {it.price && (
-                  <HStack gap="2" wrap="wrap" align="center">
-                    <Text fontWeight="medium">Price/Qul</Text>
-                    <Badge variant="surface">{it.price.a ?? "-"}$/A</Badge>
-                    <Badge variant="surface">{it.price.b ?? "-"}$/B</Badge>
-                    <Badge variant="surface">{it.price.c ?? "-"}$/C</Badge>
-                  </HStack>
-                )}
-
-                <HStack gap="2" color="fg.muted">
-                  {it.caloriesPer100g != null && (
-                    <Tooltip content="Calories per 100g">
-                      <Text>Cal {it.caloriesPer100g}</Text>
-                    </Tooltip>
-                  )}
-                  <Text fontSize="xs" ml="auto">
-                    {fmtUpdatedAt(it.updatedAt)}
+                    {titleFor(it)}
                   </Text>
-                </HStack>
-              </Stack>
-            </Card.Body>
 
-            {/* Footer */}
-            <Card.Footer justifyContent="flex-end" gap="1.5">
-              <StyledIconButton
-                size="xs"
-                variant="subtle"
-                aria-label="Edit"
-                onClick={() => onEdit(it)}
-                title="Edit item"
-              >
-                <Pencil size={16} />
-              </StyledIconButton>
-              <StyledIconButton
-                size="xs"
-                variant="subtle"
-                colorPalette="red"
-                aria-label="Delete"
-                onClick={() => onDelete(it)}
-                title="Delete item"
-              >
-                <Trash2 size={16} />
-              </StyledIconButton>
-            </Card.Footer>
-          </Card.Root>
-        ))}
+                  {/* Badges: category, season, SELL MODE */}
+                  <HStack gap="2" wrap="wrap">
+                    <Badge
+                      variant="solid"
+                      colorPalette={categoryColor[it.category ?? ""] || "gray"}
+                    >
+                      {it.category}
+                    </Badge>
+
+                    {it.season && (
+                      <Badge variant="subtle" colorPalette="purple">
+                        {it.season}
+                      </Badge>
+                    )}
+
+                    <Badge variant="subtle" colorPalette={sellBadgeColor(it)}>
+                      {sellBadgeLabel(it)}
+                    </Badge>
+                  </HStack>
+                </Stack>
+
+                {/* Meta */}
+                <Stack gap="2" fontSize="sm">
+                  {/* Prices */}
+                  {it.price && (
+                    <HStack gap="2" wrap="wrap" align="center">
+                      <Text fontWeight="medium">
+                        {isEggDairy ? "Price" : "Price/Qual"}
+                      </Text>
+
+                      {isEggDairy ? (
+                        <Badge variant="surface">{fmtPrice(it.price.a)}</Badge>
+                      ) : (
+                        <>
+                          <Badge variant="surface">{fmtPrice(it.price.a)} / A</Badge>
+                          <Badge variant="surface">{fmtPrice(it.price.b)} / B</Badge>
+                          <Badge variant="surface">{fmtPrice(it.price.c)} / C</Badge>
+                        </>
+                      )}
+
+                      {/* Optional: per-unit override when selling by unit */}
+                      {mode === "unit" && it.pricePerUnitOverride != null && (
+                        <Tooltip content="Explicit per-unit price override">
+                          <Badge variant="solid" colorPalette="gray">
+                            {fmtPrice(it.pricePerUnitOverride)} / unit
+                          </Badge>
+                        </Tooltip>
+                      )}
+                    </HStack>
+                  )}
+
+                  {/* Unit details + timestamp */}
+                  <HStack gap="2" color="fg.muted" align="center">
+                    {perUnitWeight && (
+                      <Tooltip content="Approximate weight per unit">
+                        <Text>Unit ~ {perUnitWeight}</Text>
+                      </Tooltip>
+                    )}
+                    <Text fontSize="xs" ml="auto">
+                      {fmtUpdatedAt(it.updatedAt ?? it.lastUpdated)}
+                    </Text>
+                  </HStack>
+                </Stack>
+              </Card.Body>
+
+              {/* Footer */}
+              <Card.Footer justifyContent="flex-end" gap="1.5">
+                <StyledIconButton
+                  size="xs"
+                  variant="subtle"
+                  aria-label="Edit"
+                  onClick={() => onEdit(it)}
+                  title="Edit item"
+                >
+                  <Pencil size={16} />
+                </StyledIconButton>
+                <StyledIconButton
+                  size="xs"
+                  variant="subtle"
+                  colorPalette="red"
+                  aria-label="Delete"
+                  onClick={() => onDelete(it)}
+                  title="Delete item"
+                >
+                  <Trash2 size={16} />
+                </StyledIconButton>
+              </Card.Footer>
+            </Card.Root>
+          );
+        })}
 
         {items.length === 0 && !isBusy && (
           <Card.Root variant="subtle" borderRadius="2xl">

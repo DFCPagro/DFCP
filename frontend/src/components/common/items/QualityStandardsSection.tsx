@@ -11,7 +11,6 @@ import {
 
 type ABC = { A?: string | null; B?: string | null; C?: string | null }
 export type QualityStandards = {
-  tolerance?: ABC
   brix?: ABC
   acidityPercentage?: ABC
   pressure?: ABC
@@ -28,11 +27,13 @@ type Props = {
   value?: QualityStandards | undefined
   onChange: (next: QualityStandards | undefined) => void
   readOnly?: boolean
+  /** NEW: top-level product tolerance (e.g., "0.02") */
+  tolerance?: string | null
+  onChangeTolerance?: (next: string | null) => void
 }
 
 /** Unit chips shown to the right of inputs (so units are not inside the field). */
 const UNIT: Partial<Record<keyof QualityStandards, string>> = {
-  tolerance: "%",
   brix: "%",
   acidityPercentage: "%",
   pressure: "kg/cm²",
@@ -52,24 +53,10 @@ const METRICS: Array<{
   placeholderC?: string
   isText?: boolean // free text (no numeric expectation)
 }> = [
-  { key: "tolerance", label: "tolerance", placeholderA: "", placeholderB: "", placeholderC: "" },
   { key: "brix", label: "brix", placeholderA: "13+", placeholderB: "11–12.9", placeholderC: "9–10.9" },
-  {
-    key: "acidityPercentage",
-    label: "acidityPercentage",
-    placeholderA: "0.4–0.6",
-    placeholderB: "0.3–0.39",
-    placeholderC: "<0.3",
-  },
+  { key: "acidityPercentage", label: "acidityPercentage", placeholderA: "0.4–0.6", placeholderB: "0.3–0.39", placeholderC: "<0.3" },
   { key: "pressure", label: "pressure", placeholderA: "7.5", placeholderB: "6–7.4", placeholderC: "<6" },
-  {
-    key: "colorDescription",
-    label: "colorDescription",
-    placeholderA: "Bright coloration",
-    placeholderB: "Moderate coloration",
-    placeholderC: "Pale or uneven coloration",
-    isText: true,
-  },
+  { key: "colorDescription", label: "colorDescription", placeholderA: "Bright coloration", placeholderB: "Moderate coloration", placeholderC: "Pale or uneven coloration", isText: true },
   { key: "colorPercentage", label: "colorPercentage", placeholderA: "85–100", placeholderB: "60–84", placeholderC: "<60" },
   { key: "weightPerUnit", label: "weightPerUnit", placeholderA: "180+", placeholderB: "150–179", placeholderC: "<150" },
   { key: "diameterMM", label: "diameterMM", placeholderA: "75+", placeholderB: "65–74", placeholderC: "<65" },
@@ -110,7 +97,13 @@ function UnitInput({
   )
 }
 
-export default function QualityStandardsSection({ value, onChange, readOnly }: Props) {
+export default function QualityStandardsSection({
+  value,
+  onChange,
+  readOnly,
+  tolerance,
+  onChangeTolerance,
+}: Props) {
   const setCell = (metricKey: keyof QualityStandards, grade: keyof ABC, v: string) => {
     if (readOnly) return
     const next: QualityStandards = { ...(value ?? {}) }
@@ -124,13 +117,43 @@ export default function QualityStandardsSection({ value, onChange, readOnly }: P
     onChange(Object.keys(next).length ? next : undefined)
   }
 
+  const setTol = (v: string) => {
+    if (!onChangeTolerance || readOnly) return
+    const t = v.trim()
+    onChangeTolerance(t.length ? t : null)
+  }
+
   return (
     <Accordion.Root defaultValue={["qs"]} multiple>
       <Accordion.Item value="qs">
         <Accordion.ItemTrigger py="2" px="3" _hover={{ bg: "blackAlpha.50" }} borderRadius="md">
           <Text fontWeight="semibold">Quality Standards</Text>
         </Accordion.ItemTrigger>
+
         <Accordion.ItemContent>
+          {/* NEW: Tolerance inline input under header */}
+          <Box px="3" pt="2">
+            <HStack gap="3" align="center" wrap="wrap">
+              <Text fontWeight="medium" minW="90px">
+                Tolerance
+              </Text>
+              <HStack gap="2" flex="1" minW="240px">
+                <Input
+                  size="sm"
+                  value={tolerance ?? ""}
+                  onChange={(e) => setTol(e.target.value)}
+                  placeholder="0.02"
+                  readOnly={readOnly}
+                  disabled={readOnly}
+                />
+                <Badge variant="subtle" flexShrink={0}>
+                  ratio
+                </Badge>
+                <Text color="fg.muted" fontSize="xs">0.02 = 2%</Text>
+              </HStack>
+            </HStack>
+          </Box>
+
           <Box pt="3">
             {/* Mobile (stacked) */}
             <Stack gap="3" display={{ base: "flex", md: "none" }}>
