@@ -1,97 +1,22 @@
 // src/pages/CreateStock/hooks/useFarmerInventory.ts
-// Fetches the farmer inventory rows for a given AMS context (post-init).
-// v1: inline FAKE fetch (no separate mock files), ignores pagination.
-//
-// TODO(real API): Replace FAKE_FETCH with a real GET:
-//   GET /api/farmer-inventory?amsId=<id>&page=1&limit=... (or /:amsId)
-//   Expect a payload compatible with FarmerInventoryResponse.
-//
-// Notes per product decisions:
-// - "forecasted" is ignored for now.
-// - We show farmer IDs as-is (no name lookup).
-// - Disable submit button later based on `currentAvailableAmountKg <= 0` (component rule).
+// Fetches the farmer inventory rows (no AMS context needed).
+// v2: uses real API; ignores pagination by product decision.
+// Also exposes a callable function to fetch demand statistics on demand.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
-  AsyncStatus,
   FarmerInventoryItem,
-  FarmerInventoryResponse,
-} from "../types";
+  DemandStatisticsResponse,
+} from "@/types/farmerInventory";
+import { getFarmerInventory, getDemandStatistics } from "@/api/farmerInventory";
 
-/* -----------------------------------------------------------------------------
- * FAKE fetch (inline) — deterministic-ish from amsId for stable previews
- * ---------------------------------------------------------------------------*/
-
-function djb2(str: string): number {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = (h * 33) ^ str.charCodeAt(i);
-  return h >>> 0;
-}
-
-function pick<T>(arr: T[], seed: number): T {
-  return arr[seed % arr.length];
-}
-
-function isoPlusMinutes(baseIso: string, minutes: number): string {
-  const d = new Date(baseIso);
-  d.setMinutes(d.getMinutes() + minutes);
-  return d.toISOString();
-}
-
-async function FAKE_FETCH(amsId: string): Promise<FarmerInventoryResponse> {
-  // Simulate latency
-  await new Promise((r) => setTimeout(r, 400));
-
-  // Build a few rows deterministically from the amsId
-  const seed = djb2(amsId);
-  const baseCreated = new Date("2025-10-24T10:00:00.000Z").toISOString();
-  const baseUpdated = new Date("2025-10-24T10:15:00.000Z").toISOString();
-
-  const count = (seed % 3) + 1; // 1..3 rows
-  const rows: FarmerInventoryItem[] = Array.from({ length: count }).map(
-    (_, i) => {
-      const iSeed = seed + i * 97;
-      const agreement = 200 + (iSeed % 200); // 200..399
-      const available = Math.max(0, (iSeed % 180) - 20); // ~0..160 with some zeros
-      const ids = [
-        "66f7a1c0e5b6d9d7d1b1a111",
-        "66f7a1c0e5b6d9d7d1b1a222",
-        "66f7a1c0e5b6d9d7d1b1a333",
-      ];
-      const items = [
-        "30eb71d9a20cb517be34112f",
-        "30eb71d9a20cb517be341130",
-        "30eb71d9a20cb517be341131",
-      ];
-      const farmerId = pick(ids, iSeed);
-      const itemId = pick(items, iSeed >> 1);
-
-      return {
-        id: `${(iSeed % 0xffffffff).toString(16).padStart(8, "0")}${i}`,
-        farmerId,
-        itemId,
-        logisticCenterId: "66e007000000000000000001",
-        agreementAmountKg: agreement,
-        currentAvailableAmountKg: available,
-        createdAt: isoPlusMinutes(baseCreated, i * 3),
-        updatedAt: isoPlusMinutes(baseUpdated, i * 5),
-      };
-    }
-  );
-
-  return {
-    data: rows,
-    page: 1,
-    limit: 20,
-    total: rows.length,
-  };
-}
+export type AsyncStatus = "idle" | "loading" | "success" | "error";
 
 /* -----------------------------------------------------------------------------
  * Hook
  * ---------------------------------------------------------------------------*/
 
-export function useFarmerInventory(amsId?: string, opts?: { auto?: boolean }) {
+export function useFarmerInventory(opts?: { auto?: boolean }) {
   const auto = opts?.auto ?? true;
 
   const [status, setStatus] = useState<AsyncStatus>("idle");
@@ -99,38 +24,23 @@ export function useFarmerInventory(amsId?: string, opts?: { auto?: boolean }) {
   const [error, setError] = useState<string | null>(null);
 
   const mountedRef = useRef(true);
-  const lastAmsRef = useRef<string | undefined>(undefined);
   const inFlightRef = useRef(false);
 
-  const hasAms = !!amsId;
-
   const fetchAll = useCallback(async () => {
-    if (!amsId) {
-      setError("Missing amsId");
-      setStatus("error");
-      return;
-    }
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setStatus("loading");
     setError(null);
 
     try {
-      /* ---------------------------------------------------------------------
-       * TODO(real API):
-       * const resp = await api.get<FarmerInventoryResponse>(
-       *   `/api/farmer-inventory?amsId=${encodeURIComponent(amsId)}&page=1&limit=1000`
-       * );
-       * const payload = resp.data;
-       * const rows = payload.data ?? [];
-       * --------------------------------------------------------------------*/
-      const payload = await FAKE_FETCH(amsId);
-      const rows = payload.data ?? [];
+      // console.log("Fetching farmer inventory...");
+      const resp = await getFarmerInventory();
+      console.log("Fetched farmer inventory:", resp);
+      const rows = resp.data ?? [];
 
       if (!mountedRef.current) return;
       setItems(rows); // ignore pagination by product decision
       setStatus("success");
-      lastAmsRef.current = amsId;
     } catch (e: any) {
       if (!mountedRef.current) return;
       setError(e?.message ?? "Failed to load inventory");
@@ -138,12 +48,13 @@ export function useFarmerInventory(amsId?: string, opts?: { auto?: boolean }) {
     } finally {
       inFlightRef.current = false;
     }
-  }, [amsId]);
+  }, []);
 
   const refetch = useCallback(async () => {
     await fetchAll();
   }, [fetchAll]);
 
+  // Lifecycle: mount/unmount
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -151,19 +62,29 @@ export function useFarmerInventory(amsId?: string, opts?: { auto?: boolean }) {
     };
   }, []);
 
-  // Auto-fetch when amsId changes and auto=true
+  // Auto-fetch on mount if enabled
   useEffect(() => {
     if (!auto) return;
-    if (!hasAms) return;
-    if (lastAmsRef.current === amsId && status === "success") return;
     void fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, hasAms, amsId]);
+  }, [auto, fetchAll]);
+
+  // Expose a callable function the page can use to fetch demand statistics.
+  // Returns the parsed API response as-is; no local state.
+  const fetchDemandStatistics = useCallback(
+    async (params?: {
+      page?: number;
+      limit?: number;
+      slotKey?: string;
+    }): Promise<DemandStatisticsResponse> => {
+      return await getDemandStatistics(params);
+    },
+    []
+  );
 
   const meta = useMemo(
     () => ({
       total: items.length,
-      // Placeholder sort/filter metadata could go here later.
+      // Placeholder for future sort/filter metadata.
     }),
     [items.length]
   );
@@ -176,5 +97,8 @@ export function useFarmerInventory(amsId?: string, opts?: { auto?: boolean }) {
     meta, // { total }
     isEmpty: status === "success" && items.length === 0,
     hasData: status === "success" && items.length > 0,
+
+    // New: on-demand statistics fetcher (page calls this when needed)
+    fetchDemandStatistics, // (params?) => Promise<DemandStatisticsResponse>
   } as const;
 }

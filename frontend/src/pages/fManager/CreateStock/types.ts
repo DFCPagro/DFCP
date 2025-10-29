@@ -10,7 +10,6 @@ import type { Shift, IsoDateString } from "@/types/farmerOrders";
  * ---------------------------------------------------------------------------*/
 
 // Hook status helpers for simple FSMs in the page/components.
-export type AsyncStatus = "idle" | "loading" | "success" | "error";
 
 /** Result we expect back from `/api/available-stock/init` */
 export type InitResult = {
@@ -34,26 +33,8 @@ export type InitPayload = {
  * ---------------------------------------------------------------------------*/
 
 /** Single inventory item as returned by the BE (exactly mirrors your sample) */
-export type FarmerInventoryItem = {
-  id: string; // inventory row id
-  farmerId: string; // show ID for now (no name lookup)
-  itemId: string;
-  logisticCenterId: string;
-  agreementAmountKg: number;
-  currentAvailableAmountKg: number;
-  createdAt: string; // ISO timestamp
-  updatedAt: string; // ISO timestamp (used as "last updated")
-  // NOTE: "forecasted" is intentionally ignored for now per product decision.
-};
 
 /** Paginated response shape from BE (we'll ignore pagination for v1 UI) */
-export type FarmerInventoryResponse = {
-  data: FarmerInventoryItem[];
-  page: number;
-  limit: number;
-  total: number;
-  // TODO(real API): If BE later adds additional metadata (sort, filter echo), extend here.
-};
 
 /* -----------------------------------------------------------------------------
  * Create Farmer Order (per inventory item)
@@ -85,13 +66,3 @@ export type CreateStockQuery = {
 /* -----------------------------------------------------------------------------
  * Component helpers
  * ---------------------------------------------------------------------------*/
-
-/** Derived, view-focused fields we may compute in mappers/selectors */
-export type InventoryViewModel = FarmerInventoryItem & {
-  /** Short label for farmer (we show IDs for now) */
-  farmerLabel: string;
-  /** Human-friendly last updated (pre-formatted string) */
-  lastUpdatedLabel: string;
-  /** Whether the submit button should be disabled by rule (available ≤ 0) */
-  isSubmitDisabled: boolean;
-};

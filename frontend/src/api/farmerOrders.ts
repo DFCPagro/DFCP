@@ -2,8 +2,10 @@
 import { api } from "./config";
 import {
   FarmerOrdersSummarySchema,
+  type FarmerOrderDTO,
   type FarmerOrdersSummary as FarmerOrdersSummaryResponse,
 } from "@/types/farmerOrders";
+import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
 
 /**
  * Fetch dashboard summary for the current user's logistics center.
@@ -38,3 +40,13 @@ export async function getFarmerOrdersSummary(): Promise<FarmerOrdersSummaryRespo
 //   if (!note?.trim()) throw new Error("A non-empty note is required for rejection");
 //   await api.patch(`/farmer-orders/${encodeURIComponent(orderId)}/reject`, { note });
 // }
+
+let fakeApi: null | typeof import("@/api/fakes/farmerOrders.fake") = null;
+
+export async function listFarmerOrders(
+  params?: ListFarmerOrdersParams
+): Promise<FarmerOrderDTO[]> {
+  if (true) {
+    return fakeApi.listFarmerOrders(params);
+  }
+}

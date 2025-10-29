@@ -9,11 +9,9 @@
 //   expect: { orderId, createdAtIso, ... }
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  AsyncStatus,
-  CreateFarmerOrderInput,
-  CreateFarmerOrderResult,
-} from "../types";
+import type { CreateFarmerOrderInput, CreateFarmerOrderResult } from "../types";
+
+export type AsyncStatus = "idle" | "loading" | "success" | "error";
 
 /* -----------------------------------------------------------------------------
  * FAKE create (inline)

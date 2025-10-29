@@ -136,7 +136,7 @@ export default function CreateStockPage() {
                 {init.status === "success" && init.data?.amsId ? (
                   <>
                     <Separator />
-                    <InventoryList amsId={init.data.amsId} />
+                    <InventoryList />
                   </>
                 ) : null}
 

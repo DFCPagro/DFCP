@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { InitPayload, InitResult, AsyncStatus } from "../types";
+import type { InitPayload, InitResult } from "../types";
 import type {
   Shift as ShiftEnum,
   IsoDateString,
@@ -9,6 +9,8 @@ import type {
 import { getFarmerOrdersSummary } from "@/api/farmerOrders";
 import { useQuery } from "@tanstack/react-query";
 import { initAvailableStock } from "@/api/availableStock";
+
+export type AsyncStatus = "idle" | "loading" | "success" | "error";
 
 /** Build a stable key for deduping requests */
 function makeKey(

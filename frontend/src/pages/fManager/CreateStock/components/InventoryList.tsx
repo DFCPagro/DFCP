@@ -1,12 +1,14 @@
-// Renders the farmer inventory for the current AMS, with a tiny toolbar.
-// - Uses useFarmerInventory(amsId) for data
-// - Uses useCreateFarmerOrder(amsId) for per-item submit
+// src/pages/CreateStock/components/InventoryList.tsx
+// Renders farmer inventory grouped by itemId with demand statistic per group.
+// - Uses useFarmerInventory(amsId) to load inventory and demand stats
+// - Removes useCreateFarmerOrder (WIP only; submit handled inside item card via console.log)
 // - Client-side filter & sort (ignore BE pagination per product decision)
 //
-// TODO(sort/filter): Adjust default sort and add more options as needed.
+// TODO(sort/filter): Expand sort options if needed.
 // TODO(UX): Add virtualization/pagination later if lists grow large.
+// TODO(hooks): Extract demand-stats fetching into a tiny useDemandStatistics hook if reused elsewhere.
 
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
     Box,
     Stack,
@@ -17,85 +19,188 @@ import {
     Separator,
     NativeSelect,
 } from "@chakra-ui/react";
-import { toaster } from "@/components/ui/toaster";
-import type { FarmerInventoryItem } from "../types";
+import type { FarmerInventoryItem, DemandStatisticsResponse } from "@/types/farmerInventory";
 import { useFarmerInventory } from "../hooks/useFarmerInventory";
-import { useCreateFarmerOrder } from "../hooks/useCreateFarmerOrder";
-
-// NOTE: We'll implement this next.
-// It should accept props: { item, onSubmit, isSubmitting }
-// and internally handle the table layout + button disable rule.
 import { InventoryItemCard } from "./InventoryItemCard";
 
-export type InventoryListProps = {
-    amsId: string;
-};
+/* ---------------------------------- types --------------------------------- */
 
 type SortKey = "updatedDesc" | "availableDesc" | "nameAsc";
 
-function sortItems(items: FarmerInventoryItem[], key: SortKey): FarmerInventoryItem[] {
-    const copy = [...items];
-    switch (key) {
-        case "availableDesc":
-            return copy.sort(
-                (a, b) => (b.currentAvailableAmountKg ?? 0) - (a.currentAvailableAmountKg ?? 0)
-            );
-        case "nameAsc":
-            // We don't have itemName from BE yet—fallback to itemId asc for determinism
-            return copy.sort((a, b) => a.itemId.localeCompare(b.itemId));
-        case "updatedDesc":
-        default:
-            return copy.sort(
-                (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-            );
+type DemandEntry = {
+    itemId: string;
+    itemDisplayName?: string | null;
+    averageDemandQuantityKg?: number | null;
+};
+
+type DemandMap = Map<
+    string,
+    { itemDisplayName?: string; averageDemandQuantityKg?: number }
+>;
+
+/* --------------------------------- helpers -------------------------------- */
+
+function groupByItemId(items: FarmerInventoryItem[]) {
+    const map = new Map<string, FarmerInventoryItem[]>();
+    for (const it of items) {
+        const list = map.get(it.itemId);
+        if (list) list.push(it);
+        else map.set(it.itemId, [it]);
     }
+    return map;
 }
 
-function InventoryListBase({ amsId }: InventoryListProps) {
-    const { status, items, error, refetch, isEmpty } = useFarmerInventory(amsId);
-    const { create, isSubmitting } = useCreateFarmerOrder(amsId);
+function shortenId(id: string, len = 8) {
+    return id?.slice(0, len) ?? "";
+}
+
+function sortGroupKeys(
+    groupMap: Map<string, FarmerInventoryItem[]>,
+    key: SortKey
+): string[] {
+    const keys = Array.from(groupMap.keys());
+    if (key === "nameAsc") {
+        keys.sort((a, b) => a.localeCompare(b));
+        return keys;
+    }
+
+    // Precompute group metrics
+    const metrics = new Map<
+        string,
+        { latestUpdatedAt: number; totalAvailableKg: number }
+    >();
+    for (const k of keys) {
+        const rows = groupMap.get(k)!;
+        let latest = 0;
+        let sumAvail = 0;
+        for (const r of rows) {
+            const t = new Date(r.updatedAt ?? r.createdAt).getTime();
+            if (t > latest) latest = t;
+            sumAvail += Number(r.currentAvailableAmountKg ?? 0);
+        }
+        metrics.set(k, { latestUpdatedAt: latest, totalAvailableKg: sumAvail });
+    }
+
+    if (key === "availableDesc") {
+        keys.sort(
+            (a, b) =>
+                (metrics.get(b)?.totalAvailableKg ?? 0) -
+                (metrics.get(a)?.totalAvailableKg ?? 0)
+        );
+        return keys;
+    }
+
+    // default: updatedDesc
+    keys.sort(
+        (a, b) =>
+            (metrics.get(b)?.latestUpdatedAt ?? 0) -
+            (metrics.get(a)?.latestUpdatedAt ?? 0)
+    );
+    return keys;
+}
+
+/* ---------------------------------- view ---------------------------------- */
+
+function InventoryListBase() {
+    const {
+        status,
+        items,
+        error,
+        isEmpty,
+        // meta, hasData, refetch  // (kept unused now; can re-enable later)
+        fetchDemandStatistics,
+    } = useFarmerInventory();
 
     const [query, setQuery] = useState("");
     const [sortKey, setSortKey] = useState<SortKey>("updatedDesc");
 
-    const filtered = useMemo(() => {
+    // --------------------------- demand statistics ---------------------------
+    const [demandMap, setDemandMap] = useState<DemandMap>(new Map());
+
+    useEffect(() => {
+        let alive = true;
+
+        // NOTE: “use the first one we get”
+        // We’ll call the provided hook method and build an itemId -> first entry map.
+        async function loadDemand() {
+            try {
+                const res = await fetchDemandStatistics?.();
+                console.log("[InventoryList] fetched demand statistics:", res);
+
+                // The API returns slot buckets: { items: [{ slotKey, items: DemandEntry[] }], ... }
+                // Per your requirement, "use the first one we get".
+                // Also tolerate a flat shape: { items: DemandEntry[] }.
+                let slotEntries: DemandEntry[] = [];
+
+                if (Array.isArray(res?.items) && res.items.length > 0) {
+                    const first = res.items[0];
+                    if (first && Array.isArray(first.items)) {
+                        // Bucketed-by-slot shape
+                        slotEntries = first.items as DemandEntry[];
+                    } else if (res.items.length && (res.items[0] as any).itemId) {
+                        // Flat shape fallback
+                        slotEntries = res.items as DemandEntry[];
+                    }
+                }
+
+                const map: DemandMap = new Map();
+                for (const e of slotEntries) {
+                    if (!e?.itemId) continue;
+                    if (!map.has(e.itemId)) {
+                        map.set(e.itemId, {
+                            itemDisplayName: e.itemDisplayName ?? undefined,
+                            averageDemandQuantityKg: e.averageDemandQuantityKg ?? undefined,
+                        });
+                    }
+                }
+                console.log("[InventoryList] built demand map:", map);
+
+                if (alive) setDemandMap(map);
+            } catch (e) {
+                console.warn("[InventoryList] demand stats fetch failed:", e);
+                if (alive) setDemandMap(new Map());
+            }
+        }
+
+
+        // Only fetch once we actually have inventory (prevents wasted calls on initial mounts that will be immediately replaced)
+        if (status === "success") {
+            void loadDemand();
+        }
+
+        return () => {
+            alive = false;
+        };
+    }, [status, fetchDemandStatistics]);
+
+    // ----------------------------- filter + group ----------------------------
+    const filteredGrouped = useMemo(() => {
         const q = query.trim().toLowerCase();
         const base = q
             ? items.filter(
                 (it) =>
                     it.itemId.toLowerCase().includes(q) ||
-                    it.farmerId.toLowerCase().includes(q)
+                    it.farmerUserId.toLowerCase().includes(q)
             )
             : items;
-        return sortItems(base, sortKey);
-    }, [items, query, sortKey]);
 
-    const handleSubmit = async (item: FarmerInventoryItem) => {
-        // Disable handled inside InventoryItemCard using isSubmitting + available rule
-        const result = await create({ itemId: item.itemId });
-        if (result) {
-            toaster.create({
-                type: "success",
-                title: "Farmer order created",
-                description: `Order ${result.orderId} for item ${item.itemId}`,
-                duration: 2000,
-            });
-            // Optional: refetch inventory if creation affects availability.
-            // TODO(behavior): If BE decrements availability on order creation, call refetch().
-            // void refetch();
-        } else {
-            toaster.create({
-                type: "error",
-                title: "Failed to create order",
-                description: "Please try again.",
-            });
-        }
-    };
+        return groupByItemId(base);
+    }, [items, query]);
+
+    const sortedGroupKeys = useMemo(
+        () => sortGroupKeys(filteredGrouped, sortKey),
+        [filteredGrouped, sortKey]
+    );
+
+    const totalVisibleRows = useMemo(
+        () => Array.from(filteredGrouped.values()).reduce((n, rows) => n + rows.length, 0),
+        [filteredGrouped]
+    );
 
     return (
         <Stack gap="4" w="full">
             {/* Toolbar */}
-            <HStack justify="space-between" wrap="wrap" gap="3">
+            <HStack justify="space-between" flexWrap="wrap" gap="3">
                 <HStack gap="2" flex="1 1 360px">
                     <Input
                         placeholder="Filter by itemId or farmerId…"
@@ -103,8 +208,12 @@ function InventoryListBase({ amsId }: InventoryListProps) {
                         onChange={(e) => setQuery(e.target.value)}
                         aria-label="Filter inventory"
                     />
-                    <NativeSelect.Root  >
-                        <NativeSelect.Field placeholder={sortKey} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} aria-label="Sort inventory">
+                    <NativeSelect.Root>
+                        <NativeSelect.Field
+                            value={sortKey}
+                            onChange={(e) => setSortKey(e.target.value as SortKey)}
+                            aria-label="Sort inventory"
+                        >
                             <option value="updatedDesc">Last updated (newest)</option>
                             <option value="availableDesc">Available (high → low)</option>
                             <option value="nameAsc">Item (id asc)</option>
@@ -113,7 +222,7 @@ function InventoryListBase({ amsId }: InventoryListProps) {
                     </NativeSelect.Root>
                 </HStack>
                 <Text fontSize="sm" color="fg.muted">
-                    {status === "success" ? `${filtered.length} items` : "—"}
+                    {status === "success" ? `${totalVisibleRows} rows in ${sortedGroupKeys.length} groups` : "—"}
                 </Text>
             </HStack>
 
@@ -135,7 +244,7 @@ function InventoryListBase({ amsId }: InventoryListProps) {
                         Failed to load inventory
                     </Text>
                     <Text fontSize="sm" color="fg.muted">
-                        {error ?? "Unknown error."}
+                        {String(error ?? "Unknown error.")}
                     </Text>
                 </Box>
             ) : null}
@@ -147,17 +256,40 @@ function InventoryListBase({ amsId }: InventoryListProps) {
                 </Box>
             ) : null}
 
-            {/* Items */}
-            {status === "success" && filtered.length > 0 ? (
+            {/* Groups */}
+            {status === "success" && sortedGroupKeys.length > 0 ? (
                 <Stack gap="3">
-                    {filtered.map((item) => (
-                        <InventoryItemCard
-                            key={item.id}
-                            item={item}
-                            isSubmitting={isSubmitting(item.itemId)}
-                            onSubmit={() => handleSubmit(item)}
-                        />
-                    ))}
+                    {sortedGroupKeys.map((itemId) => {
+                        const rows = filteredGrouped.get(itemId)!;
+                        const demand = demandMap.get(itemId);
+                        // Use the first demand entry we got; fallbacks if missing
+                        const itemDisplayName = demand?.itemDisplayName ?? itemId;
+                        const averageDemandQuantityKg = demand?.averageDemandQuantityKg;
+
+                        // Build a compact group header subtitle (optional)
+                        const latestUpdated = rows
+                            .map((r) => new Date(r.updatedAt ?? r.createdAt).getTime())
+                            .reduce((max, t) => (t > max ? t : max), 0);
+                        const latestUpdatedISO = latestUpdated
+                            ? new Date(latestUpdated).toLocaleString()
+                            : "";
+
+                        return (
+                            <InventoryItemCard
+                                key={itemId}
+                                // group-level props
+                                itemId={itemId}
+                                itemDisplayName={itemDisplayName}
+                                averageDemandQuantityKg={averageDemandQuantityKg}
+                                // rows for farmers that share this item
+                                rows={rows}
+                                // optional meta to show under header (can be used or ignored by card)
+                                subtitle={`latest update: ${latestUpdatedISO}`}
+                                // helpers (can be ignored by card)
+                                formatFarmerId={shortenId}
+                            />
+                        );
+                    })}
                 </Stack>
             ) : null}
         </Stack>
