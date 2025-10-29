@@ -1,82 +1,87 @@
 openapi: 3.0.3
 info:
   title: Demand Statics API
-  version: 1.0.0
-  description: |
-    CRUD + bulk import for demand statics "slots" keyed by `<day>-<part>` (e.g., `monday-afternoon`).
-    - **Normalized shape**: `{ slotKey, items: [...] }`
-    - **Raw shape**: `{ "<slotKey>": { items: [...] } }`
-    - Allowed roles for mutations: `tManager`, `fManager`, `opManager`, `admin`.
-
-servers:
-  - url: https://api.example.com
-    description: Production
-  - url: http://localhost:3000
-    description: Local
+  version: "1.0.0"
+  description: >
+    Endpoints for reading and maintaining demand statics "slots" keyed by `<day>-<part>` (e.g., `monday-afternoon`).
+    Notes:
+      - Public reads allow optional authentication (JWT bearer); mutations require authentication with one of the roles:
+        `tManager`, `fManager`, `opManager`, `admin`.
+      - Two body shapes are supported on create/upsert/import:
+        1) **Normalized**: `{ slotKey, items: [...] }`
+        2) **Raw**: `{ "<slotKey>": { items: [...] } }`
+      - Valid day names: `monday`…`sunday`.
+      - Valid parts: `morning`, `afternoon`, `night`.
 
 tags:
   - name: DemandStatics
-    description: Manage average demand per slot (day + part)
+    description: Average demand per slot (day + part)
+
+servers:
+  - url: /api
 
 paths:
   /demand-statics:
     get:
       tags: [DemandStatics]
-      summary: List slots
-      description: |
-        Optionally filter by day and/or part. Supports pagination.
-        Public/optional-auth route.
-      operationId: listSlots
+      summary: List demand statics slots
+      description: >
+        Returns a paginated list of all configured demand statics slots.
+        Optional filters: `day`, `part`.
+        Public route (optional authentication).
       parameters:
         - in: query
           name: page
+          required: false
           schema: { type: integer, minimum: 1, default: 1 }
-          description: Page number (1-based).
+          description: "Page number (1-based)."
         - in: query
           name: limit
+          required: false
           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
-          description: Page size.
+          description: "Page size (1–100)."
         - in: query
           name: day
-          schema:
-            $ref: '#/components/schemas/DayName'
-          description: Filter by day (e.g., `monday`).
+          required: false
+          schema: { $ref: '#/components/schemas/DayName' }
+          description: "Filter by day (e.g., `monday`)."
         - in: query
           name: part
-          schema:
-            $ref: '#/components/schemas/PartName'
-          description: Filter by part (e.g., `afternoon`).
+          required: false
+          schema: { $ref: '#/components/schemas/PartName' }
+          description: "Filter by part (e.g., `afternoon`)."
       responses:
-        '200':
-          description: Paginated list of slots
+        "200":
+          description: Paginated list of demand statics slots
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ListSlotsResponse'
+              schema: { $ref: '#/components/schemas/ListSlotsResponse' }
               examples:
-                ok:
+                sample:
                   value:
                     items:
-                      - slotKey: monday-afternoon
+                      - slotKey: "monday-afternoon"
                         items:
-                          - itemId: "68960284330bf1699eee8955"
-                            itemDisplayName: "Lettuce Romaine"
-                            averageDemandQuantityKg: 42.5
-                      - slotKey: monday-night
+                          - { itemId: "68960284330bf1699eee8955", itemDisplayName: "Lettuce Romaine", averageDemandQuantityKg: 42.5 }
+                      - slotKey: "monday-night"
                         items: []
                     page: 1
                     limit: 20
                     total: 2
                     pages: 1
-        '400':
-          $ref: '#/components/responses/BadRequest'
+        "400":
+          description: Invalid query
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     post:
       tags: [DemandStatics]
-      summary: Create a slot
-      description: |
-        Create a new slot. Accepts **normalized** or **raw** body.
-        Requires authentication and one of roles: `tManager`, `fManager`, `opManager`, `admin`.
-      operationId: createSlot
+      summary: Create a demand statics slot
+      description: >
+        Creates a new slot document.
+        Accepts **normalized** or **raw** body formats.
+        Requires authentication with role in `tManager`, `fManager`, `opManager`, or `admin`.
       security:
         - bearerAuth: []
       requestBody:
@@ -92,42 +97,41 @@ paths:
                 value:
                   slotKey: "monday-afternoon"
                   items:
-                    - itemId: "68960284330bf1699eee8955"
-                      itemDisplayName: "Lettuce Romaine"
-                      averageDemandQuantityKg: 42.5
+                    - { itemId: "68960284330bf1699eee8955", itemDisplayName: "Lettuce Romaine", averageDemandQuantityKg: 42.5 }
               raw:
                 value:
                   monday-afternoon:
                     items:
-                      - itemId: "68960284330bf1699eee8955"
-                        itemDisplayName: "Lettuce Romaine"
-                        averageDemandQuantityKg: 42.5
+                      - { itemId: "68960284330bf1699eee8955", itemDisplayName: "Lettuce Romaine", averageDemandQuantityKg: 42.5 }
       responses:
-        '201':
-          description: Created
+        "201":
+          description: Created slot
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DemandStaticsNormalized'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          description: Conflict – slotKey already exists
+              schema: { $ref: '#/components/schemas/DemandStaticsNormalized' }
+        "400":
+          description: Validation error
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              schema: { $ref: '#/components/schemas/Error' }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "409":
+          description: Slot already exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     put:
       tags: [DemandStatics]
-      summary: Upsert a slot
-      description: |
-        Upsert by `slotKey`. Accepts **normalized** or **raw** body.
-        Requires authentication and one of roles: `tManager`, `fManager`, `opManager`, `admin`.
-      operationId: upsertSlot
+      summary: Upsert a demand statics slot
+      description: >
+        Upserts (creates or replaces) a slot by `slotKey`.
+        Accepts **normalized** or **raw** body.
+        Requires authentication with role in `tManager`, `fManager`, `opManager`, or `admin`.
       security:
         - bearerAuth: []
       requestBody:
@@ -139,81 +143,78 @@ paths:
                 - $ref: '#/components/schemas/DemandStaticsNormalized'
                 - $ref: '#/components/schemas/DemandStaticsRaw'
       responses:
-        '200':
-          description: Upserted/updated slot
+        "200":
+          description: Updated or created slot
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DemandStaticsNormalized'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+              schema: { $ref: '#/components/schemas/DemandStaticsNormalized' }
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /demand-statics/{slotKey}:
     get:
       tags: [DemandStatics]
       summary: Get a slot by key
-      description: Public/optional-auth route; returns normalized projected items.
-      operationId: getSlot
+      description: >
+        Returns a single slot document for the specified `slotKey`.
+        Public route (optional authentication).
       parameters:
         - $ref: '#/components/parameters/SlotKeyParam'
       responses:
-        '200':
-          description: Slot
+        "200":
+          description: Slot found
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DemandStaticsNormalized'
-              examples:
-                ok:
-                  value:
-                    slotKey: "monday-afternoon"
-                    items:
-                      - itemId: "68960284330bf1699eee8955"
-                        itemDisplayName: "Lettuce Romaine"
-                        averageDemandQuantityKg: 42.5
-        '404':
-          $ref: '#/components/responses/NotFound'
+              schema: { $ref: '#/components/schemas/DemandStaticsNormalized' }
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
     delete:
       tags: [DemandStatics]
-      summary: Delete a slot by key
-      description: Requires authentication and one of roles: `tManager`, `fManager`, `opManager`, `admin`.
-      operationId: deleteSlot
+      summary: Delete a slot
+      description: >
+        Deletes the specified slot by `slotKey`.
+        Requires authentication with role in `tManager`, `fManager`, `opManager`, or `admin`.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/SlotKeyParam'
       responses:
-        '200':
-          description: Deleted document (raw Mongo doc). Your controller returns `{ deleted: <doc> }`.
+        "200":
+          description: Deleted slot document
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   deleted:
-                    description: The deleted slot document (or null if already gone)
-                    nullable: true
                     type: object
+                    nullable: true
                     additionalProperties: true
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /demand-statics/{slotKey}/items:
     patch:
       tags: [DemandStatics]
       summary: Replace items for a slot
-      description: |
-        Replaces the entire `items` array for the given slot. Body must be `{ items: DemandItemLine[] }`.
-        Requires authentication and one of roles: `tManager`, `fManager`, `opManager`, `admin`.
-      operationId: replaceSlotItems
+      description: >
+        Replaces all `items` of the specified slot.
+        Requires authentication with role in `tManager`, `fManager`, `opManager`, or `admin`.
       security:
         - bearerAuth: []
       parameters:
@@ -228,42 +229,32 @@ paths:
               properties:
                 items:
                   type: array
-                  items:
-                    $ref: '#/components/schemas/DemandItemLine'
-            examples:
-              ok:
-                value:
-                  items:
-                    - itemId: "68960284330bf1699eee8955"
-                      itemDisplayName: "Lettuce Romaine"
-                      averageDemandQuantityKg: 50
-                    - itemId: "68960284330bf1699eee8956"
-                      itemDisplayName: "Cucumber Persian"
-                      averageDemandQuantityKg: 25.5
+                  items: { $ref: '#/components/schemas/DemandItemLine' }
       responses:
-        '200':
+        "200":
           description: Updated slot
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DemandStaticsNormalized'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
+              schema: { $ref: '#/components/schemas/DemandStaticsNormalized' }
+        "400":
+          description: Invalid body
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /demand-statics/import:
     post:
       tags: [DemandStatics]
-      summary: Bulk import (upsert-many)
-      description: |
-        Accepts an array of **normalized** and/or **raw** entries.
-        Requires authentication and one of roles: `tManager`, `fManager`, `opManager`, `admin`.
-      operationId: bulkImportDemandStatics
+      summary: Bulk import demand statics
+      description: >
+        Bulk upserts multiple demand statics slots.
+        Accepts an array of **normalized** and/or **raw** objects.
+        Requires authentication with role in `tManager`, `fManager`, `opManager`, or `admin`.
       security:
         - bearerAuth: []
       requestBody:
@@ -277,67 +268,44 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/DemandStaticsNormalized'
                   - $ref: '#/components/schemas/DemandStaticsRaw'
-            examples:
-              mixed:
-                value:
-                  - slotKey: "monday-afternoon"
-                    items:
-                      - itemId: "68960284330bf1699eee8955"
-                        averageDemandQuantityKg: 40
-                  - tuesday-morning:
-                      items:
-                        - itemId: "68960284330bf1699eee8956"
-                          itemDisplayName: "Cucumber Persian"
-                          averageDemandQuantityKg: 15
       responses:
-        '200':
-          description: Bulk write summary
+        "200":
+          description: Bulk import summary
           content:
             application/json:
               schema:
                 type: object
+                required: [upserted, modified, matched]
                 properties:
                   upserted: { type: integer, minimum: 0 }
                   modified: { type: integer, minimum: 0 }
                   matched: { type: integer, minimum: 0 }
-                required: [upserted, modified, matched]
-              examples:
-                ok:
-                  value: { upserted: 2, modified: 0, matched: 2 }
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /demand-statics/{slotKey}/raw:
     get:
       tags: [DemandStatics]
-      summary: Get a slot in raw dynamic-key shape
-      description: |
-        Returns `{ "<slotKey>": { items: [...] } }`.
-        Public/optional-auth route.
-      operationId: getSlotRaw
+      summary: Get a raw slot document
+      description: >
+        Returns the raw shape `{ "<slotKey>": { items: [...] } }`.
+        Public route (optional authentication).
       parameters:
         - $ref: '#/components/parameters/SlotKeyParam'
       responses:
-        '200':
-          description: Raw slot
+        "200":
+          description: Raw slot document
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DemandStaticsRaw'
-              examples:
-                ok:
-                  value:
-                    monday-afternoon:
-                      items:
-                        - itemId: "68960284330bf1699eee8955"
-                          itemDisplayName: "Lettuce Romaine"
-                          averageDemandQuantityKg: 42.5
-        '404':
-          $ref: '#/components/responses/NotFound'
+              schema: { $ref: '#/components/schemas/DemandStaticsRaw' }
+        "404":
+          description: Slot not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
 components:
   securitySchemes:
@@ -351,19 +319,16 @@ components:
       in: path
       name: slotKey
       required: true
-      description: Slot key in the form `<day>-<part>` (e.g., `monday-afternoon`).
-      schema:
-        $ref: '#/components/schemas/SlotKey'
+      schema: { $ref: '#/components/schemas/SlotKey' }
+      description: "Slot key in the form `<day>-<part>` (e.g., `monday-afternoon`)."
 
   schemas:
     DayName:
       type: string
-      pattern: '^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$'
-      example: monday
+      enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
     PartName:
       type: string
-      pattern: '^(morning|afternoon|night)$'
-      example: afternoon
+      enum: [morning, afternoon, night]
     SlotKey:
       type: string
       pattern: '^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)-(morning|afternoon|night)$'
@@ -371,58 +336,44 @@ components:
 
     DemandItemLine:
       type: object
-      additionalProperties: false
       required: [itemId, averageDemandQuantityKg]
       properties:
         itemId:
           type: string
-          description: Mongo ObjectId (as string) referencing Item
-          example: "68960284330bf1699eee8955"
+          description: "Item ID reference."
         itemDisplayName:
           type: string
           nullable: true
-          description: Optional denormalized label
-          example: "Lettuce Romaine"
+          description: "Optional denormalized label."
         averageDemandQuantityKg:
           type: number
           minimum: 0
-          example: 42.5
+          description: "Average demand quantity in kilograms."
+      example:
+        itemId: "68960284330bf1699eee8955"
+        itemDisplayName: "Lettuce Romaine"
+        averageDemandQuantityKg: 42.5
 
     DemandStaticsNormalized:
       type: object
-      additionalProperties: false
       required: [slotKey, items]
       properties:
         slotKey:
           $ref: '#/components/schemas/SlotKey'
         items:
           type: array
-          items:
-            $ref: '#/components/schemas/DemandItemLine'
-      example:
-        slotKey: "monday-afternoon"
-        items:
-          - itemId: "68960284330bf1699eee8955"
-            itemDisplayName: "Lettuce Romaine"
-            averageDemandQuantityKg: 42.5
+          items: { $ref: '#/components/schemas/DemandItemLine' }
 
     DemandStaticsRaw:
       type: object
-      description: Raw dynamic-key format, e.g., `{ "monday-afternoon": { items: [...] } }`
+      description: "Raw dynamic-key format."
       additionalProperties:
         type: object
+        required: [items]
         properties:
           items:
             type: array
-            items:
-              $ref: '#/components/schemas/DemandItemLine'
-        required: [items]
-      example:
-        monday-afternoon:
-          items:
-            - itemId: "68960284330bf1699eee8955"
-              itemDisplayName: "Lettuce Romaine"
-              averageDemandQuantityKg: 42.5
+            items: { $ref: '#/components/schemas/DemandItemLine' }
 
     ListSlotsResponse:
       type: object
@@ -430,8 +381,7 @@ components:
       properties:
         items:
           type: array
-          items:
-            $ref: '#/components/schemas/DemandStaticsNormalized'
+          items: { $ref: '#/components/schemas/DemandStaticsNormalized' }
         page: { type: integer, minimum: 1 }
         limit: { type: integer, minimum: 1, maximum: 100 }
         total: { type: integer, minimum: 0 }
@@ -442,56 +392,10 @@ components:
       properties:
         error:
           type: string
-          description: Error code/kind
-          example: BadRequest
         details:
-          description: Optional error details or validation issues
           oneOf:
-            - type: array
-              items:
-                type: string
             - type: string
-
-  responses:
-    BadRequest:
-      description: Bad Request
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          examples:
-            invalidBody:
-              value:
-                error: "BadRequest"
-                details: ["Body must be an object"]
-            invalidItems:
-              value:
-                error: "BadRequest"
-                details: ["`items` must be an array"]
-    Unauthorized:
-      description: Unauthorized
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          examples:
-            noAuth:
-              value: { error: "Unauthorized", details: "Missing or invalid token" }
-    Forbidden:
-      description: Forbidden
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          examples:
-            noRole:
-              value: { error: "Forbidden", details: ["Insufficient role"] }
-    NotFound:
-      description: Not Found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          examples:
-            slotMissing:
-              value: { error: "NotFound", details: ["Slot not found"] }
+            - type: array
+              items: { type: string }
+      example:
+        error: "Unauthorized"
