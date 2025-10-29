@@ -1,12 +1,12 @@
-// src/pages/CreateStock/components/InventoryItemCard.tsx
 // Group card for a single itemId:
 // - Header shows item display name and demand statistic (averageDemandQuantityKg)
 // - Table rows list all farmer inventory records sharing this itemId
-// - Each row has an input (kg) + Submit button that logs a WIP payload
+// - Each row has an input (kg) + Submit button that calls the real create farmer order API
 //
 // Notes:
-// - No calls to useCreateFarmerOrder here (WIP only).
-// - No UI limits for quantity as requested (we allow empty/any number).
+// - Shift & pickUpDate come from the PAGE context/props (canonical selection).
+// - Minimal FE validation: require finite positive kg, require shift & pickUpDate.
+// - Disable only the specific row's Submit when its request is pending.
 // - IDs are shortened for display via the provided formatter (fallback to first 8 chars).
 //
 // TODO(i18n): use Intl for number/date formatting as needed.
@@ -23,8 +23,13 @@ import {
     Table,
     Input,
     Button,
+    Callout,
+    Icon,
 } from "@chakra-ui/react";
+import { FiAlertTriangle, FiCheck } from "react-icons/fi";
 import type { FarmerInventoryItem } from "@/types/farmerInventory";
+import type { IsoDateString, Shift } from "@/types/farmerOrders";
+import { useCreateFarmerOrder } from "../hooks/useCreateFarmerOrder";
 
 export type InventoryItemCardProps = {
     /** The grouped item id */
@@ -39,6 +44,10 @@ export type InventoryItemCardProps = {
     subtitle?: string;
     /** Optional formatter for farmer ids (e.g., shorten) */
     formatFarmerId?: (id: string) => string;
+
+    /** Canonical selection from page/init (required to create orders) */
+    shift?: Shift; // "morning" | "afternoon" | "evening" | "night"
+    pickUpDate?: IsoDateString; // "YYYY-MM-DD"
 };
 
 function formatDateTime(iso?: string): string {
@@ -53,7 +62,6 @@ function formatDateTime(iso?: string): string {
 
 function fmtKg(n?: number | null): string {
     if (n === null || n === undefined || Number.isNaN(n)) return "—";
-    // 0 or a number; we’ll show up to 1 decimal for readability
     return Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " kg";
 }
 
@@ -74,38 +82,57 @@ function InventoryItemCardBase({
     rows,
     subtitle,
     formatFarmerId,
+    shift,
+    pickUpDate,
 }: InventoryItemCardProps) {
     // Local per-row input state (map rowKey -> string)
     const [qtyByRow, setQtyByRow] = useState<Record<string, string>>({});
+    // Local per-row ephemeral success flag (to flash a tiny check)
+    const [successByRow, setSuccessByRow] = useState<Record<string, number>>({}); // value = timestamp
+
+    const { create, isSubmitting } = useCreateFarmerOrder();
 
     const onChangeQty = (rowKey: string, v: string) => {
         setQtyByRow((s) => ({ ...s, [rowKey]: v }));
     };
 
-    const onSubmitRow = (row: FarmerInventoryItem) => {
+    const canCreate = Boolean(shift && pickUpDate);
+
+    const onSubmitRow = async (row: FarmerInventoryItem) => {
         const rowKey = getRowKey(row);
         const raw = qtyByRow[rowKey];
         const parsed = typeof raw === "string" ? parseFloat(raw) : NaN;
 
-        // WIP console log only (as requested)
-        // eslint-disable-next-line no-console
-        console.log("WIP submit", {
+        if (!canCreate) {
+            // eslint-disable-next-line no-console
+            console.warn("[CreateFarmerOrder] Missing shift or pickUpDate from page context.");
+            return;
+        }
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            // eslint-disable-next-line no-console
+            console.warn("[CreateFarmerOrder] Invalid forcastedQuantityKg value:", raw);
+            return;
+        }
+
+        // Build request matching backend contract
+        const req = {
             itemId,
-            itemDisplayName,
-            averageDemandQuantityKg,
-            inventoryRowId: (row as any)._id ?? null,
-            farmerUserId: row.farmerUserId,
-            logisticCenterId: row.logisticCenterId,
-            // we include both raw string and parsed float for flexibility
-            quantityKgRaw: raw ?? "",
-            quantityKg: Number.isFinite(parsed) ? parsed : null,
-            // misc for debugging
-            agreementAmountKg: row.agreementAmountKg ?? null,
-            currentAvailableAmountKg: row.currentAvailableAmountKg ?? null,
-            updatedAt: row.updatedAt ?? null,
-            createdAt: row.createdAt ?? null,
-            _debug: "no API call yet; this is just a WIP console log",
-        });
+            farmerId: row.farmerUserId, // you confirmed this maps to backend farmerId
+            shift: shift!, // safe due to canCreate check
+            pickUpDate: pickUpDate!, // safe due to canCreate check
+            forcastedQuantityKg: parsed,
+        };
+
+        try {
+            await create(req);
+            // Optionally clear the input for that row
+            setQtyByRow((s) => ({ ...s, [rowKey]: "" }));
+            // Flash a success indicator for this row
+            setSuccessByRow((s) => ({ ...s, [rowKey]: Date.now() }));
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.error("[CreateFarmerOrder] Failed:", err);
+        }
     };
 
     // Aggregate optional quick stats (not required, but helps in header)
@@ -163,6 +190,20 @@ function InventoryItemCardBase({
                     </Stack>
                 </HStack>
 
+                {!canCreate ? (
+                    <Callout.Root status="warning">
+                        <Callout.Indicator>
+                            <Icon as={FiAlertTriangle} />
+                        </Callout.Indicator>
+                        <Callout.Content>
+                            <Callout.Title>Missing date/shift</Callout.Title>
+                            <Callout.Description>
+                                Pick-up date and shift must be selected on the page before creating farmer orders.
+                            </Callout.Description>
+                        </Callout.Content>
+                    </Callout.Root>
+                ) : null}
+
                 <Separator />
 
                 {/* Farmers table (Chakra v3 slot API) */}
@@ -180,8 +221,15 @@ function InventoryItemCardBase({
                         {rows.map((row) => {
                             const rowKey = getRowKey(row);
                             const displayFarmer =
-                                (formatFarmerId ? formatFarmerId(row.farmerUserId) : shortIdDefault(row.farmerUserId)) || row.farmerUserId;
+                                (formatFarmerId ? formatFarmerId(row.farmerUserId) : shortIdDefault(row.farmerUserId)) ||
+                                row.farmerUserId;
                             const value = qtyByRow[rowKey] ?? "";
+                            const parsed = value === "" ? NaN : parseFloat(value);
+                            const invalidQty = !(Number.isFinite(parsed) && parsed > 0);
+                            const pending = canCreate
+                                ? isSubmitting({ itemId, farmerId: row.farmerUserId, pickUpDate: pickUpDate!, shift: shift! })
+                                : false;
+                            const justSucceeded = successByRow[rowKey] && Date.now() - successByRow[rowKey] < 2200;
 
                             return (
                                 <Table.Row key={rowKey}>
@@ -201,7 +249,7 @@ function InventoryItemCardBase({
                                         </Text>
                                     </Table.Cell>
                                     <Table.Cell>
-                                        <HStack gap="2">
+                                        <HStack gap="2" align="center">
                                             <Input
                                                 type="number"
                                                 inputMode="decimal"
@@ -209,15 +257,17 @@ function InventoryItemCardBase({
                                                 value={value}
                                                 onChange={(e) => onChangeQty(rowKey, e.target.value)}
                                                 aria-label="request quantity in kg"
+                                                invalid={value !== "" && invalidQty}
                                             />
                                             <Button
                                                 onClick={() => onSubmitRow(row)}
-                                                // As requested: no limits; we do not disable for empty/invalid input
                                                 size="sm"
                                                 colorPalette="green"
+                                                disabled={!canCreate || pending || invalidQty}
                                             >
-                                                Submit
+                                                {pending ? "Submitting…" : "Submit"}
                                             </Button>
+                                            {justSucceeded ? <Icon as={FiCheck} color="green.500" title="Created" /> : null}
                                         </HStack>
                                     </Table.Cell>
                                 </Table.Row>

@@ -1,11 +1,11 @@
 // src/types/farmerOrders.ts
 import { z } from "zod";
 
-/** Shared enums (single source of truth) */
+/* --------------------------------- Enums --------------------------------- */
+
 export const ShiftEnum = z.enum(["morning", "afternoon", "evening", "night"]);
 export type Shift = z.infer<typeof ShiftEnum>;
 
-/** Optional: UI buckets (not used in the summary payload directly, but kept for app-wide consistency) */
 export const FarmerOrderStatusEnum = z.enum(["pending", "ok", "problem"]);
 export type FarmerOrderStatus = z.infer<typeof FarmerOrderStatusEnum>;
 
@@ -13,62 +13,111 @@ export type FarmerOrderStatus = z.infer<typeof FarmerOrderStatusEnum>;
 export const IsoDateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
-
 export type IsoDateString = z.infer<typeof IsoDateString>;
 
-/** One row of aggregated counts for a (date, shift) */
+/* ---------------------------- Summary (existing) --------------------------- */
+
 export const FarmerOrderSumSchema = z.object({
-  /** "YYYY-MM-DD" local date */
   date: IsoDateString,
   shiftName: ShiftEnum,
 
-  /** totals for this (date,shift) */
   count: z.number().int().min(0),
   problemCount: z.number().int().min(0),
 
-  /** farmer orders grouped by their farmerStatus */
   okFO: z.number().int().min(0),
   pendingFO: z.number().int().min(0),
   problemFO: z.number().int().min(0),
 
-  /** unique farmers by their top-level status within the period */
   okFarmers: z.number().int().min(0),
   pendingFarmers: z.number().int().min(0),
   problemFarmers: z.number().int().min(0),
 });
 export type FarmerOrderSum = z.infer<typeof FarmerOrderSumSchema>;
 
-/** API shape: current + upcoming shifts summary for an LC in a TZ */
 export const FarmerOrdersSummarySchema = z.object({
   current: FarmerOrderSumSchema,
   next: z.array(FarmerOrderSumSchema),
-  tz: z.string(), // IANA timezone name, e.g. "Asia/Jerusalem"
-  lc: z.string(), // logistics center ID used for the aggregation
+  tz: z.string(),
+  lc: z.string(),
 });
 export type FarmerOrdersSummary = z.infer<typeof FarmerOrdersSummarySchema>;
 
-/* -------------------------------------------------------------------------- */
-/* Aliases to match hook-friendly names (so hooks don’t need to change)       */
-/* -------------------------------------------------------------------------- */
+/* ----------------------------- Aliases (existing) ------------------------- */
 
 export type ShiftRollup = FarmerOrderSum;
 export type FarmerOrdersSummaryResponse = FarmerOrdersSummary;
 
-export interface FarmerOrderDTO {
-  id: string;
+/* ------------------------- Create Farmer Order (NEW) ---------------------- */
 
-  // item identity & labels (you said type/variety won’t be empty)
-  itemId: string;
-  type: string;
-  variety: string;
-  pictureUrl?: string | null;
+/**
+ * Exact request body expected by backend.
+ * Keep spelling of `forcastedQuantityKg` to match the API.
+ */
+export const CreateFarmerOrderRequestSchema = z.object({
+  itemId: z.string().min(1),
+  farmerId: z.string().min(1),
+  shift: ShiftEnum,
+  pickUpDate: IsoDateString,
+  forcastedQuantityKg: z.number().finite(), // no FE cap per requirements
+});
+export type CreateFarmerOrderRequest = z.infer<
+  typeof CreateFarmerOrderRequestSchema
+>;
 
-  // status & quantities
-  farmerStatus: FarmerOrderStatus;
-  forcastedQuantityKg: number; // <-- exact name per your request
-  finalQuantityKg?: number | null;
+/**
+ * Farmer Order DTO returned from backend (single order).
+ * Matches the fields you provided. We keep some fields as generic strings
+ * (e.g., inspectionStatus) since only "pending" was specified.
+ */
+export const FarmerOrderDTOSchema = z.object({
+  _id: z.string().min(1),
+  itemId: z.string().min(1),
 
-  // scheduling
-  pickUpDate: string; // "YYYY-MM-DD" (local)
-  shift: Shift;
-}
+  // Labels / item info
+  type: z.string().min(1),
+  variety: z.string().min(1),
+  pictureUrl: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal("").transform(() => undefined))
+    .nullable()
+    .optional(),
+
+  // Farmer identity
+  farmerId: z.string().min(1),
+  farmerName: z.string().min(1),
+  farmName: z.string().min(1),
+
+  // Scheduling
+  shift: ShiftEnum,
+  pickUpDate: IsoDateString,
+
+  // LC and statuses
+  logisticCenterId: z.string().min(1),
+  farmerStatus: FarmerOrderStatusEnum,
+  inspectionStatus: z.string().min(1), // only "pending" was specified; keep generic
+
+  // Quantities
+  sumOrderedQuantityKg: z.number().finite().default(0),
+  forcastedQuantityKg: z.number().finite().default(0), // keep exact spelling
+  finalQuantityKg: z.number().finite().nullable().default(null),
+
+  // Timestamps (ISO strings). Using string instead of z.datetime() for leniency.
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+});
+
+/** Unwrapped DTO type (without { data: ... } envelope) */
+export type FarmerOrderDTO = z.infer<typeof FarmerOrderDTOSchema>;
+
+/**
+ * Some endpoints wrap the DTO as { data: ... } — expose a helper schema too.
+ * If your API always wraps, you can switch consumers to this schema.
+ */
+export const CreateFarmerOrderResponseSchema = z.object({
+  data: FarmerOrderDTOSchema,
+});
+export type CreateFarmerOrderResponse = z.infer<
+  typeof CreateFarmerOrderResponseSchema
+>;

@@ -1,52 +1,73 @@
 // src/pages/CreateStock/hooks/useCreateFarmerOrder.ts
-// Creates a farmer order for a given AMS and inventory item.
-// - Pure FE for now: inline FAKE call (no separate mock files).
-// - Per-item submitting state so only the clicked row disables.
-//
-// TODO(real API): Replace FAKE_CREATE with a real POST:
-//   POST /api/farmer-orders
-//   body: { amsId, itemId, ... }
-//   expect: { orderId, createdAtIso, ... }
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { CreateFarmerOrderInput, CreateFarmerOrderResult } from "../types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createFarmerOrder } from "@/api/farmerOrders";
+import type {
+  CreateFarmerOrderRequest,
+  FarmerOrderDTO,
+} from "@/types/farmerOrders";
 
-export type AsyncStatus = "idle" | "loading" | "success" | "error";
-
-/* -----------------------------------------------------------------------------
- * FAKE create (inline)
- * ---------------------------------------------------------------------------*/
-
-function randomHex(len = 8): string {
-  return Array.from({ length: len })
-    .map(() => Math.floor(Math.random() * 16).toString(16))
-    .join("");
+/**
+ * Helper: build a stable composite key for a create request.
+ * We use this to gate double-submits and to disable only the relevant row button.
+ */
+function makeKey(
+  req: Pick<
+    CreateFarmerOrderRequest,
+    "itemId" | "farmerId" | "pickUpDate" | "shift"
+  >
+): string {
+  // Structure: itemId:farmerId:pickUpDate:shift
+  return `${req.itemId}:${req.farmerId}:${req.pickUpDate}:${req.shift}`;
 }
 
-async function FAKE_CREATE(
-  input: CreateFarmerOrderInput
-): Promise<CreateFarmerOrderResult> {
-  // Simulate latency and success
-  await new Promise((r) => setTimeout(r, 500));
-  return {
-    orderId: `FO_${randomHex(6)}_${input.itemId.slice(-6)}`,
-    createdAtIso: new Date().toISOString(),
-  };
-}
+export type UseCreateFarmerOrder = {
+  /**
+   * Create a farmer order.
+   * @param req Exact backend contract:
+   *  { itemId, farmerId, shift, pickUpDate (YYYY-MM-DD), forcastedQuantityKg }
+   * @param opts Optional override for the pending key (e.g., if your UI has its own row id)
+   */
+  create: (
+    req: CreateFarmerOrderRequest,
+    opts?: { pendingKey?: string }
+  ) => Promise<FarmerOrderDTO>;
 
-/* -----------------------------------------------------------------------------
- * Hook
- * ---------------------------------------------------------------------------*/
+  /** Returns true if a request for this key is in flight. */
+  isSubmitting: (
+    key:
+      | string
+      | Pick<
+          CreateFarmerOrderRequest,
+          "itemId" | "farmerId" | "pickUpDate" | "shift"
+        >
+  ) => boolean;
 
-export function useCreateFarmerOrder(amsId?: string) {
-  // Per-item submitting set; components can call isSubmitting(itemId)
-  const [submittingIds, setSubmittingIds] = useState<Set<string>>(new Set());
-  const [status, setStatus] = useState<AsyncStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [lastResult, setLastResult] = useState<CreateFarmerOrderResult | null>(
-    null
-  );
+  /** Current set of pending keys (useful for debugging or list UIs). */
+  pendingKeys: string[];
 
+  /** Last successful result (for convenience). */
+  lastResult: FarmerOrderDTO | null;
+
+  /** Last error thrown by `create` (for convenience). */
+  lastError: unknown;
+
+  /** Clear lastResult/lastError. */
+  reset: () => void;
+};
+
+/**
+ * Production-ready hook for creating Farmer Orders.
+ * - Uses the real API (`/farmer-orders`).
+ * - Per-request "pending" is tracked by a composite key: itemId:farmerId:pickUpDate:shift
+ * - No UI coupling (no toasts): caller decides how to present success/errors.
+ */
+export function useCreateFarmerOrder(): UseCreateFarmerOrder {
+  const [pending, setPending] = useState<Set<string>>(() => new Set());
+  const [lastResult, setLastResult] = useState<FarmerOrderDTO | null>(null);
+  const [lastError, setLastError] = useState<unknown>(null);
+
+  // Track mounted to avoid setting state after unmount
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -55,70 +76,84 @@ export function useCreateFarmerOrder(amsId?: string) {
     };
   }, []);
 
-  const isSubmitting = useCallback(
-    (itemId?: string) =>
-      itemId ? submittingIds.has(itemId) : submittingIds.size > 0,
-    [submittingIds]
+  const isSubmitting = useCallback<UseCreateFarmerOrder["isSubmitting"]>(
+    (keyLike) => {
+      const key = typeof keyLike === "string" ? keyLike : makeKey(keyLike);
+      return pending.has(key);
+    },
+    [pending]
   );
 
-  const create = useCallback(
-    async (input: { itemId: string } | CreateFarmerOrderInput) => {
-      const payload: CreateFarmerOrderInput =
-        "amsId" in input ? input : { amsId: amsId ?? "", itemId: input.itemId };
+  const pendingKeys = useMemo(() => Array.from(pending), [pending]);
 
-      if (!payload.amsId) {
-        setError("Missing amsId");
-        setStatus("error");
-        return null;
-      }
-      if (!payload.itemId) {
-        setError("Missing itemId");
-        setStatus("error");
-        return null;
+  const reset = useCallback(() => {
+    if (!mountedRef.current) return;
+    setLastError(null);
+    setLastResult(null);
+  }, []);
+
+  const create: UseCreateFarmerOrder["create"] = useCallback(
+    async (req, opts) => {
+      // Build or use supplied pending key
+      const key = opts?.pendingKey ?? makeKey(req);
+
+      if (pending.has(key)) {
+        // Prevent duplicate in-flight requests for the same (itemId, farmerId, date, shift)
+        throw new Error("A request for this row is already in progress.");
       }
 
-      // mark this item as submitting
-      setSubmittingIds((prev) => new Set(prev).add(payload.itemId));
-      setStatus("loading");
-      setError(null);
+      // Lightweight input validation (the API + zod will still validate thoroughly)
+      if (!req.itemId) throw new Error("itemId is required.");
+      if (!req.farmerId) throw new Error("farmerId is required.");
+      if (!req.shift) throw new Error("shift is required.");
+      if (!req.pickUpDate)
+        throw new Error("pickUpDate is required (YYYY-MM-DD).");
+      if (!Number.isFinite(req.forcastedQuantityKg)) {
+        throw new Error("forcastedQuantityKg must be a finite number.");
+      }
+
+      // Mark as pending
+      setPending((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
 
       try {
-        /* -------------------------------------------------------------------
-         * TODO(real API):
-         * const resp = await api.post<CreateFarmerOrderResult>("/api/farmer-orders", payload);
-         * const result = resp.data;
-         * ------------------------------------------------------------------*/
-        const result = await FAKE_CREATE(payload);
-
-        if (!mountedRef.current) return null;
-        setLastResult(result);
-        setStatus("success");
+        const result = await createFarmerOrder(req);
+        if (mountedRef.current) {
+          setLastResult(result);
+          setLastError(null);
+        }
         return result;
-      } catch (e: any) {
-        if (!mountedRef.current) return null;
-        setError(e?.message ?? "Failed to create farmer order");
-        setStatus("error");
-        return null;
+      } catch (err) {
+        if (mountedRef.current) {
+          setLastError(err);
+        }
+        throw err;
       } finally {
-        // clear submitting for this item
-        setSubmittingIds((prev) => {
-          const next = new Set(prev);
-          next.delete(payload.itemId);
-          return next;
-        });
+        // Clear pending
+        if (mountedRef.current) {
+          setPending((prev) => {
+            if (!prev.has(key)) return prev;
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+          });
+        }
       }
     },
-    [amsId]
+    [pending]
   );
 
   return {
-    // Actions
-    create, // (input) => Promise<CreateFarmerOrderResult | null>
-    // State
-    status, // "idle" | "loading" | "success" | "error"
-    error, // string | null
-    lastResult, // last success result (for toasts, badges)
-    isSubmitting, // (itemId?) => boolean
-    submittingCount: submittingIds.size, // useful for global spinners if needed
-  } as const;
+    create,
+    isSubmitting,
+    pendingKeys,
+    lastResult,
+    lastError,
+    reset,
+  };
 }
+
+export default useCreateFarmerOrder;

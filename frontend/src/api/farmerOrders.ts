@@ -2,10 +2,20 @@
 import { api } from "./config";
 import {
   FarmerOrdersSummarySchema,
+  // Response DTO for an individual Farmer Order (matches backend response shape)
+  FarmerOrderDTOSchema,
   type FarmerOrderDTO,
   type FarmerOrdersSummary as FarmerOrdersSummaryResponse,
+  // Create request type (exact backend contract)
+  type CreateFarmerOrderRequest,
 } from "@/types/farmerOrders";
 import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
+
+/* -------------------------------- Constants ------------------------------- */
+
+const BASE = "/farmer-orders";
+
+/* ------------------------------- Summary API ------------------------------ */
 
 /**
  * Fetch dashboard summary for the current user's logistics center.
@@ -20,33 +30,65 @@ import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
  * }
  */
 export async function getFarmerOrdersSummary(): Promise<FarmerOrdersSummaryResponse> {
-  const { data } = await api.get("/farmer-orders/summary");
+  const { data } = await api.get(`${BASE}/summary`);
   // Support either { data: ... } or bare object:
   const payload = data?.data ?? data;
   return FarmerOrdersSummarySchema.parse(payload);
 }
 
-/* -------------------------------------------------------------------------- */
-/* (Optional, for later) Accept / Reject actions                               */
-/* -------------------------------------------------------------------------- */
+/* --------------------------- Create Farmer Order -------------------------- */
+/**
+ * Create a farmer order.
+ * Expected request (exactly as backend expects):
+ * {
+ *   itemId: string,
+ *   farmerId: string,
+ *   shift: "morning" | "afternoon" | "evening" | "night",
+ *   pickUpDate: "YYYY-MM-DD",
+ *   forcastedQuantityKg: number
+ * }
+ *
+ * Backend returns either { data: FarmerOrderDTO } or a bare FarmerOrderDTO.
+ */
+export async function createFarmerOrder(
+  req: CreateFarmerOrderRequest
+): Promise<FarmerOrderDTO> {
+  // Light runtime guards (dev-friendly messages; Zod still validates the response)
+  if (!req?.itemId) throw new Error("itemId is required");
+  if (!req?.farmerId) throw new Error("farmerId is required");
+  if (!req?.shift) throw new Error("shift is required");
+  if (!req?.pickUpDate) throw new Error("pickUpDate is required");
+  if (!(Number.isFinite as (n: unknown) => boolean)(req.forcastedQuantityKg))
+    throw new Error("forcastedQuantityKg must be a finite number");
+
+  const { data } = await api.post(BASE, req);
+  const payload = data?.data ?? data;
+  return FarmerOrderDTOSchema.parse(payload);
+}
+
+/* ------------------------------ (Optional) AR ----------------------------- */
 
 // export async function acceptFarmerOrder(orderId: string): Promise<void> {
 //   if (!orderId) throw new Error("orderId is required");
-//   await api.patch(`/farmer-orders/${encodeURIComponent(orderId)}/accept`);
+//   await api.patch(`${BASE}/${encodeURIComponent(orderId)}/accept`);
 // }
 
 // export async function rejectFarmerOrder(orderId: string, note: string): Promise<void> {
 //   if (!orderId) throw new Error("orderId is required");
 //   if (!note?.trim()) throw new Error("A non-empty note is required for rejection");
-//   await api.patch(`/farmer-orders/${encodeURIComponent(orderId)}/reject`, { note });
+//   await api.patch(`${BASE}/${encodeURIComponent(orderId)}/reject`, { note });
 // }
+
+/* ------------------------- (Optional) Fake listing ------------------------ */
 
 let fakeApi: null | typeof import("@/api/fakes/farmerOrders.fake") = null;
 
 export async function listFarmerOrders(
   params?: ListFarmerOrdersParams
 ): Promise<FarmerOrderDTO[]> {
-  if (true) {
-    return fakeApi.listFarmerOrders(params);
+  // Keep fake listing behavior, but make the dynamic import safe:
+  if (!fakeApi) {
+    fakeApi = await import("@/api/fakes/farmerOrders.fake");
   }
+  return fakeApi.listFarmerOrders(params);
 }
