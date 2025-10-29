@@ -12,7 +12,7 @@
 // TODO(i18n): use Intl for number/date formatting as needed.
 // TODO(UX): consider virtualization if groups become very large.
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react"
 import {
     Box,
     Stack,
@@ -23,56 +23,55 @@ import {
     Table,
     Input,
     Button,
-    Callout,
     Icon,
-} from "@chakra-ui/react";
-import { FiAlertTriangle, FiCheck } from "react-icons/fi";
-import type { FarmerInventoryItem } from "@/types/farmerInventory";
-import type { IsoDateString, Shift } from "@/types/farmerOrders";
-import { useCreateFarmerOrder } from "../hooks/useCreateFarmerOrder";
+} from "@chakra-ui/react"
+import type { FarmerInventoryItem } from "@/types/farmerInventory"
+import type { IsoDateString, Shift } from "@/types/farmerOrders"
+import { useCreateFarmerOrder } from "../hooks/useCreateFarmerOrder"
+import { FiCheck } from "react-icons/fi"
 
 export type InventoryItemCardProps = {
     /** The grouped item id */
-    itemId: string;
+    itemId: string
     /** Optional display name for the item (preferred label) */
-    itemDisplayName?: string;
+    itemDisplayName?: string
     /** Demand statistic for this item (average kg) */
-    averageDemandQuantityKg?: number;
+    averageDemandQuantityKg?: number
     /** All farmer inventory rows that share this itemId */
-    rows: FarmerInventoryItem[];
+    rows: FarmerInventoryItem[]
     /** Optional subtitle (e.g., latest update meta) */
-    subtitle?: string;
+    subtitle?: string
     /** Optional formatter for farmer ids (e.g., shorten) */
-    formatFarmerId?: (id: string) => string;
+    formatFarmerId?: (id: string) => string
 
     /** Canonical selection from page/init (required to create orders) */
-    shift?: Shift; // "morning" | "afternoon" | "evening" | "night"
-    pickUpDate?: IsoDateString; // "YYYY-MM-DD"
-};
+    shift?: Shift // "morning" | "afternoon" | "evening" | "night"
+    pickUpDate?: IsoDateString // "YYYY-MM-DD"
+}
 
 function formatDateTime(iso?: string): string {
-    if (!iso) return "—";
+    if (!iso) return "—"
     try {
-        const d = new Date(iso);
-        return d.toLocaleString(); // browser locale
+        const d = new Date(iso)
+        return d.toLocaleString() // browser locale
     } catch {
-        return iso;
+        return iso
     }
 }
 
 function fmtKg(n?: number | null): string {
-    if (n === null || n === undefined || Number.isNaN(n)) return "—";
-    return Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " kg";
+    if (n === null || n === undefined || Number.isNaN(n)) return "—"
+    return Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " kg"
 }
 
 function shortIdDefault(id: string, len = 8): string {
-    if (!id) return "";
-    return id.slice(0, len);
+    if (!id) return ""
+    return id.slice(0, len)
 }
 
 function getRowKey(row: FarmerInventoryItem): string {
     // Prefer _id if present; otherwise compose a stable-ish key
-    return (row as any)._id ?? `${row.itemId}:${row.farmerUserId}:${row.logisticCenterId}`;
+    return (row as any)._id ?? `${row.itemId}:${row.farmerUserId}:${row.logisticCenterId}`
 }
 
 function InventoryItemCardBase({
@@ -86,32 +85,32 @@ function InventoryItemCardBase({
     pickUpDate,
 }: InventoryItemCardProps) {
     // Local per-row input state (map rowKey -> string)
-    const [qtyByRow, setQtyByRow] = useState<Record<string, string>>({});
+    const [qtyByRow, setQtyByRow] = useState<Record<string, string>>({})
     // Local per-row ephemeral success flag (to flash a tiny check)
-    const [successByRow, setSuccessByRow] = useState<Record<string, number>>({}); // value = timestamp
+    const [successByRow, setSuccessByRow] = useState<Record<string, number>>({}) // value = timestamp
 
-    const { create, isSubmitting } = useCreateFarmerOrder();
+    const { create, isSubmitting } = useCreateFarmerOrder()
 
     const onChangeQty = (rowKey: string, v: string) => {
-        setQtyByRow((s) => ({ ...s, [rowKey]: v }));
-    };
+        setQtyByRow((s) => ({ ...s, [rowKey]: v }))
+    }
 
-    const canCreate = Boolean(shift && pickUpDate);
+    const canCreate = Boolean(shift && pickUpDate)
 
     const onSubmitRow = async (row: FarmerInventoryItem) => {
-        const rowKey = getRowKey(row);
-        const raw = qtyByRow[rowKey];
-        const parsed = typeof raw === "string" ? parseFloat(raw) : NaN;
+        const rowKey = getRowKey(row)
+        const raw = qtyByRow[rowKey]
+        const parsed = typeof raw === "string" ? parseFloat(raw) : NaN
 
         if (!canCreate) {
             // eslint-disable-next-line no-console
-            console.warn("[CreateFarmerOrder] Missing shift or pickUpDate from page context.");
-            return;
+            console.warn("[CreateFarmerOrder] Missing shift or pickUpDate from page context.")
+            return
         }
         if (!Number.isFinite(parsed) || parsed <= 0) {
             // eslint-disable-next-line no-console
-            console.warn("[CreateFarmerOrder] Invalid forcastedQuantityKg value:", raw);
-            return;
+            console.warn("[CreateFarmerOrder] Invalid forcastedQuantityKg value:", raw)
+            return
         }
 
         // Build request matching backend contract
@@ -121,36 +120,36 @@ function InventoryItemCardBase({
             shift: shift!, // safe due to canCreate check
             pickUpDate: pickUpDate!, // safe due to canCreate check
             forcastedQuantityKg: parsed,
-        };
+        }
 
         try {
-            await create(req);
+            await create(req)
             // Optionally clear the input for that row
-            setQtyByRow((s) => ({ ...s, [rowKey]: "" }));
+            setQtyByRow((s) => ({ ...s, [rowKey]: "" }))
             // Flash a success indicator for this row
-            setSuccessByRow((s) => ({ ...s, [rowKey]: Date.now() }));
+            setSuccessByRow((s) => ({ ...s, [rowKey]: Date.now() }))
         } catch (err) {
             // eslint-disable-next-line no-console
-            console.error("[CreateFarmerOrder] Failed:", err);
+            console.error("[CreateFarmerOrder] Failed:", err)
         }
-    };
+    }
 
     // Aggregate optional quick stats (not required, but helps in header)
     const groupMeta = useMemo(() => {
-        let totalAvail = 0;
-        let latest = 0;
+        let totalAvail = 0
+        let latest = 0
         for (const r of rows) {
-            totalAvail += Number(r.currentAvailableAmountKg ?? 0);
-            const t = new Date(r.updatedAt ?? r.createdAt).getTime();
-            if (t > latest) latest = t;
+            totalAvail += Number(r.currentAvailableAmountKg ?? 0)
+            const t = new Date(r.updatedAt ?? r.createdAt).getTime()
+            if (t > latest) latest = t
         }
         return {
             totalAvailableKg: totalAvail,
             latestUpdatedISO: latest ? new Date(latest).toLocaleString() : undefined,
-        };
-    }, [rows]);
+        }
+    }, [rows])
 
-    const displayLabel = itemDisplayName || itemId;
+    const displayLabel = itemDisplayName || itemId
 
     return (
         <Box borderWidth="1px" borderRadius="lg" p="4" bg="bg" borderColor="border">
@@ -190,20 +189,6 @@ function InventoryItemCardBase({
                     </Stack>
                 </HStack>
 
-                {!canCreate ? (
-                    <Callout.Root status="warning">
-                        <Callout.Indicator>
-                            <Icon as={FiAlertTriangle} />
-                        </Callout.Indicator>
-                        <Callout.Content>
-                            <Callout.Title>Missing date/shift</Callout.Title>
-                            <Callout.Description>
-                                Pick-up date and shift must be selected on the page before creating farmer orders.
-                            </Callout.Description>
-                        </Callout.Content>
-                    </Callout.Root>
-                ) : null}
-
                 <Separator />
 
                 {/* Farmers table (Chakra v3 slot API) */}
@@ -219,17 +204,17 @@ function InventoryItemCardBase({
                     </Table.Header>
                     <Table.Body>
                         {rows.map((row) => {
-                            const rowKey = getRowKey(row);
+                            const rowKey = getRowKey(row)
                             const displayFarmer =
                                 (formatFarmerId ? formatFarmerId(row.farmerUserId) : shortIdDefault(row.farmerUserId)) ||
-                                row.farmerUserId;
-                            const value = qtyByRow[rowKey] ?? "";
-                            const parsed = value === "" ? NaN : parseFloat(value);
-                            const invalidQty = !(Number.isFinite(parsed) && parsed > 0);
+                                row.farmerUserId
+                            const value = qtyByRow[rowKey] ?? ""
+                            const parsed = value === "" ? NaN : parseFloat(value)
+                            const invalidQty = !(Number.isFinite(parsed) && parsed > 0)
                             const pending = canCreate
                                 ? isSubmitting({ itemId, farmerId: row.farmerUserId, pickUpDate: pickUpDate!, shift: shift! })
-                                : false;
-                            const justSucceeded = successByRow[rowKey] && Date.now() - successByRow[rowKey] < 2200;
+                                : false
+                            const justSucceeded = successByRow[rowKey] && Date.now() - successByRow[rowKey] < 2200
 
                             return (
                                 <Table.Row key={rowKey}>
@@ -257,7 +242,7 @@ function InventoryItemCardBase({
                                                 value={value}
                                                 onChange={(e) => onChangeQty(rowKey, e.target.value)}
                                                 aria-label="request quantity in kg"
-                                                invalid={value !== "" && invalidQty}
+                                                aria-invalid={value !== "" && invalidQty}
                                             />
                                             <Button
                                                 onClick={() => onSubmitRow(row)}
@@ -267,17 +252,17 @@ function InventoryItemCardBase({
                                             >
                                                 {pending ? "Submitting…" : "Submit"}
                                             </Button>
-                                            {justSucceeded ? <Icon as={FiCheck} color="green.500" title="Created" /> : null}
+                                            {justSucceeded ? <Icon as={FiCheck} color="green.500" aria-label="Created" /> : null}
                                         </HStack>
                                     </Table.Cell>
                                 </Table.Row>
-                            );
+                            )
                         })}
                     </Table.Body>
                 </Table.Root>
             </Stack>
         </Box>
-    );
+    )
 }
 
-export const InventoryItemCard = memo(InventoryItemCardBase);
+export const InventoryItemCard = memo(InventoryItemCardBase)

@@ -22,6 +22,8 @@ import {
 import type { FarmerInventoryItem, DemandStatisticsResponse } from "@/types/farmerInventory";
 import { useFarmerInventory } from "../hooks/useFarmerInventory";
 import { InventoryItemCard } from "./InventoryItemCard";
+import type { Shift } from "@/types/farmerOrders";
+
 
 /* ---------------------------------- types --------------------------------- */
 
@@ -101,7 +103,9 @@ function sortGroupKeys(
 
 /* ---------------------------------- view ---------------------------------- */
 
-function InventoryListBase() {
+function InventoryListBase(
+    { shift, pickUpDate }: { shift: Shift; pickUpDate: string }
+) {
     const {
         status,
         items,
@@ -287,6 +291,8 @@ function InventoryListBase() {
                                 subtitle={`latest update: ${latestUpdatedISO}`}
                                 // helpers (can be ignored by card)
                                 formatFarmerId={shortenId}
+                                shift={shift}
+                                pickUpDate={pickUpDate}
                             />
                         );
                     })}

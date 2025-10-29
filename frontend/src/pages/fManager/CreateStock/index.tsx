@@ -136,7 +136,10 @@ export default function CreateStockPage() {
                 {init.status === "success" && init.data?.amsId ? (
                   <>
                     <Separator />
-                    <InventoryList />
+                    <InventoryList
+                      shift={shift}
+                      pickUpDate={dateParam}
+                    />
                   </>
                 ) : null}
 
