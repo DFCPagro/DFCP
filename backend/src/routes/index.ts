@@ -23,6 +23,7 @@ import pickTaskRoutes from "./pickTask.routes";
 import reconciliationRoutes from "./reconciliation.routes";
 import farmerInventoryRoutes from "./farmerInventory.route";
 import worldLayoutRoutes from "./worldLayout.routes";
+import demandStaticsRoutes from "./demandStatics.routes";
 
 const router = Router();
 
@@ -38,6 +39,8 @@ router.use("/world-layout", worldLayoutRoutes);
 
 // Existing
 router.use("/items", itemRoutes);
+router.use("/demand-statics", demandStaticsRoutes);
+
 router.use("/orders", orderRoutes);
 router.use("/market", marketRoutes);
 router.use("/deliverers", delivererRoutes);
@@ -55,5 +58,7 @@ router.use("/users", userRoutes);
 router.use("/pick-tasks", pickTaskRoutes);
 router.use("/containers", reconciliationRoutes);
 router.use("/farmer-inventory", farmerInventoryRoutes);
+
+
 
 export default router;
