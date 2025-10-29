@@ -168,7 +168,7 @@
     },
     "sdWeightPerUnitGr": 4,
     "season": "March-June",
-    "sellModes": { "byKg": true, "byUnit": true, "unitBundleSize": 1 },
+    "sellModes": { "byKg": false, "byUnit": true, "unitBundleSize": 1 },
     "tolerance": "0.02",
     "type": "Strawberry",
     "variety": "Albion",
