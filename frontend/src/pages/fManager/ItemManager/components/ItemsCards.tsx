@@ -12,6 +12,7 @@ import {
   Stack,
   Text,
   useDisclosure,
+
 } from "@chakra-ui/react";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import type { ItemsTableProps } from "../types";
@@ -95,7 +96,10 @@ export default function ItemsCards({
 }: ItemsTableProps) {
   const view = useDisclosure();
   const [selected, setSelected] = React.useState<(typeof items)[number] | null>(null);
-
+  React.useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log("[ItemsCards] received items:", items);
+  }, [items]);
   return (
     <Box pos="relative">
       {isBusy && (
