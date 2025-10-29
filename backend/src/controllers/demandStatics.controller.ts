@@ -13,7 +13,7 @@ import { DemandStaticsModel } from "../models/DemandStatics.model";
 import ApiError from "../utils/ApiError";
 
 export async function getSlots(req: Request, res: Response) {
-  const { page, limit, day, part } = req.query as Record<string, string>;
+  const { page, limit, day='Monday', part='Afternoon' } = req.query as Record<string, string>;
   const data = await listSlots({
     page: page ? Number(page) : undefined,
     limit: limit ? Number(limit) : undefined,
@@ -24,7 +24,8 @@ export async function getSlots(req: Request, res: Response) {
 }
 
 export async function getSlot(req: Request, res: Response) {
-  const { slotKey } = req.params;
+  //const { slotKey } = req.params;
+  const slotKey= "Monday-Afternoon";
   const doc = await getBySlotKey(slotKey);
   res.json(doc);
 }

@@ -12,7 +12,8 @@
         { "itemId": "39bd70c4db17647c60d33c8f", "itemDisplayName": "Lettuce Romaine", "averageDemandQuantityKg": 37.14 },
         { "itemId": "fa56428339a4f47db7d15600", "itemDisplayName": "Cucumber Persian", "averageDemandQuantityKg": 39.61 },
         { "itemId": "885df3d97431436c3a205ff3", "itemDisplayName": "Carrot Nantes", "averageDemandQuantityKg": 63.68 },
-        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 35.74 }
+        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 35.74 },
+        { "itemId": "64f1e2c3a5b6c7d8e9f0a1b2", "itemDisplayName": "Eggs free-range(12-pack)", "averageDemandQuantityKg": 50 }
       ]
     }
   },
@@ -29,7 +30,8 @@
         { "itemId": "39bd70c4db17647c60d33c8f", "itemDisplayName": "Lettuce Romaine", "averageDemandQuantityKg": 42.1 },
         { "itemId": "fa56428339a4f47db7d15600", "itemDisplayName": "Cucumber Persian", "averageDemandQuantityKg": 41.45 },
         { "itemId": "885df3d97431436c3a205ff3", "itemDisplayName": "Carrot Nantes", "averageDemandQuantityKg": 62.51 },
-        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 54.97 }
+        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 54.97 },
+        { "itemId": "64f1e2c3a5b6c7d8e9f0a1b2", "itemDisplayName": "Eggs free-range(12-pack)", "averageDemandQuantityKg": 20 }
       ]
     }
   },
@@ -46,7 +48,8 @@
         { "itemId": "39bd70c4db17647c60d33c8f", "itemDisplayName": "Lettuce Romaine", "averageDemandQuantityKg": 49.04 },
         { "itemId": "fa56428339a4f47db7d15600", "itemDisplayName": "Cucumber Persian", "averageDemandQuantityKg": 48.63 },
         { "itemId": "885df3d97431436c3a205ff3", "itemDisplayName": "Carrot Nantes", "averageDemandQuantityKg": 43.75 },
-        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 39.71 }
+        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 39.71 },
+        { "itemId": "64f1e2c3a5b6c7d8e9f0a1b2", "itemDisplayName": "Eggs free-range(12-pack)", "averageDemandQuantityKg": 55 }
       ]
     }
   },
@@ -63,7 +66,8 @@
         { "itemId": "39bd70c4db17647c60d33c8f", "itemDisplayName": "Lettuce Romaine", "averageDemandQuantityKg": 49.75 },
         { "itemId": "fa56428339a4f47db7d15600", "itemDisplayName": "Cucumber Persian", "averageDemandQuantityKg": 34.76 },
         { "itemId": "885df3d97431436c3a205ff3", "itemDisplayName": "Carrot Nantes", "averageDemandQuantityKg": 36.42 },
-        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 38.6 }
+        { "itemId": "f68140ef8273c40bbae48b98", "itemDisplayName": "Spinach Baby", "averageDemandQuantityKg": 38.6 },
+        { "itemId": "64f1e2c3a5b6c7d8e9f0a1b2", "itemDisplayName": "Eggs free-range(12-pack)", "averageDemandQuantityKg": 30 }
       ]
     }
   }
