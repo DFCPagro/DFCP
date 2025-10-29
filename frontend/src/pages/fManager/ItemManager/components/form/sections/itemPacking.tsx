@@ -1,3 +1,4 @@
+// src/pages/items/form/sections/itemPacking.tsx
 import * as React from "react"
 import {
   Badge,
@@ -38,8 +39,13 @@ const toNullableNumber = (v: string | number): number | null => {
   return Number.isFinite(n) ? n : null
 }
 
-// always feed NumberInput a string
 const asStr = (n?: number | null) => (n == null ? "" : String(n))
+
+const fragilityLabel = (v?: PackingInfo["fragility"] | null) =>
+  v === "very_fragile" ? "Very fragile" :
+  v === "fragile"      ? "Fragile" :
+  v === "normal"       ? "Normal" :
+  v === "sturdy"       ? "Sturdy" : "—"
 
 export default function ItemsPackingSection({
   value,
@@ -62,7 +68,6 @@ export default function ItemsPackingSection({
       merged.bulkDensityKgPerL = l && l > 0 ? Number((1 / l).toFixed(3)) : null
     }
 
-    // prune to undefined if totally empty
     const cleaned =
       Object.values(merged).every((x) => x == null || x === false || x === "")
         ? undefined
@@ -79,15 +84,13 @@ export default function ItemsPackingSection({
 
       <Stack gap={4}>
         {/* Density pair */}
-        <HStack align="start" gap={6} wrap="wrap">
+        <HStack align="start" gap={6} flexWrap="wrap">
           <Field.Root>
             <Field.Label>Bulk density</Field.Label>
             <HStack gap={2}>
               <NumberInput.Root
                 value={asStr(v.bulkDensityKgPerL)}
-                onValueChange={({ value }) =>
-                  set("bulkDensityKgPerL", toNullableNumber(value))
-                }
+                onValueChange={({ value }) => set("bulkDensityKgPerL", toNullableNumber(value))}
                 step={0.01}
                 min={0}
                 disabled={readOnly}
@@ -108,9 +111,7 @@ export default function ItemsPackingSection({
             <HStack gap={2}>
               <NumberInput.Root
                 value={asStr(v.litersPerKg)}
-                onValueChange={({ value }) =>
-                  set("litersPerKg", toNullableNumber(value))
-                }
+                onValueChange={({ value }) => set("litersPerKg", toNullableNumber(value))}
                 step={0.01}
                 min={0}
                 disabled={readOnly}
@@ -126,36 +127,42 @@ export default function ItemsPackingSection({
           </Field.Root>
         </HStack>
 
-        {/* Fragility */}
+        {/* Fragility (read-only view, editable edit/add) */}
         <Field.Root>
           <Field.Label>Fragility</Field.Label>
-          <NativeSelect.Root disabled={readOnly}>
-            <NativeSelect.Field
-              value={v.fragility ?? ""}
-              onChange={(e) =>
-                set("fragility", (e.target.value || null) as PackingInfo["fragility"])
-              }
-            >
-              <option value="">—</option>
-              <option value="very_fragile">Very fragile</option>
-              <option value="fragile">Fragile</option>
-              <option value="normal">Normal</option>
-              <option value="sturdy">Sturdy</option>
-            </NativeSelect.Field>
-            <NativeSelect.Indicator />
-          </NativeSelect.Root>
+          {readOnly ? (
+            <HStack gap={2}>
+              <Text>{fragilityLabel(v.fragility)}</Text>
+              {v.fragility && <Badge variant="subtle">{fragilityLabel(v.fragility)}</Badge>}
+            </HStack>
+          ) : (
+            <NativeSelect.Root>
+              <NativeSelect.Field
+                value={v.fragility ?? ""}
+                onChange={(e) =>
+                  set("fragility", (e.target.value || null) as PackingInfo["fragility"])
+                }
+              >
+                <option value="">—</option>
+                <option value="very_fragile">Very fragile</option>
+                <option value="fragile">Fragile</option>
+                <option value="normal">Normal</option>
+                <option value="sturdy">Sturdy</option>
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+          )}
           <Field.HelperText>Very fragile items go on top.</Field.HelperText>
         </Field.Root>
 
         {/* Booleans */}
-        <HStack gap={8} wrap="wrap">
+        <HStack gap={8} flexWrap="wrap">
           <Field.Root>
             <HStack>
-              <Switch.Root
-                checked={!!v.allowMixing}
-                onCheckedChange={(e) => set("allowMixing", e.checked)}
-                disabled={readOnly}
-              >
+              <Switch.Root checked={!!v.allowMixing} disabled={readOnly}>
+                <Switch.HiddenInput
+                  onChange={(e) => set("allowMixing", e.currentTarget.checked)}
+                />
                 <Switch.Control />
                 <Switch.Thumb />
               </Switch.Root>
@@ -165,11 +172,10 @@ export default function ItemsPackingSection({
 
           <Field.Root>
             <HStack>
-              <Switch.Root
-                checked={!!v.requiresVentedBox}
-                onCheckedChange={(e) => set("requiresVentedBox", e.checked)}
-                disabled={readOnly}
-              >
+              <Switch.Root checked={!!v.requiresVentedBox} disabled={readOnly}>
+                <Switch.HiddenInput
+                  onChange={(e) => set("requiresVentedBox", e.currentTarget.checked)}
+                />
                 <Switch.Control />
                 <Switch.Thumb />
               </Switch.Root>
@@ -179,7 +185,7 @@ export default function ItemsPackingSection({
         </HStack>
 
         {/* Box type + max weight */}
-        <HStack align="start" gap={6} wrap="wrap">
+        <HStack align="start" gap={6} flexWrap="wrap">
           <Field.Root>
             <Field.Label>Minimum box type</Field.Label>
             {boxTypeOptions && boxTypeOptions.length ? (
@@ -213,9 +219,7 @@ export default function ItemsPackingSection({
             <HStack gap={2}>
               <NumberInput.Root
                 value={asStr(v.maxWeightPerBoxKg)}
-                onValueChange={({ value }) =>
-                  set("maxWeightPerBoxKg", toNullableNumber(value))
-                }
+                onValueChange={({ value }) => set("maxWeightPerBoxKg", toNullableNumber(value))}
                 step={0.5}
                 min={0}
                 disabled={readOnly}

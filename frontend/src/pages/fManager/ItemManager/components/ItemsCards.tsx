@@ -12,21 +12,18 @@ import {
   Stack,
   Text,
   useDisclosure,
-
 } from "@chakra-ui/react";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2, Plus } from "lucide-react";
 import type { ItemsTableProps } from "../types";
 import { StyledIconButton } from "@/components/ui/IconButton";
 import ViewItemDrawer from "./ViewItemDrawer";
 import { Tooltip } from "@/components/ui/tooltip";
 
+/* ---------------- helpers ---------------- */
 function fmtUpdatedAt(date?: string | null) {
   if (!date) return "-";
-  try {
-    return new Date(date).toLocaleString();
-  } catch {
-    return "-";
-  }
+  const d = new Date(date);
+  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString();
 }
 
 const categoryColor: Record<string, string> = {
@@ -36,14 +33,13 @@ const categoryColor: Record<string, string> = {
   other: "gray",
 };
 
-// ---------- helpers ----------
 function titleFor(it: any) {
-  const base = it.variety?.trim() ? `${it.type} ${it.variety}` : it.type;
+  const base = it?.variety?.trim() ? `${it.type} ${it.variety}` : it.type;
   const pack =
-    it.sellModes?.byUnit && (it.sellModes?.unitBundleSize ?? 1) > 1
+    it?.sellModes?.byUnit && (it.sellModes?.unitBundleSize ?? 1) > 1
       ? ` (${it.sellModes.unitBundleSize} pack)`
       : "";
-  return `${base}${pack}`;
+  return `${base ?? ""}${pack}`;
 }
 
 function isProduce(cat?: string) {
@@ -51,7 +47,7 @@ function isProduce(cat?: string) {
 }
 
 function fmtWeightPerUnit(it: any) {
-  const g: number | undefined = it.weightPerUnitG ?? it.avgWeightPerUnitGr;
+  const g: number | undefined = it?.weightPerUnitG ?? it?.avgWeightPerUnitGr;
   if (!g || typeof g !== "number") return "";
   if (g >= 1000) return `${(g / 1000).toFixed(g % 1000 === 0 ? 0 : 1)} kg`;
   return `${g} g`;
@@ -59,9 +55,8 @@ function fmtWeightPerUnit(it: any) {
 
 type SellMode = "kg" | "unit" | "mixed";
 function getSellMode(it: any): SellMode {
-  // derive from your SellModes object with defaults
-  const byKg = it.sellModes?.byKg ?? true;
-  const byUnit = it.sellModes?.byUnit ?? false;
+  const byKg = it?.sellModes?.byKg ?? true;
+  const byUnit = it?.sellModes?.byUnit ?? false;
   if (byKg && byUnit) return "mixed";
   if (byUnit) return "unit";
   return "kg";
@@ -69,7 +64,7 @@ function getSellMode(it: any): SellMode {
 
 function sellBadgeLabel(it: any) {
   const mode = getSellMode(it);
-  const bundle = it.sellModes?.unitBundleSize ?? 1;
+  const bundle = it?.sellModes?.unitBundleSize ?? 1;
   const bundleTxt = mode === "unit" && bundle > 1 ? ` (${bundle})` : "";
   if (mode === "kg") return "Sell: kg";
   if (mode === "unit") return `Sell: unit${bundleTxt}`;
@@ -88,20 +83,41 @@ function fmtPrice(p?: number | null) {
   return `$${p}`;
 }
 
+/* --------------- component ---------------- */
+type ItemsCardsProps = Omit<ItemsTableProps, "onEdit"> & {
+  onEdit?: (item: any, opts?: { editable?: boolean }) => void;
+  onAddItem?: (opts?: { editable?: boolean }) => void;
+};
+
 export default function ItemsCards({
   items,
   isBusy,
   onEdit,
   onDelete,
-}: ItemsTableProps) {
+  onAddItem,
+}: ItemsCardsProps) {
   const view = useDisclosure();
-  const [selected, setSelected] = React.useState<(typeof items)[number] | null>(null);
-  React.useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log("[ItemsCards] received items:", items);
-  }, [items]);
+  const [selected, setSelected] = React.useState<(typeof items)[number] | null>(
+    null
+  );
+  const [editable, setEditable] = React.useState(false);
+
   return (
     <Box pos="relative">
+    {onAddItem && (
+  <HStack justify="flex-end" mb="3">
+    <Button
+      size="sm"
+      onClick={() => onAddItem?.({ editable: true })}
+      gap="1.5"
+    >
+      <Plus size={14} />
+      Add item
+    </Button>
+  </HStack>
+)}
+
+
       {isBusy && (
         <HStack
           pos="absolute"
@@ -117,16 +133,19 @@ export default function ItemsCards({
           borderColor="border"
         >
           <Spinner size="sm" />
-          <Text fontSize="xs" color="fg.muted">Loading…</Text>
+          <Text fontSize="xs" color="fg.muted">
+            Loading…
+          </Text>
         </HStack>
       )}
 
       <SimpleGrid columns={{ base: 1, sm: 2, md: 3, xl: 4 }} gap="5">
         {items.map((it) => {
-          const isEggDairy = it.category === "egg_dairy";
           const mode = getSellMode(it);
           const perUnitWeight =
-            mode === "unit" && isProduce(it.category) ? fmtWeightPerUnit(it) : "";
+            mode === "unit" && isProduce(it.category)
+              ? fmtWeightPerUnit(it)
+              : "";
 
           return (
             <Card.Root
@@ -148,7 +167,11 @@ export default function ItemsCards({
                   h="180px"
                   objectFit="cover"
                 />
-                <Box position="absolute" inset="0" bg="linear-gradient(0deg, rgba(0,0,0,0.45), transparent 55%)" />
+                <Box
+                  position="absolute"
+                  inset="0"
+                  bg="linear-gradient(0deg, rgba(0,0,0,0.45), transparent 55%)"
+                />
                 <Button
                   size="xs"
                   position="absolute"
@@ -157,7 +180,11 @@ export default function ItemsCards({
                   variant="solid"
                   colorPalette="teal"
                   borderRadius="full"
-                  onClick={() => { setSelected(it); view.onOpen(); }}
+                  onClick={() => {
+                    setEditable(false); // view => editable=false
+                    setSelected(it);
+                    view.onOpen();
+                  }}
                   gap="1.5"
                 >
                   <Eye size={14} />
@@ -167,7 +194,6 @@ export default function ItemsCards({
 
               {/* Body */}
               <Card.Body gap="3">
-                {/* Title (no clipping) */}
                 <Stack gap="1" flex="1" minW="0">
                   <Text
                     fontWeight="semibold"
@@ -179,7 +205,6 @@ export default function ItemsCards({
                     {titleFor(it)}
                   </Text>
 
-                  {/* Badges: category, season, SELL MODE */}
                   <HStack gap="2" wrap="wrap">
                     <Badge
                       variant="solid"
@@ -200,37 +225,40 @@ export default function ItemsCards({
                   </HStack>
                 </Stack>
 
-                {/* Meta */}
                 <Stack gap="2" fontSize="sm">
-                  {/* Prices */}
                   {it.price && (
                     <HStack gap="2" wrap="wrap" align="center">
                       <Text fontWeight="medium">
-                        {isEggDairy ? "Price" : "Price/Qual"}
+                        {it.category === "egg_dairy" ? "Price" : "Price/Qual"}
                       </Text>
 
-                      {isEggDairy ? (
+                      {it.category === "egg_dairy" ? (
                         <Badge variant="surface">{fmtPrice(it.price.a)}</Badge>
                       ) : (
                         <>
-                          <Badge variant="surface">{fmtPrice(it.price.a)} / A</Badge>
-                          <Badge variant="surface">{fmtPrice(it.price.b)} / B</Badge>
-                          <Badge variant="surface">{fmtPrice(it.price.c)} / C</Badge>
+                          <Badge variant="surface">
+                            {fmtPrice(it.price.a)} / A
+                          </Badge>
+                          <Badge variant="surface">
+                            {fmtPrice(it.price.b)} / B
+                          </Badge>
+                          <Badge variant="surface">
+                            {fmtPrice(it.price.c)} / C
+                          </Badge>
                         </>
                       )}
 
-                      {/* Optional: per-unit override when selling by unit */}
-                      {mode === "unit" && it.pricePerUnitOverride != null && (
-                        <Tooltip content="Explicit per-unit price override">
-                          <Badge variant="solid" colorPalette="gray">
-                            {fmtPrice(it.pricePerUnitOverride)} / unit
-                          </Badge>
-                        </Tooltip>
-                      )}
+                      {mode === "unit" &&
+                        it.pricePerUnitOverride != null && (
+                          <Tooltip content="Explicit per-unit price override">
+                            <Badge variant="solid" colorPalette="gray">
+                              {fmtPrice(it.pricePerUnitOverride)} / unit
+                            </Badge>
+                          </Tooltip>
+                        )}
                     </HStack>
                   )}
 
-                  {/* Unit details + timestamp */}
                   <HStack gap="2" color="fg.muted" align="center">
                     {perUnitWeight && (
                       <Tooltip content="Approximate weight per unit">
@@ -250,7 +278,7 @@ export default function ItemsCards({
                   size="xs"
                   variant="subtle"
                   aria-label="Edit"
-                  onClick={() => onEdit(it)}
+                  onClick={() => onEdit?.(it, { editable: true })} // edit => true
                   title="Edit item"
                 >
                   <Pencil size={16} />
@@ -282,7 +310,12 @@ export default function ItemsCards({
         )}
       </SimpleGrid>
 
-      <ViewItemDrawer open={view.open} setOpen={view.setOpen} item={selected} />
+      <ViewItemDrawer
+        open={view.open}
+        setOpen={view.setOpen}
+        item={selected}
+        editable={editable}
+      />
     </Box>
   );
 }

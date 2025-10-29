@@ -24,8 +24,8 @@ import { SimpleGrid } from "@chakra-ui/react";
 import ItemsPackingSection, {
   type PackingInfo,
 } from "./form/sections/itemPacking";
-import SellModesSection from "./form/sections/sellModeSection";
-import type { Item } from "@/types/items";
+ import SellModesSection from "./form/sections/sellModeSection";
+ import type { Item } from "@/types/items";
 
 type Props = {
   defaultValues?: Partial<ItemFormValues>;

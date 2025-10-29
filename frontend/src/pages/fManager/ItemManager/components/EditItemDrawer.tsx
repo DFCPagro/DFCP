@@ -200,6 +200,8 @@ export default function EditItemDrawer({
                         season: editing.season ?? "",
                         tolerance: editing.tolerance ?? "",
                         qualityStandards: editing.qualityStandards ?? undefined,
+                        sellModes: editing.sellModes ?? undefined,
+                        
                       }}
                       onSubmit={onSubmit}
                     />
