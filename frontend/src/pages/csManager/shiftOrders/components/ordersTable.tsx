@@ -99,7 +99,7 @@ export function OrdersTable({ items }: { items: any[] }) {
                   </Table.Cell>
 
                   <Table.Cell title={o.deliveryAddress?.address || ""}>
-                    {shortText(o.deliveryAddress?.address)}
+                    {o.deliveryAddress?.address || "-"}
                   </Table.Cell>
 
                   <Table.Cell>{fmtCreated(o.createdAt)}</Table.Cell>

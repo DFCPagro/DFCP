@@ -186,7 +186,7 @@ export default function PackOrderSection({
                           <Table.Row key={idx}>
                             <Table.Cell>
                               <Text fontSize="sm">
-                                {nameForItem(c.itemId, itemsById, (c as any).itemName)}
+                                {nameForItem( (c as any).itemName)}
                               </Text>
                             </Table.Cell>
                             <Table.Cell>
