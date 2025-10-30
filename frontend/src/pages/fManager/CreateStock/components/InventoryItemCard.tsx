@@ -225,13 +225,12 @@ function InventoryItemCardBase({
 
                         <Stack gap="1">
                             <HStack gap="2" flexWrap="wrap" align="center">
-                                <Text fontWeight="semibold" fontSize="sm">
-                                    item:
+                                <Text fontWeight="semibold" fontSize="md">
+                                    {displayLabel}
                                 </Text>
-                                <Badge>{displayLabel}</Badge>
                             </HStack>
 
-                            <Text fontSize="sm" color="fg.muted">
+                            <Text fontSize="md" color="fg">
                                 demand statistic ={" "}
                                 {averageDemandQuantityKg !== undefined && averageDemandQuantityKg !== null
                                     ? `${averageDemandQuantityKg.toLocaleString(undefined, { maximumFractionDigits: 1 })} kg`
