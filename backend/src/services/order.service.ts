@@ -16,6 +16,13 @@ import {
   adjustAvailableUnitsByFOAtomic,
 } from "./availableMarketStock.service";
 
+import {
+  ORDER_STAGE_DEFS,
+  ORDER_STAGE_KEYS,
+  ORDER_STAGE_LABELS,
+  OrderStageKey,
+} from "../models/shared/stage.types";
+
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
 /** --------------------------------- types --------------------------------- */
@@ -36,6 +43,81 @@ type AmsLine = {
 };
 
 type PayloadItem = CreateOrderInput["items"][number];
+
+/** -------------------------------- helpers -------------------------------- */
+
+/**
+ * Derive whether an order is "problem":
+ * We look at order.stageKey (current pipeline stage),
+ * find that stage entry in order.stages,
+ * and check if its status === "problem".
+ */
+function isOrderProblem(order: {
+  stageKey?: string;
+  stages?: Array<{ key?: string; status?: string }>;
+}): boolean {
+  if (!order || !order.stageKey || !Array.isArray(order.stages)) return false;
+  const cur = order.stages.find((s) => s && s.key === order.stageKey);
+  if (!cur) return false;
+  return cur.status === "problem";
+}
+
+/**
+ * Ensure order.stages[] has an entry for a given stage key.
+ * If missing, create one with default "pending".
+ * Returns a mutable reference.
+ */
+function ensureStageEntry(orderDoc: any, key: OrderStageKey) {
+  if (!Array.isArray(orderDoc.stages)) {
+    orderDoc.stages = [];
+  }
+  let st = orderDoc.stages.find((s: any) => s?.key === key);
+  if (!st) {
+    st = {
+      key,
+      label: ORDER_STAGE_LABELS[key] || key,
+      status: "pending",
+      expectedAt: null,
+      startedAt: null,
+      completedAt: null,
+      timestamp: new Date(),
+      note: "",
+    };
+    orderDoc.stages.push(st);
+  }
+  return st;
+}
+
+/**
+ * On order creation we want:
+ * - stageKey = "pending"
+ * - stages[0] for "pending" with status "current"
+ * - audit "ORDER_CREATED"
+ *
+ * NOTE: we do NOT close any previous stage here because it's the first stage.
+ */
+function initOrderStagesAndAudit(orderDoc: any, customerOID: Types.ObjectId, itemsCount: number) {
+  const now = new Date();
+  const firstStageKey: OrderStageKey = "pending";
+
+  // stageKey
+  orderDoc.stageKey = firstStageKey;
+
+  // make sure we have that stage in .stages and mark it current
+  const st = ensureStageEntry(orderDoc, firstStageKey);
+  st.status = "current";
+  st.timestamp = now;
+  if (!st.startedAt) st.startedAt = now;
+  // completedAt stays null
+
+  // audit
+  orderDoc.addAudit(
+    customerOID,
+    "ORDER_CREATED",
+    "Customer placed an order",
+    { itemsCount }
+  );
+}
 
 /** ------------------------ legacy / normalization helpers ------------------------ */
 
@@ -116,9 +198,9 @@ function deriveUnitPrice(
   return Math.round(pricePerKg! * avgKg! * 100) / 100;
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Create order
-// ───────────────────────────────────────────────────────────────────────────────
+/** ============================================================================
+ * CREATE ORDER
+ * ============================================================================ */
 export async function createOrderForCustomer(
   userId: IdLike,
   payload: CreateOrderInput
@@ -209,91 +291,94 @@ export async function createOrderForCustomer(
       }
 
       // 3) Create Order (items snapshot normalized)
-const orderPayload: any = {
-  customerId: customerOID,
+      const orderPayload: any = {
+        customerId: customerOID,
 
-  // 🔧 map to old AddressSchema keys expected by Mongoose
-  deliveryAddress: {
-    address: payload.deliveryAddress.address,
-    lnt: payload.deliveryAddress.lnt,
-    alt: payload.deliveryAddress.alt,
-    ...(payload.deliveryAddress.logisticCenterId
-      ? { logisticCenterId: payload.deliveryAddress.logisticCenterId }
-      : {}),
-  },
+        // map to AddressSchema shape in your model
+        deliveryAddress: {
+          address: payload.deliveryAddress.address,
+          lnt: payload.deliveryAddress.lnt,
+          alt: payload.deliveryAddress.alt,
+          ...(payload.deliveryAddress.logisticCenterId
+            ? { logisticCenterId: payload.deliveryAddress.logisticCenterId }
+            : {}),
+        },
 
-  deliveryDate: payload.deliveryDate,
-  LogisticsCenterId: lcOID,
-  shiftName: (ams as any).availableShift,
-  amsId: amsOID,
-  ...(typeof (payload as any).tolerancePct === "number"
-    ? { tolerancePct: (payload as any).tolerancePct }
-    : {}),
-  items: (payload.items as PayloadItem[]).map((it) => {
-    const line = byFO.get(String((it as any).farmerOrderId));
-    const n = normalizeItem(it, line);
+        deliveryDate: payload.deliveryDate,
+        LogisticsCenterId: lcOID,
+        shiftName: (ams as any).availableShift,
+        amsId: amsOID,
+        ...(typeof (payload as any).tolerancePct === "number"
+          ? { tolerancePct: (payload as any).tolerancePct }
+          : {}),
 
-    const pricePerKg = Number.isFinite((line as any)?.pricePerKg)
-      ? Number((line as any).pricePerKg)
-      : Number.isFinite((it as any).pricePerKg)
-      ? Number((it as any).pricePerKg)
-      : 0;
+        // NOTE: stageKey + stages will be added AFTER create() using the doc (so we can call methods)
+        items: (payload.items as PayloadItem[]).map((it) => {
+          const line = byFO.get(String((it as any).farmerOrderId));
+          const n = normalizeItem(it, line);
 
-    const snapshot: any = {};
-    const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
-    if (Number.isFinite(snapAvg) && (snapAvg as number) > 0)
-      snapshot.avgWeightPerUnitKg = snapAvg;
-    const snapSd = line?.estimates?.sdKg;
-    if (Number.isFinite(snapSd) && (snapSd as number) > 0)
-      snapshot.stdDevKg = snapSd;
+          const pricePerKg = Number.isFinite((line as any)?.pricePerKg)
+            ? Number((line as any).pricePerKg)
+            : Number.isFinite((it as any).pricePerKg)
+            ? Number((it as any).pricePerKg)
+            : 0;
 
-    // derive farmer names if optional in Zod
-    const sourceFarmerName =
-      (it as any).sourceFarmerName ??
-      (line as any)?.farmerName ??
-      (line as any)?.farmer?.name ??
-      "Unknown Farmer";
+          const snapshot: any = {};
+          const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
+          if (Number.isFinite(snapAvg) && (snapAvg as number) > 0)
+            snapshot.avgWeightPerUnitKg = snapAvg;
+          const snapSd = line?.estimates?.sdKg;
+          if (Number.isFinite(snapSd) && (snapSd as number) > 0)
+            snapshot.stdDevKg = snapSd;
 
-    const sourceFarmName =
-      (it as any).sourceFarmName ??
-      (line as any)?.farmName ??
-      (line as any)?.farmer?.farmName ??
-      "Unknown Farm";
+          const sourceFarmerName =
+            (it as any).sourceFarmerName ??
+            (line as any)?.farmerName ??
+            (line as any)?.farmer?.name ??
+            "Unknown Farmer";
 
-    return {
-      itemId: toOID((it as any).itemId),
-      name: (it as any).name,
-      imageUrl: (it as any).imageUrl ?? "",
-      category: (it as any).category ?? "",
-      pricePerUnit: pricePerKg,
-      pricePerKg,
-      derivedUnitPrice:
-        n.unitMode === "unit" || n.unitMode === "mixed"
-          ? deriveUnitPrice(
-              pricePerKg,
-              n.avg || line?.estimates?.avgWeightPerUnitKg || null
-            )
-          : null,
-      unitMode: n.unitMode,
-      quantityKg: n.quantityKg,
-      units: n.units,
-      estimatesSnapshot: Object.keys(snapshot).length ? snapshot : undefined,
-      sourceFarmerName,
-      sourceFarmName,
-      farmerOrderId: toOID((it as any).farmerOrderId),
-    };
-  }),
-};
+          const sourceFarmName =
+            (it as any).sourceFarmName ??
+            (line as any)?.farmName ??
+            (line as any)?.farmer?.farmName ??
+            "Unknown Farm";
 
+          return {
+            itemId: toOID((it as any).itemId),
+            name: (it as any).name,
+            imageUrl: (it as any).imageUrl ?? "",
+            category: (it as any).category ?? "",
+            pricePerUnit: pricePerKg,
+            pricePerKg,
+            derivedUnitPrice:
+              n.unitMode === "unit" || n.unitMode === "mixed"
+                ? deriveUnitPrice(
+                    pricePerKg,
+                    n.avg || line?.estimates?.avgWeightPerUnitKg || null
+                  )
+                : null,
+            unitMode: n.unitMode,
+            quantityKg: n.quantityKg,
+            units: n.units,
+            estimatesSnapshot:
+              Object.keys(snapshot).length ? snapshot : undefined,
+            sourceFarmerName,
+            sourceFarmName,
+            farmerOrderId: toOID((it as any).farmerOrderId),
+          };
+        }),
+      };
 
+      // We use create() so we get a doc instance with methods (addAudit etc.)
       const created = await Order.create([orderPayload], { session });
       orderDoc = created[0];
 
-      // 4) Link FarmerOrders with estimated kg for this order (FO-centric stays the same)
+      // 4) Link FarmerOrders with estimated kg for this order
       for (const it of payload.items as PayloadItem[]) {
         const line = byFO.get(String((it as any).farmerOrderId));
         const n = normalizeItem(it, line);
         const estKg = computeEstimatedKgNormalized(n);
+
         await addOrderIdToFarmerOrder(
           orderDoc._id,
           toOID((it as any).farmerOrderId),
@@ -302,16 +387,13 @@ const orderPayload: any = {
         );
       }
 
-      // 5) Audit trail
-      orderDoc.addAudit(
-        customerOID,
-        "ORDER_CREATED",
-        "Customer placed an order",
-        { itemsCount: payload.items.length }
-      );
+      // 5) Init stageKey/stages and add audit "ORDER_CREATED"
+      initOrderStagesAndAudit(orderDoc, customerOID, payload.items.length);
+
+      // 6) Save orderDoc with stages + audit
       await orderDoc.save({ session });
 
-      // 6) Mint (or reuse) an order token/QR inside the same txn
+      // 7) Mint (or reuse) an order token/QR inside the same txn
       const qrDoc = await ensureOrderToken({
         orderId: orderDoc._id,
         createdBy: customerOID,
@@ -332,9 +414,10 @@ const orderPayload: any = {
     session.endSession();
   }
 }
-// ───────────────────────────────────────────────────────────────────────────────
-// List latest 15 orders
-// ───────────────────────────────────────────────────────────────────────────────
+
+/** ============================================================================
+ * LIST latest orders for a customer
+ * ============================================================================ */
 export async function listOrdersForCustomer(userId: IdLike, limit = 15) {
   const customerOID = toOID(userId);
 
@@ -347,9 +430,10 @@ export async function listOrdersForCustomer(userId: IdLike, limit = 15) {
   return docs;
 }
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Orders summary (for admin dashboard) - latest orders for a given logistics center
-// ───────────────────────────────────────────────────────────────────────────────
+/** ============================================================================
+ * SUMMARY for dashboard (current + next shifts)
+ * ============================================================================ */
+
 type OrdersSummaryParams = {
   logisticCenterId: string;
   count?: number; // next N shifts (default 5)
@@ -374,7 +458,7 @@ const dayRangeUtc = (tz: string, ymd: string) => {
 export async function ordersSummarry(params: OrdersSummaryParams) {
   const { logisticCenterId, count = 5 } = params;
 
-  // find timezone for LC (reuse your pattern from getNextAvailableShifts)
+  // find timezone for LC
   const anyCfg = await ShiftConfig.findOne(
     { logisticCenterId },
     { timezone: 1 }
@@ -388,36 +472,44 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
 
   // current shift (name) in tz
   const currentShiftName = await getCurrentShift();
+
+  // helper: summarize a (date, shiftName) window
+  async function summarizeWindow(dateStr: string, shiftName: ShiftName) {
+    const { startUTC, endUTC } = dayRangeUtc(tz, dateStr);
+    const docs = await Order.find(
+      {
+        LogisticsCenterId: new Types.ObjectId(logisticCenterId),
+        shiftName,
+        deliveryDate: { $gte: startUTC, $lt: endUTC },
+      },
+      { _id: 1, stageKey: 1, stages: 1 }
+    )
+      .lean()
+      .exec();
+
+    const orderIds = docs.map((d) => String(d._id));
+    const problemCount = docs.filter((d) => isOrderProblem(d)).length;
+
+    return {
+      date: dateStr,
+      shiftName,
+      orderIds,
+      count: orderIds.length,
+      problemCount,
+    } as SummaryEntry;
+  }
+
   if (currentShiftName === "none") {
     // no active shift now — still return next N shifts only
     const nextShifts = await getNextAvailableShifts({
       logisticCenterId,
       count,
     });
+
     const summaries = await Promise.all(
-      nextShifts.map(async (s) => {
-        const { startUTC, endUTC } = dayRangeUtc(tz, s.date);
-        const docs = await Order.find(
-          {
-            LogisticsCenterId: new Types.ObjectId(logisticCenterId),
-            shiftName: s.name,
-            deliveryDate: { $gte: startUTC, $lt: endUTC },
-          },
-          { _id: 1, status: 1 }
-        )
-          .lean()
-          .exec();
-
-        const ids = docs.map((d) => String(d._id));
-        const problemCount = docs.filter((d) => d.status === "problem").length;
-
-        return {
-          date: s.date,
-          shiftName: s.name,
-          count: ids.length,
-          problemCount,
-        } as SummaryEntry;
-      })
+      nextShifts.map(async (s) =>
+        summarizeWindow(s.date, s.name as ShiftName)
+      )
     );
 
     return {
@@ -428,43 +520,20 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
     };
   }
 
-  // current date (today in tz)
+  // we DO have an active shift
   const todayYmd = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
 
   // next N shifts after now
   const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
 
   // build the 1 (current) + N (next) targets
-  const targets: Array<{ date: string; name: SummaryEntry["shiftName"] }> = [
-    { date: todayYmd, name: currentShiftName as any },
-    ...nextShifts.map((s) => ({ date: s.date, name: s.name })),
+  const targets: Array<{ date: string; name: ShiftName }> = [
+    { date: todayYmd, name: currentShiftName as ShiftName },
+    ...nextShifts.map((s) => ({ date: s.date, name: s.name as ShiftName })),
   ];
 
-  // query each window in parallel
   const results = await Promise.all(
-    targets.map(async (t) => {
-      const { startUTC, endUTC } = dayRangeUtc(tz, t.date);
-      const docs = await Order.find(
-        {
-          LogisticsCenterId: new Types.ObjectId(logisticCenterId),
-          shiftName: t.name,
-          deliveryDate: { $gte: startUTC, $lt: endUTC },
-        },
-        { _id: 1, status: 1 }
-      )
-        .lean()
-        .exec();
-
-      const ids = docs.map((d) => String(d._id));
-      const problemCount = docs.filter((d) => d.status === "problem").length;
-
-      return {
-        date: t.date,
-        shiftName: t.name,
-        count: ids.length,
-        problemCount,
-      } as SummaryEntry;
-    })
+    targets.map((t) => summarizeWindow(t.date, t.name))
   );
 
   const [current, ...next] = results;
@@ -476,11 +545,14 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
   };
 }
 
+/** ============================================================================
+ * LIST orders for a given shift+date (CS manager screen)
+ * ============================================================================ */
 export async function listOrdersForShift(params: {
   logisticCenterId: string;
   date: string; // yyyy-LL-dd in LC timezone
   shiftName: ShiftName;
-  status?: string; // optional filter by status
+  status?: string; // kept for backward compat in callers, but no longer used to filter "problem"
   page?: number; // default 1
   limit?: number; // default 50
   fields?: string[]; // optional projection
@@ -491,7 +563,7 @@ export async function listOrdersForShift(params: {
     shiftName,
     status,
     page = 1,
-    limit = 50, //change that later
+    limit = 50,
     fields,
   } = params;
 
@@ -519,7 +591,10 @@ export async function listOrdersForShift(params: {
       $lt: end.toUTC().toJSDate(),
     },
   };
-  if (status) q.status = status;
+
+  // NOTE: you used to filter by `status`; now there's no `status` field on Order.
+  // We keep `status` param for backward compat, but it's ignored here.
+  // (If later you want "problemOnly", do that at controller level w/ isOrderProblem.)
 
   const projection =
     Array.isArray(fields) && fields.length
@@ -528,7 +603,8 @@ export async function listOrdersForShift(params: {
 
   const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
 
-  const [items, total] = await Promise.all([
+  // Fetch paged orders
+  const [items, total, allForWindow] = await Promise.all([
     Order.find(q, projection)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -536,9 +612,11 @@ export async function listOrdersForShift(params: {
       .lean()
       .exec(),
     Order.countDocuments(q),
+    // we'll reuse this to compute problemCount
+    Order.find(q, { _id: 1, stageKey: 1, stages: 1 }).lean().exec(),
   ]);
 
-  const problemCount = await Order.countDocuments({ ...q, status: "problem" });
+  const problemCount = allForWindow.filter((d) => isOrderProblem(d)).length;
 
   return {
     meta: {
@@ -552,6 +630,6 @@ export async function listOrdersForShift(params: {
       problemCount,
       pages: Math.ceil(total / Math.max(1, limit)),
     },
-    items, // array of orders (projected if fields provided)
+    items,
   };
 }

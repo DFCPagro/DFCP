@@ -1,5 +1,12 @@
 // src/models/farmerOrder.model.ts
-import { Schema, model, InferSchemaType, HydratedDocument, Model, Types } from "mongoose";
+import {
+  Schema,
+  model,
+  InferSchemaType,
+  HydratedDocument,
+  Model,
+  Types,
+} from "mongoose";
 import toJSON from "../utils/toJSON";
 
 import { StageSchema } from "./shared/stage.schema";
@@ -11,14 +18,18 @@ import {
 import { buildFarmerOrderDefaultStages } from "./shared/stage.utils";
 import { AuditEntrySchema } from "./shared/audit.schema";
 import { ContainerSchema } from "./shared/container.schema";
-import { VisualInspectionSchema, QSReportSchema } from "./shared/inspection.schema";
+import {
+  VisualInspectionSchema,
+  QSReportSchema,
+} from "./shared/inspection.schema";
 
 // ---------- enums ----------
 export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
 export type Shift = (typeof SHIFTS)[number];
 
 export const FARMER_APPROVAL_STATUSES = ["pending", "ok", "problem"] as const;
-export type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
+export type FarmerApprovalStatus =
+  (typeof FARMER_APPROVAL_STATUSES)[number];
 
 // ---------- sub-schema: linked customer orders (orderId + allocated kg) ----------
 const OrderLinkSchema = new Schema(
@@ -32,15 +43,27 @@ const OrderLinkSchema = new Schema(
       alias: "orderedQuantityKg",
     },
   },
-  { _id: false, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+  {
+    _id: false,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
 );
 
 // ---------- main schema ----------
 const FarmerOrderSchema = new Schema(
   {
     // timestamps handled by { timestamps: true } below
-    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    updatedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
     // identity / relations
     itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
@@ -48,25 +71,50 @@ const FarmerOrderSchema = new Schema(
     variety: { type: String, default: "", trim: true },
     pictureUrl: { type: String, default: "", trim: true },
 
-    farmerId: { type: Schema.Types.ObjectId, ref: "Farmer", required: true },
+    farmerId: {
+      type: Schema.Types.ObjectId,
+      ref: "Farmer",
+      required: true,
+    },
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
 
     // planning / logistics
-    shift: { type: String, enum: SHIFTS, required: true},
+    shift: { type: String, enum: SHIFTS, required: true },
     pickUpDate: { type: String, required: true }, // "YYYY-MM-DD"
-    logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", required: true },
+    logisticCenterId: {
+      type: Schema.Types.ObjectId,
+      ref: "LogisticCenter",
+      required: true,
+    },
 
-    // farmer-level approval/ack
-    farmerStatus: { type: String, enum: FARMER_APPROVAL_STATUSES, default: "pending", index: true },
+    // farmer-level approval/ack (legacy high-level status)
+    farmerStatus: {
+      type: String,
+      enum: FARMER_APPROVAL_STATUSES,
+      default: "pending",
+      index: true,
+    },
 
     // customer demand aggregation (explicit + derived)
     // expose friendly alias "orderedQuantityKg" for the sum as well
-    sumOrderedQuantityKg: { type: Number, required: true, min: 0, default: 0, alias: "orderedQuantityKg" },
+    sumOrderedQuantityKg: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+      alias: "orderedQuantityKg",
+    },
 
     // forecast & final
     // keep original spelling + alias, add default to avoid required errors
-    forcastedQuantityKg: { type: Number, required: true, min: 0, default: 0, alias: "forecastedQuantityKg" },
+    forcastedQuantityKg: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+      alias: "forecastedQuantityKg",
+    },
     finalQuantityKg: { type: Number, min: 0 }, // optional; computed in recalcQuantities()
 
     // linked customer orders contributing to this FarmerOrder
@@ -81,29 +129,59 @@ const FarmerOrderSchema = new Schema(
       default: [],
     },
 
+    /**
+     * stageKey = which stage is "active"/in focus for this farmer order
+     * We keep it in sync in our service + helpers.
+     */
+    stageKey: {
+      type: String,
+      enum: FARMER_ORDER_STAGE_KEYS,
+      default: null,
+      index: true,
+    },
+
     // stages (with expected/started/completed in StageSchema)
     stages: {
       type: [StageSchema],
       default: () => buildFarmerOrderDefaultStages(),
       validate: [
         {
-          validator: (arr: any[]) => (arr || []).every((s) => FARMER_ORDER_STAGE_KEYS.includes(s?.key)),
+          validator: (arr: any[]) =>
+            (arr || []).every((s) =>
+              FARMER_ORDER_STAGE_KEYS.includes(s?.key)
+            ),
           message: "Invalid stage key in FarmerOrder.stages",
         },
         {
-          validator: (arr: any[]) => (arr || []).filter((s) => s?.status === "current").length <= 1,
+          validator: (arr: any[]) =>
+            (arr || []).filter((s) => s?.status === "current").length <=
+            1,
           message: "Only one stage may have status 'current'",
         },
       ],
     },
 
     // --- QS reports ---
-    farmersQSreport: { type: QSReportSchema, default: undefined }, // farmer’s submitted QS values
-    inspectionQSreport: { type: QSReportSchema, default: undefined }, // LC/inspection QS values
+    farmersQSreport: {
+      type: QSReportSchema,
+      default: undefined,
+    }, // farmer’s submitted QS values
+    inspectionQSreport: {
+      type: QSReportSchema,
+      default: undefined,
+    }, // LC/inspection QS values
 
     // --- quick visual inspection status (optional) ---
-    visualInspection: { type: VisualInspectionSchema, default: undefined },
-    inspectionStatus: { type: String, enum: ["pending", "passed", "failed"], default: "pending", index: true },
+    visualInspection: {
+      type: VisualInspectionSchema,
+      default: undefined,
+    },
+    inspectionStatus: {
+      type: String,
+      enum: ["pending", "passed", "failed"],
+      default: "pending",
+      index: true,
+    },
 
     // audit trail
     historyAuditTrail: { type: [AuditEntrySchema], default: [] },
@@ -114,8 +192,18 @@ const FarmerOrderSchema = new Schema(
 // ---------- plugins & indexes ----------
 FarmerOrderSchema.plugin(toJSON as any);
 
-FarmerOrderSchema.index({ farmerId: 1, itemId: 1, pickUpDate: 1, shift: 1 });
-FarmerOrderSchema.index({ logisticCenterId: 1, pickUpDate: 1, shift: 1 });
+FarmerOrderSchema.index({
+  farmerId: 1,
+  itemId: 1,
+  pickUpDate: 1,
+  shift: 1,
+});
+FarmerOrderSchema.index({
+  logisticCenterId: 1,
+  pickUpDate: 1,
+  shift: 1,
+});
+FarmerOrderSchema.index({ stageKey: 1, updatedAt: -1 });
 FarmerOrderSchema.index({ "stages.status": 1, updatedAt: -1 });
 FarmerOrderSchema.index({ "orders.orderId": 1 });
 
@@ -125,7 +213,12 @@ export type FarmerOrderDoc = HydratedDocument<FarmerOrder>;
 
 // ---------- instance methods typings ----------
 export interface FarmerOrderMethods {
-  addAudit(userId: Types.ObjectId, action: string, note?: string, meta?: any): void;
+  addAudit(
+    userId: Types.ObjectId,
+    action: string,
+    note?: string,
+    meta?: any
+  ): void;
 
   setStageCurrent(
     key: FarmerOrderStageKey,
@@ -133,12 +226,23 @@ export interface FarmerOrderMethods {
     opts?: { note?: string; expectedAt?: Date }
   ): void;
 
-  markStageDone(key: FarmerOrderStageKey, userId: Types.ObjectId, opts?: { note?: string }): void;
+  markStageDone(
+    key: FarmerOrderStageKey,
+    userId: Types.ObjectId,
+    opts?: { note?: string }
+  ): void;
 
-  markStageOk(key: FarmerOrderStageKey, userId: Types.ObjectId, opts?: { note?: string }): void;
+  markStageOk(
+    key: FarmerOrderStageKey,
+    userId: Types.ObjectId,
+    opts?: { note?: string }
+  ): void;
 
   /** Link or update a customer order and optionally its allocated quantity (kg) */
-  linkOrder(orderId: Types.ObjectId, allocatedQuantityKg?: number | null): void;
+  linkOrder(
+    orderId: Types.ObjectId,
+    allocatedQuantityKg?: number | null
+  ): void;
 
   /** Recalculate sumOrderedQuantityKg and finalQuantityKg (= sum * 1.02, rounded to 2 decimals) */
   recalcQuantities(): void;
@@ -147,7 +251,11 @@ export interface FarmerOrderMethods {
   recomputeInspectionStatus(): void;
 }
 
-export type FarmerOrderModel = Model<FarmerOrder, {}, FarmerOrderMethods>;
+export type FarmerOrderModel = Model<
+  FarmerOrder,
+  {},
+  FarmerOrderMethods
+>;
 
 // ---------- methods impl ----------
 FarmerOrderSchema.methods.addAudit = function (
@@ -157,7 +265,13 @@ FarmerOrderSchema.methods.addAudit = function (
   note = "",
   meta: any = {}
 ) {
-  this.historyAuditTrail.push({ userId, action, note, meta, timestamp: new Date() });
+  this.historyAuditTrail.push({
+    userId,
+    action,
+    note,
+    meta,
+    timestamp: new Date(),
+  });
 };
 
 FarmerOrderSchema.methods.setStageCurrent = function (
@@ -166,10 +280,13 @@ FarmerOrderSchema.methods.setStageCurrent = function (
   userId: Types.ObjectId,
   opts: { note?: string; expectedAt?: Date } = {}
 ) {
-  if (!FARMER_ORDER_STAGE_KEYS.includes(key)) throw new Error(`Invalid stage key: ${key}`);
+  if (!FARMER_ORDER_STAGE_KEYS.includes(key)) {
+    throw new Error(`Invalid stage key: ${key}`);
+  }
 
   const now = new Date();
 
+  // any old current -> done
   for (const s of this.stages as any[]) {
     if (s.status === "current") {
       s.status = "done";
@@ -197,10 +314,17 @@ FarmerOrderSchema.methods.setStageCurrent = function (
     target.startedAt = target.startedAt ?? now;
     target.timestamp = now;
     if (opts.note) target.note = opts.note;
-    if (opts.expectedAt !== undefined) target.expectedAt = opts.expectedAt;
+    if (opts.expectedAt !== undefined)
+      target.expectedAt = opts.expectedAt;
   }
 
-  this.addAudit(userId, "STAGE_SET_CURRENT", opts.note, { key, expectedAt: opts.expectedAt });
+  // keep stageKey synced
+  (this as any).stageKey = key;
+
+  this.addAudit(userId, "STAGE_SET_CURRENT", opts.note, {
+    key,
+    expectedAt: opts.expectedAt,
+  });
 };
 
 FarmerOrderSchema.methods.markStageDone = function (
@@ -217,6 +341,12 @@ FarmerOrderSchema.methods.markStageDone = function (
   s.completedAt = now;
   s.timestamp = now;
   if (opts.note) s.note = opts.note;
+
+  // if we just marked the active stage as done and stageKey == key,
+  // we do NOT auto-advance here; caller/service decides what becomes current next.
+  if ((this as any).stageKey === key) {
+    // leave stageKey as-is for now; service may overwrite
+  }
 
   this.addAudit(userId, "STAGE_MARK_DONE", opts.note, { key });
 };
@@ -236,6 +366,8 @@ FarmerOrderSchema.methods.markStageOk = function (
   s.startedAt = s.startedAt ?? now;
   if (opts.note) s.note = opts.note;
 
+  // if we "ok" the active stage, we don't force-advance stageKey here.
+  // service handles moving to the next stage and calling setStageCurrent.
   this.addAudit(userId, "STAGE_SET_OK", opts.note, { key });
 };
 
@@ -244,13 +376,21 @@ FarmerOrderSchema.methods.linkOrder = function (
   orderId: Types.ObjectId,
   allocatedQuantityKg: number | null = null
 ) {
-  const existing = (this.orders as any[]).find((e) => e.orderId?.toString() === orderId.toString());
+  const existing = (this.orders as any[]).find(
+    (e) => e.orderId?.toString() === orderId.toString()
+  );
   if (existing) {
-    if (allocatedQuantityKg !== null && allocatedQuantityKg !== undefined) {
+    if (
+      allocatedQuantityKg !== null &&
+      allocatedQuantityKg !== undefined
+    ) {
       existing.allocatedQuantityKg = allocatedQuantityKg;
     }
   } else {
-    (this.orders as any[]).push({ orderId, allocatedQuantityKg: allocatedQuantityKg ?? 0 });
+    (this.orders as any[]).push({
+      orderId,
+      allocatedQuantityKg: allocatedQuantityKg ?? 0,
+    });
   }
 
   // keep aggregates in sync
@@ -300,7 +440,10 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
   }
 
   // compare numeric metrics present in BOTH inputs
-  const keys: (keyof typeof farmerVals)[] = [
+  const farmerValsAny = farmerVals as any;
+  const inspValsAny = inspVals as any;
+
+  const keys = [
     "brix",
     "acidityPercentage",
     "pressure",
@@ -309,7 +452,7 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
     "diameterMM",
     "maxDefectRatioLengthDiameter",
     "rejectionRate",
-  ] as any;
+  ];
 
   const within2Percent = (a: number, b: number) => {
     const A = Number(a),
@@ -320,8 +463,8 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
   };
 
   for (const k of keys) {
-    const fv = (farmerVals as any)?.[k];
-    const iv = (inspVals as any)?.[k];
+    const fv = farmerValsAny?.[k];
+    const iv = inspValsAny?.[k];
     if (fv == null || iv == null) continue; // only compare when both are present
     if (!within2Percent(fv, iv)) {
       this.inspectionStatus = "failed";
@@ -335,11 +478,15 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
 // ---------- hooks ----------
 // Keep aggregates consistent even if orders changed via direct array ops
 FarmerOrderSchema.pre("validate", function (next) {
-  const doc = this as HydratedDocument<FarmerOrder> & FarmerOrderMethods;
+  const doc = this as HydratedDocument<FarmerOrder> &
+    FarmerOrderMethods;
   doc.recalcQuantities();
   next();
 });
 
 // ---------- model ----------
-export const FarmerOrder = model<FarmerOrder, FarmerOrderModel>("FarmerOrder", FarmerOrderSchema);
+export const FarmerOrder = model<
+  FarmerOrder,
+  FarmerOrderModel
+>("FarmerOrder", FarmerOrderSchema);
 export default FarmerOrder;

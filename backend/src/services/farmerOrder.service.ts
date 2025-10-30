@@ -1,4 +1,3 @@
-// src/services/farmerOrder.service.ts
 import crypto from "node:crypto";
 import mongoose, { Types } from "mongoose";
 
@@ -13,7 +12,6 @@ import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
 
 import {
   addItemToAvailableMarketStock,
-  getAvailableMarketStockByKey,
   findOrCreateAvailableMarketStock,
 } from "../services/availableMarketStock.service";
 
@@ -21,12 +19,19 @@ import { ensureFarmerOrderToken, signPayload } from "./ops.service";
 import ApiError from "../utils/ApiError";
 import { canonicalizeClaims } from "../utils/canonicalizeClaims";
 
+import {
+  FARMER_ORDER_STAGE_KEYS,
+  FARMER_ORDER_STAGE_LABELS,
+  FarmerOrderStageKey,
+} from "../models/shared/stage.types";
+
 /* =============================
  * Constants / helpers
  * ============================= */
 const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
 type Shift = (typeof SHIFTS)[number];
 
+// legacy status field on FarmerOrder (we'll keep writing it for now)
 const FARMER_APPROVAL_STATUSES = ["pending", "ok", "problem"] as const;
 type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
 
@@ -47,12 +52,78 @@ export interface AuthUser {
   role: "farmer" | "fManager" | "admin" | string;
 }
 
-/** Block any stage-advance while pipeline is halted by farmer problem */
+/* -------------------------------- stage utils -------------------------------- */
+
+/**
+ * FarmerOrder uses stageKey + stages[] just like Order.
+ * We consider the FO "problem" if the current stage's status === "problem".
+ */
+function isFarmerOrderProblem(fo: {
+  stageKey?: string;
+  stages?: Array<{ key?: string; status?: string }>;
+}): boolean {
+  if (!fo || !fo.stageKey || !Array.isArray(fo.stages)) return false;
+  const cur = fo.stages.find((s) => s && s.key === fo.stageKey);
+  return cur?.status === "problem";
+}
+
+/**
+ * Ensure stages[] has an entry for this key.
+ * Return a mutable reference.
+ */
+function ensureFOStageEntry(doc: any, key: FarmerOrderStageKey) {
+  if (!Array.isArray(doc.stages)) doc.stages = [];
+  let st = doc.stages.find((s: any) => s?.key === key);
+  if (!st) {
+    st = {
+      key,
+      label: FARMER_ORDER_STAGE_LABELS[key] || key,
+      status: "pending",
+      expectedAt: null,
+      startedAt: null,
+      completedAt: null,
+      timestamp: new Date(),
+      note: "",
+    };
+    doc.stages.push(st);
+  }
+  return st;
+}
+
+/**
+ * Initialize a brand-new FarmerOrder pipeline:
+ *  - stageKey = "farmerAck"
+ *  - that stage entry gets status="current"
+ *  - audit "FARMER_ORDER_CREATED"
+ *
+ * We also keep farmerStatus="pending" for backward compatibility,
+ * but dashboard "problem" should come from stages logic going forward.
+ */
+function initFarmerOrderStagesAndAudit(doc: any, createdBy: Types.ObjectId) {
+  const now = new Date();
+  const firstKey: FarmerOrderStageKey = "farmerAck";
+
+  doc.stageKey = firstKey;
+
+  const st = ensureFOStageEntry(doc, firstKey);
+  st.status = "current";
+  st.timestamp = now;
+  if (!st.startedAt) st.startedAt = now;
+
+  doc.farmerStatus = "pending"; // legacy status snapshot
+
+  doc.addAudit(createdBy, "FARMER_ORDER_CREATED", "Farmer order created", {});
+}
+
+/**
+ * STOP advancing stages if pipeline is halted (problem).
+ * We now derive problem from stages, not farmerStatus.
+ */
 export function ensurePipelineOpen(order: any) {
-  if (order.farmerStatus === "problem") {
+  if (isFarmerOrderProblem(order)) {
     const e: any = new Error("Forbidden");
     e.name = "Forbidden";
-    e.details = ["Pipeline is halted due to farmer-reported problem"];
+    e.details = ["Pipeline is halted due to a problem in current stage"];
     throw e;
   }
 }
@@ -67,7 +138,7 @@ export interface CreateFarmerOrderPayload {
   pictureUrl?: string; // pictureUrl or pictureURL accepted
   pictureURL?: string;
 
-  farmerId?: string; // ObjectId string of the Farmer *user* or farmer doc (your schema uses Farmer._id)
+  farmerId?: string;
   farmerName?: string;
   farmName?: string;
 
@@ -131,11 +202,10 @@ export async function createFarmerOrderService(
 
     await session.withTransaction(async () => {
       const createdBy = toOID(user.id);
-      const updatedBy = createdBy;
 
       const doc = new FarmerOrder({
         createdBy,
-        updatedBy,
+        updatedBy: createdBy,
 
         itemId: toOID(payload.itemId!),
         type: String(payload.type),
@@ -150,6 +220,7 @@ export async function createFarmerOrderService(
         pickUpDate: payload.pickUpDate,
         logisticCenterId: toOID(STATIC_LC_ID),
 
+        // we'll keep farmerStatus for now, but real status is stages[]
         farmerStatus: "pending",
 
         sumOrderedQuantityKg:
@@ -162,10 +233,13 @@ export async function createFarmerOrderService(
 
         orders: [],
         containers: [],
+        stages: [],
+        stageKey: undefined,
         historyAuditTrail: [],
       });
 
-      doc.addAudit(createdBy, "CREATE", "Farmer order created");
+      // init pipeline & audit
+      initFarmerOrderStagesAndAudit(doc, createdBy);
 
       await doc.validate();
       await doc.save({ session });
@@ -183,9 +257,9 @@ export async function createFarmerOrderService(
         token: foQR.token,
         sig: foQR.sig,
         scope: foQR.scope, // "farmer-order"
-        url: `/scan?token=${encodeURIComponent(foQR.token)}&sig=${encodeURIComponent(
-          foQR.sig
-        )}`,
+        url: `/scan?token=${encodeURIComponent(
+          foQR.token
+        )}&sig=${encodeURIComponent(foQR.sig)}`,
       };
     });
 
@@ -283,11 +357,15 @@ export async function initContainersForFarmerOrderService(args: {
       containerOpsId: null,
       orderId: null,
       packageId: null,
-      logisticsCenterId: fo.logisticCenterId ? String(fo.logisticCenterId) : null,
+      logisticsCenterId: fo.logisticCenterId
+        ? String(fo.logisticCenterId)
+        : null,
       shelfId: null,
       pickTaskId: null,
       shift: fo.shift || null,
-      deliveryDate: fo.pickUpDate ? new Date(`${fo.pickUpDate}T00:00:00Z`) : null,
+      deliveryDate: fo.pickUpDate
+        ? new Date(`${fo.pickUpDate}T00:00:00Z`)
+        : null,
     };
 
     const newContainers: any[] = [];
@@ -298,7 +376,7 @@ export async function initContainersForFarmerOrderService(args: {
       const seq = nextIndexStart + i;
       const containerId = `${foId.toString()}_${seq}`;
 
-      // push subdoc (DON'T reassign the DocumentArray)
+      // push subdoc
       (fo.containers as any).push({
         containerId,
         farmerOrder: foId,
@@ -343,7 +421,12 @@ export async function initContainersForFarmerOrderService(args: {
     }
 
     fo.updatedBy = args.user.userId;
-    fo.addAudit(args.user.userId, "CONTAINERS_INIT", `+${newContainers.length} containers`);
+    fo.addAudit(
+      args.user.userId,
+      "CONTAINERS_INIT",
+      `+${newContainers.length} containers`,
+      {}
+    );
     await fo.save({ session });
 
     if (qrDocsToInsert.length > 0) {
@@ -392,7 +475,10 @@ export async function patchContainerWeightsService(args: {
     for (const w of args.weights) {
       const n = Number(w.weightKg);
       if (!w.containerId || !Number.isFinite(n) || n < 0 || n > 2000) {
-        throw new ApiError(400, `Bad weight entry for containerId=${w.containerId}`);
+        throw new ApiError(
+          400,
+          `Bad weight entry for containerId=${w.containerId}`
+        );
       }
       map.set(String(w.containerId), n);
     }
@@ -407,7 +493,12 @@ export async function patchContainerWeightsService(args: {
     }
 
     fo.updatedBy = args.user.userId;
-    fo.addAudit(args.user.userId, "CONTAINERS_WEIGHTS_SET", `updated ${updated} containers`);
+    fo.addAudit(
+      args.user.userId,
+      "CONTAINERS_WEIGHTS_SET",
+      `updated ${updated} containers`,
+      {}
+    );
     await fo.save({ session });
 
     await session.commitTransaction();
@@ -421,7 +512,7 @@ export async function patchContainerWeightsService(args: {
 }
 
 /* =============================
- * Update farmerStatus + AMS linking
+ * Update farmerStatus (legacy) + stage transitions + AMS linking
  * ============================= */
 interface UpdateFarmerStatusArgs {
   orderId: string;
@@ -449,7 +540,8 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
   }
 
   // Authorization
-  const isOwnerFarmer = user.role === "farmer" && String(order.farmerId) === String(user.id);
+  const isOwnerFarmer =
+    user.role === "farmer" && String(order.farmerId) === String(user.id);
   const isManagerOrAdmin = user.role === "fManager" || user.role === "admin";
   if (!isOwnerFarmer && !isManagerOrAdmin) {
     const e: any = new Error("Forbidden");
@@ -460,12 +552,20 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
 
   order.updatedBy = toOID(user.id);
   order.updatedAt = new Date();
+
+  // keep legacy snapshot for backwards compatibility
   order.farmerStatus = status;
 
   if (status === "ok") {
-    // Stage movement + AMS upsert
-    order.markStageOk("farmerAck", order.updatedBy as any, { note: note ?? "" });
-    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", { newStatus: "ok" });
+    // farmer approved => pipeline moves forward + AMS upsert
+    order.markStageOk("farmerAck", order.updatedBy as any, {
+      note: note ?? "",
+    });
+
+    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
+      newStatus: "ok",
+      byRole: user.role,
+    });
 
     const itemDoc: any = await Item.findById(order.itemId).lean();
     if (!itemDoc) {
@@ -476,7 +576,7 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
     }
 
     const pricePerUnit = Number(
-      itemDoc?.price?.a ?? itemDoc?.priceA ?? itemDoc?.price?.kg ?? NaN
+      itemDoc?.price?.a ?? (itemDoc as any)?.priceA ?? itemDoc?.price?.kg ?? NaN
     );
     if (!Number.isFinite(pricePerUnit) || pricePerUnit < 0) {
       const e: any = new Error("BadRequest");
@@ -487,7 +587,9 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
 
     let farmLogo: string | undefined;
     try {
-      const farmerDoc = await Farmer.findById(order.farmerId, { farmLogo: 1 }).lean();
+      const farmerDoc = await Farmer.findById(order.farmerId, {
+        farmLogo: 1,
+      }).lean();
       farmLogo = farmerDoc?.farmLogo ?? (order as any)?.farmLogo ?? undefined;
     } catch {
       farmLogo = (order as any)?.farmLogo ?? undefined;
@@ -554,29 +656,54 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
         0,
     });
 
+    // advance pipeline stages
     order.markStageDone("farmerAck", order.updatedBy as any, {
       note: "Farmer approved; moved to QS",
     });
     order.setStageCurrent("farmerQSrep", order.updatedBy as any, {
       note: "Quality check in progress",
     });
+
+    // make sure stageKey now reflects farmerQSrep
+    order.stageKey = "farmerQSrep";
   } else if (status === "problem") {
+    // put pipeline into halted/problem state
+    // demote any 'current' to pending
     for (const s of (order.stages as any[]) ?? []) {
       if (s?.status === "current") {
         s.status = "pending";
         s.timestamp = new Date();
       }
     }
+
+    // mark farmerAck as done w/ halt note
     order.markStageDone("farmerAck", order.updatedBy as any, {
       note: note ?? "HALT: farmer reported problem",
     });
-    order.addAudit(order.updatedBy as any, "PIPELINE_HALT", note ?? "Farmer reported problem");
+
+    // ensure farmerAck stage is now marked as "problem" and is current stageKey
+    const st = ensureFOStageEntry(order, "farmerAck");
+    st.status = "problem";
+    st.timestamp = new Date();
+    if (!st.startedAt) st.startedAt = new Date();
+    if (note) st.note = note;
+    order.stageKey = "farmerAck";
+
+    order.addAudit(
+      order.updatedBy as any,
+      "PIPELINE_HALT",
+      note ?? "Farmer reported problem",
+      { byRole: user.role }
+    );
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
       newStatus: "problem",
+      byRole: user.role,
     });
   } else {
+    // fallback -> pending
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
       newStatus: "pending",
+      byRole: user.role,
     });
   }
 
@@ -587,25 +714,37 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
 /* =============================
  * Stage updates (admin/fManager)
  * ============================= */
+/* =============================
+ * Stage updates (admin/fManager)
+ * ============================= */
+
 type StageAction = "setCurrent" | "ok" | "done" | "problem";
 
 interface UpdateStageArgs {
   farmerOrderId: string;
-  key: string; // FarmerOrderStageKey
+  key: string; // should be FarmerOrderStageKey, but we'll accept string input
   action: StageAction;
   note?: string;
   user: AuthUser;
 }
 
+/**
+ * Make sure the FarmerOrder has a stage entry for `stageKey`.
+ * If missing, we create a minimal one so we can safely mark it "problem".
+ * Returns the stage subdoc reference.
+ */
+
 export async function updateStageStatusService(args: UpdateStageArgs) {
   const { farmerOrderId, key, action, note, user } = args;
 
+  // --- basic validation / ACL ---
   if (!mongoose.isValidObjectId(farmerOrderId)) {
     const e: any = new Error("BadRequest");
     e.name = "BadRequest";
     e.details = ["Invalid farmer order id"];
     throw e;
   }
+
   if (!["fManager", "admin"].includes(user.role)) {
     const e: any = new Error("Forbidden");
     e.name = "Forbidden";
@@ -613,6 +752,7 @@ export async function updateStageStatusService(args: UpdateStageArgs) {
     throw e;
   }
 
+  // --- load order ---
   const order = await FarmerOrder.findById(farmerOrderId);
   if (!order) {
     const e: any = new Error("NotFound");
@@ -621,44 +761,97 @@ export async function updateStageStatusService(args: UpdateStageArgs) {
     throw e;
   }
 
-  if (action !== "problem") ensurePipelineOpen(order);
+  // if the farmer has flagged "problem", pipeline is halted.
+  // we allow explicitly setting "problem" (to escalate/label the stage)
+  // but we block forward progress ("setCurrent", "ok", "done").
+  if (action !== "problem") {
+    ensurePipelineOpen(order);
+  }
 
   order.updatedBy = toOID(user.id);
   order.updatedAt = new Date();
 
-  const stage = (order.stages as any[])?.find((s) => s?.key === key);
-  if (!stage && action !== "setCurrent") {
+  // Stage reference if it already exists
+  const existingStage: any = (order.stages as any[])?.find(
+    (s: any) => s?.key === key
+  );
+
+  // If we're not setting a stage current, and it's not "problem",
+  // and there's no such stage... that's invalid.
+  if (!existingStage && action !== "setCurrent" && action !== "problem") {
     const e: any = new Error("BadRequest");
     e.name = "BadRequest";
     e.details = [`Stage not found: ${key}`];
     throw e;
   }
 
+  // We'll reuse this cast a few times so TS doesn't scream.
+  const keyAsStageKey = key as FarmerOrderStageKey;
+
   switch (action) {
-    case "setCurrent":
-      order.setStageCurrent(key as any, order.updatedBy as any, { note });
-      break;
-    case "ok":
-      order.markStageOk(key as any, order.updatedBy as any, { note });
-      break;
-    case "done":
-      order.markStageDone(key as any, order.updatedBy as any, { note });
-      break;
-    case "problem": {
-      const s: any = stage || {};
-      s.status = "problem";
-      s.timestamp = new Date();
-      if (!s.startedAt) s.startedAt = new Date();
-      if (note) s.note = note;
-      order.addAudit(order.updatedBy as any, "STAGE_SET_PROBLEM", note ?? "", { key });
+    case "setCurrent": {
+      // move pipeline focus to this stage
+      order.setStageCurrent(keyAsStageKey, order.updatedBy as any, {
+        note,
+      });
+
+      // reflect active stage at top level (dashboard shortcut)
+      (order as any).stageKey = keyAsStageKey;
+
+      // audit
+      order.addAudit(order.updatedBy as any, "STAGE_SET_CURRENT", note ?? "", {
+        key,
+        byRole: user.role,
+      });
       break;
     }
-    default:
-      throw new ApiError(400, "Unknown stage action");
-  }
 
-  if (action !== "problem") {
-    order.addAudit(order.updatedBy as any, "STAGE_UPDATE", note ?? "", { key, action });
+    case "ok": {
+      order.markStageOk(keyAsStageKey, order.updatedBy as any, { note });
+
+      // audit
+      order.addAudit(order.updatedBy as any, "STAGE_SET_OK", note ?? "", {
+        key,
+        byRole: user.role,
+      });
+      break;
+    }
+
+    case "done": {
+      order.markStageDone(keyAsStageKey, order.updatedBy as any, { note });
+
+      // audit
+      order.addAudit(order.updatedBy as any, "STAGE_MARK_DONE", note ?? "", {
+        key,
+        byRole: user.role,
+      });
+      break;
+    }
+
+    case "problem": {
+      // Mark/ensure the stage and flag it as "problem"
+      const st = ensureFOStageEntry(order, keyAsStageKey);
+      const now = new Date();
+
+      st.status = "problem";
+      st.timestamp = now;
+      if (!st.startedAt) st.startedAt = now;
+      if (note) st.note = note;
+
+      // this stage is now the main focus for ops dashboards
+      (order as any).stageKey = keyAsStageKey;
+
+      // audit
+      order.addAudit(order.updatedBy as any, "STAGE_SET_PROBLEM", note ?? "", {
+        key,
+        byRole: user.role,
+      });
+      break;
+    }
+
+    default: {
+      throw new ApiError(400, "Unknown stage action");
+    }
   }
 
   await order.save();
@@ -668,11 +861,11 @@ export async function updateStageStatusService(args: UpdateStageArgs) {
 /* =============================
  * Link customer order to FO
  * ============================= */
-type IdLike = string | Types.ObjectId;
+type IdLike2 = string | Types.ObjectId;
 
 export async function addOrderIdToFarmerOrder(
-  orderId: IdLike,
-  farmerOrderId: IdLike,
+  orderId: IdLike2,
+  farmerOrderId: IdLike2,
   allocatedQuantityKg?: number | null,
   opts?: { session?: mongoose.ClientSession }
 ) {
@@ -694,7 +887,10 @@ export async function addOrderIdToFarmerOrder(
   const fo = await query;
   if (!fo) throw new ApiError(404, "FarmerOrder not found");
 
-  fo.linkOrder(orderOID, allocatedQuantityKg == null ? null : Number(allocatedQuantityKg));
+  fo.linkOrder(
+    orderOID,
+    allocatedQuantityKg == null ? null : Number(allocatedQuantityKg)
+  );
   fo.updatedAt = new Date();
 
   await fo.save({ session: opts?.session });
@@ -705,8 +901,8 @@ export async function addOrderIdToFarmerOrder(
  * Adjust allocation delta
  * ============================= */
 export async function adjustFarmerOrderAllocatedKg(
-  orderId: IdLike,
-  farmerOrderId: IdLike,
+  orderId: IdLike2,
+  farmerOrderId: IdLike2,
   deltaKg: number,
   opts?: { session?: mongoose.ClientSession }
 ) {
@@ -728,7 +924,8 @@ export async function adjustFarmerOrderAllocatedKg(
   const coll: any[] = Array.isArray(fo.orders) ? fo.orders : [];
   let current = 0;
   const entry = coll.find((o: any) => String(o.orderId) === String(orderOID));
-  if (entry && Number.isFinite(entry.allocatedQuantityKg)) current = Number(entry.allocatedQuantityKg);
+  if (entry && Number.isFinite(entry.allocatedQuantityKg))
+    current = Number(entry.allocatedQuantityKg);
 
   const next = Math.max(0, Math.round((current + deltaKg) * 1000) / 1000);
 
@@ -765,38 +962,58 @@ type FOSummaryEntry = {
 export async function farmerOrdersSummary(params: FOSummaryParams) {
   const { logisticCenterId, count = 5 } = params;
 
-  const anyCfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
+  const anyCfg = await ShiftConfig.findOne(
+    { logisticCenterId },
+    { timezone: 1 }
+  )
     .lean<{ timezone?: string }>()
     .exec();
-  if (!anyCfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  if (!anyCfg)
+    throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = anyCfg.timezone || "Asia/Jerusalem";
 
   const currentShiftName = await getCurrentShift();
-  const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
+  const nextShifts = await getNextAvailableShifts({
+    logisticCenterId,
+    count,
+  });
 
-  const summarize = (docs: Array<{ farmerStatus?: string; farmerId?: any }>) => {
-    const count = docs.length;
-    const problemCount = docs.filter((d) => d.farmerStatus === "problem").length;
+  // summarize helper
+  const summarize = (
+    docs: Array<{
+      stageKey?: string;
+      stages?: any[];
+      farmerStatus?: string;
+      farmerId?: any;
+    }>
+  ) => {
+    const countAll = docs.length;
 
+    // new definition of "problem": active stage.status === "problem"
+    const problemDocs = docs.filter((d) => isFarmerOrderProblem(d));
+    const problemCount = problemDocs.length;
+
+    // legacy buckets (still returned so you don't break UI):
     const okDocs = docs.filter((d) => d.farmerStatus === "ok");
     const pendingDocs = docs.filter((d) => d.farmerStatus === "pending");
-    const problemDocs = docs.filter((d) => d.farmerStatus === "problem");
+    const legacyProblemDocs = docs.filter((d) => d.farmerStatus === "problem");
 
     const okFO = okDocs.length;
     const pendingFO = pendingDocs.length;
-    const problemFO = problemDocs.length;
+    const problemFO = legacyProblemDocs.length;
 
-    const uniq = (arr: any[]) => Array.from(new Set(arr.map((v) => String(v)))).length;
+    const uniq = (arr: any[]) =>
+      Array.from(new Set(arr.map((v) => String(v)))).length;
 
     return {
-      count,
-      problemCount,
+      count: countAll,
+      problemCount, // ← NEW meaning
       okFO,
       pendingFO,
       problemFO,
       okFarmers: uniq(okDocs.map((d) => d.farmerId)),
       pendingFarmers: uniq(pendingDocs.map((d) => d.farmerId)),
-      problemFarmers: uniq(problemDocs.map((d) => d.farmerId)),
+      problemFarmers: uniq(legacyProblemDocs.map((d) => d.farmerId)),
     };
   };
 
@@ -809,13 +1026,23 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
             shift: s.name,
             pickUpDate: s.date,
           },
-          { _id: 1, farmerStatus: 1, farmerId: 1 }
+          {
+            _id: 1,
+            farmerStatus: 1,
+            farmerId: 1,
+            stageKey: 1,
+            stages: 1,
+          }
         )
           .lean()
           .exec();
 
         const base = summarize(docs);
-        return { date: s.date, shiftName: s.name as ShiftName, ...base } as FOSummaryEntry;
+        return {
+          date: s.date,
+          shiftName: s.name as ShiftName,
+          ...base,
+        } as FOSummaryEntry;
       })
     );
 
@@ -823,9 +1050,16 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
   }
 
   const todayYmd = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
+
   const targets: Array<{ date: string; name: ShiftName }> = [
-    { date: todayYmd, name: currentShiftName as ShiftName },
-    ...nextShifts.map((s) => ({ date: s.date, name: s.name as ShiftName })),
+    {
+      date: todayYmd,
+      name: currentShiftName as ShiftName,
+    },
+    ...nextShifts.map((s) => ({
+      date: s.date,
+      name: s.name as ShiftName,
+    })),
   ];
 
   const results = await Promise.all(
@@ -836,13 +1070,23 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
           shift: t.name,
           pickUpDate: t.date,
         },
-        { _id: 1, farmerStatus: 1, farmerId: 1 }
+        {
+          _id: 1,
+          farmerStatus: 1,
+          farmerId: 1,
+          stageKey: 1,
+          stages: 1,
+        }
       )
         .lean()
         .exec();
 
       const base = summarize(docs);
-      return { date: t.date, shiftName: t.name, ...base } as FOSummaryEntry;
+      return {
+        date: t.date,
+        shiftName: t.name,
+        ...base,
+      } as FOSummaryEntry;
     })
   );
 
@@ -854,15 +1098,26 @@ export async function listFarmerOrdersForShift(params: {
   logisticCenterId: string;
   date: string; // yyyy-LL-dd in LC timezone
   shiftName: ShiftName;
-  farmerStatus?: "pending" | "ok" | "problem";
+  farmerStatus?: "pending" | "ok" | "problem"; // legacy filter
   page?: number;
   limit?: number;
   fields?: string[];
 }) {
-  const { logisticCenterId, date, shiftName, farmerStatus, page = 1, limit = 50, fields } = params;
+  const {
+    logisticCenterId,
+    date,
+    shiftName,
+    farmerStatus,
+    page = 1,
+    limit = 50,
+    fields,
+  } = params;
 
-  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 }).lean().exec();
-  if (!cfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
+    .lean()
+    .exec();
+  if (!cfg)
+    throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = cfg.timezone || "Asia/Jerusalem";
 
   const q: any = {
@@ -870,7 +1125,7 @@ export async function listFarmerOrdersForShift(params: {
     shift: shiftName,
     pickUpDate: date,
   };
-  if (farmerStatus) q.farmerStatus = farmerStatus;
+  if (farmerStatus) q.farmerStatus = farmerStatus; // legacy filter stays
 
   const projection =
     Array.isArray(fields) && fields.length
@@ -879,11 +1134,28 @@ export async function listFarmerOrdersForShift(params: {
 
   const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
 
-  const [items, total, problemCount] = await Promise.all([
-    FarmerOrder.find(q, projection).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
+  // pull items for page + all docs for problemCount
+  const [items, total, allForWindow] = await Promise.all([
+    FarmerOrder.find(q, projection)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+      .exec(),
     FarmerOrder.countDocuments(q),
-    FarmerOrder.countDocuments({ ...q, farmerStatus: "problem" }),
+    FarmerOrder.find(q, {
+      _id: 1,
+      stageKey: 1,
+      stages: 1,
+    })
+      .lean()
+      .exec(),
   ]);
+
+  // NEW problemCount definition:
+  const problemCount = allForWindow.filter((fo) =>
+    isFarmerOrderProblem(fo)
+  ).length;
 
   return {
     meta: {
@@ -922,7 +1194,8 @@ export async function listMyFarmerOrdersService(
 
   const q: any = {};
   if (["admin", "fManager"].includes(user.role)) {
-    if (opts?.filters?.farmerId) q.farmerId = new Types.ObjectId(opts.filters.farmerId);
+    if (opts?.filters?.farmerId)
+      q.farmerId = new Types.ObjectId(opts.filters.farmerId);
   } else if (user.role === "farmer") {
     q.farmerId = user.userId;
   } else {
@@ -933,5 +1206,9 @@ export async function listMyFarmerOrdersService(
   if (opts?.filters?.pickUpDate) q.pickUpDate = String(opts.filters.pickUpDate);
   if (opts?.filters?.shift) q.shift = String(opts.filters.shift);
 
-  return FarmerOrder.find(q).sort({ createdAt: -1 }).skip(offset).limit(limit).lean();
+  return FarmerOrder.find(q)
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit)
+    .lean();
 }

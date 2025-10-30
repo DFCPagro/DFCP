@@ -3,7 +3,9 @@
 import type {Address} from "./address";
 /* ---------------------------------- Enums --------------------------------- */
 
-export type OrderStatus =
+
+
+export type OrderStages =
   | "pending"
   | "confirmed"
   | "farmer"
@@ -147,7 +149,7 @@ export type Order = {
   // Per-order tolerance
   tolerancePct: number; // default 0.10
 
-  status: OrderStatus;
+  status: OrderStages;
 
   assignedDelivererId?: string;
   customerDeliveryId?: string;
@@ -173,7 +175,7 @@ export type CreateOrderResponse = {
 export type OrderRowAPI = {
   id: string;
   orderId: string;
-  status: OrderStatus;
+  stages: OrderStages;
   deliverySlot?: string | null;
   createdAt: string;
   items: OrderItem[];

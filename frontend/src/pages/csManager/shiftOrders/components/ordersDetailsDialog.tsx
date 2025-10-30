@@ -15,6 +15,7 @@ import {
   Badge,
 } from "@chakra-ui/react";
 import PackOrderSection from "./PackOrderSection.tsx";
+import OrderAuditSection from "../../../../components/common/OrderAuditSection.tsx";
 
 /* ----------------------------- helpers ----------------------------- */
 function fmtFullAddress(addr: any): string {
@@ -66,8 +67,8 @@ function mapLine(ln: any) {
       unitMode === "kg"
         ? `${qtyKg || 0} kg`
         : unitMode === "unit"
-        ? `${units || 0}u`
-        : `${qtyKg || 0} kg · ${units || 0}u`,
+          ? `${units || 0}u`
+          : `${qtyKg || 0} kg · ${units || 0}u`,
     lineTotal,
   };
 }
@@ -85,13 +86,23 @@ export function useOrderDetails({
   const [loading, setLoading] = useState(false);
   const [error, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<
-    Array<{ id: string; itemName: string; farmerOrderId: string; qtyText: string; mode: string; lineTotal: number }>
+    Array<{
+      id: string;
+      itemName: string;
+      farmerOrderId: string;
+      qtyText: string;
+      mode: string;
+      lineTotal: number;
+    }>
   >([]);
   const [addressText, setAddressText] = useState<string>("-");
   const [total, setTotal] = useState<number | undefined>(undefined);
   const [shortCode, setShortCode] = useState<string>("");
   const [audit, setAudit] = useState<any[]>([]);
   const [status, setStatus] = useState<string>("");
+
+  const [stage, setStage] = useState<string>(""); // optional if you have stage separate from status
+  const [createdAt, setCreatedAt] = useState<string>("");
 
   useEffect(() => {
     if (!enabled) return;
@@ -102,29 +113,51 @@ export function useOrderDetails({
         setLoading(true);
         setErr(null);
 
-        // Prefer provided order from the table list
+        // Prefer provided order from parent
         const src = order ?? {};
-        const ord: any = (src && (src.data || src.order || src.result)) || src || {};
+        const ord: any =
+          (src && (src.data || src.order || src.result)) || src || {};
 
         if (!alive) return;
 
+        // order id short code
         const oid = ord._id || ord.id || ord.orderId || orderId;
         setShortCode(`#${String(oid).slice(-6)}`);
 
+        // full delivery address (keep your current format)
         setAddressText(fmtFullAddress(ord.deliveryAddress));
 
+        // line items
         const rawItems: any[] = Array.isArray(ord.items) ? ord.items : [];
         const mapped = rawItems.map(mapLine);
         setRows(mapped);
 
+        // total
         const serverTotal = ord.totalPrice ?? ord.itemsSubtotal ?? undefined;
         const fallbackTotal =
-          Math.round(mapped.reduce((s, x) => s + (x.lineTotal || 0), 0) * 100) / 100;
-        setTotal(Number.isFinite(serverTotal) ? Number(serverTotal) : fallbackTotal);
+          Math.round(mapped.reduce((s, x) => s + (x.lineTotal || 0), 0) * 100) /
+          100;
+        setTotal(
+          Number.isFinite(serverTotal) ? Number(serverTotal) : fallbackTotal
+        );
 
+        // status / stage
         setStatus(ord.status || "");
-        const rawAudit = ord.historyAuditTrail || ord.audit || ord.auditTrail || [];
+        setStage(ord.stage || ""); // if you have "stage" separately, otherwise leave ""
+
+        // audit
+        const rawAudit =
+          ord.historyAuditTrail || ord.audit || ord.auditTrail || [];
         setAudit(Array.isArray(rawAudit) ? rawAudit : []);
+
+        // createdAt
+        const cAt =
+          ord.createdAt ||
+          ord.created_at ||
+          ord.metaCreatedAt ||
+          ord.meta?.createdAt ||
+          "";
+        setCreatedAt(cAt ? new Date(cAt).toLocaleString() : "");
       } catch (e: any) {
         setErr(e?.message || "Failed to load order");
       } finally {
@@ -137,10 +170,21 @@ export function useOrderDetails({
     };
   }, [enabled, orderId, order]);
 
-  return { loading, error, rows, addressText, total, shortCode, audit, status };
+  return {
+    loading,
+    error,
+    rows,
+    addressText,
+    total,
+    shortCode,
+    audit,
+    status,
+    stage,
+    createdAt,
+  };
 }
 
-/* --------------------------- dialog component --------------------------- */
+/* --------------------------- main dialog --------------------------- */
 export default function OrdersDetailsDialog({
   orderId,
   order,
@@ -154,15 +198,29 @@ export default function OrdersDetailsDialog({
   onClose: () => void;
   isProblem?: boolean;
 }) {
-  const { loading, error, rows, addressText, total, shortCode, audit, status } = useOrderDetails({
+  const {
+    loading,
+    error,
+    rows,
+    addressText,
+    total,
+    shortCode,
+    audit,
+    status,
+    stage,
+    createdAt,
+  } = useOrderDetails({
     orderId,
     order,
     enabled: open && (!!order || !!orderId),
   });
 
   const [packOpen, setPackOpen] = useState(false);
-  const showAudit = (isProblem || status === "problem") && audit.length > 0;
-  const itemsTotal = useMemo(() => (typeof total === "number" ? total.toFixed(2) : "-"), [total]);
+
+  const itemsTotal = useMemo(
+    () => (typeof total === "number" ? total.toFixed(2) : "-"),
+    [total]
+  );
 
   return (
     <Dialog.Root
@@ -176,7 +234,9 @@ export default function OrdersDetailsDialog({
         <Dialog.Positioner zIndex={1400}>
           <Dialog.Content maxW="820px">
             <Dialog.Header>
-              <Dialog.Title>Order · {shortCode || shortId(orderId, 8)}</Dialog.Title>
+              <Dialog.Title>
+                Order · {shortCode || shortId(orderId, 8)}
+              </Dialog.Title>
               <Dialog.CloseTrigger />
             </Dialog.Header>
 
@@ -194,54 +254,58 @@ export default function OrdersDetailsDialog({
                 </Alert.Root>
               ) : (
                 <Stack gap="5">
-                  {showAudit && (
-                    <Alert.Root status="warning" colorPalette="orange">
-                      <Alert.Indicator />
-                      <Stack gap="2">
-                        <AlertTitle>Order flagged as problem</AlertTitle>
-                        <AlertDescription>
-                          Below is the recent audit trail for this order.
-                        </AlertDescription>
-                        <Box borderWidth="1px" borderRadius="md" p="3" bg="bg.subtle" maxH="220px" overflowY="auto">
-                          <Stack gap="2">
-                            {audit.map((a, i) => (
-                              <HStack key={i} justify="space-between" align="start">
-                                <Stack gap="0">
-                                  <Text fontWeight="medium">{a.action || "—"}</Text>
-                                  {a.note ? (
-                                    <Text fontSize="sm" color="fg.muted" whiteSpace="pre-wrap">
-                                      {a.note}
-                                    </Text>
-                                  ) : null}
-                                </Stack>
-                                <Stack gap="0" align="end" minW="180px">
-                                  <Text fontSize="sm">
-                                    {a.by && typeof a.by === "object"
-                                      ? a.by.name || shortId(a.by.id)
-                                      : (a.by as string) || "system"}
-                                  </Text>
-                                  <Text fontSize="xs" color="fg.muted">
-                                    {a.at ? new Date(a.at).toLocaleString() : ""}
-                                  </Text>
-                                </Stack>
-                              </HStack>
-                            ))}
-                            {audit.length === 0 && (
-                              <Text color="fg.muted">No audit entries available.</Text>
-                            )}
-                          </Stack>
-                        </Box>
-                      </Stack>
-                    </Alert.Root>
-                  )}
-
-                  {/* Full address */}
+                  {/* DELIVERY ADDRESS (unchanged like you wanted) */}
                   <Stack gap="1">
                     <Text fontWeight="medium">Delivery address:</Text>
-                    <Text color="fg.muted" whiteSpace="pre-wrap">{addressText}</Text>
+                    <Text color="fg.muted" whiteSpace="pre-wrap">
+                      {addressText}
+                    </Text>
                   </Stack>
 
-                  {/* Items table with footer total */}
+                  {/* META ROW: createdAt + status + stage */}
+                  <Box borderWidth="1px" borderRadius="md" p="4" bg="bg.panel">
+                    <HStack justify="space-between" align="flex-start">
+                      <Stack gap="1">
+                        <Text
+                          fontSize="sm"
+                          color="fg.muted"
+                          fontWeight="medium"
+                        >
+                          Created at
+                        </Text>
+                        <Text fontSize="sm" fontWeight="medium">
+                          {createdAt || "-"}
+                        </Text>
+                      </Stack>
+
+                      <Stack gap="1" align="flex-end">
+                        <Text
+                          fontSize="sm"
+                          color="fg.muted"
+                          fontWeight="medium"
+                        >
+                          Status / Stage
+                        </Text>
+                        <HStack gap="2" flexWrap="wrap">
+                          <Badge
+                            variant="subtle"
+                            colorPalette={
+                              isProblem || status === "problem"
+                                ? "orange"
+                                : "green"
+                            }
+                          >
+                            {status || "—"}
+                          </Badge>
+                          <Badge variant="subtle" colorPalette="gray">
+                            {stage || "—"}
+                          </Badge>
+                        </HStack>
+                      </Stack>
+                    </HStack>
+                  </Box>
+
+                  {/* ITEMS TABLE */}
                   <Box borderWidth="1px" borderRadius="md" overflowX="auto">
                     <Table.Root size="sm" w="full">
                       <Table.Header>
@@ -249,7 +313,9 @@ export default function OrdersDetailsDialog({
                           <Table.ColumnHeader>Item</Table.ColumnHeader>
                           <Table.ColumnHeader>F.O id</Table.ColumnHeader>
                           <Table.ColumnHeader>kg / units</Table.ColumnHeader>
-                          <Table.ColumnHeader textAlign="end">Total</Table.ColumnHeader>
+                          <Table.ColumnHeader textAlign="end">
+                            Total
+                          </Table.ColumnHeader>
                         </Table.Row>
                       </Table.Header>
 
@@ -257,10 +323,14 @@ export default function OrdersDetailsDialog({
                         {rows.map((ln, idx) => (
                           <Table.Row key={ln.id || idx}>
                             <Table.Cell>{ln.itemName}</Table.Cell>
-                            <Table.Cell title={ln.farmerOrderId}>{shortId(ln.farmerOrderId)}</Table.Cell>
+                            <Table.Cell title={ln.farmerOrderId}>
+                              {shortId(ln.farmerOrderId)}
+                            </Table.Cell>
                             <Table.Cell>{ln.qtyText}</Table.Cell>
                             <Table.Cell textAlign="end">
-                              {typeof ln.lineTotal === "number" ? ln.lineTotal.toFixed(2) : "-"}
+                              {typeof ln.lineTotal === "number"
+                                ? ln.lineTotal.toFixed(2)
+                                : "-"}
                             </Table.Cell>
                           </Table.Row>
                         ))}
@@ -268,7 +338,11 @@ export default function OrdersDetailsDialog({
 
                       <Table.Footer>
                         <Table.Row>
-                          <Table.Cell colSpan={3} textAlign="right" fontWeight="semibold">
+                          <Table.Cell
+                            colSpan={3}
+                            textAlign="right"
+                            fontWeight="semibold"
+                          >
                             Total
                           </Table.Cell>
                           <Table.Cell textAlign="end" fontWeight="semibold">
@@ -279,13 +353,24 @@ export default function OrdersDetailsDialog({
                     </Table.Root>
                   </Box>
 
-                  {/* When Pack not open: show Pack button + Close. When open: render the section */}
+                  {/* AUDIT SECTION */}
+                  <OrderAuditSection audit={audit} />
+
+                  {/* PACK / CLOSE */}
                   {!packOpen ? (
                     <HStack justify="space-between">
-                      <Button variant="solid" colorPalette="green" onClick={() => setPackOpen(true)}>
+                      <Button
+                        variant="solid"
+                        colorPalette="green"
+                        onClick={() => setPackOpen(true)}
+                      >
                         Pack
                       </Button>
-                      <Button variant="solid" colorPalette="teal" onClick={onClose}>
+                      <Button
+                        variant="solid"
+                        colorPalette="teal"
+                        onClick={onClose}
+                      >
                         Close
                       </Button>
                     </HStack>
