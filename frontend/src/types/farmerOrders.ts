@@ -1,19 +1,10 @@
 // src/types/farmerOrders.ts
 import { z } from "zod";
-
+import { ShiftEnum, IsoDateString } from "@/types/shifts";
 /* --------------------------------- Enums --------------------------------- */
-
-export const ShiftEnum = z.enum(["morning", "afternoon", "evening", "night"]);
-export type Shift = z.infer<typeof ShiftEnum>;
 
 export const FarmerOrderStatusEnum = z.enum(["pending", "ok", "problem"]);
 export type FarmerOrderStatus = z.infer<typeof FarmerOrderStatusEnum>;
-
-/** Strict local date "YYYY-MM-DD" */
-export const IsoDateString = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD");
-export type IsoDateString = z.infer<typeof IsoDateString>;
 
 /* ---------------------------- Summary (existing) --------------------------- */
 
@@ -62,6 +53,63 @@ export const CreateFarmerOrderRequestSchema = z.object({
 });
 export type CreateFarmerOrderRequest = z.infer<
   typeof CreateFarmerOrderRequestSchema
+>;
+
+export const GetFarmerOrderByShiftRequestSchema = z.object({
+  date: IsoDateString,
+  shiftName: ShiftEnum,
+});
+export type GetFarmerOrderByShiftRequest = z.infer<
+  typeof GetFarmerOrderByShiftRequestSchema
+>;
+
+/* ---------------- Get Farmer Orders by Shift (LIST RESPONSE) -------------- */
+
+/** Minimal row used in the shift list endpoint */
+export const FarmerOrderShiftListItemSchema = z.object({
+  _id: z.string().min(1),
+
+  // Labels / farmer display
+  farmerName: z.string().min(1),
+  farmName: z.string().min(1),
+  type: z.string().min(1),
+  variety: z.string().min(1),
+
+  // Status (reuses our enum)
+  farmerStatus: FarmerOrderStatusEnum,
+});
+export type FarmerOrderShiftListItem = z.infer<
+  typeof FarmerOrderShiftListItemSchema
+>;
+
+/** Pagination + context metadata */
+export const FarmerOrderShiftListMetaSchema = z.object({
+  lc: z.string().min(1),
+  date: IsoDateString,
+  shiftName: ShiftEnum,
+  tz: z.string().min(1),
+
+  page: z.number().int().min(1),
+  limit: z.number().int().min(1),
+  total: z.number().int().min(0),
+
+  /** number of farmers with status=problem (server-computed) */
+  problemCount: z.number().int().min(0),
+
+  /** total pages (allow 0 for empty result sets just in case) */
+  pages: z.number().int().min(0),
+});
+export type FarmerOrderShiftListMeta = z.infer<
+  typeof FarmerOrderShiftListMetaSchema
+>;
+
+/** Full response: { meta, items } */
+export const GetFarmerOrderByShiftResponseSchema = z.object({
+  meta: FarmerOrderShiftListMetaSchema,
+  items: z.array(FarmerOrderShiftListItemSchema),
+});
+export type GetFarmerOrderByShiftResponse = z.infer<
+  typeof GetFarmerOrderByShiftResponseSchema
 >;
 
 /**

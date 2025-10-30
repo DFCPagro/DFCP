@@ -12,6 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import type { ShiftRollup } from "@/types/farmerOrders";
 import { ShiftRow } from "./ShiftRow";
+import { PATHS } from "@/routes/paths";
 
 export type ShiftStatsCardProps = {
   /** The "current" shift rollup (may exist with count === 0) */
@@ -37,7 +38,7 @@ function ShiftStatsCardBase({
       if (onViewShift) return onViewShift(row);
 
       // Placeholder navigation (route may not exist yet)
-      const url = `/farmer-orders?date=${encodeURIComponent(
+      const url = `${PATHS.fManagerShiftsFarmerOrder}?date=${encodeURIComponent(
         row.date
       )}&shift=${encodeURIComponent(row.shiftName)}`;
       navigate(url);

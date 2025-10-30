@@ -60,6 +60,7 @@ export const PATHS = {
   fManagerDashboard: "/fManager/dashboard",
   fManagerCreateStock: "/fManager/create-stock",
   fManagerItemManagement: "/fManager/item-management",
+  fManagerShiftsFarmerOrder: "/fManager/shifts-farmer-order",
 
   //all worker pages
   workerProfile: "/workerProfile",

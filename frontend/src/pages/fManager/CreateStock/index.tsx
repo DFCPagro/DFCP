@@ -15,7 +15,7 @@ import { CreateStockCard } from "./components/CreateStockCard";
 import { InitContextBanner } from "./components/InitContextBanner";
 import { InventoryList } from "./components/InventoryList";
 import { useCreateStockInit, useManagerSummary } from "./hooks/useCreateStockInit";
-import type { Shift as ShiftEnum, IsoDateString } from "@/types/farmerOrders";
+import { ShiftEnum, IsoDateString } from "@/types/shifts";
 
 /* ---------------------------------- helpers --------------------------------- */
 

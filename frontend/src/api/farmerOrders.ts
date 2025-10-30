@@ -2,12 +2,15 @@
 import { api } from "./config";
 import {
   FarmerOrdersSummarySchema,
-  // Response DTO for an individual Farmer Order (matches backend response shape)
   FarmerOrderDTOSchema,
-  type FarmerOrderDTO,
-  type FarmerOrdersSummary as FarmerOrdersSummaryResponse,
-  // Create request type (exact backend contract)
-  type CreateFarmerOrderRequest,
+  GetFarmerOrderByShiftResponseSchema,
+} from "@/types/farmerOrders";
+import type {
+  FarmerOrdersSummaryResponse,
+  CreateFarmerOrderRequest,
+  FarmerOrderDTO,
+  GetFarmerOrderByShiftRequest,
+  GetFarmerOrderByShiftResponse,
 } from "@/types/farmerOrders";
 import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
 
@@ -64,6 +67,16 @@ export async function createFarmerOrder(
   const { data } = await api.post(BASE, req);
   const payload = data?.data ?? data;
   return FarmerOrderDTOSchema.parse(payload);
+}
+
+export async function getFarmerOrderByShift(
+  req: GetFarmerOrderByShiftRequest
+): Promise<GetFarmerOrderByShiftResponse> {
+  const { data } = await api.get(`${BASE}/by-shift`);
+  console.log("getFarmerOrderByShift response data:", data);
+  // Support either { data: ... } or bare object:
+  const payload = data?.data ?? data;
+  return GetFarmerOrderByShiftResponseSchema.parse(payload);
 }
 
 /* ------------------------------ (Optional) AR ----------------------------- */

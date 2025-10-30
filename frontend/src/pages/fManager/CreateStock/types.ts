@@ -3,7 +3,7 @@
 // We intentionally keep these FE-only and aligned with your BE contracts.
 // TODO(real API): When BE DTOs are finalized, replace/align these with the actual shared types.
 
-import type { Shift, IsoDateString } from "@/types/farmerOrders";
+import type { ShiftEnum, IsoDateString } from "@/types/shifts";
 
 /* -----------------------------------------------------------------------------
  * Init (available-stock/init)
@@ -19,13 +19,13 @@ export type InitResult = {
   created: boolean;
   /** Echo of the init inputs for convenience */
   date: IsoDateString;
-  shift: Shift;
+  shift: ShiftEnum;
 };
 
 /** Minimal payload to request init (handy for tests or future refactors) */
 export type InitPayload = {
   date: IsoDateString;
-  shift: Shift;
+  shift: ShiftEnum;
 };
 
 /* -----------------------------------------------------------------------------
@@ -60,7 +60,7 @@ export type CreateFarmerOrderResult = {
 
 export type CreateStockQuery = {
   date?: IsoDateString; // YYYY-MM-DD local date
-  shift?: Shift; // "morning" | "afternoon" | "evening" | "night"
+  shift?: ShiftEnum; // "morning" | "afternoon" | "evening" | "night"
 };
 
 /* -----------------------------------------------------------------------------

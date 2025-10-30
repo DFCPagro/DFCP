@@ -4,6 +4,7 @@ import { CreateOrdersCard } from "./components/CreateStockCard";
 import { ShiftStatsCard } from "./components/ShiftStatsCard";
 import { useManagerSummary } from "./hooks/useManagerSummary";
 
+
 export default function FarmerManagerDashboardPage() {
   const {
     current,
