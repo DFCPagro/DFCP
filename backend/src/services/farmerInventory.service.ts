@@ -72,9 +72,9 @@ export async function listInventory(
   const contactMap = new Map<string, any>();
   for (const farmerUserId of farmerUserIds) {
     try {
-      console.log("farmerId:", farmerUserId);
+      // console.log("farmerId:", farmerUserId);
       const info = await getContactInfoByIdService(farmerUserId);
-      console.log("farmerinfo :", { info });
+      // console.log("farmerinfo :", { info });
       contactMap.set(farmerUserId, {
         farmName: info.farmName ?? null,
         farmLogo: info.farmLogo ?? null,
