@@ -16,12 +16,12 @@ const AddressSchema = new Schema(
     lnt: { type: Number, required: true }, // longitude (kept as 'lnt' per your shape)
     alt: { type: Number, required: true }, // latitude  (kept as 'alt')
     address: { type: String, required: true, trim: true },
-    logisticCenterId: { type: String, default: null }, // set later in controller
+    logisticCenterId: { type: String, default: null }, // leave as string if it's freeform per-address
   },
   { _id: false }
 );
 
-// ========== User schema (no generics; we infer later) ==========
+// ========== User schema ==========
 const UserSchema = new Schema(
   {
     uid: { type: String, required: true, unique: true, index: true},
@@ -41,12 +41,15 @@ const UserSchema = new Schema(
     phone: { type: String, trim: true },
 
     role: { type: String, enum: roles, default: "customer", index: true },
+    mdCoints: { type: Number, default: 0 },
 
-    // active after verification later; default true for now
     activeStatus: { type: Boolean, default: true },
-    logisticCenterId: { type: String, default: null },
+
+    // ✅ ObjectId ref to LogisticCenter (singular name must match the model below)
+    logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", default: null },
+
     coins: { type: Number, default: 0 },
-    // addresses array (subdocuments)
+
     addresses: {
       type: [AddressSchema],
       default: [],
@@ -69,8 +72,6 @@ UserSchema.plugin(toJSON as any);
 // ========== Types inferred from schemas ==========
 export type Address = InferSchemaType<typeof AddressSchema>;
 export type User = InferSchemaType<typeof UserSchema>;
-
-// password is select:false ⇒ it might be missing on queried docs
 export type UserSafe = Omit<User, "password"> & { password?: string };
 
 // instance methods
@@ -83,7 +84,6 @@ export type UserDoc = HydratedDocument<UserSafe> & UserMethods;
 export type UserModel = Model<User, {}, UserMethods>;
 
 // ========== Helpers (hashing + normalization) ==========
-
 function needsHash(pwd: unknown): pwd is string {
   // bcrypt hashes start with $2a/$2b/$2y — avoid double-hashing
   return typeof pwd === "string" && !pwd.startsWith("$2");
@@ -170,15 +170,13 @@ UserSchema.pre("updateMany", async function (next) {
 });
 
 // ========== Methods ==========
-
 UserSchema.methods.isPasswordMatch = async function (
   this: UserDoc,
   plain: string
 ) {
   if (!this.password) {
-    // You likely queried without +password; surface a clear error
     throw new Error(
-      "Password not selected on document. Use .select('+password') in your query before calling isPasswordMatch."
+      "Password not selected on document. Use .select('+password') before calling isPasswordMatch."
     );
   }
   return bcrypt.compare(plain, this.password);

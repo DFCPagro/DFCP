@@ -24,12 +24,14 @@ import reconciliationRoutes from "./reconciliation.routes";
 import farmerInventoryRoutes from "./farmerInventory.route";
 import worldLayoutRoutes from "./worldLayout.routes";
 import demandStaticsRoutes from "./demandStatics.routes";
+import pickerRoutes from "./picker.routes";
 
 const router = Router();
 
 router.use("/auth", authRoutes);
 
 router.use("/logistics-centers", logisticsCenterRouter);
+router.use("/picker", pickerRoutes);
 router.use("/pick-tasks", pickTaskRoutes);
 
 // 🧱 Warehouse / LC ops
@@ -58,7 +60,5 @@ router.use("/users", userRoutes);
 router.use("/pick-tasks", pickTaskRoutes);
 router.use("/containers", reconciliationRoutes);
 router.use("/farmer-inventory", farmerInventoryRoutes);
-
-
 
 export default router;

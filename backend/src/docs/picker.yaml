@@ -1,0 +1,264 @@
+openapi: 3.0.3
+info:
+  title: Picker APIs
+  version: "1.0.0"
+
+tags:
+  - name: Picker
+    description: Picker profile & gamification (require authentication)
+
+paths:
+  /api/v1/picker/me:
+    get:
+      tags: [Picker]
+      summary: Get my picker profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Picker profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickerProfile"
+              example:
+                userId: "66f2aa00000000000000002b"
+                nickname: "UpdatedPicker"
+                status: "active"
+                level: 4
+                xp: 950
+                user:
+                  name: "Avi Mizrahi"
+                  email: "picker@gmail.com"
+                  phone: null
+                  role: "picker"
+                  logisticCenter:
+                    id: "66e007000000000000000001"
+                    name: "Zarzir Logistics Center"
+                    locationName: "Zarzir"
+                  mdCoints: 0
+                  coins: 0
+                  activeStatus: true
+                currentMonthSchedule: []
+                nextMonthSchedule: []
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+    patch:
+      tags: [Picker]
+      summary: Update my picker core fields
+      description: >
+        Upsert core picker data.  
+        - `nickname` is stored on Picker.  
+        - If provided, `logisticCenterId` updates the **User**'s logistic center.  
+        Response **does not** include any `logisticCenterId`; LC appears only under `user.logisticCenter`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchMeRequest"
+            examples:
+              changeNickname:
+                value: { nickname: "NewNick" }
+              changeCenter:
+                value: { logisticCenterId: "66e007000000000000000001" }
+              both:
+                value: { nickname: "NewNick", logisticCenterId: "66e007000000000000000001" }
+      responses:
+        "200":
+          description: Updated picker profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickerProfile"
+        "400":
+          description: Validation error (e.g., center not found)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+  /api/v1/picker/me/gamification:
+    patch:
+      tags: [Picker]
+      summary: Update my gamification
+      description: >
+        Set absolute XP via `xp` **or** add delta via `addXp`.  
+        If both are provided, `xp` takes precedence (per controller).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchGamificationRequest"
+            examples:
+              setXp:
+                value: { xp: 950 }
+              addXp:
+                value: { addXp: 50 }
+      responses:
+        "200":
+          description: Updated picker profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PickerProfile"
+        "400":
+          description: Bad request (picker not found, invalid numbers, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    PickerStatus:
+      type: string
+      enum: [active, suspended, unactive]
+
+    LogisticCenter:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+          description: Mongo ObjectId as string
+          nullable: true
+          example: "66e007000000000000000001"
+        name:
+          type: string
+          nullable: true
+          example: "Zarzir Logistics Center"
+        locationName:
+          type: string
+          nullable: true
+          example: "Zarzir"
+
+    UserInProfile:
+      type: object
+      required: [name, email, role, mdCoints, coins, activeStatus]
+      properties:
+        name:
+          type: string
+          example: "Avi Mizrahi"
+        email:
+          type: string
+          format: email
+          example: "picker@gmail.com"
+        phone:
+          type: string
+          nullable: true
+          example: null
+        role:
+          type: string
+          description: One of your defined roles
+          example: picker
+        logisticCenter:
+          $ref: "#/components/schemas/LogisticCenter"
+        mdCoints:
+          type: number
+          example: 0
+        coins:
+          type: number
+          example: 0
+        activeStatus:
+          type: boolean
+          example: true
+
+    PickerProfile:
+      type: object
+      required:
+        - userId
+        - nickname
+        - status
+        - level
+        - xp
+        - user
+        - currentMonthSchedule
+        - nextMonthSchedule
+      properties:
+        userId:
+          type: string
+          description: Picker.userId as string
+          example: "66f2aa00000000000000002b"
+        nickname:
+          type: string
+          example: "UpdatedPicker"
+        status:
+          $ref: "#/components/schemas/PickerStatus"
+        level:
+          type: integer
+          minimum: 1
+          example: 4
+        xp:
+          type: integer
+          minimum: 0
+          example: 950
+        user:
+          $ref: "#/components/schemas/UserInProfile"
+        currentMonthSchedule:
+          type: array
+          description: Reserved for future use (currently empty)
+          items: {}
+        nextMonthSchedule:
+          type: array
+          description: Reserved for future use (currently empty)
+          items: {}
+
+    PatchMeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nickname:
+          type: string
+          description: New nickname for the picker
+          example: "NewNick"
+        logisticCenterId:
+          type: string
+          description: >
+            Logistic center to assign to the user (ObjectId as string).  
+            **Note:** This field is **input only**; responses never include any `logisticCenterId`.
+          example: "66e007000000000000000001"
+      minProperties: 1
+
+    PatchGamificationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        xp:
+          type: integer
+          minimum: 0
+          description: Set absolute XP value
+          example: 950
+        addXp:
+          type: integer
+          description: Additive XP delta (can be negative; service clamps total at 0)
+          example: 50
+      minProperties: 1
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Picker not found. Create picker first."

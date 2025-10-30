@@ -1,73 +1,39 @@
-// models/logisticsCenter.model.ts
-import mongoose, { Schema, Document, Model, Types } from 'mongoose';
-import toJSON from '../utils/toJSON';
+import mongoose, { Schema, model, models, InferSchemaType } from "mongoose";
+import toJSON from "../utils/toJSON";
 
-export interface IGeoPoint {
-  type: 'Point';
-  coordinates: [number, number]; // [lng, lat]
-}
-export interface ILocation {
-  name: string;
-  geo?: IGeoPoint;
-}
-export interface ILogisticsCenter extends Document {
-  _id: Types.ObjectId;
-  logisticName: string;
-  location: ILocation;
-  employeeIds: Types.ObjectId[];
-  deliveryHistory: { message: string; at: Date; by?: Types.ObjectId | null }[];
-createdAt?: Date;
-    updatedAt?: Date;
-}
-
-const GeoPointSchema = new Schema<IGeoPoint>(
+const LocationSchema = new Schema(
   {
-    type: { type: String, enum: ['Point'], required: true },
-    coordinates: {
-      type: [Number],
-      required: true,
-      validate: {
-        validator: (val: number[]) =>
-          Array.isArray(val) &&
-          val.length === 2 &&
-          Number.isFinite(val[0]) &&
-          Number.isFinite(val[1]),
-        message: 'geo.coordinates must be [lng, lat]',
-      },
+    name: { type: String, trim: true },
+    geo: {
+      type: { type: String, enum: ["Point"], default: "Point" },
+      coordinates: { type: [Number], default: undefined }, // [lng, lat]
     },
   },
   { _id: false }
 );
 
-const LocationSchema = new Schema<ILocation>(
+const DeliveryHistorySchema = new Schema(
   {
-    name: { type: String, required: true, trim: true },
-    // Optional subdocument; if present, its own fields are required
-    geo: { type: GeoPointSchema, required: false, default: undefined },
+    message: { type: String, required: true },
+    at: { type: Date, default: Date.now },
   },
   { _id: false }
 );
 
-const LogisticsCenterSchema = new Schema<ILogisticsCenter>(
+const LogisticsCenterSchema = new Schema(
   {
-    logisticName: { type: String, required: true, trim: true, index: true },
+    logisticName: { type: String, required: true, trim: true },
     location: { type: LocationSchema, required: true },
-    employeeIds: [{ type: Schema.Types.ObjectId, ref: 'User', index: true }],
-    deliveryHistory: [
-      {
-        message: { type: String, required: true, trim: true },
-        at: { type: Date, default: Date.now },
-        by: { type: Schema.Types.ObjectId, ref: 'User', default: null },
-      },
-    ],
+    employeeIds: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
+    deliveryHistory: { type: [DeliveryHistorySchema], default: [] },
   },
   { timestamps: true }
 );
 
-LogisticsCenterSchema.index({ 'location.geo': '2dsphere' });
 LogisticsCenterSchema.plugin(toJSON as any);
 
-const LogisticsCenter: Model<ILogisticsCenter> =
-  mongoose.model<ILogisticsCenter>('LogisticCenter', LogisticsCenterSchema);
-
-export default LogisticsCenter;
+export type TLogisticsCenter = InferSchemaType<typeof LogisticsCenterSchema>;
+export const LogisticCenter =
+  (models.LogisticCenter as mongoose.Model<TLogisticsCenter>) ||
+  model<TLogisticsCenter>("LogisticCenter", LogisticsCenterSchema);
+export default LogisticCenter;

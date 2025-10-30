@@ -2,28 +2,26 @@
   {
     "_id": "66e007000000000000000001",
     "logisticName": "Zarzir Logistics Center",
-    "locationObj": {
+    "location": {
       "name": "Zarzir",
-      "geo": { "type": "Point", "coordinates": [32.733459, 35.218805] }
+      "geo": { "type": "Point", "coordinates": [35.218805, 32.733459] }
     },
     "employeeIds": [],
-    "deliveryHistory": ["Opened hub"]
+    "deliveryHistory": [
+      { "message": "Opened hub" }
+    ]
   },
   {
     "_id": "66e007000000000000000002",
     "logisticName": "Jerusalem Logistics Center",
-    "locationObj": {
-      "name": "Jerusalem"
-    },
+    "location": { "name": "Jerusalem" },
     "employeeIds": [],
     "deliveryHistory": []
   },
   {
     "_id": "66e007000000000000000003",
     "logisticName": "Haifa Logistics Center",
-    "locationObj": {
-      "name": "Haifa"
-    },
+    "location": { "name": "Haifa" },
     "employeeIds": [],
     "deliveryHistory": []
   }
