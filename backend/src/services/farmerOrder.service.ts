@@ -997,7 +997,7 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
     const okDocs = docs.filter((d) => d.farmerStatus === "ok");
     const pendingDocs = docs.filter((d) => d.farmerStatus === "pending");
     const legacyProblemDocs = docs.filter((d) => d.farmerStatus === "problem");
-
+    //stage.status if the current one is "problem" 
     const okFO = okDocs.length;
     const pendingFO = pendingDocs.length;
     const problemFO = legacyProblemDocs.length;
