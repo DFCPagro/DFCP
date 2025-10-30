@@ -5,6 +5,7 @@ import ContainerOps from "../models/ContainerOps.model";
 import ApiError from "../utils/ApiError";
 import { PersistedCrowdService } from "./crowdPersistence.service";
 import { isObjId } from "@/utils/validations/mongose";
+import { resolveDemandToKgForItem, type DemandInput } from "./items.service";
 
 export namespace ShelfService {
   /**
@@ -34,6 +35,296 @@ export async function list(args: {
   export async function listByCenter(centerId: string) {
     return list({ logisticCenterId: centerId });
   }
+
+ /**
+ * Find the best shelf/slot to pick for a given FO id.
+ *
+ * Scoring (bigger is better):
+ *   score =
+ *     1.25*log1p(weightKg)
+ *     + typeBoost(type)
+ *     + proximityBoost(row,col)
+ *     + demandFitBoost(weightKg, requiredKg)   // NEW
+ *     + (isTemporarilyAvoid ? -5 : 0)
+ *     - 0.04 * busyScore
+ *     - 0.5 * liveActiveTasks
+ *
+ * Deterministic tie-breakers: higher weight, lower busyScore, fewer liveActiveTasks, shelfId asc, slotId asc.
+ */
+export async function findBestLocationForFO(args: {
+  foId: string;
+  // minimum kg at slot (kept; will be applied in addition to requiredKg when demand provided)
+  minKg?: number;
+  zone?: string;
+  centerId?: string;
+  excludeTemporarilyAvoid?: boolean; // default true
+  maxBusyScore?: number;
+  preferTypes?: Array<"warehouse" | "picker" | "delivery">;
+  originRow?: number;
+  originCol?: number;
+  type: "warehouse" | "picker" | "delivery" | string;
+  // send one of { qtyKg } or { qtyUnits } matching the item’s sell mode
+  demand?: DemandInput;
+}) {
+  const {
+    foId,
+    minKg = 0,
+    zone,
+    type,
+    centerId,
+    excludeTemporarilyAvoid = true,
+    maxBusyScore,
+    preferTypes = ["picker", "delivery", "warehouse"],
+    originRow,
+    originCol,
+    demand,
+  } = args;
+
+  // ---------- 1) Resolve the FO's container ops ----------
+  const byObjId = Types.ObjectId.isValid(foId) ? { _id: new Types.ObjectId(foId) } : null;
+  const ops =
+    (await ContainerOps.findOne(byObjId || { foId }).lean()) ||
+    (await ContainerOps.findOne({ fulfillmentOrderId: foId }).lean()) ||
+    (await ContainerOps.findOne({ "order.foId": foId }).lean());
+
+  if (!ops) throw new ApiError(404, "No ContainerOps found for provided FO id");
+
+  // ---------- 1a) Resolve demand → requiredKg using the item on this FO ----------
+  let requiredKg: number | null = null;
+  let demandMeta: any = null;
+  if (demand && ops.itemId) {
+    try {
+      const r = await resolveDemandToKgForItem(String(ops.itemId), demand);
+      requiredKg = r.requiredKg; // kg needed to fulfill
+      demandMeta = r;            // keep to echo in meta
+    } catch (e: any) {
+      // If demand conversion fails, surface a clear 400 with the original error
+      throw new ApiError(400, `DemandError: ${e?.message || "invalid demand"}`);
+    }
+  }
+
+  // ---------- 2) Build initial candidate list from distributed weights / location ----------
+  type Candidate = {
+    shelfId: Types.ObjectId;
+    slotId: string;
+    weightKg: number; // may be 0 if unknown (resolved from shelf.slots later)
+  };
+
+  const candidates: Candidate[] = [];
+  const dw = (ops as any).distributedWeights || [];
+
+  if (Array.isArray(dw) && dw.length > 0) {
+    for (const e of dw) {
+      if (!e?.shelfId || !e?.slotId) continue;
+      const w = typeof e.weightKg === "number" ? Math.max(0, e.weightKg) : 0;
+      candidates.push({ shelfId: new Types.ObjectId(e.shelfId), slotId: e.slotId, weightKg: w });
+    }
+  } else if ((ops as any).location?.area === "shelf" && (ops as any).location.shelfId && (ops as any).location.slotId) {
+    const l = (ops as any).location;
+    candidates.push({
+      shelfId: new Types.ObjectId(l.shelfId),
+      slotId: String(l.slotId),
+      weightKg: 0, // resolve from shelf document
+    });
+  }
+
+  if (candidates.length === 0) {
+    throw new ApiError(404, "FO is not currently on any shelf/slot");
+  }
+
+  // ---------- 3) Fetch all involved shelves in a single query ----------
+  const uniqShelfIds = Array.from(new Set(candidates.map(c => String(c.shelfId)))).map(id => new Types.ObjectId(id));
+  const shelves = await Shelf.find(
+    { _id: { $in: uniqShelfIds } },
+    {
+      shelfId: 1, type: 1, zone: 1, row: 1, col: 1,
+      liveActiveTasks: 1, busyScore: 1, isTemporarilyAvoid: 1,
+      logisticCenterId: 1, slots: 1,
+    }
+  ).lean();
+
+  if (!shelves || shelves.length === 0) {
+    throw new ApiError(404, "Candidate shelves not found");
+  }
+
+  const shelfById = new Map<string, any>(shelves.map(s => [String(s._id), s]));
+
+  // ---------- 4) Normalize filters + compute enriched candidates ----------
+  const zoneNorm = zone ? String(zone).toUpperCase() : undefined;
+  const typeNorm = type ? String(type).toLowerCase() : undefined;
+  const preferOrder = new Map(preferTypes.map((t, i) => [t, preferTypes.length - i])); // higher = better
+
+  const enriched: Array<{
+    shelfObjId: string;
+    shelfCode: string | null;
+    zone: string | null;
+    type: string | null;
+    slotId: string;
+    weightKg: number;
+    busyScore: number;
+    liveActiveTasks: number;
+    isTemporarilyAvoid: boolean;
+    row: number | null;
+    col: number | null;
+    dist: number | null;
+  }> = [];
+
+  for (const c of candidates) {
+    const s = shelfById.get(String(c.shelfId));
+    if (!s) continue;
+
+    // filter: LC
+    if (centerId && String(s.logisticCenterId) !== String(centerId)) continue;
+    // filter: zone
+    if (zoneNorm && s.zone && String(s.zone).toUpperCase() !== zoneNorm) continue;
+    // filter: type enum
+    if (typeNorm && String(s.type).toLowerCase() !== typeNorm) continue;
+    // filter: temporary avoid
+    if (excludeTemporarilyAvoid && s.isTemporarilyAvoid) continue;
+    // filter: busy cap
+    if (typeof maxBusyScore === "number" && s.busyScore > maxBusyScore) continue;
+
+    // actual slot kg (prefer shelf doc)
+    const slot = Array.isArray(s.slots) ? s.slots.find((x: any) => x.slotId === c.slotId) : null;
+    const slotKg = Math.max(0, typeof c.weightKg === "number" && c.weightKg > 0 ? c.weightKg : (slot?.currentWeightKg ?? 0));
+
+    // respect both minKg and demand.requiredKg (NEW)
+    const needKg = Math.max(minKg || 0, requiredKg ?? 0);
+    if (slotKg < needKg) continue;
+
+    // proximity
+    let dist: number | null = null;
+    if (typeof originRow === "number" && typeof originCol === "number" && typeof s.row === "number" && typeof s.col === "number") {
+      dist = Math.abs(s.row - originRow) + Math.abs(s.col - originCol);
+    }
+
+    enriched.push({
+      shelfObjId: String(c.shelfId),
+      shelfCode: s.shelfId ?? null,
+      zone: s.zone ?? null,
+      type: s.type ?? null,
+      slotId: c.slotId,
+      weightKg: slotKg,
+      busyScore: Number(s.busyScore || 0),
+      liveActiveTasks: Number(s.liveActiveTasks || 0),
+      isTemporarilyAvoid: !!s.isTemporarilyAvoid,
+      row: typeof s.row === "number" ? s.row : null,
+      col: typeof s.col === "number" ? s.col : null,
+      dist,
+    });
+  }
+
+  if (enriched.length === 0) {
+    return {
+      foId,
+      best: null,
+      candidates: [],
+      note: "No shelf/slot meets the provided filters or demand quantity",
+      meta: {
+        demand: demandMeta,
+        requiredKg: requiredKg ?? null,
+      },
+    };
+  }
+
+  // ---------- 5) Scoring ----------
+  function typeBoost(t: string | null): number {
+    if (!t) return 0;
+    const key = String(t).toLowerCase();
+    const rank = preferOrder.get(key as any) || 0;
+    return rank; // picker(3) > delivery(2) > warehouse(1)
+  }
+
+  function proximityBoost(dist: number | null): number {
+    if (dist == null) return 0;
+    return 2.5 / (1 + dist / 4);
+  }
+
+  // NEW: reward good demand fit, lightly penalize huge surplus to avoid waste/extra shuttling
+  function demandFitBoost(slotKg: number, demandKg: number | null): number {
+    if (!demandKg || demandKg <= 0) return 0;
+    const fit = Math.min(slotKg / demandKg, 1);          // 0..1
+    const surplus = Math.max(0, (slotKg - demandKg) / demandKg); // 0..∞
+    return 2.2 * Math.sqrt(fit) - 0.3 * Math.min(surplus, 1);
+  }
+
+  const scored = enriched.map((e) => {
+    const w = 1.25 * Math.log1p(e.weightKg);
+    const t = typeBoost(e.type);
+    const p = proximityBoost(e.dist);
+    const d = demandFitBoost(e.weightKg, requiredKg); // NEW
+    const avoidPenalty = e.isTemporarilyAvoid ? -5 : 0;
+    const crowdPenalty = -0.04 * e.busyScore - 0.5 * e.liveActiveTasks;
+    const score = w + t + p + d + avoidPenalty + crowdPenalty;
+
+    return { ...e, score };
+  });
+
+  // sort: main score desc, then heavy→light, then calmer→busier, then deterministic ids
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.weightKg !== a.weightKg) return b.weightKg - a.weightKg;
+    if (a.busyScore !== b.busyScore) return a.busyScore - b.busyScore;
+    if (a.liveActiveTasks !== b.liveActiveTasks) return a.liveActiveTasks - b.liveActiveTasks;
+    if (a.shelfObjId !== b.shelfObjId) return a.shelfObjId.localeCompare(b.shelfObjId);
+    return String(a.slotId).localeCompare(String(b.slotId));
+  });
+
+  const best = scored[0];
+
+  return {
+    foId,
+    best: {
+      shelfId: best.shelfObjId,
+      shelfCode: best.shelfCode,
+      zone: best.zone,
+      type: best.type,
+      slotId: best.slotId,
+      weightKg: best.weightKg,
+      busyScore: best.busyScore,
+      liveActiveTasks: best.liveActiveTasks,
+      row: best.row,
+      col: best.col,
+      distance: best.dist,
+      score: Number(best.score.toFixed(4)),
+    },
+    candidates: scored.map(c => ({
+      shelfId: c.shelfObjId,
+      shelfCode: c.shelfCode,
+      zone: c.zone,
+      type: c.type,
+      slotId: c.slotId,
+      weightKg: c.weightKg,
+      busyScore: c.busyScore,
+      liveActiveTasks: c.liveActiveTasks,
+      row: c.row,
+      col: c.col,
+      distance: c.dist,
+      score: Number(c.score.toFixed(4)),
+    })),
+    meta: {
+      filters: {
+        minKg,
+        zone: zoneNorm ?? null,
+        type: typeNorm ?? null,
+        centerId: centerId ?? null,
+        excludeTemporarilyAvoid,
+        maxBusyScore: typeof maxBusyScore === "number" ? maxBusyScore : null,
+        preferTypes,
+        origin: (typeof originRow === "number" && typeof originCol === "number") ? { row: originRow, col: originCol } : null,
+      },
+      demand: demandMeta,             // full echo (mode, roundedUnits, notes, etc.)
+      requiredKg: requiredKg ?? null, // resolved required kg (if any)
+      scoring: {
+        weight: "1.25*log1p(kg)",
+        typeBoost: `preferTypes order → ${JSON.stringify(preferTypes)}`,
+        proximity: "2.5/(1 + dist/4) if origin provided",
+        demandFit: "2.2*sqrt(min(slotKg/requiredKg,1)) - 0.3*min(surplusRatio,1)", // NEW
+        penalties: "-0.04*busyScore - 0.5*liveActiveTasks" + (excludeTemporarilyAvoid ? " (hard exclude when true)" : " (soft -5 when true)"),
+      },
+    },
+  };
+}
 
   /** Fetch one shelf (lean) with optional guards. */
   export async function getShelfById(shelfId: string) {
@@ -581,3 +872,6 @@ export async function list(args: {
     };
   }
 }
+
+
+

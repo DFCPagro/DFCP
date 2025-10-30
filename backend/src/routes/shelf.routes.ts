@@ -26,6 +26,14 @@ router.get(
   authorize("opManager", "admin"),
   ctrl.getNonCrowded
 );
+
+router.get(
+  "/best-location",
+  authenticate,
+  authorize("picker", "opManager", "admin"),
+  ctrl.getBestLocationForFO
+);
+
 // Legacy alias kept for backward compatibility
 router.get(
   "/_suggest/non-crowded",

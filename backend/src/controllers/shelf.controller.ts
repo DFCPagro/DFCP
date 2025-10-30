@@ -1,8 +1,12 @@
 // FILE: src/controllers/shelf.controller.ts
 import { Request, Response, NextFunction } from "express";
-import * as svc from "../services/shelf.service";
+import {ShelfService} from "../services/shelf.service";
 import { CrowdService } from "../services/shelfCrowd.service";
 import { isObjId } from "@/utils/validations/mongose";
+import ApiError from "@/utils/ApiError";
+
+
+const VALID_TYPES = ["warehouse", "picker", "delivery"] as const;
 
 /**
  * List shelves by logistic center (optionally zone/type)
@@ -24,7 +28,7 @@ export async function list(req: Request, res: Response, next: NextFunction) {
     const allowed = new Set(["picker", "warehouse", "staging", "sorting", "out"]);
     const typeFilter = type && allowed.has(type.toLowerCase()) ? type.toLowerCase() : undefined;
 
-    const data = await svc.ShelfService.list({
+    const data = await ShelfService.list({
       logisticCenterId: centerId,
       zone: zone || undefined,
       type: typeFilter,
@@ -49,7 +53,7 @@ export async function getShelf(req: Request, res: Response, next: NextFunction) 
     if (!isObjId(id)) {
       return res.status(400).json({ ok: false, message: "Invalid shelf id" });
     }
-    const data = await svc.ShelfService.getShelfWithCrowdScore(id);
+    const data = await ShelfService.getShelfWithCrowdScore(id);
     res.json({ ok: true, data });
   } catch (err) {
     next(err);
@@ -70,7 +74,7 @@ export async function placeContainer(req: Request, res: Response, next: NextFunc
       return res.status(400).json({ ok: false, message: "Invalid weightKg" });
     }
 
-    const data = await svc.ShelfService.placeContainer({
+    const data = await ShelfService.placeContainer({
       shelfMongoId,
       slotId,
       containerOpsId,
@@ -97,7 +101,7 @@ export async function consumeFromSlot(req: Request, res: Response, next: NextFun
       return res.status(400).json({ ok: false, message: "amountKg must be a positive number" });
     }
 
-    const data = await svc.ShelfService.consumeFromSlot({ shelfMongoId, slotId, amountKg, userId });
+    const data = await ShelfService.consumeFromSlot({ shelfMongoId, slotId, amountKg, userId });
     res.json({ ok: true, data });
   } catch (err) {
     next(err);
@@ -122,7 +126,7 @@ export async function moveContainer(req: Request, res: Response, next: NextFunct
       return res.status(400).json({ ok: false, message: "Invalid slot ids" });
     }
 
-    const data = await svc.ShelfService.moveContainer({ fromShelfId, fromSlotId, toShelfId, toSlotId, userId });
+    const data = await ShelfService.moveContainer({ fromShelfId, fromSlotId, toShelfId, toSlotId, userId });
     res.json({ ok: true, data });
   } catch (err) {
     next(err);
@@ -153,7 +157,7 @@ export async function markTaskStart(req: Request, res: Response, next: NextFunct
       return res.status(400).json({ ok: false, message: "Invalid kind (pick|sort|audit)" });
     }
 
-    const data = await svc.ShelfService.markShelfTaskStart({ shelfId, userId, kind });
+    const data = await ShelfService.markShelfTaskStart({ shelfId, userId, kind });
     res.json({ ok: true, data });
   } catch (err) {
     next(err);
@@ -172,7 +176,7 @@ export async function markTaskEnd(req: Request, res: Response, next: NextFunctio
       return res.status(400).json({ ok: false, message: "Invalid kind (pick|sort|audit)" });
     }
 
-    const data = await svc.ShelfService.markShelfTaskEnd({ shelfId, userId, kind });
+    const data = await ShelfService.markShelfTaskEnd({ shelfId, userId, kind });
     res.json({ ok: true, data });
   } catch (err) {
     next(err);
@@ -213,7 +217,7 @@ export async function refillFromWarehouse(req: Request, res: Response, next: Nex
       return res.status(400).json({ ok: false, message: "targetFillKg must be a positive number" });
     }
 
-    const out = await svc.ShelfService.refillFromWarehouse({
+    const out = await ShelfService.refillFromWarehouse({
       pickerShelfId,
       pickerSlotId,
       warehouseShelfId,
@@ -241,9 +245,58 @@ export async function emptySlot(req: Request, res: Response, next: NextFunction)
       return res.status(400).json({ ok: false, message: "Invalid toArea (warehouse|out)" });
     }
 
-    const data = await svc.ShelfService.emptySlot({ shelfMongoId, slotId, toArea, userId });
+    const data = await ShelfService.emptySlot({ shelfMongoId, slotId, toArea, userId });
     res.status(200).json({ ok: true, data });
   } catch (err) {
     next(err);
   }
 }
+
+export async function getBestLocationForFO(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { foId, type } = req.body ?? {};
+
+    if (!foId || typeof foId !== "string") {
+      throw new ApiError(400, "foId is required and must be a string");
+    }
+    if (!type || typeof type !== "string") {
+      throw new ApiError(400, "type is required and must be a string");
+    }
+    const typeNorm = type.toLowerCase();
+    if (!(VALID_TYPES as readonly string[]).includes(typeNorm)) {
+      throw new ApiError(400, `Invalid type: '${type}'. Must be one of ${VALID_TYPES.join(", ")}`);
+    }
+
+    // Pass through any optional filters you support
+    const {
+      minKg,
+      zone,
+      centerId,
+      excludeTemporarilyAvoid,
+      maxBusyScore,
+      preferTypes,
+      originRow,
+      originCol,
+      demand, // if you added it
+    } = req.body ?? {};
+
+    const result = await ShelfService.findBestLocationForFO({
+      foId,
+      type: typeNorm as any, // narrowed above
+      minKg,
+      zone,
+      centerId,
+      excludeTemporarilyAvoid,
+      maxBusyScore,
+      preferTypes,
+      originRow,
+      originCol,
+      demand,
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+

@@ -1,13 +1,13 @@
-import { FilterQuery, UpdateQuery } from "mongoose";
+import mongoose, { FilterQuery, UpdateQuery, ClientSession } from "mongoose";
 import ApiError from "../utils/ApiError";
 import { ItemPacking, ItemPackingDoc } from "../models/ItemPacking";
 
 /** ---------- Types ---------- */
 export type ListParams = {
-  page?: number;            // 1-based
-  limit?: number;           // per-page
-  sort?: string;            // e.g. "-createdAt" or "items.type"
-  populate?: boolean;       // populate refs?
+  page?: number; // 1-based
+  limit?: number; // per-page
+  sort?: string; // e.g. "-createdAt" or "items.type"
+  populate?: boolean; // populate refs?
   // Filters (applied using $elemMatch on items)
   type?: string;
   variety?: string;
@@ -29,8 +29,10 @@ function buildFilter(q: ListParams): FilterQuery<ItemPackingDoc> {
   if (q.category) elem.category = q.category;
   if (q.itemId) elem.itemId = q.itemId; // string OK; Mongoose casts to ObjectId
   if (q.fragility) elem["packing.fragility"] = q.fragility;
-  if (q.allowMixing !== undefined) elem["packing.allowMixing"] = toBool(q.allowMixing);
-  if (q.requiresVentedBox !== undefined) elem["packing.requiresVentedBox"] = toBool(q.requiresVentedBox);
+  if (q.allowMixing !== undefined)
+    elem["packing.allowMixing"] = toBool(q.allowMixing);
+  if (q.requiresVentedBox !== undefined)
+    elem["packing.requiresVentedBox"] = toBool(q.requiresVentedBox);
 
   const filter: FilterQuery<ItemPackingDoc> = {};
   if (Object.keys(elem).length) {
@@ -52,9 +54,7 @@ export async function list(params: ListParams) {
 
   if (params.populate) {
     // CHANGED: also populate the virtual relation to PackageSize
-    query
-      .populate("items.itemId")
-      .populate({ path: "minBoxTypeDocs" }); // virtual populate
+    query.populate("items.itemId").populate({ path: "minBoxTypeDocs" }); // virtual populate
   }
 
   const [items, total] = await Promise.all([
@@ -82,8 +82,13 @@ export async function getById(id: string, populate = false) {
   return doc.toJSON();
 }
 
-export async function create(payload: Partial<ItemPackingDoc>) {
-  const doc = await ItemPacking.create(payload);
+export async function create(
+  payload: any, // ← simple & permissive
+  options: { session?: mongoose.ClientSession } = {}
+) {
+  const [doc] = await ItemPacking.create([payload as any], {
+    session: options.session,
+  });
   return doc.toJSON();
 }
 

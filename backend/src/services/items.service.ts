@@ -41,6 +41,23 @@ export type ListItemsOptions = {
 const DEFAULT_LIMIT = 20;
 
 // ───────────────────────────────────────────────────────────────────────────────
+// DEMAND → KG helper
+// ───────────────────────────────────────────────────────────────────────────────
+export type DemandInput =
+  | { qtyKg: number; qtyUnits?: never }
+  | { qtyKg?: never; qtyUnits: number };
+
+export type DemandResolution = {
+  mode: "kg" | "unit";
+  requiredKg: number; // kg needed to fulfill request
+  qtyKg?: number | null; // echo if user sent kg
+  qtyUnits?: number | null; // echo if user sent units (pre-rounding)
+  roundedUnits?: number | null; // rounded to bundle multiple when byUnit
+  unitBundleSize?: number | null; // from item
+  notes: string[]; // e.g., "rounded to bundle multiple"
+};
+
+// ───────────────────────────────────────────────────────────────────────────────
 // Normalizers / Validators
 // ───────────────────────────────────────────────────────────────────────────────
 function normalizeTolerance(input: unknown): string | null {
@@ -238,7 +255,10 @@ export async function createItemWithPacking(body: CreateItemWithPackingBody) {
 
   const { packing, ...itemPayload } = body as CreateItemWithPackingBody;
   if (!packing || typeof packing !== "object") {
-    throw new ApiError(400, "ValidationError: 'packing' is required and must be an object");
+    throw new ApiError(
+      400,
+      "ValidationError: 'packing' is required and must be an object"
+    );
   }
 
   // 1) validate item + packing
@@ -269,19 +289,20 @@ export async function createItemWithPacking(body: CreateItemWithPackingBody) {
     }
 
     // 2c) create packing via the PACKING SERVICE (reused!)
+    const { notes, ...rest } = packing;
     const packingDoc = await packingSvc.create(
       {
         items: [
           {
             itemId: itemDoc._id,
             packing: {
-              ...packing,
-              notes: packing.notes ?? null,
-            }, // only itemId + packing
+              ...rest,
+              ...(notes == null ? {} : { notes }), // only include when it's a string
+            },
           },
         ],
       },
-      { session } // same txn
+      { session }
     );
 
     await session.commitTransaction();
@@ -477,7 +498,6 @@ export async function getItemWithPackingById(_id: string) {
   return res?.[0] ?? null;
 }
 
-
 export async function updateItemByItemId(
   _id: string,
   update: UpdateQuery<ItemType>,
@@ -614,7 +634,7 @@ export async function marketItemPageData(
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
-// general items list 
+// general items list
 // ───────────────────────────────────────────────────────────────────────────────
 export async function getAllPublicItems(params?: { category?: string }) {
   const query: Record<string, any> = {};
@@ -636,4 +656,112 @@ export async function getAllPublicItems(params?: { category?: string }) {
     variety: doc.variety ?? null,
     imageUrl: doc.imageUrl ?? null,
   }));
+}
+export async function resolveDemandToKgForItem(
+  itemId: string,
+  demand: DemandInput
+): Promise<DemandResolution> {
+  if (!Types.ObjectId.isValid(itemId)) {
+    throw new ApiError(400, "Invalid itemId");
+  }
+  if (!demand || typeof demand !== "object") {
+    throw new ApiError(400, "Demand is required");
+  }
+
+  const item = await ItemModel.findById(itemId)
+    .select({
+      category: 1,
+      sellModes: 1,
+      avgWeightPerUnitGr: 1,
+      "qualityStandards.weightPerUnit": 1,
+      pricePerUnitOverride: 1,
+      "sellModes.unitBundleSize": 1,
+    })
+    .lean();
+
+  if (!item) throw new ApiError(404, "Item not found");
+
+  const byKg = item.sellModes?.byKg !== false; // default true
+  const byUnit = !!item.sellModes?.byUnit; // default false
+  const bundle = Math.max(1, Number(item.sellModes?.unitBundleSize ?? 1));
+
+  // EXACTLY one of qtyKg / qtyUnits must be provided
+  const hasKg = (demand as any).qtyKg != null;
+  const hasUnits = (demand as any).qtyUnits != null;
+  if (hasKg === hasUnits) {
+    throw new ApiError(400, "Provide exactly one of qtyKg or qtyUnits");
+  }
+
+  // KG path
+  if (hasKg) {
+    const qtyKg = Number((demand as any).qtyKg);
+    if (!Number.isFinite(qtyKg) || qtyKg <= 0) {
+      throw new ApiError(400, "qtyKg must be a positive number");
+    }
+    if (!byKg) {
+      throw new ApiError(400, "This item cannot be sold by KG");
+    }
+    return {
+      mode: "kg",
+      requiredKg: qtyKg,
+      qtyKg,
+      qtyUnits: null,
+      roundedUnits: null,
+      unitBundleSize: null,
+      notes: [],
+    };
+  }
+
+  // UNIT path
+  const qtyUnitsRaw = Number((demand as any).qtyUnits);
+  if (!Number.isFinite(qtyUnitsRaw) || qtyUnitsRaw <= 0) {
+    throw new ApiError(400, "qtyUnits must be a positive number");
+  }
+  if (!byUnit) {
+    throw new ApiError(400, "This item cannot be sold by UNIT");
+  }
+  // round to bundle multiple
+  const roundedUnits = Math.ceil(qtyUnitsRaw / bundle) * bundle;
+  const notes: string[] = [];
+  if (roundedUnits !== qtyUnitsRaw) {
+    notes.push(
+      `Rounded ${qtyUnitsRaw} units to bundle multiple ${roundedUnits} (bundle=${bundle}).`
+    );
+  }
+
+  // derive avg grams per unit
+  let gramsPerUnit =
+    typeof item.avgWeightPerUnitGr === "number" && item.avgWeightPerUnitGr > 0
+      ? item.avgWeightPerUnitGr
+      : null;
+
+  // optional fallback from QS if you store it there
+  const qsGrams = (item as any)?.qualityStandards?.weightPerUnit as
+    | number
+    | undefined;
+  if (!gramsPerUnit && typeof qsGrams === "number" && qsGrams > 0) {
+    gramsPerUnit = qsGrams;
+    notes.push(
+      "Used qualityStandards.weightPerUnit as fallback for unit weight."
+    );
+  }
+
+  if (!gramsPerUnit) {
+    throw new ApiError(
+      400,
+      "Cannot convert units to kg: avgWeightPerUnitGr is missing (and no QS fallback)."
+    );
+  }
+
+  const requiredKg = (roundedUnits * gramsPerUnit) / 1000;
+
+  return {
+    mode: "unit",
+    requiredKg,
+    qtyKg: null,
+    qtyUnits: qtyUnitsRaw,
+    roundedUnits,
+    unitBundleSize: bundle,
+    notes,
+  };
 }
