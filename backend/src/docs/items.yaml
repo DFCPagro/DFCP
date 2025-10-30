@@ -9,6 +9,7 @@ servers:
 
 tags:
   - name: Items
+    description: Item catalog, market item page, and packing metadata
 
 components:
   securitySchemes:
@@ -136,13 +137,57 @@ components:
           nullable: true
 
     ItemPublic:
-      description: Minimal public view
+      description: Minimal public view for listings and marketing surfaces.
       type: object
       properties:
-        _id: { type: string }
-        displayName: { type: string }
-        category: { $ref: '#/components/schemas/ItemCategory' }
-        itemUrl: { type: string, example: "/items/68960284330bf1699eee8956" }
+        _id:
+          type: string
+          example: "68960284330bf1699eee8956"
+        category:
+          $ref: '#/components/schemas/ItemCategory'
+        type:
+          type: string
+          example: "Cucumber"
+        variety:
+          type: string
+          nullable: true
+          example: "Persian"
+        imageUrl:
+          type: string
+          nullable: true
+          example: "https://cdn.example.com/items/cucumber-persian.jpg"
+
+    # very small public row for e.g. suggestion lists
+    ItemPublicLite:
+      description: Super-lightweight public row returned by GET /items/public.
+      type: object
+      properties:
+        _id:
+          type: string
+          description: Item id (ObjectId as string)
+          example: "68960284330bf1699eee8956"
+        category:
+          $ref: '#/components/schemas/ItemCategory'
+        type:
+          type: string
+          example: "Cucumber"
+        variety:
+          type: string
+          nullable: true
+          example: "Persian"
+        imageUrl:
+          type: string
+          nullable: true
+          example: "https://cdn.example.com/items/cucumber-persian.jpg"
+
+    PublicItemsListResponse:
+      description: Response shape for GET /items/public (unauthenticated catalog list).
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemPublicLite'
 
     PackingInfo:
       type: object
@@ -266,6 +311,37 @@ components:
                 farmerBio: { type: string, nullable: true }
 
 paths:
+
+  /public:
+    get:
+      tags: [Items]
+      summary: Public item catalog
+      description: >
+        Returns a public-safe list of all items with only
+        `_id`, `category`, `type`, `variety`, and `imageUrl`.
+        This route is intentionally unauthenticated so the
+        client/market UI can render item cards, suggestions, etc.
+      security: [] # explicitly public
+      parameters:
+        - in: query
+          name: category
+          required: false
+          schema:
+            $ref: '#/components/schemas/ItemCategory'
+          description: Optional filter (e.g. `fruit`, `vegetable`, `egg_dairy`, `other`)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicItemsListResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
   /:
     get:
       tags: [Items]

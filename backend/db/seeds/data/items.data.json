@@ -353,13 +353,14 @@
     "_id": "64f1e2c3a5b6c7d8e9f0a1b2",
     "category": "egg_dairy",
     "type": "Eggs",
-    "variety": "Free Range (12 pack)",
+    "variety": "Free Range M (12 pack)",
     "imageUrl": "https://www.fruit4london.co.uk/cdn/shop/products/Free-Range-Eggs-12.jpg?v=1683266341&width=1214",
     "season": "all year",
     "farmerTips": "Keep refrigerated at 4°C or below.",
     "customerInfo": [
       "Pasture-raised, Grade A",
-      "12-pack, recyclable carton"
+      "12-pack, recyclable carton",
+      "Rich in omega-3 fatty acids"
     ],
     "caloriesPer100g": 155,
     "price": { "a": 5, "b": 5, "c": 5 },

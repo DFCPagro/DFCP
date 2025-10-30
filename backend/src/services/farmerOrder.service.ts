@@ -97,10 +97,10 @@ export async function createFarmerOrderService(
   if (!nonEmpty(payload.itemId)) errors.push("itemId is required.");
   if (!nonEmpty(payload.type)) errors.push("type is required.");
   if (!nonEmpty(payload.variety)) errors.push("variety is required.");
-  if (!nonEmpty(pictureUrlRaw)) errors.push("pictureUrl is required.");
+  //if (!nonEmpty(pictureUrlRaw)) errors.push("pictureUrl is required.");
   if (!nonEmpty(payload.farmerId)) errors.push("farmerId is required.");
-  if (!nonEmpty(payload.farmerName)) errors.push("farmerName is required.");
-  if (!nonEmpty(payload.farmName)) errors.push("farmName is required.");
+  //if (!nonEmpty(payload.farmerName)) errors.push("farmerName is required.");
+  //if (!nonEmpty(payload.farmName)) errors.push("farmName is required.");
   if (!nonEmpty(payload.pickUpDate)) errors.push("pickUpDate is required.");
   if (!nonEmpty(payload.shift)) errors.push("shift is required.");
 

@@ -1,6 +1,8 @@
 // src/services/farmerInventory.service.ts
 import type { ClientSession, FilterQuery, UpdateQuery } from "mongoose";
 import FarmerInventoryModel from "../models/farmerInventory.model";
+import { getContactInfoByIdService } from "../services/user.service"; // adjust path
+
 
 /** Shared types for filters & pagination */
 export type ListFilters = {
@@ -37,33 +39,58 @@ export async function listInventory(
   if (filters.logisticCenterId)
     query.logisticCenterId = filters.logisticCenterId;
 
-  // If pagination not provided, return plain array for simplicity.
   const page =
     pagination?.page && pagination.page > 0 ? pagination.page : undefined;
   const limit =
     pagination?.limit && pagination.limit > 0 ? pagination.limit : undefined;
 
+  let data: any[];
+  let total: number | undefined;
+
   if (!page || !limit) {
-    const data = await FarmerInventoryModel.find(query, null, {
+    data = await FarmerInventoryModel.find(query, null, {
       sort: DEFAULT_SORT,
       session: opts?.session,
     }).lean();
-    return { data };
+  } else {
+    const skip = (page - 1) * limit;
+    [data, total] = await Promise.all([
+      FarmerInventoryModel.find(query, null, {
+        sort: DEFAULT_SORT,
+        skip,
+        limit,
+        session: opts?.session,
+      }).lean(),
+      FarmerInventoryModel.countDocuments(query).session(opts?.session ?? null),
+    ]);
   }
 
-  const skip = (page - 1) * limit;
+  // ----------------------------
+  // 🔹 Enrich with farmer info
+  // ----------------------------
+  const farmerIds = [...new Set(data.map((d) => String(d.farmerId)))];
 
-  const [data, total] = await Promise.all([
-    FarmerInventoryModel.find(query, null, {
-      sort: DEFAULT_SORT,
-      skip,
-      limit,
-      session: opts?.session,
-    }).lean(),
-    FarmerInventoryModel.countDocuments(query).session(opts?.session ?? null),
-  ]);
+  const contactMap = new Map<string, any>();
+  for (const farmerId of farmerIds) {
+    try {
+      const info = await getContactInfoByIdService(farmerId);
+      contactMap.set(farmerId, {
+        farmName: info.farmName ?? null,
+        farmLogo: info.farmLogo ?? null,
+      });
+    } catch {
+      contactMap.set(farmerId, { farmName: null, farmLogo: null });
+    }
+  }
 
-  return { data, page, limit, total };
+  const enriched = data.map((d) => ({
+    ...d,
+    farmName: contactMap.get(String(d.farmerId))?.farmName ?? null,
+    farmLogo: contactMap.get(String(d.farmerId))?.farmLogo ?? null,
+  }));
+
+  if (!page || !limit) return { data: enriched };
+  return { data: enriched, page, limit, total };
 }
 
 /* ----------------------------------------------------------------------------

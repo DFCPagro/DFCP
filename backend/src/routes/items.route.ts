@@ -8,6 +8,7 @@ import {
   deleteItemHandler,
   getItemBenefits,
   marketItemPage,
+  getPublicItems,
 } from "@/controllers/items.controller";
 import { authenticate, authorize, authenticateIfPresent } from "@/middlewares/auth";
 import { Types } from "mongoose";
@@ -45,7 +46,7 @@ router.get(
 
 // List (public; optional auth)
 router.get("/", authenticateIfPresent, listItemsHandler);
-
+router.get("/public", getPublicItems)
 // CRUD
 router.post("/", authenticate, authorize("admin", "fManager"), createItemHandler);
 

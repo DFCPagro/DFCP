@@ -23,6 +23,7 @@ export const PUBLIC_ITEM_PROJECTION = {
   category: 1,
   type: 1,
   variety: 1,
+  imageUrl: 1,
 } as const;
 
 // -----------------------------

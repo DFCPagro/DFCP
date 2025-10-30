@@ -10,6 +10,8 @@ import ItemModel, {
   itemCategories,
   type Item as ItemType,
   type ItemCategory,
+  PUBLIC_ITEM_PROJECTION,
+  Item,
 } from "../models/Item.model";
 import { getFarmerBioByUserId } from "./farmer.service";
 import * as packingSvc from "./ItemPacking.service";
@@ -609,4 +611,29 @@ export async function marketItemPageData(
       farmerBio: farmerInfo.farmerBio ?? null,
     },
   };
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// general items list 
+// ───────────────────────────────────────────────────────────────────────────────
+export async function getAllPublicItems(params?: { category?: string }) {
+  const query: Record<string, any> = {};
+
+  // optional filter by category (must be one of itemCategories)
+  if (params?.category) {
+    query.category = params.category;
+  }
+
+  const docs = await Item.find(query, PUBLIC_ITEM_PROJECTION)
+    .sort({ category: 1, type: 1, variety: 1 })
+    .lean();
+
+  // normalize nulls consistently for frontend
+  return docs.map((doc) => ({
+    _id: doc._id,
+    category: doc.category,
+    type: doc.type,
+    variety: doc.variety ?? null,
+    imageUrl: doc.imageUrl ?? null,
+  }));
 }

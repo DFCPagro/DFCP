@@ -518,7 +518,7 @@ export async function addItemToAvailableMarketStock(params: {
     category: it?.category ?? item.category,
 
     pricePerKg: pricePerKg * 1.2,
-    pricePerUnit: pricePerUnit * 1.2 ?? null,
+    pricePerUnit: pricePerUnit * 1.2 || null,
 
     originalCommittedQuantityKg: item.originalCommittedQuantityKg,
     currentAvailableQuantityKg: item.currentAvailableQuantityKg,

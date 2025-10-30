@@ -11,9 +11,11 @@ import {
   marketItemPageData,
   listItemsWithPacking,
   getItemWithPackingById,
+  getAllPublicItems,
 } from "../services/items.service";
 import { itemCategories, PUBLIC_ITEM_PROJECTION } from "../models/Item.model";
 import { Types } from "mongoose";
+import { get } from './deliverer.controller';
 
 const ensureValidObjectId = (id: string) => Types.ObjectId.isValid(id);
 
@@ -334,5 +336,24 @@ export async function marketItemPage(req: Request, res: Response, next: NextFunc
     res.status(200).json({ data });
   } catch (err) {
     next(err);
+  }
+}
+
+//PUBLIC ITEMS LIST -NO AUTH
+export async function getPublicItems(req: Request, res: Response) {
+  try {
+    // optional ?category=fruit
+    const category =
+    typeof req.query.category === "string" ? req.query.category : undefined;
+
+    const data = await getAllPublicItems({ category });
+
+    return res.status(200).json({ data });
+  } catch (err: any) {
+    console.error("[getPublicItems] error:", err);
+    return res.status(500).json({
+      error: "ServerError",
+      details: ["Failed to fetch items"],
+    });
   }
 }
