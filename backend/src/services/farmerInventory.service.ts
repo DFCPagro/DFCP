@@ -3,7 +3,6 @@ import type { ClientSession, FilterQuery, UpdateQuery } from "mongoose";
 import FarmerInventoryModel from "../models/farmerInventory.model";
 import { getContactInfoByIdService } from "../services/user.service"; // adjust path
 
-
 /** Shared types for filters & pagination */
 export type ListFilters = {
   farmerId?: string;
@@ -68,25 +67,28 @@ export async function listInventory(
   // ----------------------------
   // 🔹 Enrich with farmer info
   // ----------------------------
-  const farmerIds = [...new Set(data.map((d) => String(d.farmerId)))];
+  const farmerUserIds = [...new Set(data.map((d) => String(d.farmerUserId)))];
 
   const contactMap = new Map<string, any>();
-  for (const farmerId of farmerIds) {
+  for (const farmerUserId of farmerUserIds) {
     try {
-      const info = await getContactInfoByIdService(farmerId);
-      contactMap.set(farmerId, {
+      console.log("farmerId:", farmerUserId);
+      const info = await getContactInfoByIdService(farmerUserId);
+      console.log("farmerinfo :", { info });
+      contactMap.set(farmerUserId, {
         farmName: info.farmName ?? null,
         farmLogo: info.farmLogo ?? null,
+        farmerName: info.name ?? null,
       });
     } catch {
-      contactMap.set(farmerId, { farmName: null, farmLogo: null });
+      contactMap.set(farmerUserId, { farmName: null, farmLogo: null });
     }
   }
 
   const enriched = data.map((d) => ({
     ...d,
-    farmName: contactMap.get(String(d.farmerId))?.farmName ?? null,
-    farmLogo: contactMap.get(String(d.farmerId))?.farmLogo ?? null,
+    farmName: contactMap.get(String(d.farmerUserId))?.farmName ?? null,
+    farmLogo: contactMap.get(String(d.farmerUserId))?.farmLogo ?? null,
   }));
 
   if (!page || !limit) return { data: enriched };

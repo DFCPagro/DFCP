@@ -19,25 +19,20 @@ import {
     Separator,
     NativeSelect,
 } from "@chakra-ui/react";
-import type { FarmerInventoryItem, DemandStatisticsResponse } from "@/types/farmerInventory";
+import type { FarmerInventoryItem, DemandStatisticsResponse, DemandStatisticsItem } from "@/types/farmerInventory";
 import { useFarmerInventory } from "../hooks/useFarmerInventory";
 import { InventoryItemCard } from "./InventoryItemCard";
-import type { Shift } from "@/types/farmerOrders";
+import type { ShiftEnum as Shift } from "@/types/shifts";
 
 
 /* ---------------------------------- types --------------------------------- */
 
 type SortKey = "updatedDesc" | "availableDesc" | "nameAsc";
 
-type DemandEntry = {
-    itemId: string;
-    itemDisplayName?: string | null;
-    averageDemandQuantityKg?: number | null;
-};
 
 type DemandMap = Map<
     string,
-    { itemDisplayName?: string; averageDemandQuantityKg?: number }
+    DemandStatisticsItem
 >;
 
 /* --------------------------------- helpers -------------------------------- */
@@ -129,21 +124,17 @@ function InventoryListBase(
         async function loadDemand() {
             try {
                 const res = await fetchDemandStatistics?.();
-                console.log("[InventoryList] fetched demand statistics:", res);
-
-                // The API returns slot buckets: { items: [{ slotKey, items: DemandEntry[] }], ... }
-                // Per your requirement, "use the first one we get".
-                // Also tolerate a flat shape: { items: DemandEntry[] }.
-                let slotEntries: DemandEntry[] = [];
+                // console.log("[InventoryList] fetched demand statistics:", res);
+                let slotEntries: DemandStatisticsItem[] = [];
 
                 if (Array.isArray(res?.items) && res.items.length > 0) {
                     const first = res.items[0];
                     if (first && Array.isArray(first.items)) {
                         // Bucketed-by-slot shape
-                        slotEntries = first.items as DemandEntry[];
+                        slotEntries = first.items as DemandStatisticsItem[];
                     } else if (res.items.length && (res.items[0] as any).itemId) {
                         // Flat shape fallback
-                        slotEntries = res.items as DemandEntry[];
+                        slotEntries = res.items as DemandStatisticsItem[];
                     }
                 }
 
@@ -151,13 +142,12 @@ function InventoryListBase(
                 for (const e of slotEntries) {
                     if (!e?.itemId) continue;
                     if (!map.has(e.itemId)) {
-                        map.set(e.itemId, {
-                            itemDisplayName: e.itemDisplayName ?? undefined,
-                            averageDemandQuantityKg: e.averageDemandQuantityKg ?? undefined,
-                        });
+                        // store the full DemandStatisticsItem (includes itemId, itemDisplayName, avg, category, etc.)
+                        map.set(e.itemId, e);
                     }
                 }
-                console.log("[InventoryList] built demand map:", map);
+
+                // console.log("[InventoryList] built demand map:", map);
 
                 if (alive) setDemandMap(map);
             } catch (e) {
@@ -266,29 +256,14 @@ function InventoryListBase(
                     {sortedGroupKeys.map((itemId) => {
                         const rows = filteredGrouped.get(itemId)!;
                         const demand = demandMap.get(itemId);
-                        // Use the first demand entry we got; fallbacks if missing
-                        const itemDisplayName = demand?.itemDisplayName ?? itemId;
-                        const averageDemandQuantityKg = demand?.averageDemandQuantityKg;
-
-                        // Build a compact group header subtitle (optional)
-                        const latestUpdated = rows
-                            .map((r) => new Date(r.updatedAt ?? r.createdAt).getTime())
-                            .reduce((max, t) => (t > max ? t : max), 0);
-                        const latestUpdatedISO = latestUpdated
-                            ? new Date(latestUpdated).toLocaleString()
-                            : "";
-
                         return (
                             <InventoryItemCard
                                 key={itemId}
                                 // group-level props
                                 itemId={itemId}
-                                itemDisplayName={itemDisplayName}
-                                averageDemandQuantityKg={averageDemandQuantityKg}
+                                demand={demand}
                                 // rows for farmers that share this item
                                 rows={rows}
-                                // optional meta to show under header (can be used or ignored by card)
-                                subtitle={`latest update: ${latestUpdatedISO}`}
                                 // helpers (can be ignored by card)
                                 formatFarmerId={shortenId}
                                 shift={shift}

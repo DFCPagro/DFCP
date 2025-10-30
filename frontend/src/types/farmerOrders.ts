@@ -118,7 +118,8 @@ export type GetFarmerOrderByShiftResponse = z.infer<
  * (e.g., inspectionStatus) since only "pending" was specified.
  */
 export const FarmerOrderDTOSchema = z.object({
-  _id: z.string().min(1),
+  _id: z.string().min(1).optional(),
+  id: z.string().min(1).optional(),
   itemId: z.string().min(1),
 
   // Labels / item info

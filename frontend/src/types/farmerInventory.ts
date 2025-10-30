@@ -8,6 +8,9 @@ import { z } from "zod";
 export const FarmerInventoryItemSchema = z.object({
   _id: z.string(), // inventory row id
   farmerUserId: z.string(), // show ID for now (no name lookup)
+  farmLogo: z.string().optional().nullable(),
+  farmName: z.string().optional().nullable(),
+  farmerName: z.string().optional().nullable(),
   itemId: z.string(),
   logisticCenterId: z.string(),
   agreementAmountKg: z.number().nonnegative(),
@@ -46,6 +49,10 @@ export const DemandStatisticsItemSchema = z.object({
   itemId: z.string(),
   itemDisplayName: z.string(),
   averageDemandQuantityKg: z.number().nonnegative(),
+  category: z.string().optional(),
+  type: z.string().optional(),
+  variety: z.string().optional(),
+  imageUrl: z.string().url().optional(),
 });
 export type DemandStatisticsItem = z.infer<typeof DemandStatisticsItemSchema>;
 
@@ -65,6 +72,18 @@ export const DemandStatisticsResponseSchema = z.object({
 export type DemandStatisticsResponse = z.infer<
   typeof DemandStatisticsResponseSchema
 >;
+
+const ItemCatalogEntrySchema = z.object({
+  _id: z.string(),
+  category: z.string(),
+  type: z.string(),
+  variety: z.string().optional(),
+  imageUrl: z.string().url().optional(),
+});
+export const ItemCatalogResponseSchema = z.object({
+  data: z.array(ItemCatalogEntrySchema),
+});
+export type ItemCatalogEntry = z.infer<typeof ItemCatalogEntrySchema>;
 
 /* -----------------------------------------------------------------------------
  * Optional helpers

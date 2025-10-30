@@ -19,7 +19,8 @@ import {
 } from "@chakra-ui/react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toaster } from "@/components/ui/toaster";
-import type { ShiftRollup, Shift } from "@/types/farmerOrders";
+import type { ShiftRollup } from "@/types/farmerOrders";
+import type { ShiftEnum as Shift } from "@/types/shifts";
 
 export type CreateStockCardProps = {
     title?: string;
