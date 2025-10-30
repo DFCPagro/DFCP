@@ -437,7 +437,7 @@
     "password": "12345678",
     "role": "csManager",
     "activeStatus": true,
-    "uid": "SRT-2",
+    "uid": "csm-1",
     "logisticCenterId": "66e007000000000000000001",
     "addresses": [
       {
