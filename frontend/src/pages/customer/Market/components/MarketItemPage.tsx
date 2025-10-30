@@ -131,17 +131,12 @@ function RightPurchasePanel({
   const dec = useCallback(() => setQty((q) => clampQty(q - STEP)), [maxQty, minQty]);
 
   // Always send UNITS to cart
-  const handleAdd = useCallback(() => {
-  const qEff = clampQty(qty); // qty shown to the user (units or kg depending on effective mode)
-  const sellsInUnitOnly =
-    String((item as any).unitMode ?? "").trim().toLowerCase() === "unit";
- const qtyUnits = sellsInUnitOnly
-    ? Math.max(1, Math.floor(qEff))
-    : qtyToUnits(item as any, unit /* effective mode */, qEff);
-if (qtyUnits > 0) {
-    onAddToCart?.({ item, qty: qtyUnits });
-  }
+ const handleAdd = useCallback(() => {
+  const qEff = clampQty(qty);                    // current number in the visible mode
+  const qtyUnits = qtyToUnits(item as any, unit, qEff); // normalize to UNITS
+  if (qtyUnits > 0) onAddToCart?.({ item, qty: qtyUnits });
 }, [clampQty, qty, item, unit, onAddToCart]);
+  
 
   return (
     <Stack w="100%" gap="4" align="stretch">

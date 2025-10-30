@@ -25,7 +25,7 @@ import { useNavigate } from "react-router-dom";
 import { Play, Trophy, Coins, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { PATHS } from "@/routes/paths";
-import { fetchPickerProfile, type PickerProfile } from "./data";
+import { fetchPickerProfile, type PickerProfile } from "@/api/picker";
 
 const ACCENT = "teal";
 const PANEL_MAX_H = "calc(100vh - 180px)";
@@ -282,70 +282,69 @@ export default function WorkerProfile() {
               </Heading>
             </Card.Header>
             <Card.Body p={4}>
-              <Grid  templateColumns="repeat(2, 1fr)" gap={4} alignItems="start">
-                <GridItem  colSpan={1} gap={1}>
-                {/* Daily quests */}
-                <Card.Root rounded="lg" borderWidth="1px" borderColor={`${ACCENT}.200`}>
-                  <Card.Header py={2} px={3} bg="green.50" borderBottomWidth="1px">
-                    <HStack justify="space-between">
-                      <Heading size="xs" color={`${ACCENT}.900`}>Daily quests</Heading>
-                      <Badge variant="subtle" colorPalette="green">Today</Badge>
-                    </HStack>
-                  </Card.Header>
-                  <Card.Body p={3} maxH="420px" overflowY="auto">
-                    <VStack align="stretch" gap={3}>
-                      {profile.quests.map((q) => (
-                        <Card.Root key={q.id} borderWidth="1px" rounded="md">
-                          <Card.Body p={3}>
-                            <VStack align="stretch" gap={2}>
-                              <HStack justify="space-between">
-                                <Text fontWeight="semibold">{q.title}</Text>
-                                <Badge variant="solid" colorPalette="green">+{q.reward} XP</Badge>
-                              </HStack>
-                              <Text fontSize="sm" color="fg.muted">{q.goal}</Text>
-                              <Progress.Root value={q.progress} h="2" rounded="sm">
-                                <Progress.Track />
-                                <Progress.Range />
-                              </Progress.Root>
-                            </VStack>
-                          </Card.Body>
-                        </Card.Root>
-                      ))}
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-</GridItem>
-                <GridItem  colSpan={0} >
-
-                {/* Achievements */}
-                <Card.Root rounded="lg" borderWidth="1px" borderColor="purple.200">
-                  <Card.Header py={2} px={3} bg="purple.50" borderBottomWidth="1px">
-                    <HStack justify="space-between">
-                      <Heading size="xs" color={`${ACCENT}.900`}>Achievements</Heading>
-                      <Badge variant="subtle" colorPalette="purple">{profile.achievements.length}</Badge>
-                    </HStack>
-                  </Card.Header>
-                  <Card.Body p={3} maxH="420px" overflowY="auto">
-                    <VStack align="stretch" gap={3}>
-                      {profile.achievements.map((a) => (
-                        <Card.Root key={a.id} borderWidth="1px" rounded="md">
-                          <Card.Body p={3}>
-                            <HStack align="start" gap={3}>
-                              <Badge variant="subtle" colorPalette="purple" rounded="md">🏆</Badge>
-                              <VStack align="start" gap={1}>
-                                <Text fontWeight="semibold">{a.name}</Text>
-                                <Text fontSize="sm" color="fg.muted">{a.desc}</Text>
+              <Grid templateColumns="repeat(2, 1fr)" gap={4} alignItems="start">
+                <GridItem colSpan={1} gap={1}>
+                  {/* Daily quests */}
+                  <Card.Root rounded="lg" borderWidth="1px" borderColor={`${ACCENT}.200`}>
+                    <Card.Header py={2} px={3} bg="green.50" borderBottomWidth="1px">
+                      <HStack justify="space-between">
+                        <Heading size="xs" color={`${ACCENT}.900`}>Daily quests</Heading>
+                        <Badge variant="subtle" colorPalette="green">Today</Badge>
+                      </HStack>
+                    </Card.Header>
+                    <Card.Body p={3} maxH="420px" overflowY="auto">
+                      <VStack align="stretch" gap={3}>
+                        {profile.quests.map((q) => (
+                          <Card.Root key={q.id} borderWidth="1px" rounded="md">
+                            <Card.Body p={3}>
+                              <VStack align="stretch" gap={2}>
+                                <HStack justify="space-between">
+                                  <Text fontWeight="semibold">{q.title}</Text>
+                                  <Badge variant="solid" colorPalette="green">+{q.reward} XP</Badge>
+                                </HStack>
+                                <Text fontSize="sm" color="fg.muted">{q.goal}</Text>
+                                <Progress.Root value={q.progress} h="2" rounded="sm">
+                                  <Progress.Track />
+                                  <Progress.Range />
+                                </Progress.Root>
                               </VStack>
-                            </HStack>
-                          </Card.Body>
-                        </Card.Root>
-                      ))}
-                    </VStack>
-                  </Card.Body>
-                </Card.Root>
-</GridItem>
+                            </Card.Body>
+                          </Card.Root>
+                        ))}
+                      </VStack>
+                    </Card.Body>
+                  </Card.Root>
+                </GridItem>
+
+                <GridItem colSpan={0}>
+                  {/* Achievements */}
+                  <Card.Root rounded="lg" borderWidth="1px" borderColor="purple.200">
+                    <Card.Header py={2} px={3} bg="purple.50" borderBottomWidth="1px">
+                      <HStack justify="space-between">
+                        <Heading size="xs" color={`${ACCENT}.900`}>Achievements</Heading>
+                        <Badge variant="subtle" colorPalette="purple">{profile.achievements.length}</Badge>
+                      </HStack>
+                    </Card.Header>
+                    <Card.Body p={3} maxH="420px" overflowY="auto">
+                      <VStack align="stretch" gap={3}>
+                        {profile.achievements.map((a) => (
+                          <Card.Root key={a.id} borderWidth="1px" rounded="md">
+                            <Card.Body p={3}>
+                              <HStack align="start" gap={3}>
+                                <Badge variant="subtle" colorPalette="purple" rounded="md">🏆</Badge>
+                                <VStack align="start" gap={1}>
+                                  <Text fontWeight="semibold">{a.name}</Text>
+                                  <Text fontSize="sm" color="fg.muted">{a.desc}</Text>
+                                </VStack>
+                              </HStack>
+                            </Card.Body>
+                          </Card.Root>
+                        ))}
+                      </VStack>
+                    </Card.Body>
+                  </Card.Root>
+                </GridItem>
               </Grid>
-              
             </Card.Body>
           </Card.Root>
         </GridItem>

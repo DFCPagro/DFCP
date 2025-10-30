@@ -371,11 +371,9 @@ export default function MarketPage() {
               totalPages={totalPages}
               totalItems={totalItems}
               onPageChange={handlePageChange}
- onAdd={({ item, qty }) => {
-    // Resolve this item's effective mode (true=unit, false=kg)
-    const eff = effectiveUnitForItem(item as any, isUnit);
-    // Always convert to units before storing in cart
-    const unitsToAdd = qtyToUnits(item as any, eff, Number(qty) || 1);
+  onAdd={({ item, qty }) => {
+    // qty is ALREADY in UNITS from children (card/page).
+    const unitsToAdd = Math.max(1, Math.min(50, Math.floor(Number(qty) || 1)));
     addToCart(item, unitsToAdd);
   }}
               allItemsForRelated={allItems}
