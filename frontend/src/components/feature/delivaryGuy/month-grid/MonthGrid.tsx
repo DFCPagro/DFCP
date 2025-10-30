@@ -54,7 +54,7 @@ export default function MonthGrid({
   highlightToday = true,
   showTotals = true,
   showAdjacentDays = true,
-  density: densityProp = "dots",
+  density: densityProp = "chips",
   showActions,
   weekdayTemplate,
 }: MonthGridProps) {

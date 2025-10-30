@@ -83,26 +83,36 @@ export default function HeaderBar({
                   </Badge>
                 </HStack>
                 <Separator />
-                <HStack wrap="wrap" gap={2} mt={2}>
-                  {SHIFTS.map((s) => (
-                    <Box
-                      key={s.name}
-                      px={2.5}
-                      py={1}
-                      border="1px"
-                      borderColor="gray.200"
-                      rounded="md"
-                      bg="gray.50"
-                    >
-                      <HStack gap={2}>
-                        <Text fontWeight="semibold">{s.name}</Text>
-                        <Text color="gray.600" fontSize="sm">
-                          {s.start}–{s.end}
-                        </Text>
-                      </HStack>
-                    </Box>
-                  ))}
-                </HStack>
+               <HStack wrap="wrap" gap={2} mt={2}>
+  {SHIFTS.map((s) => {
+    const first = s.name?.[0] ?? "";
+    const rest = s.name?.slice(1) ?? "";
+    return (
+      <Box
+        key={s.name}
+        px={2.5}
+        py={1}
+        border="1px"
+        borderColor="gray.200"
+        rounded="md"
+        bg="gray.50"
+      >
+        <HStack gap={3}>
+          <Text>
+            <Text as="span" color="teal.600" fontWeight="bold">
+              {first}
+            </Text>
+            <Text as="span">{rest}</Text>
+          </Text>
+          <Text color="gray.600" fontSize="sm">
+            {s.start}–{s.end}
+          </Text>
+        </HStack>
+      </Box>
+    );
+  })}
+</HStack>
+
                 {editable && (
                   <Text mt={3} fontSize="xs" color="gray.600">
                     Click a day to cycle Off → On → Standby. Max 2 picks/day.

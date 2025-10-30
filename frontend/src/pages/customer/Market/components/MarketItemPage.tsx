@@ -1,3 +1,4 @@
+// src/pages/.../MarketItemPage.tsx
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   Box, HStack, Icon, IconButton, Separator, Stack, Text,
@@ -6,13 +7,14 @@ import {
 import { FiX, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import type { MarketItem } from "@/types/market";
 import { getMarketItemPage, type MarketItemPageData } from "@/api/market";
+import { qtyToUnits } from "@/utils/marketUnits";
 
 export type MarketItemPageProps = {
   item: MarketItem;
   unit: boolean;                    // true = units, false = kg
   onUnitChange: (next: boolean) => void;
   onClose: () => void;
-  onAddToCart?: (payload: { item: MarketItem; qty: number }) => void; // qty matches mode
+  onAddToCart?: (payload: { item: MarketItem; qty: number }) => void; // qty in UNITS
   onOpenItem?: (item: MarketItem) => void;
   title?: string;
   debugJson?: boolean;
@@ -36,7 +38,18 @@ function avgWeightPerUnitKg(it: MarketItem): number {
 
 function priceOf(it: MarketItem, unitMode: boolean): number {
   const anyIt = it as any;
-  return unitMode ? Number(anyIt.pricePerUnit) || 0 : Number(anyIt.pricePerKg) || 0;
+  const pUnit = Number(anyIt.pricePerUnit);
+  const pKg = Number(anyIt.pricePerKg);
+  const per = avgWeightPerUnitKg(it);
+  if (unitMode) {
+    if (Number.isFinite(pUnit) && pUnit > 0) return pUnit;
+    if (Number.isFinite(pKg) && pKg > 0 && per > 0) return pKg * per;
+    return 0;
+  } else {
+    if (Number.isFinite(pKg) && pKg > 0) return pKg;
+    if (Number.isFinite(pUnit) && pUnit > 0 && per > 0) return pUnit / per;
+    return 0;
+  }
 }
 
 function availableKg(it: MarketItem): number {
@@ -59,31 +72,46 @@ function availableOf(it: MarketItem, unitMode: boolean): number {
   return unitMode ? availableUnits(it) : Math.floor(availableKg(it));
 }
 
+function effectiveUnitForItem(it: any, globalUnit: boolean): { unit: boolean; locked: boolean } {
+  const raw = String(it?.unitMode ?? "").trim().toLowerCase(); // "unit" | "kg" | "mix"/empty
+  if (raw === "unit") return { unit: true, locked: true };
+  if (raw === "kg") return { unit: false, locked: true };
+  return { unit: globalUnit, locked: false };
+}
+
+function weightPerUnitG(it: any): number {
+  const g = Number(it?.weightPerUnitG);
+  if (Number.isFinite(g) && g > 0) return Math.round(g);
+  const kg = avgWeightPerUnitKg(it as any);
+  return Math.round(kg * 1000);
+}
+
 /* --------------------------- right purchase --------------------------- */
 function RightPurchasePanel({
   item,
-  unit,
+  unit: globalUnit,
   onUnitChange,
   onAddToCart,
 }: {
   item: MarketItem;
   unit: boolean;
   onUnitChange: (next: boolean) => void;
-  onAddToCart?: (p: { item: MarketItem; qty: number }) => void;
+  onAddToCart?: (p: { item: MarketItem; qty: number }) => void; // qty in UNITS
 }) {
-  const img = getImageUrl(item);
+  const { unit, locked } = useMemo(() => effectiveUnitForItem(item as any, globalUnit), [item, globalUnit]);
+
   const name = (item as any).displayName ?? (item as any).name ?? "Item";
   const farmName = (item as any).farmName ?? "";
   const farmerName = (item as any).farmerName ?? (item as any).farmer ?? "";
 
-  const per = avgWeightPerUnitKg(item);
+  const perKg = avgWeightPerUnitKg(item);
+  const perG = weightPerUnitG(item);
   const price = priceOf(item, unit);
   const priceOther = priceOf(item, !unit);
   const available = availableOf(item, unit);
 
   const priceLabel = `$${price.toFixed(2)}/${unit ? "unit" : "kg"}`;
-  const altHint =
-    priceOther > 0 ? ` · $${priceOther.toFixed(2)}/${unit ? "kg" : "unit"}` : "";
+  const altHint = priceOther > 0 ? ` · $${priceOther.toFixed(2)}/${unit ? "kg" : "unit"}` : "";
   const availLabel =
     available > 0
       ? unit
@@ -91,46 +119,58 @@ function RightPurchasePanel({
         : `${Math.floor(available)} kg available`
       : "Out of stock";
 
-  // qty is units when unit=true, else kg
-  const STEP_UNITS = 1;
-  const STEP_KG = 1;
-  const STEP = unit ? STEP_UNITS : STEP_KG;
-
+  const STEP = 1;
   const [qty, setQty] = useState<number>(STEP);
   useEffect(() => setQty(STEP), [unit]);
 
   const minQty = STEP;
   const maxQty = Math.max(STEP, available || STEP);
+  const clampQty = (q: number) => Math.max(minQty, Math.min(maxQty, q));
 
-  const inc = useCallback(() => setQty((q) => Math.min(maxQty, q + STEP)), [maxQty, STEP]);
-  const dec = useCallback(() => setQty((q) => Math.max(minQty, q - STEP)), [minQty, STEP]);
+  const inc = useCallback(() => setQty((q) => clampQty(q + STEP)), [maxQty, minQty]);
+  const dec = useCallback(() => setQty((q) => clampQty(q - STEP)), [maxQty, minQty]);
 
+  // Always send UNITS to cart
   const handleAdd = useCallback(() => {
-    const clamped = Math.max(minQty, Math.min(maxQty, qty));
-    // qty matches current mode: units if unit=true, kg if unit=false
-    onAddToCart?.({ item, qty: clamped });
-  }, [onAddToCart, item, qty, maxQty, minQty]);
+  const qEff = clampQty(qty); // qty shown to the user (units or kg depending on effective mode)
+  const sellsInUnitOnly =
+    String((item as any).unitMode ?? "").trim().toLowerCase() === "unit";
+ const qtyUnits = sellsInUnitOnly
+    ? Math.max(1, Math.floor(qEff))
+    : qtyToUnits(item as any, unit /* effective mode */, qEff);
+if (qtyUnits > 0) {
+    onAddToCart?.({ item, qty: qtyUnits });
+  }
+}, [clampQty, qty, item, unit, onAddToCart]);
 
   return (
     <Stack w="100%" gap="4" align="stretch">
-      <Box bg="bg.muted" rounded="lg" overflow="hidden">
-        {img ? <Image src={img} alt={name} w="100%" h="auto" objectFit="cover" /> : <Box w="100%" h="220px" />}
-      </Box>
-
       <HStack justify="space-between" align="center">
         <Stack gap="1" minW={0}>
           <Text fontSize="xl" fontWeight="bold" lineClamp={2}>{name}</Text>
           <Text fontSize="sm" color="fg.muted">
             {farmName ? `from ${farmName}${farmerName ? ` by ${farmerName}` : ""}` : farmerName ? `by ${farmerName}` : ""}
           </Text>
-          <Text fontSize="sm" fontWeight="medium">{priceLabel}<Text as="span" color="fg.muted">{altHint}</Text></Text>
+          <Text fontSize="sm" fontWeight="medium">
+            {priceLabel}<Text as="span" color="fg.muted">{altHint}</Text>
+          </Text>
           <Text fontSize="xs" color="fg.muted">{availLabel}</Text>
-          {!unit && per ? (
-            <Text fontSize="xs" color="fg.muted">~{per} kg per unit</Text>
-          ) : null}
+
+          {unit ? (
+            perG ? <Text fontSize="xs" color="fg.muted">~{perG} g per unit</Text> : null
+          ) : (
+            perKg ? <Text fontSize="xs" color="fg.muted">~{perKg} kg per unit</Text> : null
+          )}
         </Stack>
 
-        <Button size="xs" variant="outline" onClick={() => onUnitChange(!unit)} aria-pressed={unit}>
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => !locked && onUnitChange(!unit)}
+          aria-pressed={unit}
+          disabled={locked}
+          title={locked ? "Mode fixed for this item" : "Toggle units/kg"}
+        >
           {unit ? "Units" : "Kg"}
         </Button>
       </HStack>
@@ -147,11 +187,11 @@ function RightPurchasePanel({
       </HStack>
 
       <Button
-        size="md"
-        colorPalette="teal"
-        onClick={handleAdd}
-        disabled={!onAddToCart || available <= 0 || price <= 0}
-      >
+  size="md"
+  colorPalette="teal"
+  onClick={handleAdd}
+  disabled={!onAddToCart || available <= 0 || price <= 0}
+>
         Add to cart
       </Button>
     </Stack>
@@ -383,7 +423,7 @@ function CompactItemCard({
 }: {
   it: MarketItem;
   unit: boolean;
-  onAddToCart?: (p: { item: MarketItem; qty: number }) => void;
+  onAddToCart?: (p: { item: MarketItem; qty: number }) => void; // qty in UNITS
   onOpenItem?: (item: MarketItem) => void;
 }) {
   const img = getImageUrl(it);
@@ -402,9 +442,6 @@ function CompactItemCard({
     [open]
   );
 
-  // qty=1 means 1 unit in unit-mode, or 1 kg in kg-mode
-  const qty = 1;
-
   return (
     <Stack borderWidth="1px" borderRadius="lg" overflow="hidden" minW="180px" maxW="180px" gap="2" p="2" bg="bg">
       <Stack gap="2" role="button" tabIndex={0} onClick={open} onKeyDown={onKeyDown} cursor="pointer">
@@ -416,7 +453,16 @@ function CompactItemCard({
         <Text fontSize="xs">${price.toFixed(2)}/{unit ? "unit" : "kg"}</Text>
       </Stack>
 
-      <Button size="xs" variant="outline" onClick={() => onAddToCart?.({ item: it, qty })} disabled={price <= 0}>
+      <Button
+        size="xs"
+        variant="outline"
+        onClick={() => {
+          const { unit: eff } = effectiveUnitForItem(it as any, unit);
+          const qUnits = qtyToUnits(it as any, eff, 1); // normalize to UNITS
+          onAddToCart?.({ item: it, qty: qUnits });
+        }}
+        disabled={price <= 0}
+      >
         Add
       </Button>
     </Stack>

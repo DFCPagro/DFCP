@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 import {
+  Box,
   Button,
   Field,
   Flex,
-  Text,
   Input,
   NativeSelect,
   NumberInput,
+  SimpleGrid,
   Stack,
-  Box,
+  Text,
 } from "@chakra-ui/react";
 import { itemCategories, type ItemFormValues } from "@/api/items";
 import ImagePreview from "./form/sections/ImagePreview";
@@ -20,12 +21,8 @@ import {
   normalizeFormDefaults,
   useItemFormState,
 } from "./form/useItemFormState";
-import { SimpleGrid } from "@chakra-ui/react";
-import ItemsPackingSection, {
-  type PackingInfo,
-} from "./form/sections/itemPacking";
- import SellModesSection from "./form/sections/sellModeSection";
- import type { Item } from "@/types/items";
+import ItemsPackingSection from "./form/sections/itemPacking";
+import SellModesSection from "./form/sections/sellModeSection";
 
 type Props = {
   defaultValues?: Partial<ItemFormValues>;
@@ -44,6 +41,9 @@ const toNumber = (value: string, fractionDigits = 0): number | null => {
   return fractionDigits > 0 ? Number(n.toFixed(fractionDigits)) : Math.trunc(n);
 };
 
+const isFruitOrVegetable = (c?: string | null) =>
+  typeof c === "string" ? /(fruit|vegetable)s?$/i.test(c) : false;
+
 export default function ItemForm({
   defaultValues,
   onSubmit,
@@ -51,7 +51,6 @@ export default function ItemForm({
   mode = "create",
   readOnly = false,
 }: Props) {
-  // Normalize once for initial mount
   const normalizedDefaults = useMemo(
     () => normalizeFormDefaults(defaultValues),
     [defaultValues]
@@ -77,11 +76,9 @@ export default function ItemForm({
     setValues((s) => ({ ...s, price: { ...s.price, [key]: v } }));
 
   const markAllTouched = () => {
-    // base fields
     (Object.keys(values) as StringKeys<ItemFormValues>[]).forEach((k) =>
       markTouched(k)
     );
-    // nested price keys
     ["price.a", "price.b", "price.c"].forEach((k) => markTouched(k as any));
   };
 
@@ -96,22 +93,22 @@ export default function ItemForm({
   };
 
   const countQs = (qs: QualityStandards | undefined) => {
-  if (!qs) return 0;
-  let c = 0;
-  for (const k of Object.keys(qs) as StringKeys<QualityStandards>[]) {
-    const row = (qs as any)[k];
-    if (row && (row.A || row.B || row.C)) c++;
-  }
-  return c;
-};
+    if (!qs) return 0;
+    let c = 0;
+    for (const k of Object.keys(qs) as StringKeys<QualityStandards>[]) {
+      const row = (qs as any)[k];
+      if (row && (row.A || row.B || row.C)) c++;
+    }
+    return c;
+  };
 
+  const showQS = isFruitOrVegetable(values.category);
 
   return (
     <form onSubmit={handleSubmit} noValidate>
       <Stack gap={4}>
-        <SimpleGrid columns={3} gap={4}>
-          <Box bg="bg.panel" p={4}>
-            {/* Category */}
+        <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
+          <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
             <Field.Root
               required
               invalid={!!errors["category"] && touched["category"]}
@@ -141,8 +138,8 @@ export default function ItemForm({
               <Field.ErrorText>{errors["category"]}</Field.ErrorText>
             </Field.Root>
           </Box>
-          <Box bg="bg.panel" p={4}>
-            {/* Type */}
+
+          <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
             <Field.Root required invalid={!!errors["type"] && touched["type"]}>
               <Field.Label>Type</Field.Label>
               <Input
@@ -160,8 +157,8 @@ export default function ItemForm({
               <Field.ErrorText>{errors["type"]}</Field.ErrorText>
             </Field.Root>
           </Box>
-          <Box bg="bg.panel" p={4}>
-            {/* Variety */}
+
+          <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
             <Field.Root
               required
               invalid={!!errors["variety"] && touched["variety"]}
@@ -184,12 +181,11 @@ export default function ItemForm({
             </Field.Root>
           </Box>
         </SimpleGrid>
-        {/* Image URL + Preview */}
-        <SimpleGrid columns={2} gap={4}>
-          <Box bg="bg.panel" p={4}>
+
+        <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+          <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
             <Field.Root invalid={!!errors["imageUrl"] && touched["imageUrl"]}>
               <Field.Label>Image URL</Field.Label>
-
               <Input
                 placeholder="https://example.com/image.jpg"
                 value={values.imageUrl ?? ""}
@@ -208,8 +204,8 @@ export default function ItemForm({
               <Field.ErrorText>{errors["imageUrl"]}</Field.ErrorText>
             </Field.Root>
           </Box>
-          <Box bg="bg.panel" p={4}>
-            {/* Season */}
+
+          <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
             <Field.Root invalid={!!errors["season"] && touched["season"]}>
               <Field.Label>Season</Field.Label>
               <Input
@@ -226,11 +222,12 @@ export default function ItemForm({
               />
               <Field.ErrorText>{errors["season"]}</Field.ErrorText>
             </Field.Root>
-            {/* Calories / 100g */}
+
             <Field.Root
               invalid={
                 !!errors["caloriesPer100g"] && touched["caloriesPer100g"]
               }
+              mt={4}
             >
               <Field.Label>Calories / 100g</Field.Label>
               <NumberInput.Root
@@ -275,7 +272,6 @@ export default function ItemForm({
           readOnly={readOnly}
         />
 
-        {/* Price (A/B/C) */}
         <Field.Root
           invalid={
             !!(errors["price.a"] || errors["price.b"] || errors["price.c"]) &&
@@ -294,32 +290,35 @@ export default function ItemForm({
           </Field.ErrorText>
         </Field.Root>
 
-        {/* Quality Standards */}
-        <QualityStandardsSection
-          value={
-            (values as any).qualityStandards as QualityStandards | undefined
-          }
-          onChange={(next) => {
-            if (readOnly) return;
-            setValues((s) => ({ ...(s as any), qualityStandards: next }));
-          }}
-          readOnly={readOnly}
-        />
-        <Text fontSize="xs" color="fg.muted">
-          {countQs((values as any).qualityStandards)} metric
-          {countQs((values as any).qualityStandards) === 1 ? "" : "s"} set
-        </Text>
+        {showQS ? (
+          <>
+            <QualityStandardsSection
+              value={
+                (values as any).qualityStandards as QualityStandards | undefined
+              }
+              onChange={(next) => {
+                if (readOnly) return;
+                setValues((s) => ({ ...(s as any), qualityStandards: next }));
+              }}
+              readOnly={readOnly}
+            />
+            <Text fontSize="xs" color="fg.muted">
+              {countQs((values as any).qualityStandards)} metric
+              {countQs((values as any).qualityStandards) === 1 ? "" : "s"} set
+            </Text>
+          </>
+        ) : (
+          <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
+            <Text>the qulity standerds of the catagorty will appear here later..</Text>
+          </Box>
+        )}
 
-        {/* NEW: Items Packing Data */}
         <ItemsPackingSection
           value={values.packing}
           onChange={(next) => setField("packing", next ?? undefined)}
           readOnly={readOnly}
-          // Optional: pass known box keys to show a dropdown instead of free text
-          // boxTypeOptions={["XS", "S", "S-vented", "M", "L", "L-vented"]}
         />
 
-        {/* Submit */}
         {!readOnly && (
           <Flex justify="flex-end" gap={3} pt={2}>
             <Button

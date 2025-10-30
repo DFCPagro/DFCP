@@ -29,7 +29,7 @@ export type CartDrawerProps = {
   items: CartLine[];
   onRemove?: (key: string) => void;
   onClear?: () => void;
-  onChangeQty?: (key: string, nextUnits: number) => void; // still units under the hood
+  onChangeQty?: (key: string, nextUnits: number) => void; // quantity is ALWAYS in UNITS
   onCheckout?: () => void;
 };
 
@@ -63,13 +63,14 @@ function formatMoneyUSD(val: number): string {
   return `$${(Number(val) || 0).toFixed(2)}`;
 }
 
+/** Average weight per unit in KG — default 0.25 to match the product cards */
 function getAvgUnitKg(line: CartLine): number {
   const n = Number(
     (line as any).avgWeightPerUnitKg ??
       (line as any).estimates?.avgWeightPerUnitKg ??
       0
   );
-  return Number.isFinite(n) && n > 0 ? n : 0.02;
+  return Number.isFinite(n) && n > 0 ? n : 0.25;
 }
 
 function getUnitPrice(line: CartLine): number {
@@ -95,8 +96,22 @@ function toUnitsFromKg(kg: number, per: number): number {
   return clamp(u, 1, 50);
 }
 
+/** Per-line effective viewing mode: true=unit, false=kg */
+function effectiveUnitForLine(line: any, globalUnit: boolean): boolean {
+  const raw = String(line?.unitMode ?? "").trim().toLowerCase(); // "unit" | "kg" | "mix"/""
+  if (raw === "unit") return true;
+  if (raw === "kg") return false;
+  return globalUnit;
+}
+
+function weightPerUnitG(line: any): number {
+  const g = Number(line?.weightPerUnitG);
+  if (Number.isFinite(g) && g > 0) return Math.round(g);
+  return Math.round(getAvgUnitKg(line) * 1000);
+}
+
 /* -------------------------------------------------------------------------- */
-/*                              Inline Confirm (UX)                            */
+/*                              Inline Confirm (UX)                           */
 /* -------------------------------------------------------------------------- */
 
 function useConfirm() {
@@ -168,7 +183,7 @@ function CartDrawerBase({
 }: CartDrawerProps) {
   const { search } = useLocation();
   const { unit: unitPref } = useUnitPref(search); // "unit" | "kg"
-  const unit = unitPref === "unit";               // boolean for existing code
+  const unit = unitPref === "unit";               // boolean for headers/totals
 
   const { ask, ConfirmDialogInline } = useConfirm();
 
@@ -253,20 +268,22 @@ function CartDrawerBase({
                   ) : (
                     items.map((line) => {
                       const key = getLineKey(line);
+                      const viewUnit = effectiveUnitForLine(line as any, unit); // true=unit, false=kg
+
                       const units = getUnits(line);
                       const perUnitKg = getAvgUnitKg(line);
+                      const perUnitG = weightPerUnitG(line);
                       const approxKg = units * perUnitKg;
 
                       const pUnit = getUnitPrice(line);
                       const pKg = pricePerKg(line);
                       const lineTotal = pUnit * units;
 
-                      // edit controls
                       const canDecUnits = units > 1;
                       const canIncUnits = units < 50;
 
                       const canDecKg = approxKg > 1;
-                      const canIncKg = units < 50; // still constrained by units cap
+                      const canIncKg = units < 50;
 
                       return (
                         <Box key={key} p="3" borderWidth="1px" rounded="lg">
@@ -292,8 +309,8 @@ function CartDrawerBase({
                                 ) : null}
 
                                 <HStack gap="3" align="center" wrap="wrap">
-                                  {/* Quantity controls */}
-                                  {unit ? (
+                                  {/* Quantity controls by effective mode */}
+                                  {viewUnit ? (
                                     <HStack gap="2" align="center">
                                       <Text fontSize="sm" color="fg.muted">Units:</Text>
                                       <IconButton
@@ -330,6 +347,9 @@ function CartDrawerBase({
                                       </IconButton>
                                       <Separator orientation="vertical" />
                                       <Text fontSize="xs" color="fg.muted">≈ {approxKg.toFixed(2)} kg</Text>
+                                      {perUnitG ? (
+                                        <Text fontSize="xs" color="fg.muted">· ~{perUnitG} g/unit</Text>
+                                      ) : null}
                                     </HStack>
                                   ) : (
                                     <HStack gap="2" align="center">
@@ -341,7 +361,13 @@ function CartDrawerBase({
                                         disabled={!canDecKg}
                                         onClick={() => {
                                           const nextKg = clamp(Math.round(approxKg) - 1, 1, 9999);
-                                          const nextUnits = toUnitsFromKg(nextKg, perUnitKg);
+                                          let nextUnits = toUnitsFromKg(nextKg, perUnitKg);
+
+                                          // If rounding keeps units the same, force -1 unit (when possible)
+                                          if (nextUnits === units && units > 1) {
+                                            nextUnits = units - 1;
+                                          }
+
                                           if (nextUnits <= 0) onRemove?.(key);
                                           else onChangeQty?.(key, nextUnits);
                                         }}
@@ -356,7 +382,13 @@ function CartDrawerBase({
                                         disabled={!canIncKg}
                                         onClick={() => {
                                           const nextKg = Math.round(approxKg) + 1;
-                                          const nextUnits = toUnitsFromKg(nextKg, perUnitKg);
+                                          let nextUnits = toUnitsFromKg(nextKg, perUnitKg);
+
+                                          // If rounding keeps units the same, force +1 unit (when allowed)
+                                          if (nextUnits === units && units < 50) {
+                                            nextUnits = units + 1;
+                                          }
+
                                           onChangeQty?.(key, nextUnits);
                                         }}
                                       >
@@ -364,14 +396,17 @@ function CartDrawerBase({
                                       </IconButton>
                                       <Separator orientation="vertical" />
                                       <Text fontSize="xs" color="fg.muted">≈ {units} units</Text>
+                                      {perUnitKg ? (
+                                        <Text fontSize="xs" color="fg.muted">· ~{perUnitKg} kg/unit</Text>
+                                      ) : null}
                                     </HStack>
                                   )}
 
                                   <Separator orientation="vertical" />
 
-                                  {/* Per-price label */}
+                                  {/* Per-price label by effective mode */}
                                   <Text fontSize="sm" color="fg.muted">
-                                    {unit
+                                    {viewUnit
                                       ? `Price/unit: ${formatMoneyUSD(pUnit)}`
                                       : `Price/kg: ${formatMoneyUSD(pKg)}`}
                                   </Text>
@@ -400,7 +435,7 @@ function CartDrawerBase({
 
                 <Separator />
 
-                {/* Totals — switch labels by mode */}
+                {/* Totals — switch labels by global view mode */}
                 <Stack gap="1">
                   {unit ? (
                     <>

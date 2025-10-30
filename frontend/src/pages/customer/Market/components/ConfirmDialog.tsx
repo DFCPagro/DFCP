@@ -14,7 +14,7 @@ export type ConfirmDialogProps = {
   isWorking?: boolean;
   destructive?: boolean;
   disableCancel?: boolean;
-  autoCloseOnConfirm?: boolean; // new
+  autoCloseOnConfirm?: boolean;
 };
 
 function ConfirmDialogBase({
@@ -33,11 +33,12 @@ function ConfirmDialogBase({
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const canClose = !(isWorking || submitting) && !disableCancel;
 
   const handleClose = useCallback(() => {
-    if (isWorking || submitting) return;
+    if (!canClose) return; // block close if working/submitting/disabled
     onClose();
-  }, [isWorking, submitting, onClose]);
+  }, [canClose, onClose]);
 
   const handleConfirm = useCallback(async () => {
     if (isWorking || submitting) return;
@@ -50,35 +51,41 @@ function ConfirmDialogBase({
     }
   }, [isWorking, submitting, onConfirm, autoCloseOnConfirm, onClose]);
 
+  const bodyId = "confirm-dialog-body";
+
   return (
     <Dialog.Root
       role="alertdialog"
       open={isOpen}
       onOpenChange={(e) => {
-        if (!e.open) handleClose();
+        // Block outside/esc close while busy or cancel disabled
+        if (!e.open) {
+          if (!canClose) return;
+          onClose();
+        }
       }}
       initialFocusEl={() => cancelRef.current}
     >
       <Portal>
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content>
+          <Dialog.Content aria-describedby={bodyId}>
             <Dialog.Header>
               <Dialog.Title>{title}</Dialog.Title>
             </Dialog.Header>
 
-            <Dialog.Body>{body ?? children ?? null}</Dialog.Body>
+            <Dialog.Body id={bodyId}>{body ?? children ?? null}</Dialog.Body>
 
             <Dialog.Footer>
-              <Dialog.ActionTrigger asChild>
+              <Dialog.CloseTrigger asChild>
                 <Button
                   ref={cancelRef}
                   variant="ghost"
-                  disabled={disableCancel || isWorking || submitting}
+                  disabled={!canClose}
                 >
                   {cancelLabel}
                 </Button>
-              </Dialog.ActionTrigger>
+              </Dialog.CloseTrigger>
 
               <Button
                 colorPalette={destructive ? "red" : "teal"}

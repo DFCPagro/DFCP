@@ -20,7 +20,7 @@ export type ItemsGridProps = {
   /** Items to render on the current page */
   items: MarketItem[];
 
-  /** Units mode: true=units, false=kg */
+  /** Units mode: true=units, false=kg (global preference) */
   unit: boolean;
   onUnitChange: (next: boolean) => void;
 
@@ -32,30 +32,22 @@ export type ItemsGridProps = {
   error?: string | null;
 
   /** Paging */
-  page: number; // 1-based
-  totalPages: number; // >= 1
-  totalItems?: number; // optional for small summary
+  page: number;          // 1-based
+  totalPages: number;    // >= 1
+  totalItems?: number;   // optional for small summary
   onPageChange: (p: number) => void;
 
-  /** Add handler; qty matches mode (units or kg) */
+  /** Add handler; qty is ALWAYS in UNITS */
   onAdd?: (payload: { item: MarketItem; qty: number }) => void;
 
   /** Layout */
   minCardHeight?: string; // default "280px"
   columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number };
-  gutter?: string; // grid gap; default "4"
+  gutter?: string;        // grid gap; default "4"
 
   allItemsForRelated?: MarketItem[];
 };
 
-/**
- * Paged grid of market items (Chakra UI v3).
- * Uses backend fields:
- * - pricePerKg
- * - pricePerUnit
- * - currentAvailableQuantityKg
- * Cards switch display/qty logic by `unit`.
- */
 function ItemsGridBase({
   items,
   unit,
@@ -114,12 +106,12 @@ function ItemsGridBase({
               </GridItem>
             ))
           : items.map((it) => (
-              <GridItem key={`${unit ? "u" : "k"}-${itemKey(it)}`}>
+              <GridItem key={itemKey(it)}>
                 <MarketItemCard
                   item={it}
-                  unit={unit}
-                  onUnitChange={onUnitChange}
-                  onAdd={onAdd}
+                  unit={unit}                 // card resolves effective mode + lock
+                  onUnitChange={onUnitChange} // no-op inside card if locked by item
+                  onAdd={onAdd}               // qty will be normalized to UNITS by the card
                   allItemsForRelated={allItemsForRelated}
                 />
               </GridItem>

@@ -152,7 +152,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.PackageSizes}
             element={
-              <RoleGuard allow={["admin", "dManager"]}>
+              <RoleGuard allow={["admin", "tManager"]}>
                 <PackageSizesPage />
               </RoleGuard>
             }
@@ -160,7 +160,7 @@ export default function AppRoutes() {
 
 
           {/*---Worker ontly routes---*/}
-          <Route path={PATHS.workerProfile} element={<RoleGuard allow={["farmer", "picker", "driver", "dManager", "industrialDeliverer"]
+          <Route path={PATHS.workerProfile} element={<RoleGuard allow={["farmer", "picker", "deliverer", "tManager", "industrialDeliverer"]
 
           } >
             <WorkerProfile />
@@ -172,7 +172,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.driverSchedule}
             element={
-              <RoleGuard allow={["driver"]}>
+              <RoleGuard allow={["deliverer"]}>
                 <DriverSchedule />
               </RoleGuard>
             }

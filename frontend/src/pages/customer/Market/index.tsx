@@ -29,6 +29,7 @@ import type { MarketItem } from "@/types/market";
 import { getCustomerAddresses } from "@/api/market";
 
 import { useUnitPref } from "@/hooks/useUnitPref";
+import { qtyToUnits, effectiveUnitForItem } from "@/utils/marketUnits";
 
 /* -------------------------------- helpers -------------------------------- */
 
@@ -58,6 +59,7 @@ function formatShiftLabel(s: any): string {
   const win = s.shift ?? "";
   return `${date}${date && win ? " • " : ""}${win}`;
 }
+
 
 /* ------------------------------- component ------------------------------- */
 
@@ -369,15 +371,13 @@ export default function MarketPage() {
               totalPages={totalPages}
               totalItems={totalItems}
               onPageChange={handlePageChange}
-              onAdd={({ item, qty }) => {
-                const per =
-                  Number((item as any).avgWeightPerUnitKg) ||
-                  Number((item as any).estimates?.avgWeightPerUnitKg) ||
-                  0.25;
-                // qty comes as units in unit-mode, kg in kg-mode
-                const unitsToAdd = isUnit ? Math.max(1, Math.floor(qty)) : Math.max(1, Math.floor(qty / per));
-                addToCart(item, unitsToAdd);
-              }}
+ onAdd={({ item, qty }) => {
+    // Resolve this item's effective mode (true=unit, false=kg)
+    const eff = effectiveUnitForItem(item as any, isUnit);
+    // Always convert to units before storing in cart
+    const unitsToAdd = qtyToUnits(item as any, eff, Number(qty) || 1);
+    addToCart(item, unitsToAdd);
+  }}
               allItemsForRelated={allItems}
             />
           </>
