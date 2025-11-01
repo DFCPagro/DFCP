@@ -6,13 +6,12 @@
 // - Within each group, rows with status === "problem" are listed first,
 //   then the rest by updatedAt desc (fallback to createdAt).
 // - Uses OrderRow in variant="grouped" so the product cell is hidden and a [view] button is shown.
-// - No loading/error UI here by design (centralized at page level).
+// - Manages an expanded row id so clicking a row reveals an inline timeline under that row.
 //
 // TODO(UX): If you later standardize columns across flat/grouped modes,
 //           add a compact <Thead> here to match OrderRow's <Td>s for accessibility.
-//
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import {
     Box,
     Stack,
@@ -45,6 +44,9 @@ export const OrderList = memo(function OrderList({
 }: OrderListProps) {
     const groups = useMemo(() => groupByItemId(items), [items]);
 
+    // Single expanded row across the whole list is a simple, clean UX.
+    const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+
     const sortedGroups = useMemo(() => {
         return [...groups].sort((a, b) => {
             const aHasProblem = groupHasProblem(a[1]);
@@ -65,9 +67,7 @@ export const OrderList = memo(function OrderList({
         <Stack gap={4}>
             {sortedGroups.map(([itemId, rows]) => {
                 const hasProblem = groupHasProblem(rows);
-                const title = renderGroupTitle
-                    ? renderGroupTitle(rows)
-                    : computeGroupLabel(rows);
+                const title = renderGroupTitle ? renderGroupTitle(rows) : computeGroupLabel(rows);
 
                 const sortedRows = sortRowsProblemFirstThenUpdatedDesc(rows);
 
@@ -102,19 +102,32 @@ export const OrderList = memo(function OrderList({
                         <Table.Root size="sm" variant="outline">
                             {/* Optional: you can add a header that matches grouped columns later */}
                             <Table.Body>
-                                {sortedRows.map((row) => (
-                                    <OrderRow
-                                        key={row._id}
-                                        row={row}
-                                        variant="grouped"
-                                        onView={(r) =>
-                                            onView ? onView(r) : console.log("wip : order id", r._id)
-                                        }
-                                        onRowClick={(r) =>
-                                            onRowClick ? onRowClick(r) : console.log("wip", r._id)
-                                        }
-                                    />
-                                ))}
+                                {sortedRows.map((row) => {
+                                    const key =
+                                        (row as any)._id ??
+                                        `${(row as any).itemId ?? "item"}-${(row as any).farmerId ?? "farmer"}`;
+
+                                    const handleRowClick = (r: ShiftFarmerOrderItem) => {
+                                        const id =
+                                            (r as any)._id ??
+                                            `${(r as any).itemId ?? "item"}-${(r as any).farmerId ?? "farmer"}`;
+                                        setExpandedRowId((prev) => (prev === id ? null : id));
+                                        if (onRowClick) onRowClick(r);
+                                    };
+
+                                    return (
+                                        <OrderRow
+                                            key={key}
+                                            row={row}
+                                            variant="grouped"
+                                            onView={(r) =>
+                                                onView ? onView(r) : console.log("wip : order id", (r as any)._id)
+                                            }
+                                            onRowClick={handleRowClick}
+                                            isExpanded={expandedRowId === key}
+                                        />
+                                    );
+                                })}
                             </Table.Body>
                         </Table.Root>
                     </Box>
@@ -131,7 +144,7 @@ function groupByItemId(
 ): Map<string, ShiftFarmerOrderItem[]> {
     const m = new Map<string, ShiftFarmerOrderItem[]>();
     for (const it of items ?? []) {
-        const key = it.itemId ?? "unknown";
+        const key = (it as any)?.itemId ?? "unknown";
         if (!m.has(key)) m.set(key, []);
         m.get(key)!.push(it);
     }
@@ -139,12 +152,12 @@ function groupByItemId(
 }
 
 function groupHasProblem(rows: ShiftFarmerOrderItem[]): boolean {
-    return rows.some((r) => r.farmerStatus === "problem");
+    return rows.some((r) => ((r as any)?.farmerStatus ?? (r as any)?.status) === "problem");
 }
 
 function toTime(s?: string | Date): number {
     if (!s) return 0;
-    const t = typeof s === "string" ? Date.parse(s) : s.getTime?.();
+    const t = typeof s === "string" ? Date.parse(s) : (s as Date).getTime?.();
     return Number.isFinite(t as number) ? (t as number) : 0;
 }
 
@@ -152,13 +165,13 @@ function sortRowsProblemFirstThenUpdatedDesc(
     rows: ShiftFarmerOrderItem[]
 ): ShiftFarmerOrderItem[] {
     return [...rows].sort((a, b) => {
-        const aProblem = a.farmerStatus === "problem";
-        const bProblem = b.farmerStatus === "problem";
+        const aProblem = ((a as any)?.farmerStatus ?? (a as any)?.status) === "problem";
+        const bProblem = ((b as any)?.farmerStatus ?? (b as any)?.status) === "problem";
         if (aProblem && !bProblem) return -1;
         if (!aProblem && bProblem) return 1;
 
-        const aTime = toTime(a.updatedAt) || toTime(a.createdAt);
-        const bTime = toTime(b.updatedAt) || toTime(b.createdAt);
+        const aTime = toTime((a as any)?.updatedAt) || toTime((a as any)?.createdAt);
+        const bTime = toTime((b as any)?.updatedAt) || toTime((b as any)?.createdAt);
         return bTime - aTime; // desc (newest first)
     });
 }
@@ -169,7 +182,6 @@ function sortRowsProblemFirstThenUpdatedDesc(
  */
 function computeGroupLabel(rows: ShiftFarmerOrderItem[]): string {
     const first = rows[0];
-    // Try explicit label fields if your type includes them:
     const byDisplay =
         (first as any)?.itemDisplayName ||
         (first as any)?.productName ||
@@ -186,5 +198,5 @@ function computeGroupLabel(rows: ShiftFarmerOrderItem[]): string {
     if (parts.length) return parts.join(" · ");
 
     // Final fallback
-    return "Item " + (first?.itemId ?? "—");
+    return "Item " + ((first as any)?.itemId ?? "—");
 }

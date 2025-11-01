@@ -179,14 +179,12 @@ export default function ShiftFarmerOrderPage() {
           {statusFilter === "all" ? (
             <OrderList
               items={items}
-              onView={(r) => console.log("wip : order id", (r as any)._id)}
-              onRowClick={(r) => console.log("wip", (r as any)._id)}
+
             />
           ) : (
             <OrdersTable
               items={filtered}
-              onView={(r) => console.log("wip : order id", (r as any)._id)}
-              onRowClick={(r) => console.log("wip", (r as any)._id)}
+
             />
           )}
         </Skeleton>

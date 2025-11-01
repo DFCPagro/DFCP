@@ -95,15 +95,15 @@ export default function Section<T>({
       )}
 
       {/* high-contrast divider */}
-<Box
-  h="4px"
-  w="100%"
-  borderRadius="full"
-  bgGradient="linear(to-r, green.700, yellow.600, red.600)"
-  bgSize="200% 100%"
-  animation={`${shimmer} 2.2s linear infinite`}
-  mb={{ base: 3, md: 4 }}
-/>
+      <Box
+        h="4px"
+        w="100%"
+        borderRadius="full"
+        bgGradient="linear(to-r, green.700, yellow.600, red.600)"
+        bgSize="200% 100%"
+        animation={`${shimmer} 2.2s linear infinite`}
+        mb={{ base: 3, md: 4 }}
+      />
 
       {/* content */}
       {list.length === 0 ? (
@@ -117,7 +117,7 @@ export default function Section<T>({
                 py={{ base: 2, md: 3 }}
                 borderRadius="lg"
                 borderLeftWidth="4px"
-borderLeftColor="green.700"
+                borderLeftColor="green.700"
 
 
 
@@ -130,14 +130,14 @@ borderLeftColor="green.700"
               </Box>
 
               {idx < visible.length - 1 && (
-  <Box
-    h="2px"
-    w="100%"
-    my={{ base: 2, md: 3 }}
-    bgGradient="linear(to-r, transparent, red.600, transparent)"
-    opacity={0.9}
-  />
-)}
+                <Box
+                  h="2px"
+                  w="100%"
+                  my={{ base: 2, md: 3 }}
+                  bgGradient="linear(to-r, transparent, red.600, transparent)"
+                  opacity={0.9}
+                />
+              )}
 
             </Box>
           ))}
