@@ -1,5 +1,5 @@
 import { HStack, Text, Button, Badge } from "@chakra-ui/react";
-import type { Shift } from "@/types/farmerOrders"; // new source of truth
+import type { ShiftEnum as Shift } from "@/types/shifts"; // new source of truth
 
 export type ShiftRowProps =
   | {

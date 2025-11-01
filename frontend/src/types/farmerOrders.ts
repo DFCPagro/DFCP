@@ -1,6 +1,7 @@
 // src/types/farmerOrders.ts
 import { z } from "zod";
 import { ShiftEnum, IsoDateString } from "@/types/shifts";
+
 /* --------------------------------- Enums --------------------------------- */
 
 export const FarmerOrderStatusEnum = z.enum(["pending", "ok", "problem"]);
@@ -169,4 +170,81 @@ export const CreateFarmerOrderResponseSchema = z.object({
 });
 export type CreateFarmerOrderResponse = z.infer<
   typeof CreateFarmerOrderResponseSchema
+>;
+
+/** Query params for GET /api/farmer-orders/by-shift */
+export const ShiftFarmerOrdersQuerySchema = z.object({
+  date: IsoDateString,
+  shiftName: ShiftEnum,
+  // v1 shows all; keep optional page/limit for future compatibility
+  page: z.number().int().min(1).optional(),
+  limit: z.number().int().min(1).max(500).optional(),
+});
+export type ShiftFarmerOrdersQuery = z.infer<
+  typeof ShiftFarmerOrdersQuerySchema
+>;
+
+export const ShiftFarmerOrderItemSchema = z.object({
+  // core fields used by the table
+  _id: z.string(),
+  farmerName: z.string().min(1),
+  farmName: z.string().optional(),
+  type: z.string().optional(),
+  variety: z.string().optional(),
+  farmerStatus: FarmerOrderStatusEnum, // "ok" | "pending" | "problem"
+
+  // additional fields returned by the API (kept optional for now)
+  farmerId: z.string().optional(),
+  itemId: z.string().optional(),
+  logisticCenterId: z.string().optional(),
+
+  shift: ShiftEnum.optional(),
+  pickUpDate: IsoDateString.optional(),
+
+  pictureUrl: z.string().url().optional(),
+
+  forcastedQuantityKg: z.number().nonnegative().optional(),
+  finalQuantityKg: z.number().nonnegative().optional(),
+  sumOrderedQuantityKg: z.number().nonnegative().optional(),
+
+  inspectionStatus: z.string().optional(), // tighten to enum later if you have one
+  stageKey: z.string().nullable().optional(),
+  stages: z.array(z.unknown()).optional(),
+
+  containers: z.array(z.unknown()).optional(),
+  orders: z.array(z.unknown()).optional(),
+
+  createdAt: z.string().optional(), // or z.string().datetime().optional()
+  updatedAt: z.string().optional(),
+  createdBy: z.string().optional(),
+  updatedBy: z.string().optional(),
+  __v: z.number().optional(),
+});
+export type ShiftFarmerOrderItem = z.infer<typeof ShiftFarmerOrderItemSchema>;
+
+/** Meta for the response. Counts will be computed client-side. */
+export const ShiftFarmerOrdersResponseMetaSchema = z.object({
+  lc: z.string().optional(), // inferred from token server-side; may be echoed
+  date: IsoDateString,
+  shiftName: ShiftEnum,
+  tz: z.string().optional(), // e.g., "Asia/Jerusalem"
+  // pagination fields optional for future use
+  page: z.number().int().min(1).optional(),
+  limit: z.number().int().min(1).optional(),
+  total: z.number().int().min(0).optional(),
+  pages: z.number().int().min(0).optional(),
+  /** @deprecated v1 computes counts on client. Keep optional if BE returns it. */
+  problemCount: z.number().int().min(0).optional(),
+});
+export type ShiftFarmerOrdersResponseMeta = z.infer<
+  typeof ShiftFarmerOrdersResponseMetaSchema
+>;
+
+/** Full response shape for by-shift listing. */
+export const ShiftFarmerOrdersResponseSchema = z.object({
+  meta: ShiftFarmerOrdersResponseMetaSchema,
+  items: z.array(ShiftFarmerOrderItemSchema),
+});
+export type ShiftFarmerOrdersResponse = z.infer<
+  typeof ShiftFarmerOrdersResponseSchema
 >;

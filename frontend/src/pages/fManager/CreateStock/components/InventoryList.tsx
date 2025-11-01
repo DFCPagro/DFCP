@@ -19,7 +19,7 @@ import {
     Separator,
     NativeSelect,
 } from "@chakra-ui/react";
-import type { FarmerInventoryItem, DemandStatisticsResponse, DemandStatisticsItem } from "@/types/farmerInventory";
+import type { FarmerInventoryItem, DemandStatisticsItem } from "@/types/farmerInventory";
 import { useFarmerInventory } from "../hooks/useFarmerInventory";
 import { InventoryItemCard } from "./InventoryItemCard";
 import type { ShiftEnum as Shift } from "@/types/shifts";

@@ -11,12 +11,24 @@ import type {
   FarmerOrderDTO,
   GetFarmerOrderByShiftRequest,
   GetFarmerOrderByShiftResponse,
+  ShiftFarmerOrdersQuery,
+  ShiftFarmerOrdersResponse,
 } from "@/types/farmerOrders";
 import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
 
 /* -------------------------------- Constants ------------------------------- */
 
 const BASE = "/farmer-orders";
+
+export const qkFarmerOrdersByShift = (p: ShiftFarmerOrdersQuery) =>
+  [
+    "farmerOrders",
+    "byShift",
+    p.date,
+    p.shiftName,
+    p.page ?? "all",
+    p.limit ?? "all",
+  ] as const;
 
 /* ------------------------------- Summary API ------------------------------ */
 
@@ -69,14 +81,23 @@ export async function createFarmerOrder(
   return FarmerOrderDTOSchema.parse(payload);
 }
 
-export async function getFarmerOrderByShift(
-  req: GetFarmerOrderByShiftRequest
-): Promise<GetFarmerOrderByShiftResponse> {
-  const { data } = await api.get(`${BASE}/by-shift`);
-  console.log("getFarmerOrderByShift response data:", data);
-  // Support either { data: ... } or bare object:
-  const payload = data?.data ?? data;
-  return GetFarmerOrderByShiftResponseSchema.parse(payload);
+// ADD: GET /api/farmer-orders/by-shift
+export async function getFarmerOrdersByShift(
+  params: ShiftFarmerOrdersQuery,
+  opts?: { signal?: AbortSignal }
+): Promise<ShiftFarmerOrdersResponse> {
+  const sp = new URLSearchParams();
+  sp.set("date", params.date);
+  sp.set("shiftName", params.shiftName);
+  if (params.page) sp.set("page", String(params.page));
+  if (params.limit) sp.set("limit", String(params.limit));
+
+  const { data } = await api.get<ShiftFarmerOrdersResponse>(
+    `/farmer-orders/by-shift?${sp.toString()}`,
+    { signal: opts?.signal }
+  );
+  // console.log("[getFarmerOrdersByShift] data:", data);
+  return data;
 }
 
 /* ------------------------------ (Optional) AR ----------------------------- */
