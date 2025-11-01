@@ -1,5 +1,5 @@
 // src/pages/ShiftFarmerOrder/components/OrderRow.tsx
-import { memo, useMemo, Fragment } from "react";
+import { memo, useMemo, useState, Fragment } from "react";
 import {
     Badge,
     Button,
@@ -12,64 +12,41 @@ import {
     Box,
 } from "@chakra-ui/react";
 import type { ShiftFarmerOrderItem } from "@/types/farmerOrders";
-import FarmerOrderTimeline from "./FarmerOrderTimeline";
-import type { FarmerOrderStage } from "./farmerTimeline.helpers";
+import { FarmerOrderTimeline } from "./FarmerOrderTimeline";
+import type { FarmerOrderStageKey } from "@/types/farmerOrders";
+
+import { useAdvanceFarmerOrderStage } from "../hooks/useAdvanceFarmerOrderStage";
 
 export type OrderRowProps = {
-    /** ✅ New canonical prop */
-    row?: ShiftFarmerOrderItem;
-
-    /** ⛔️ Deprecated (kept for backward compatibility) */
-    item?: ShiftFarmerOrderItem;
-
-    /** Visual/behavioral mode. Flat = keep existing columns. Grouped = hide product cell, add [view] action. */
+    row?: ShiftFarmerOrderItem;   // canonical
+    item?: ShiftFarmerOrderItem;  // legacy alias
     variant?: "flat" | "grouped";
-
-    /** Optional: click handler for row navigation / expand toggle (table usually controls) */
-    onRowClick?: (row: ShiftFarmerOrderItem) => void;
-
-    /** Optional: handler for [view] action in grouped mode */
-    onView?: (row: ShiftFarmerOrderItem) => void;
-
-    /** Optional: disable pointer/click styles */
-    isClickable?: boolean;
-
-    /** NEW: whether this row should render its inline timeline details row */
-    isExpanded?: boolean;
+    defaultOpen?: boolean;
 };
 
-// We accept either 'farmerStatus' or 'status' on the record
 function getStatus(rec: ShiftFarmerOrderItem): string {
     return (rec as any)?.farmerStatus ?? (rec as any)?.status ?? "pending";
 }
-
-// Map status → color palette safely (fallback to yellow)
 function statusToPalette(status: string): "green" | "yellow" | "red" {
     const s = String(status).toLowerCase();
     if (s === "ok") return "green";
     if (s === "problem") return "red";
-    return "yellow"; // pending/unknown
+    return "yellow";
 }
-
-// Count visible columns for proper colSpan on the details row
 function getColSpan(variant: "flat" | "grouped"): number {
-    // Common cells: Farmer/Farm, Forecasted, Orders count, Status  => 4
-    // Flat adds Product => +1  (total 5)
-    // Grouped adds Actions => +1 (total 5)
+    // Farmer | Forecasted | Orders | Product/Actions | Status  => 5 columns total
     return 5;
 }
 
 export const OrderRow = memo(function OrderRow({
     row,
-    item, // deprecated
+    item,
     variant = "flat",
-    onRowClick,
-    onView,
-    isClickable = true,
-    isExpanded = false,
+    defaultOpen = false,
 }: OrderRowProps) {
-    // Normalize to a single variable
     const record = row ?? item;
+    const [isOpen, setIsOpen] = useState<boolean>(defaultOpen);
+
     if (!record) return null;
 
     const status = getStatus(record);
@@ -89,34 +66,27 @@ export const OrderRow = memo(function OrderRow({
         (record as any)?.farmer?.farmName ||
         "—";
 
-    // The timeline's current stage prefers `row.stage`, falls back to farmer/status
-    const currentStage = ((record as any)?.stage ?? status) as FarmerOrderStage;
-
-    // Default WIP handlers if not provided
-    const handleRowClick =
-        onRowClick ??
-        ((r: ShiftFarmerOrderItem) => {
-            // eslint-disable-next-line no-console
-            console.log("wip", (r as any)._id);
-        });
-
-    const handleView =
-        onView ??
-        ((r: ShiftFarmerOrderItem) => {
-            // eslint-disable-next-line no-console
-            console.log("wip : order id", (r as any)._id);
-        });
-
-    const clickable = isClickable && Boolean(handleRowClick);
+    let stages = (record as any)?.stages as unknown[] | undefined;
+    const stageKey = (record as any)?.stageKey as string | null | undefined;
+    const orderId = (record as any)?._id as string;
     const colSpan = getColSpan(variant);
+
+    // wire the advance-stage hook
+    const { mutate: advanceStage, isPending: isAdvancing } = useAdvanceFarmerOrderStage();
+
+
+    const handleView = (r: ShiftFarmerOrderItem) => {
+        // eslint-disable-next-line no-console
+        console.log("[OrderRow] view clicked:", (r as any)._id);
+    };
 
     return (
         <Fragment>
             <Table.Row
-                role={clickable ? "button" : undefined}
-                onClick={clickable ? () => handleRowClick(record) : undefined}
-                cursor={clickable ? "pointer" : "default"}
-                _hover={clickable ? { bg: "bg.muted" } : undefined}
+                role="button"
+                onClick={() => setIsOpen((v) => !v)}
+                cursor="pointer"
+                _hover={{ bg: "bg.muted" }}
                 data-order-id={(record as any)._id}
             >
                 {/* Farmer / Farm */}
@@ -149,14 +119,14 @@ export const OrderRow = memo(function OrderRow({
                     </VStack>
                 </Table.Cell>
 
-                {/* Product (type / variety) — hidden in grouped mode */}
+                {/* Product (hidden in grouped) */}
                 {variant === "flat" && (
                     <Table.Cell>
                         <Text>{productLabel}</Text>
                     </Table.Cell>
                 )}
 
-                {/* Status badge */}
+                {/* Status */}
                 <Table.Cell>
                     <Tooltip.Root>
                         <Tooltip.Trigger asChild>
@@ -172,7 +142,7 @@ export const OrderRow = memo(function OrderRow({
                     </Tooltip.Root>
                 </Table.Cell>
 
-                {/* Actions — only in grouped mode */}
+                {/* Actions (grouped only) */}
                 {variant === "grouped" && (
                     <Table.Cell>
                         <HStack gap="2">
@@ -180,8 +150,8 @@ export const OrderRow = memo(function OrderRow({
                                 size="xs"
                                 variant="surface"
                                 onClick={(e) => {
-                                    e.stopPropagation(); // don't toggle row expansion
-                                    handleView(record);
+                                    e.stopPropagation();     // keep row from toggling
+                                    handleView(record);      // <-- call internal handler
                                 }}
                                 aria-label="View order"
                             >
@@ -192,16 +162,32 @@ export const OrderRow = memo(function OrderRow({
                 )}
             </Table.Row>
 
-            {/* Inline details row with the timeline */}
-            {isExpanded && (
+            {/* Inline timeline */}
+            {isOpen && (
                 <Table.Row _hover={{ bg: "transparent" }}>
                     <Table.Cell colSpan={colSpan} p="0">
                         <Box px="4" py="3" bg="bg.subtle" borderTopWidth="1px" borderColor="border">
-                            <FarmerOrderTimeline current={currentStage} size="sm" />
+                            <FarmerOrderTimeline
+                                stages={(row as any)?.stages}
+
+                                stageKey={(row as any)?.stageKey}
+                                compact
+                                isAdvancing={isAdvancing}
+                                onNextStage={(nextKey: FarmerOrderStageKey) => {
+                                    // prevent row toggle handled inside component via stopPropagation
+                                    advanceStage({
+                                        orderId,
+                                        key: nextKey,
+                                        action: "setCurrent",
+                                    });
+
+                                }}
+                            />
                         </Box>
                     </Table.Cell>
                 </Table.Row>
             )}
+
         </Fragment>
     );
 });

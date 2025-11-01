@@ -179,12 +179,10 @@ export default function ShiftFarmerOrderPage() {
           {statusFilter === "all" ? (
             <OrderList
               items={items}
-
             />
           ) : (
             <OrdersTable
               items={filtered}
-
             />
           )}
         </Skeleton>

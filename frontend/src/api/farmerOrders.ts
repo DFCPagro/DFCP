@@ -9,10 +9,10 @@ import type {
   FarmerOrdersSummaryResponse,
   CreateFarmerOrderRequest,
   FarmerOrderDTO,
-  GetFarmerOrderByShiftRequest,
-  GetFarmerOrderByShiftResponse,
   ShiftFarmerOrdersQuery,
   ShiftFarmerOrdersResponse,
+  FarmerOrderStageKey,
+  ShiftFarmerOrderItem,
 } from "@/types/farmerOrders";
 import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
 
@@ -98,6 +98,33 @@ export async function getFarmerOrdersByShift(
   );
   // console.log("[getFarmerOrdersByShift] data:", data);
   return data;
+}
+
+/** Body for advancing a farmer order to a specific stage */
+export type AdvanceFarmerOrderStageBody = {
+  /** Target stage key (BE spelling preserved, e.g. "recieved") */
+  key: FarmerOrderStageKey;
+  /** Action verb required by BE contract */
+  action: "setCurrent";
+  /** Optional audit note */
+  note?: string;
+};
+
+/**
+ * Advance a farmer order to a specific stage.
+ * POST /api/v1/farmer-orders/:id/advance-stage
+ *
+ * Returns the updated order item (server is the source of truth for timestamps/audit).
+ */
+export async function advanceFarmerOrderStage(
+  orderId: string,
+  body: AdvanceFarmerOrderStageBody
+): Promise<ShiftFarmerOrderItem> {
+  const { data } = await api.patch(
+    `/farmer-orders/${encodeURIComponent(orderId)}/stage`,
+    body
+  );
+  return (data as any)?.data ?? data;
 }
 
 /* ------------------------------ (Optional) AR ----------------------------- */

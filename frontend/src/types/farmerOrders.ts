@@ -7,6 +7,29 @@ import { ShiftEnum, IsoDateString } from "@/types/shifts";
 export const FarmerOrderStatusEnum = z.enum(["pending", "ok", "problem"]);
 export type FarmerOrderStatus = z.infer<typeof FarmerOrderStatusEnum>;
 
+// -------- FarmerOrder stages (keys + labels + order) --------
+export const FARMER_ORDER_STAGES = [
+  { key: "farmerAck", label: "Farmer Acknowledged" }, // 1
+  { key: "farmerQSrep", label: "Quality Check" }, // 2
+  { key: "loadedToTruck", label: "Loaded to Truck" }, // 3
+  { key: "inTransit", label: "In-Transit" }, // 4
+  { key: "recieved", label: "Received in LC" }, // 5 (BE spelling intentional)
+  { key: "inspection", label: "Inspection" }, // 6
+  { key: "sorting", label: "Sorting" }, // 7
+  { key: "atWarehouse", label: "Warehouse" }, // 8
+] as const;
+
+export type FarmerOrderStageKey = (typeof FARMER_ORDER_STAGES)[number]["key"];
+
+export const FARMER_ORDER_STAGE_KEYS = FARMER_ORDER_STAGES.map(
+  (s) => s.key
+) as ReadonlyArray<FarmerOrderStageKey>;
+
+export const FARMER_ORDER_STAGE_LABELS: Record<FarmerOrderStageKey, string> =
+  Object.fromEntries(
+    FARMER_ORDER_STAGES.map((s) => [s.key, s.label])
+  ) as Record<FarmerOrderStageKey, string>;
+
 /* ---------------------------- Summary (existing) --------------------------- */
 
 export const FarmerOrderSumSchema = z.object({

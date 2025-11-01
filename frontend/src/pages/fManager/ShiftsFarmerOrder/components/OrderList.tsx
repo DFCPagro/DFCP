@@ -28,24 +28,19 @@ export type OrderListProps = {
     /** Flat orders array to group by itemId */
     items: ShiftFarmerOrderItem[];
 
-    /** Row-level handlers (WIP console logs if not provided) */
-    onView?: (row: ShiftFarmerOrderItem) => void;
-    onRowClick?: (row: ShiftFarmerOrderItem) => void;
-
     /** Optional override for group labels, given the group's rows */
     renderGroupTitle?: (groupRows: ShiftFarmerOrderItem[]) => React.ReactNode;
 };
 
+// src/pages/ShiftFarmerOrder/components/OrderList.tsx
+// (Use the fixed version I sent earlier, but remove expandedRowId state and the handleRowClick)
+
+
 export const OrderList = memo(function OrderList({
     items,
-    onView,
-    onRowClick,
     renderGroupTitle,
 }: OrderListProps) {
     const groups = useMemo(() => groupByItemId(items), [items]);
-
-    // Single expanded row across the whole list is a simple, clean UX.
-    const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
     const sortedGroups = useMemo(() => {
         return [...groups].sort((a, b) => {
@@ -53,8 +48,6 @@ export const OrderList = memo(function OrderList({
             const bHasProblem = groupHasProblem(b[1]);
             if (aHasProblem && !bHasProblem) return -1;
             if (!aHasProblem && bHasProblem) return 1;
-
-            // Secondary: heuristic alphabetical by group label for stability
             const aLabel = computeGroupLabel(a[1]).toLowerCase();
             const bLabel = computeGroupLabel(b[1]).toLowerCase();
             return aLabel.localeCompare(bLabel);
@@ -68,66 +61,29 @@ export const OrderList = memo(function OrderList({
             {sortedGroups.map(([itemId, rows]) => {
                 const hasProblem = groupHasProblem(rows);
                 const title = renderGroupTitle ? renderGroupTitle(rows) : computeGroupLabel(rows);
-
                 const sortedRows = sortRowsProblemFirstThenUpdatedDesc(rows);
 
                 return (
-                    <Box
-                        key={itemId}
-                        borderWidth="1px"
-                        borderRadius="lg"
-                        p={3}
-                        bg="bg"
-                        borderColor="border"
-                    >
+                    <Box key={itemId} borderWidth="1px" borderRadius="lg" p={3} bg="bg" borderColor="border">
                         <HStack justify="space-between" align="center">
                             <HStack gap={2}>
-                                <Text fontWeight="semibold" fontSize="lg">
-                                    {title}
-                                </Text>
-                                <Badge variant="solid" colorPalette="blue">
-                                    {sortedRows.length} orders
-                                </Badge>
-                                {hasProblem && (
-                                    <Badge variant="solid" colorPalette="red">
-                                        problem
-                                    </Badge>
-                                )}
+                                <Text fontWeight="semibold" fontSize="lg">{title}</Text>
+                                <Badge variant="solid" colorPalette="blue">{sortedRows.length} orders</Badge>
+                                {hasProblem && <Badge variant="solid" colorPalette="red">problem</Badge>}
                             </HStack>
-                            {/* Optional: add lightweight group stats later */}
                         </HStack>
 
                         <Separator my={3} />
 
                         <Table.Root size="sm" variant="outline">
-                            {/* Optional: you can add a header that matches grouped columns later */}
                             <Table.Body>
-                                {sortedRows.map((row) => {
-                                    const key =
-                                        (row as any)._id ??
-                                        `${(row as any).itemId ?? "item"}-${(row as any).farmerId ?? "farmer"}`;
-
-                                    const handleRowClick = (r: ShiftFarmerOrderItem) => {
-                                        const id =
-                                            (r as any)._id ??
-                                            `${(r as any).itemId ?? "item"}-${(r as any).farmerId ?? "farmer"}`;
-                                        setExpandedRowId((prev) => (prev === id ? null : id));
-                                        if (onRowClick) onRowClick(r);
-                                    };
-
-                                    return (
-                                        <OrderRow
-                                            key={key}
-                                            row={row}
-                                            variant="grouped"
-                                            onView={(r) =>
-                                                onView ? onView(r) : console.log("wip : order id", (r as any)._id)
-                                            }
-                                            onRowClick={handleRowClick}
-                                            isExpanded={expandedRowId === key}
-                                        />
-                                    );
-                                })}
+                                {sortedRows.map((row) => (
+                                    <OrderRow
+                                        key={(row as any)._id ?? `${(row as any).itemId ?? "item"}-${(row as any).farmerId ?? "farmer"}`}
+                                        row={row}
+                                        variant="grouped"
+                                    />
+                                ))}
                             </Table.Body>
                         </Table.Root>
                     </Box>
@@ -136,6 +92,7 @@ export const OrderList = memo(function OrderList({
         </Stack>
     );
 });
+
 
 /* --------------------------------- helpers -------------------------------- */
 
