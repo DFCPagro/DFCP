@@ -15,7 +15,7 @@ import {
   HydratedDocument,
   Model,
 } from "mongoose";
-import toJSON from "../utils/toJSON";
+  import toJSON from "../utils/toJSON";
 import { AuditEntrySchema } from "./shared/audit.schema";
 
 /**
@@ -131,12 +131,21 @@ const ContainerOpsSchema = new Schema(
     location: { type: LocationSchema, default: {} },
     auditTrail: { type: [AuditEntrySchema], default: [] },
     /**
-     * Total weight in kilograms across all shelves/slots.  This field is
-     * required for containers that may span multiple slots.  It is
-     * maintained by services when placing, consuming, refilling or moving
-     * containers.
+     * Intended weight in kilograms for this container.  When a container
+     * is sorted, the sorter indicates how many kilograms should be
+     * placed onto shelves.  The container remains in the `sorted` state
+     * until the sum of distributed weights equals this value.  This
+     * field is persisted as Decimal128 for precision.
      */
-    totalWeightKg: { type: Number, required: true, default: 0, min: 0 },
+    intendedWeightKg: { type: Schema.Types.Decimal128, required: true, default: () => Types.Decimal128.fromString("0"), min: 0 },
+
+    /**
+     * Total weight in kilograms across all shelves/slots.  This field is
+     * maintained by services when placing, consuming, refilling or moving
+     * containers.  It is stored as Decimal128 to avoid floating point
+     * errors.
+     */
+    totalWeightKg: { type: Schema.Types.Decimal128, required: true, default: () => Types.Decimal128.fromString("0"), min: 0 },
 
     /**
      * Record of distributed weights across shelves/slots.  Each entry
@@ -149,7 +158,7 @@ const ContainerOpsSchema = new Schema(
           {
             shelfId: { type: Types.ObjectId, ref: "Shelf", required: true },
             slotId: { type: String, required: true },
-            weightKg: { type: Number, required: true, min: 0 },
+            weightKg: { type: Schema.Types.Decimal128, required: true, min: 0 },
           },
           { _id: false }
         ),
@@ -159,6 +168,29 @@ const ContainerOpsSchema = new Schema(
   },
   { timestamps: true }
 );
+
+ // Validation: ensure the sum of distributed weightKg equals totalWeightKg
+ContainerOpsSchema.pre("validate", function (next) {
+  const doc = this as any;
+  // Only validate when distributedWeights is present and totalWeightKg is defined
+  if (!doc.distributedWeights || typeof doc.totalWeightKg === "undefined") return next();
+  try {
+    const sum = Array.isArray(doc.distributedWeights)
+      ? doc.distributedWeights.reduce((acc: number, entry: any) => {
+          const val = entry?.weightKg ? parseFloat(entry.weightKg.toString()) : 0;
+          return acc + val;
+        }, 0)
+      : 0;
+    const total = doc.totalWeightKg ? parseFloat(doc.totalWeightKg.toString()) : 0;
+    // allow tiny floating point epsilon
+    if (Math.abs(sum - total) > 1e-6) {
+      return next(new Error(`Sum of distributedWeights (${sum}) does not equal totalWeightKg (${total})`));
+    }
+    return next();
+  } catch (e) {
+    return next(e as any);
+  }
+});
 
 // Composite indexes for queries across facility and state
 ContainerOpsSchema.index({ logisticCenterId: 1, state: 1 });

@@ -18,8 +18,8 @@
         "slotId": "1",
         "capacityKg": 60,
         "currentWeightKg": 0,
-        "containerOpsId": "66f2bb0000000000000000a1",
-        "occupiedAt": "2025-10-14T09:45:00.000Z",
+        "containerOpsId": null,
+        "occupiedAt": null,
         "emptiedAt": null,
         "liveActiveTasks": 0,
         "lastTaskPingAt": null
@@ -27,9 +27,9 @@
       {
         "slotId": "2",
         "capacityKg": 60,
-        "currentWeightKg": 40,
-        "containerOpsId": "66f2bb0000000000000000a1",
-        "occupiedAt": "2025-10-14T09:45:00.000Z",
+        "currentWeightKg": 0,
+        "containerOpsId": null,
+        "occupiedAt": null,
         "emptiedAt": null,
         "liveActiveTasks": 0,
         "lastTaskPingAt": null
@@ -39,21 +39,22 @@
         "capacityKg": 60,
         "currentWeightKg": 20,
         "containerOpsId": "66f2bb0000000000000000a2",
-        "occupiedAt": "2025-10-14T09:45:00.000Z",
+        "occupiedAt": "2025-10-14T09:35:00.000Z",
         "emptiedAt": null,
         "liveActiveTasks": 0,
         "lastTaskPingAt": null
       }
     ],
-    "currentWeightKg": 120,
-    "occupiedSlots": 3,
+    "currentWeightKg": 20,
+    "occupiedSlots": 1,
     "liveActiveTasks": 0,
     "lastTaskPingAt": null,
     "busyScore": 0,
     "isTemporarilyAvoid": false,
-    "createdAt": "2025-10-14T09:45:00.000Z",
-    "updatedAt": "2025-10-14T09:45:00.000Z"
+    "createdAt": "2025-10-14T09:30:00.000Z",
+    "updatedAt": "2025-10-14T09:35:00.000Z"
   },
+
   {
     "_id": "66e0070000000000000aaa01",
     "logisticCenterId": "66e007000000000000000001",
@@ -106,9 +107,10 @@
     "lastTaskPingAt": null,
     "busyScore": 0,
     "isTemporarilyAvoid": false,
-    "createdAt": "2025-10-14T09:45:00.000Z",
+    "createdAt": "2025-10-14T09:30:00.000Z",
     "updatedAt": "2025-10-14T09:45:00.000Z"
   },
+
   {
     "_id": "66e0070000000000000aaa02",
     "logisticCenterId": "66e007000000000000000001",
@@ -161,7 +163,7 @@
     "lastTaskPingAt": null,
     "busyScore": 0,
     "isTemporarilyAvoid": false,
-    "createdAt": "2025-10-14T09:45:00.000Z",
-    "updatedAt": "2025-10-14T09:45:00.000Z"
+    "createdAt": "2025-10-14T09:30:00.000Z",
+    "updatedAt": "2025-10-14T09:30:00.000Z"
   }
 ]

@@ -14,8 +14,8 @@ export type ShelfType = (typeof SHELF_TYPES)[number];
 const ShelfSlotSchema = new Schema(
   {
     slotId: { type: String, required: true },
-    capacityKg: { type: Number, required: true, min: 0 },
-    currentWeightKg: { type: Number, default: 0, min: 0 },
+    capacityKg: { type: Schema.Types.Decimal128, required: true, min: 0 },
+    currentWeightKg: { type: Schema.Types.Decimal128, default: () => Types.Decimal128.fromString("0"), min: 0 },
 
     // which containerOps currently occupies this slot (null if free)
     containerOpsId: { type: Types.ObjectId, ref: "ContainerOps", default: null },
@@ -48,13 +48,13 @@ const ShelfSchema = new Schema(
 
     // capacities
     maxSlots: { type: Number, required: true, min: 1 },
-    maxWeightKg: { type: Number, required: true, min: 0 },
+    maxWeightKg: { type: Schema.Types.Decimal128, required: true, min: 0 },
 
     // slots
     slots: { type: [ShelfSlotSchema], default: [] },
 
     // aggregated metrics for quick balancing decisions
-    currentWeightKg: { type: Number, default: 0, min: 0 },
+    currentWeightKg: { type: Schema.Types.Decimal128, default: () => Types.Decimal128.fromString("0"), min: 0 },
     occupiedSlots: { type: Number, default: 0, min: 0 },
 
     // congestion awareness
@@ -86,11 +86,12 @@ ShelfSchema.pre("save", function (next) {
     let occupied = 0;
     let total = 0;
     for (const s of doc.slots) {
-      total += s.currentWeightKg || 0;
+      const val = s.currentWeightKg ? parseFloat(s.currentWeightKg.toString()) : 0;
+      total += val;
       if (s.containerOpsId) occupied += 1;
     }
     doc.set("occupiedSlots", occupied);
-    doc.set("currentWeightKg", total);
+    doc.set("currentWeightKg", Types.Decimal128.fromString(total.toString()));
   }
 
   next();
@@ -113,11 +114,13 @@ ShelfSchema.statics.applySlotChange = async function ({
   setOccupied: boolean;       // true when placing, false when freeing
 }) {
   const filter = { shelfId, logisticCenterId };
+  // Convert numeric delta to Decimal128 for kg fields
+  const deltaDec = Types.Decimal128.fromString(String(deltaWeightKg));
   const update: any = {
     $inc: {
-      currentWeightKg: deltaWeightKg,
+      currentWeightKg: deltaDec,
       ...(setOccupied ? { occupiedSlots: 1 } : { occupiedSlots: -1 }),
-      [`slots.$[s].currentWeightKg`]: deltaWeightKg,
+      [`slots.$[s].currentWeightKg`]: deltaDec,
     },
     $set: {
       updatedAt: new Date(),

@@ -6,35 +6,29 @@
     "itemId": "6873f67b8027abff0fdb32f3",
     "logisticCenterId": "66e007000000000000000001",
     "qrId": null,
-    "state": "shelved",
+
+    "state": "sorted",
+    "intendedWeightKg": 70,
+    "totalWeightKg": 0,
+    "distributedWeights": [],
+
     "weightHistory": [],
     "cleaning": { "startedAt": null, "finishedAt": null, "by": null, "notes": "" },
-    "sorting": { "sortedAt": null, "by": null, "details": {} },
-    "location": {
-      "area": "shelf",
-      "zone": "A",
-      "aisle": "1",
-      "shelfId": "66e0070000000000000aaa00",
-      "slotId": "1",
-      "updatedAt": "2025-10-14T09:45:00.000Z"
-    },
+    "sorting": { "sortedAt": "2025-10-14T09:30:00.000Z", "by": "66f2aa000000000000000008", "details": { "note": "Ready for auto-place (split expected)" } },
+    "location": { "area": "warehouse", "zone": "A", "aisle": "inbound", "shelfId": null, "slotId": null, "updatedAt": "2025-10-14T09:30:00.000Z" },
     "auditTrail": [
       {
         "userId": "66f2aa000000000000000008",
-        "action": "shelved",
-        "note": "Warehouse staging: A1/1=60kg, A1/2=40kg",
-        "timestamp": "2025-10-14T09:45:00.000Z",
-        "meta": { "warehouse": ["A1/1:60","A1/2:40"] }
+        "action": "sorted",
+        "note": "Intended 70kg to stage for picking; currently all in warehouse (leftover allowed).",
+        "timestamp": "2025-10-14T09:30:00.000Z",
+        "meta": { "planKg": 70 }
       }
     ],
-    "totalWeightKg": 100,
-    "distributedWeights": [
-      { "shelfId": "66e0070000000000000aaa00", "slotId": "1", "weightKg": 60 },
-      { "shelfId": "66e0070000000000000aaa00", "slotId": "2", "weightKg": 40 }
-    ],
-    "createdAt": "2025-10-14T09:45:00.000Z",
-    "updatedAt": "2025-10-14T09:45:00.000Z"
+    "createdAt": "2025-10-14T09:30:00.000Z",
+    "updatedAt": "2025-10-14T09:30:00.000Z"
   },
+
   {
     "_id": "66f2bb0000000000000000a2",
     "containerId": "FO123_02",
@@ -42,34 +36,31 @@
     "itemId": "6873f67b8027abff0fdb32f3",
     "logisticCenterId": "66e007000000000000000001",
     "qrId": null,
-    "state": "shelved",
-    "weightHistory": [],
-    "cleaning": { "startedAt": null, "finishedAt": null, "by": null, "notes": "" },
-    "sorting": { "sortedAt": null, "by": null, "details": {} },
-    "location": {
-      "area": "shelf",
-      "zone": "A",
-      "aisle": "1",
-      "shelfId": "66e0070000000000000aaa00",
-      "slotId": "3",
-      "updatedAt": "2025-10-14T09:45:00.000Z"
-    },
-    "auditTrail": [
-      {
-        "userId": "66f2aa000000000000000008",
-        "action": "shelved",
-        "note": "Warehouse staging: A1/3=20kg",
-        "timestamp": "2025-10-14T09:45:00.000Z",
-        "meta": { "warehouse": ["A1/3:20"] }
-      }
-    ],
+
+    "state": "sorted",
+    "intendedWeightKg": 50,
     "totalWeightKg": 20,
     "distributedWeights": [
       { "shelfId": "66e0070000000000000aaa00", "slotId": "3", "weightKg": 20 }
     ],
-    "createdAt": "2025-10-14T09:45:00.000Z",
-    "updatedAt": "2025-10-14T09:45:00.000Z"
+
+    "weightHistory": [],
+    "cleaning": { "startedAt": null, "finishedAt": null, "by": null, "notes": "" },
+    "sorting": { "sortedAt": "2025-10-14T09:35:00.000Z", "by": "66f2aa000000000000000008", "details": { "note": "Partially staged (20/50kg); still not pickable" } },
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa00", "slotId": "3", "updatedAt": "2025-10-14T09:35:00.000Z" },
+    "auditTrail": [
+      {
+        "userId": "66f2aa000000000000000008",
+        "action": "partial-shelved",
+        "note": "Warehouse staging: A1/3=20kg of planned 50kg",
+        "timestamp": "2025-10-14T09:35:00.000Z",
+        "meta": { "placed": ["A1/3:20"], "remainingPlanKg": 30 }
+      }
+    ],
+    "createdAt": "2025-10-14T09:35:00.000Z",
+    "updatedAt": "2025-10-14T09:35:00.000Z"
   },
+
   {
     "_id": "66f2bb0000000000000000a3",
     "containerId": "FO999_01",
@@ -77,30 +68,26 @@
     "itemId": "f68140ef8273c40bbae48b98",
     "logisticCenterId": "66e007000000000000000001",
     "qrId": null,
+
     "state": "shelved",
+    "intendedWeightKg": 60,
+    "totalWeightKg": 60,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa01", "slotId": "1", "weightKg": 60 }
+    ],
+
     "weightHistory": [],
     "cleaning": { "startedAt": null, "finishedAt": null, "by": null, "notes": "" },
-    "sorting": { "sortedAt": null, "by": null, "details": {} },
-    "location": {
-      "area": "shelf",
-      "zone": "A",
-      "aisle": "1",
-      "shelfId": "66e0070000000000000aaa01",
-      "slotId": "1",
-      "updatedAt": "2025-10-14T09:45:00.000Z"
-    },
+    "sorting": { "sortedAt": "2025-10-14T09:40:00.000Z", "by": "66f2aa000000000000000008", "details": {} },
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa01", "slotId": "1", "updatedAt": "2025-10-14T09:45:00.000Z" },
     "auditTrail": [
       {
         "userId": "66f2aa000000000000000008",
         "action": "shelved",
-        "note": "Picker shelf A2/1 = 60kg",
+        "note": "Picker shelf A2/1 = 60kg (fully staged; pickable)",
         "timestamp": "2025-10-14T09:45:00.000Z",
         "meta": { "picker": ["A2/1:60"] }
       }
-    ],
-    "totalWeightKg": 60,
-    "distributedWeights": [
-      { "shelfId": "66e0070000000000000aaa01", "slotId": "1", "weightKg": 60 }
     ],
     "createdAt": "2025-10-14T09:45:00.000Z",
     "updatedAt": "2025-10-14T09:45:00.000Z"

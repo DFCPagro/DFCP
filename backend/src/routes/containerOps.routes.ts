@@ -27,4 +27,21 @@ router.post("/:id", authenticate, authorize("picker", "opManager", "admin"), ctr
 router.post("/:id/pick", authenticate, authorize("picker", "opManager", "admin"), ctrl.recordPicked);
 router.post("/:id/mark-depleted", authenticate, authorize("opManager", "admin"), ctrl.markDepletedIfZero);
 
+// ---- Minimal logistics loop endpoints ----
+// Auto-placement across multiple slots.  Sorter or ops manager can call this to split place a container.
+router.post(
+  "/:id/auto-place",
+  authenticate,
+  authorize("sorter", "opManager", "admin"),
+  ctrl.autoPlace
+);
+
+// Consume (pick) a specific kg amount from a shelf/slot.  Picker or ops manager can call this.
+router.post(
+  "/:id/consume",
+  authenticate,
+  authorize("picker", "opManager", "admin"),
+  ctrl.consumeWeight
+);
+
 export default router;
