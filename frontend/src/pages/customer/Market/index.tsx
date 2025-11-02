@@ -24,12 +24,12 @@ import {
   marketItemToCartLine,
   type CartLine as SharedCartLine,
   type CartContext as SharedCartContext,
-} from "@/utils/marketCart.shared";
+} from "@/utils/market/marketCart.shared";
 import type { MarketItem } from "@/types/market";
 import { getCustomerAddresses } from "@/api/market";
 
 import { useUnitPref } from "@/hooks/useUnitPref";
-import { qtyToUnits, effectiveUnitForItem } from "@/utils/marketUnits";
+import { qtyToUnits, effectiveUnitForItem } from "@/utils/market/marketUnits";
 
 /* -------------------------------- helpers -------------------------------- */
 

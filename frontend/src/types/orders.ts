@@ -1,9 +1,8 @@
 // src/types/order.ts
 // Frontend types aligned to backend src/models/order.model.ts
-import type {Address} from "./address";
+import type { Address } from "./address";
+
 /* ---------------------------------- Enums --------------------------------- */
-
-
 
 export type OrderStages =
   | "pending"
@@ -21,10 +20,11 @@ export type OrderStages =
 export type UnitMode = "kg" | "unit" | "mixed";
 
 export type PaymentMethod = "card" | "google_pay" | "paypal";
+
 /* --------------------------------- Create --------------------------------- */
 /**
  * What Checkout should POST to the backend create-order endpoint.
- * Names/casing mirror the backend schema exactly.
+ * Names/casing MUST mirror backend validation (CreateOrderInputSchema).
  */
 export type EstimatesSnapshot = {
   avgWeightPerUnitKg?: number | null;
@@ -42,9 +42,10 @@ export type CreateOrderItemInput = {
   imageUrl?: string;
   category?: string;
 
+  // price snapshot (if unitMode="unit", this is per unit; if "kg", per kg)
   pricePerUnit: number;
 
-  /** "kg" | "unit" | "mixed" (backend validates combinations below) */
+  /** "kg" | "unit" | "mixed" */
   unitMode: UnitMode;
 
   /** For kg or mixed modes */
@@ -54,39 +55,42 @@ export type CreateOrderItemInput = {
   units?: number;
 
   /**
-   * Required by backend validation when unitMode is "unit" or when "mixed" with units > 0.
-   * When present, must be > 0.
+   * Required by backend when unitMode is "unit", or "mixed" with units > 0.
+   * Must be > 0 when present.
    */
   estimatesSnapshot?: EstimatesSnapshot;
 };
 
 export type CreateOrderBody = {
-  /** Full address object as per AddressSchema (backend requires deliveryAddress) */
+  /** Full address object as per DeliveryAddressSchema (backend requires deliveryAddress) */
   deliveryAddress: Address;
 
   /** ISO date (YYYY-MM-DD or full ISO). Backend stores as Date. */
   deliveryDate: string;
 
-  /** e.g., "morning" (backend requires string) */
+  /** We send shiftName for UI, but backend will override using AMS.availableShift */
   shiftName: string;
 
   /**
-   * IMPORTANT: Casing matches schema (`LogisticsCenterId` with capital L).
-   * Mongoose expects ObjectId; send string id.
+   * EXACT name expected by backend Zod:
+   * logisticsCenterId (lowercase 'l').
+   *
+   * This should correspond to the LC that will fulfill this delivery.
+   * In your flow this is known from the selected address.
    */
-  LogisticsCenterId: string;
+  logisticsCenterId: string;
 
   /**
-   * One AMS per order; same amsId for all lines. Mongoose expects ObjectId; send string id.
+   * One AMS per order; same amsId for all lines. Backend expects ObjectId string.
    */
   amsId: string;
 
-  /** At least one item (backend enforces non-empty array) */
+  /** At least one item */
   items: CreateOrderItemInput[];
 
   /**
-   * Optional override for per-order tolerance (default 0.10 on backend, 0–0.5).
-   * If not set, backend uses default.
+   * Optional override for per-order tolerance (0–0.5).
+   * If not set, backend will use its default tolerancePct.
    */
   tolerancePct?: number;
 };
@@ -99,7 +103,8 @@ export type OrderItem = {
   imageUrl?: string;
   category?: string;
 
-  pricePerUnit: number; // per KG
+  // price snapshot for this line
+  pricePerUnit: number;
   unitMode: UnitMode;
 
   quantityKg?: number;
@@ -129,7 +134,12 @@ export type Order = {
   deliveryDate: string; // ISO string
   shiftName: string;
 
-  /** Note: casing kept exactly as in schema */
+  /**
+   * Note:
+   * The stored model on the backend may still expose `LogisticsCenterId`
+   * (capital L) in the returned Order. That's fine.
+   * Input uses logisticsCenterId, output may use LogisticsCenterId.
+   */
   LogisticsCenterId: string;
   amsId: string;
 
@@ -137,24 +147,24 @@ export type Order = {
 
   // Estimated totals (pre-packing)
   itemsSubtotal: number;
-  deliveryFee: number; // backend default: 15 (USD)
+  deliveryFee: number;
   totalPrice: number;
   totalOrderWeightKg: number;
 
-  // Final totals (post-packing) – optional until finalized
+  // Final totals (post-packing)
   finalItemsSubtotal?: number;
   finalTotalPrice?: number;
   finalOrderWeightKg?: number;
 
   // Per-order tolerance
-  tolerancePct: number; // default 0.10
+  tolerancePct: number;
 
   status: OrderStages;
 
   assignedDelivererId?: string;
   customerDeliveryId?: string;
 
-  // Audit
+  // Audit trail
   historyAuditTrail: Array<{
     userId?: string;
     action: string;
@@ -179,6 +189,5 @@ export type OrderRowAPI = {
   deliverySlot?: string | null;
   createdAt: string;
   items: OrderItem[];
-  // optional extra fields you might add later:
-  // consumerName?: string;
+  // you can add consumerName etc.
 };

@@ -1,4 +1,5 @@
 // src/pages/checkout/hooks/usePayment.ts
+
 import { useCallback, useMemo, useState } from "react";
 import { toaster } from "@/components/ui/toaster";
 import {
@@ -6,10 +7,10 @@ import {
   type CreateOrderItemInput,
   type PaymentMethod,
   type UnitMode,
-} from "@/types/orders";
+} from "@/types/orders"; // make sure this path matches
 import { createOrder } from "@/api/orders";
 import type { Address } from "@/types/address";
-import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+import type { CartLine as SharedCartLine } from "@/utils/market/marketCart.shared";
 
 /* -------------------------------------------------------------------------- */
 /*                               Local UI Types                                */
@@ -19,110 +20,120 @@ type CardState = {
   holder: string;
   cardNumber: string;
   expMonth: string; // "MM"
-  expYear: string; // "YY" or "YYYY" (UI-level, normalize on submit if needed)
+  expYear: string; // "YY" or "YYYY"
   cvc: string; // 3–4 digits
 };
 
 type UsePaymentDeps = {
-  /** What the page already collects (unchanged for callers) */
   context: {
     amsId: string | null;
-    logisticsCenterId: string | null; // note: will be adapted to LogisticsCenterId in the body
-    deliveryDate: string | null; // ISO yyyy-mm-dd
+    logisticsCenterId: string | null; // may be redundant if address also has it
+    deliveryDate: string | null; // yyyy-mm-dd
     shiftName: string | null;
-    address: Address | null; // deliveryAddress in the body
+    address: Address | null; // deliveryAddress in body
   };
-  /** Lines from the Market cart (unchanged shape for callers) */
   cartLines: SharedCartLine[];
-  /** Optional success handler */
   onSuccess?: () => void;
 };
 
 /* -------------------------------------------------------------------------- */
-/*                Cart → CreateOrderItemInput (strict, minimal)               */
+/*        CartLine -> CreateOrderItemInput (STRICT MAPPER, FINAL VERSION)     */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Minimal, lossy-safe mapper:
- *  - Reads only the fields that exist on CreateOrderItemInput
- *  - Does NOT invent additional properties
- *  - Coerces numbers defensively
- */
-function mapCartLineToOrderItem(line: SharedCartLine): CreateOrderItemInput {
-  const num = (v: unknown): number | undefined => {
-    if (v == null || v === "") return undefined;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : undefined;
-  };
+function cartLineToCreateOrderItemInput(
+  line: SharedCartLine
+): CreateOrderItemInput {
+  const rawMode = (line as any).unitMode;
+  const unitMode: UnitMode =
+    rawMode === "unit" || rawMode === "kg" || rawMode === "mixed"
+      ? rawMode
+      : "kg";
 
-  const explicitUnitMode = (line as any).unitMode;
-  const legacyQtyKg = num((line as any).quantity); // 👈 fallback (your cart has this)
+  const qty = Number((line as any).quantity) || 0;
 
-  // Prefer explicit mode; otherwise infer from present fields
-  const unitMode: UnitMode = (() => {
-    const v = explicitUnitMode;
-    if (v === "unit" || v === "kg" || v === "mixed") return v as UnitMode;
-    if (num((line as any).units)) return "unit";
-    if (num((line as any).quantityKg)) return "kg";
-    if (legacyQtyKg) return "kg"; // 👈 legacy implies kg
-    return "kg";
-  })();
+  const avgPerUnitKg =
+    typeof (line as any).avgWeightPerUnitKg === "number" &&
+    (line as any).avgWeightPerUnitKg > 0
+      ? (line as any).avgWeightPerUnitKg
+      : undefined;
 
-  // Use explicit fields; if missing, fall back to legacy quantity→kg
-  const units = num((line as any).units);
-  const quantityKg = num((line as any).quantityKg) ?? legacyQtyKg; // 👈 here
-
-  // avgWeightPerUnitKg is REQUIRED only when reserving by units
-  const avgWeightPerUnitKg = num((line as any).avgWeightPerUnitKg);
-  const estimatesSnapshot =
-    (unitMode === "unit" || unitMode === "mixed") && (units ?? 0) > 0
-      ? avgWeightPerUnitKg && avgWeightPerUnitKg > 0
-        ? { avgWeightPerUnitKg }
-        : undefined
-      : avgWeightPerUnitKg && avgWeightPerUnitKg > 0
-        ? { avgWeightPerUnitKg }
-        : undefined;
-
-  return {
+  const base: Omit<CreateOrderItemInput, "unitMode"> & { unitMode: UnitMode } = {
     itemId: String((line as any).itemId ?? (line as any).id ?? ""),
-    name: (line as any).name ? String((line as any).name) : undefined,
-    imageUrl: ((): string | undefined => {
-      const v = (line as any).imageUrl;
-      return v ? String(v) : undefined;
-    })(),
-    category: ((): string | undefined => {
-      const v = (line as any).category;
-      return v ? String(v) : undefined;
-    })(),
-    pricePerUnit: Number((line as any).pricePerUnit) || 0, // per KG
 
-    unitMode,
     farmerOrderId: ((): string | undefined => {
       const v = (line as any).farmerOrderId;
       return v ? String(v) : undefined;
     })(),
-    sourceFarmerName: ((): string | undefined => {
-      const v = (line as any).sourceFarmerName;
-      return v ? String(v) : undefined;
-    })(),
-    sourceFarmName: ((): string | undefined => {
-      const v = (line as any).sourceFarmName;
+
+    sourceFarmerName:
+      (line as any).farmerName ??
+      (line as any).sourceFarmerName ??
+      "Unknown Farmer",
+
+    sourceFarmName:
+      (line as any).farmName ??
+      (line as any).sourceFarmName ??
+      "Unknown Farm",
+
+    name: (line as any).name
+      ? String((line as any).name)
+      : undefined,
+
+    imageUrl: ((): string | undefined => {
+      const v = (line as any).imageUrl;
       return v ? String(v) : undefined;
     })(),
 
-    ...(typeof units === "number" && units > 0 ? { units } : {}),
-    ...(typeof quantityKg === "number" && quantityKg > 0 ? { quantityKg } : {}),
-    ...(estimatesSnapshot ? { estimatesSnapshot } : {}),
+    category: ((): string | undefined => {
+      const v = (line as any).category;
+      return v ? String(v) : undefined;
+    })(),
+
+    pricePerUnit: Number((line as any).pricePerUnit) || 0,
+
+    unitMode,
+  };
+
+  if (unitMode === "unit") {
+    return {
+      ...base,
+      units: qty,
+      quantityKg: 0,
+      estimatesSnapshot:
+        avgPerUnitKg && avgPerUnitKg > 0
+          ? { avgWeightPerUnitKg: avgPerUnitKg }
+          : undefined,
+    };
+  }
+
+  if (unitMode === "kg") {
+    return {
+      ...base,
+      quantityKg: qty,
+      units: 0,
+    };
+  }
+
+  // "mixed" fallback for future
+  return {
+    ...base,
+    unitMode: "mixed",
+    units: qty,
+    quantityKg: 0,
+    estimatesSnapshot:
+      avgPerUnitKg && avgPerUnitKg > 0
+        ? { avgWeightPerUnitKg: avgPerUnitKg }
+        : undefined,
   };
 }
 
 /* -------------------------------------------------------------------------- */
-/*                                Hook: Public                                 */
+/*                                usePayment()                                 */
 /* -------------------------------------------------------------------------- */
 
 export function usePayment(deps: UsePaymentDeps) {
-  // Payment method and card UI (unchanged external API)
   const [method, setMethod] = useState<PaymentMethod>("card");
+
   const [card, setCard] = useState<CardState>({
     holder: "",
     cardNumber: "",
@@ -130,6 +141,7 @@ export function usePayment(deps: UsePaymentDeps) {
     expYear: "",
     cvc: "",
   });
+
   const [submitting, setSubmitting] = useState(false);
 
   const setCardField = useCallback(
@@ -142,29 +154,43 @@ export function usePayment(deps: UsePaymentDeps) {
 
   const orderItems: CreateOrderItemInput[] = useMemo(() => {
     console.log("Building order items", { cartLines: deps.cartLines });
-    if (!Array.isArray(deps.cartLines) || deps.cartLines.length === 0)
+    if (!Array.isArray(deps.cartLines) || deps.cartLines.length === 0) {
       return [];
-    return deps.cartLines.map(mapCartLineToOrderItem).filter((it) => {
-      const hasId = !!it.itemId;
-      const hasAnyQty =
-        (typeof it.units === "number" && it.units > 0) ||
-        (typeof it.quantityKg === "number" && it.quantityKg > 0);
-      const needsAvg =
-        (it.unitMode === "unit" || it.unitMode === "mixed") &&
-        (it.units ?? 0) > 0;
-      const hasAvg =
-        !needsAvg || (it.estimatesSnapshot?.avgWeightPerUnitKg ?? 0) > 0;
-      return hasId && hasAnyQty && hasAvg;
-    });
+    }
+
+    return deps.cartLines
+      .map(cartLineToCreateOrderItemInput)
+      .filter((it) => {
+        const hasId = !!it.itemId;
+
+        const hasAnyQty =
+          (typeof it.units === "number" && it.units > 0) ||
+          (typeof it.quantityKg === "number" && it.quantityKg > 0);
+
+        const needsAvg =
+          (it.unitMode === "unit" || it.unitMode === "mixed") &&
+          (it.units ?? 0) > 0;
+
+        const hasAvg =
+          !needsAvg ||
+          ((it.estimatesSnapshot?.avgWeightPerUnitKg ?? 0) > 0);
+
+        return hasId && hasAnyQty && hasAvg;
+      });
   }, [deps.cartLines]);
 
   /* ---------------------------- Compute canSubmit ----------------------------- */
 
   const canSubmit = useMemo(() => {
-    const { amsId, logisticsCenterId, deliveryDate, /* shiftName, */ address } =
-      deps.context;
+    const { amsId, deliveryDate, address } = deps.context;
 
-    if (!amsId || !logisticsCenterId || !deliveryDate || !address) return false;
+    // IMPORTANT: logisticsCenterId actually comes from address.logisticCenterId now.
+    // We just need to make sure we have it.
+    const lcFromAddress =
+      (address && (address as any).logisticCenterId) ||
+      deps.context.logisticsCenterId;
+
+    if (!amsId || !deliveryDate || !address || !lcFromAddress) return false;
     if (!method) return false;
 
     if (String(method).toLowerCase() === "card") {
@@ -174,8 +200,9 @@ export function usePayment(deps: UsePaymentDeps) {
         !/^\d{2}$/.test(card.expMonth) ||
         !/^\d{2,4}$/.test(card.expYear) ||
         !/^\d{3,4}$/.test(card.cvc)
-      )
+      ) {
         return false;
+      }
     }
 
     return orderItems.length > 0;
@@ -194,27 +221,42 @@ export function usePayment(deps: UsePaymentDeps) {
       return;
     }
 
-    const { amsId, logisticsCenterId, deliveryDate, shiftName, address } =
-      deps.context;
-
-    // Build the CreateOrderBody base strictly from the official type
-    const body: CreateOrderBody = {
-      amsId, // exact name per type
-      LogisticsCenterId: logisticsCenterId!, // NOTE: capital L, per CreateOrderBody
-      deliveryDate, // ISO yyyy-mm-dd
+    const {
+      amsId,
+      deliveryDate,
       shiftName,
+      address,
+    } = deps.context;
+
+    // authoritative LC id = from address
+    const lcFromAddress =
+      (address && (address as any).logisticCenterId) ||
+      deps.context.logisticsCenterId;
+
+    const body: CreateOrderBody = {
+      amsId: amsId!, // required by backend
+      logisticsCenterId: lcFromAddress!, // lowercase L, matches backend zod
+      deliveryDate: deliveryDate!, // "YYYY-MM-DD"
+      shiftName: shiftName || "", // backend ignores this; it'll use AMS.availableShift
       deliveryAddress: {
         address: address!.address,
         lnt: address!.lnt,
         alt: address!.alt,
+        // include logisticCenterId on the address too, if present
+        ...(lcFromAddress
+          ? { logisticCenterId: lcFromAddress }
+          : {}),
       },
       items: orderItems,
-      // Optional: tolerancePct — leave undefined to use backend default
+      // tolerancePct?: you can add later from UI
     };
-    console.log("Submitting order", { orderItems });
+
+    console.log("Submitting order", { body });
+
     try {
       setSubmitting(true);
-      const result = await createOrder(body); // returns whatever your API returns
+
+      const result = await createOrder(body);
 
       toaster.create({
         title: "Order placed",
@@ -222,7 +264,8 @@ export function usePayment(deps: UsePaymentDeps) {
         type: "success",
       });
 
-      console.log("Order created");
+      console.log("Order created", result);
+
       if (typeof deps.onSuccess === "function") {
         deps.onSuccess();
       }

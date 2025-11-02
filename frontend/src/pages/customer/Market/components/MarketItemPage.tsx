@@ -7,7 +7,7 @@ import {
 import { FiX, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import type { MarketItem } from "@/types/market";
 import { getMarketItemPage, type MarketItemPageData } from "@/api/market";
-import { qtyToUnits } from "@/utils/marketUnits";
+import { qtyToUnits } from "@/utils/market/marketUnits";
 
 export type MarketItemPageProps = {
   item: MarketItem;

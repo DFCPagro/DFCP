@@ -17,7 +17,7 @@ import { FiTrash2, FiX } from "react-icons/fi";
 import { useLocation } from "react-router-dom";
 import { useUnitPref } from "@/hooks/useUnitPref";
 import { toaster } from "@/components/ui/toaster";
-import type { CartLine } from "@/utils/marketCart.shared";
+import type { CartLine } from "@/utils/market/marketCart.shared";
 
 /* -------------------------------------------------------------------------- */
 /*                                   Props                                    */

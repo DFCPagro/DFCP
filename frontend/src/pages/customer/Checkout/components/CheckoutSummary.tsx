@@ -18,7 +18,7 @@ import {
     FiChevronRight,
 } from "react-icons/fi";
 
-import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+import type { CartLine as SharedCartLine } from "@/utils/market/marketCart.shared";
 import ItemList, { type ItemRow } from "@/components/common/ItemList";
 
 /* ---------------------------------- Types --------------------------------- */

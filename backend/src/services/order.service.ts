@@ -31,16 +31,7 @@ type IdLike = string | Types.ObjectId;
 const toOID = (v: IdLike) =>
   v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
 
-// UPDATED: no `_id` on the AMS item; use FO-centric fields
-type AmsLine = {
-  farmerOrderId?: Types.ObjectId | null;
-  pricePerKg?: number; // authoritative price per KG from AMS
-  unitMode?: "kg" | "unit" | "mixed";
-  estimates?: {
-    avgWeightPerUnitKg?: number | null;
-    sdKg?: number | null;
-  };
-};
+
 
 type PayloadItem = CreateOrderInput["items"][number];
 
@@ -121,6 +112,17 @@ function initOrderStagesAndAudit(orderDoc: any, customerOID: Types.ObjectId, ite
 
 /** ------------------------ legacy / normalization helpers ------------------------ */
 
+// you already have this type in your codebase; repeating here for clarity
+type AmsLine = {
+  farmerOrderId?: Types.ObjectId | null;
+  pricePerKg?: number; // authoritative price per KG from AMS
+  unitMode?: "kg" | "unit" | "mixed";
+  estimates?: {
+    avgWeightPerUnitKg?: number | null;
+    sdKg?: number | null;
+  };
+};
+
 // legacy = has 'quantity' and no 'quantityKg'/'units'
 const isLegacyItem = (it: any): boolean =>
   it &&
@@ -129,21 +131,84 @@ const isLegacyItem = (it: any): boolean =>
   !("quantityKg" in it) &&
   !("units" in it);
 
-// prefer payload snapshot, fall back to AMS estimates
+/**
+ * Make sure an AMS line is usable for unit-mode items.
+ *
+ * What we enforce here:
+ * - If this line can be ordered by units (unitMode === "unit" or "mixed"),
+ *   then line.estimates.avgWeightPerUnitKg MUST exist and be > 0.
+ *
+ * We do NOT try to "guess" the avg here because your current AmsLine
+ * doesn't carry alternative weight fields (like avgWeightPerUnitGr).
+ * So: AMS generation / seeding MUST populate estimates.avgWeightPerUnitKg.
+ *
+ * If it's missing, we throw *here*, once, with a clear message.
+ * After this point, normalizeItem() can assume it's valid and doesn't have
+ * to throw per-item anymore.
+ */
+function ensureAmsLineEstimatesAndValidate(line: AmsLine, foIdForMsg: string) {
+  // always ensure estimates object exists so we don't do ?. all over later
+  if (!line.estimates) {
+    line.estimates = {};
+  }
+
+  const requiresPerUnitAvg =
+    line.unitMode === "unit" || line.unitMode === "mixed";
+
+  if (requiresPerUnitAvg) {
+    const avg = line.estimates.avgWeightPerUnitKg;
+    const ok =
+      Number.isFinite(avg) &&
+      (avg as number) > 0;
+
+    if (!ok) {
+      const e: any = new Error("BadRequest");
+      e.name = "BadRequest";
+      e.details = [
+        `AMS line for farmerOrderId=${foIdForMsg} is missing estimates.avgWeightPerUnitKg (>0) but is sold by unit.`,
+        "Fix: when building AvailableMarketStock.items, include estimates.avgWeightPerUnitKg for unit/mixed items.",
+      ];
+      throw e;
+    }
+  }
+
+  // also normalize sdKg to at least be a number or undefined
+  const sd = line.estimates.sdKg;
+  if (!Number.isFinite(sd) || (sd as number) < 0) {
+    // it's fine if sdKg is missing; we won't throw
+    // just leave it undefined
+    delete (line.estimates as any).sdKg;
+  }
+}
+
+/**
+ * prefer payload snapshot, fall back to AMS estimates
+ * at this point, after ensureAmsLineEstimatesAndValidate,
+ * line.estimates.avgWeightPerUnitKg SHOULD exist (for unit/mixed)
+ */
 function resolveAvgPerUnit(it: any, amsLine?: AmsLine): number {
   const fromPayload = it?.estimatesSnapshot?.avgWeightPerUnitKg;
   const fromAms = amsLine?.estimates?.avgWeightPerUnitKg;
+
   const avg =
     Number.isFinite(fromPayload) && (fromPayload as number) > 0
       ? (fromPayload as number)
       : Number.isFinite(fromAms) && (fromAms as number) > 0
       ? (fromAms as number)
       : 0;
+
   return avg || 0;
 }
 
-// normalize any item into { unitMode, quantityKg, units, avg }
-function normalizeItem(it: PayloadItem, amsLine?: AmsLine) {
+/**
+ * normalize any item into { unitMode, quantityKg, units, avg }
+ *
+ * IMPORTANT DIFFERENCE:
+ * - We REMOVED the internal "throw if units>0 but no avg" block.
+ *   That check moved to ensureAmsLineEstimatesAndValidate().
+ *   So normalizeItem becomes pure normalization.
+ */
+function normalizeItem(it: any, amsLine?: AmsLine) {
   if (isLegacyItem(it)) {
     const quantityKg = Math.max(0, Number((it as any).quantity) || 0);
     return {
@@ -156,23 +221,7 @@ function normalizeItem(it: PayloadItem, amsLine?: AmsLine) {
     const unitMode = (it as any).unitMode ?? "kg";
     const quantityKg = Math.max(0, Number((it as any).quantityKg) || 0);
     const units = Math.max(0, Number((it as any).units) || 0);
-    const avg = resolveAvgPerUnit(it, amsLine);
-
-    // Require avg when reserving by units (unit/mixed with units>0)
-    if (
-      (unitMode === "unit" || unitMode === "mixed") &&
-      units > 0 &&
-      !(avg > 0)
-    ) {
-      const e: any = new Error("BadRequest");
-      e.name = "BadRequest";
-      e.details = [
-        `Missing avgWeightPerUnitKg for item ${String(
-          (it as any).itemId
-        )} while units > 0.`,
-      ];
-      throw e;
-    }
+    const avg = resolveAvgPerUnit(it, amsLine); // will be >0 for unit/mixed because of earlier validation
 
     return { unitMode, quantityKg, units, avg };
   }
@@ -200,7 +249,8 @@ function deriveUnitPrice(
 
 /** ============================================================================
  * CREATE ORDER
- * ============================================================================ */
+ * ============================================================================
+ */
 export async function createOrderForCustomer(
   userId: IdLike,
   payload: CreateOrderInput
@@ -221,8 +271,9 @@ export async function createOrderForCustomer(
         items: 1,
         availableShift: 1,
       })
-        .lean(false)
+        .lean(false) // keep mongoose doc instances
         .session(session);
+
       if (!ams) {
         const err: any = new Error("AvailableMarketStock not found");
         err.name = "NotFound";
@@ -233,15 +284,21 @@ export async function createOrderForCustomer(
       const itemsArr: AmsLine[] = Array.isArray((ams as any).items)
         ? ((ams as any).items as any)
         : [];
+
       const byFO = new Map<string, AmsLine>();
+
       for (const line of itemsArr) {
-        const fo = (line as any).farmerOrderId
-          ? String((line as any).farmerOrderId)
-          : "";
-        if (fo) byFO.set(fo, line);
+        const foIdStr = line?.farmerOrderId ? String(line.farmerOrderId) : "";
+        if (!foIdStr) continue;
+
+        // 🔥 critical step:
+        // make sure AMS line is valid for unit/mixed
+        ensureAmsLineEstimatesAndValidate(line, foIdStr);
+
+        byFO.set(foIdStr, line);
       }
 
-      // 2) Reserve AMS inventory (kg and/or units) — once per item
+      // 2) Reserve AMS inventory (kg and/or units) — once per requested item
       for (const it of payload.items) {
         const foId = String((it as any).farmerOrderId || "");
         const line = byFO.get(foId);
@@ -257,8 +314,10 @@ export async function createOrderForCustomer(
           throw err;
         }
 
+        // normalize with validated AMS line
         const n = normalizeItem(it, line);
 
+        // must actually order something
         if (!(n.quantityKg > 0 || n.units > 0)) {
           const err: any = new Error(
             `Invalid item quantities for item ${(it as any).itemId}`
@@ -267,7 +326,7 @@ export async function createOrderForCustomer(
           throw err;
         }
 
-        // Reserve by FO (no lineId)
+        // Reserve kg if needed
         if (n.quantityKg > 0) {
           const kg = Math.round(n.quantityKg * 1000) / 1000;
           await adjustAvailableKgByFOAtomic({
@@ -279,6 +338,7 @@ export async function createOrderForCustomer(
           });
         }
 
+        // Reserve units if needed
         if (n.units > 0) {
           await adjustAvailableUnitsByFOAtomic({
             docId: amsOID.toString(),
@@ -312,24 +372,29 @@ export async function createOrderForCustomer(
           ? { tolerancePct: (payload as any).tolerancePct }
           : {}),
 
-        // NOTE: stageKey + stages will be added AFTER create() using the doc (so we can call methods)
-        items: (payload.items as PayloadItem[]).map((it) => {
-          const line = byFO.get(String((it as any).farmerOrderId));
+        items: (payload.items as any[]).map((it) => {
+          const foIdStr = String((it as any).farmerOrderId);
+          const line = byFO.get(foIdStr);
+
           const n = normalizeItem(it, line);
 
-          const pricePerKg = Number.isFinite((line as any)?.pricePerKg)
-            ? Number((line as any).pricePerKg)
+          // authoritative pricePerKg:
+          const pricePerKg = Number.isFinite(line?.pricePerKg)
+            ? Number(line?.pricePerKg)
             : Number.isFinite((it as any).pricePerKg)
             ? Number((it as any).pricePerKg)
             : 0;
 
+          // build snapshot to store on the order item
           const snapshot: any = {};
           const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
-          if (Number.isFinite(snapAvg) && (snapAvg as number) > 0)
+          if (Number.isFinite(snapAvg) && (snapAvg as number) > 0) {
             snapshot.avgWeightPerUnitKg = snapAvg;
+          }
           const snapSd = line?.estimates?.sdKg;
-          if (Number.isFinite(snapSd) && (snapSd as number) > 0)
+          if (Number.isFinite(snapSd) && (snapSd as number) > 0) {
             snapshot.stdDevKg = snapSd;
+          }
 
           const sourceFarmerName =
             (it as any).sourceFarmerName ??
@@ -369,14 +434,16 @@ export async function createOrderForCustomer(
         }),
       };
 
-      // We use create() so we get a doc instance with methods (addAudit etc.)
+      // 4) Persist order (so we can run doc methods)
       const created = await Order.create([orderPayload], { session });
       orderDoc = created[0];
 
-      // 4) Link FarmerOrders with estimated kg for this order
-      for (const it of payload.items as PayloadItem[]) {
-        const line = byFO.get(String((it as any).farmerOrderId));
+      // 5) Link FarmerOrders with estimated kg for this order
+      for (const it of payload.items as any[]) {
+        const foIdStr = String((it as any).farmerOrderId);
+        const line = byFO.get(foIdStr);
         const n = normalizeItem(it, line);
+
         const estKg = computeEstimatedKgNormalized(n);
 
         await addOrderIdToFarmerOrder(
@@ -387,13 +454,13 @@ export async function createOrderForCustomer(
         );
       }
 
-      // 5) Init stageKey/stages and add audit "ORDER_CREATED"
+      // 6) Init stageKey/stages and add audit "ORDER_CREATED"
       initOrderStagesAndAudit(orderDoc, customerOID, payload.items.length);
 
-      // 6) Save orderDoc with stages + audit
+      // 7) Save orderDoc with stages + audit
       await orderDoc.save({ session });
 
-      // 7) Mint (or reuse) an order token/QR inside the same txn
+      // 8) Mint (or reuse) an order token/QR inside the same txn
       const qrDoc = await ensureOrderToken({
         orderId: orderDoc._id,
         createdBy: customerOID,
@@ -402,6 +469,7 @@ export async function createOrderForCustomer(
         issuer: customerOID,
         session,
       });
+
       orderQR = { token: qrDoc.token, sig: qrDoc.sig, scope: qrDoc.scope };
     });
 
@@ -414,6 +482,8 @@ export async function createOrderForCustomer(
     session.endSession();
   }
 }
+
+
 
 /** ============================================================================
  * LIST latest orders for a customer

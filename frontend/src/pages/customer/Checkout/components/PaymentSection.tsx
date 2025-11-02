@@ -19,7 +19,7 @@ import {
 import { usePayment } from "../hooks/usePayment";
 import CardForm from "./CardForm";
 import { type Address } from "@/types/address";
-import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+import type { CartLine as SharedCartLine } from "@/utils/market/marketCart.shared";
 
 /* ---------------------------------- types --------------------------------- */
 

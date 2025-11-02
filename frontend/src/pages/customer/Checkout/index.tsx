@@ -10,7 +10,7 @@ import PaymentSection from "./components/PaymentSection";
 import { PATHS } from "@/routes/paths";
 import {
   clearCart,
-} from "@/utils/marketCart.shared";
+} from "@/utils/market/marketCart.shared";
 
 export default function CheckoutPage() {
   const navigate = useNavigate();

@@ -15,7 +15,7 @@ import {
 import { FiShoppingCart } from "react-icons/fi";
 import type { MarketItem } from "@/types/market";
 import { MarketItemPage } from "./MarketItemPage";
-import { qtyToUnits } from "@/utils/marketUnits";
+import { qtyToUnits } from "@/utils/market/marketUnits";
 
 export type MarketItemCardProps = {
   item: MarketItem;

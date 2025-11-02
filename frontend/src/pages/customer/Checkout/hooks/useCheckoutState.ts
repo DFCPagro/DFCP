@@ -6,8 +6,8 @@ import {
   setCart as setSharedCart,
   clearCart as clearSharedCart,
   subscribeCart,
-} from "@/utils/marketCart.shared";
-import type { CartLine as SharedCartLine } from "@/utils/marketCart.shared";
+} from "@/utils/market/marketCart.shared";
+import type { CartLine as SharedCartLine } from "@/utils/market/marketCart.shared";
 
 import { AddressSchema, type Address } from "@/types/address";
 
