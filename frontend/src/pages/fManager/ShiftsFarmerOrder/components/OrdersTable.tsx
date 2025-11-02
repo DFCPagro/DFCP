@@ -38,6 +38,7 @@ export const OrdersTable = memo(function OrdersTable({
                     <Table.ColumnHeader>Orders</Table.ColumnHeader>
                     <Table.ColumnHeader>Product</Table.ColumnHeader>
                     <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    <Table.ColumnHeader>Actions</Table.ColumnHeader>
                 </Table.Row>
             </Table.Header>
             <Table.Body>

@@ -15,7 +15,10 @@ import {
     labelFor,
     type RawStage,
 } from "./farmerTimeline.helpers";
-import { FARMER_ORDER_STAGE_KEYS, type FarmerOrderStageKey } from "@/types/farmerOrders";
+import {
+    FARMER_ORDER_STAGE_KEYS,
+    type FarmerOrderStageKey,
+} from "@/types/farmerOrders";
 
 export type FarmerOrderTimelineProps = {
     /** Array of stage objects from the BE payload (can be loose/unknown-shaped) */
@@ -30,13 +33,51 @@ export type FarmerOrderTimelineProps = {
     /** Force-disable the advance action (e.g., terminal/problem) */
     disableAdvance?: boolean;
 
-    /** Compact layout (slightly tighter spacing) */
+    /**
+     * NEW meaning:
+     * - compact=false  => show ALL stages (old normal mode)
+     * - compact=true   => show ONLY [prev | current | next] (new shortened mode)
+     */
     compact?: boolean;
 };
 
+/** pick [prev, current, next] with sane edges (dedup + bounds) */
+function computeWindowedKeys(
+    all: ReadonlyArray<FarmerOrderStageKey>,   // <-- accept readonly
+    currentKey: FarmerOrderStageKey | null
+): FarmerOrderStageKey[] {
+    const arr = Array.from(all);               // <-- mutable copy
+    const n = arr.length;
+
+    if (!currentKey) {
+        return arr.slice(0, Math.min(3, n));
+    }
+
+    const i = arr.indexOf(currentKey);
+    if (i < 0) return arr.slice(0, Math.min(3, n));
+
+    if (i === 0) {
+        const k1 = arr[0];
+        const k2 = arr[1] ?? arr[0];
+        const k3 = arr[2] ?? arr[1] ?? arr[0];
+        return Array.from(new Set([k1, k2, k3]));
+    }
+
+    if (i === n - 1) {
+        const k3 = arr[n - 1];
+        const k2 = arr[n - 2] ?? k3;
+        const k1 = arr[n - 3] ?? k2 ?? k3;
+        return Array.from(new Set([k1, k2, k3]));
+    }
+
+    return [arr[i - 1], arr[i], arr[i + 1]];
+}
+
+
 /**
- * Renders the 8-stage Farmer Order timeline, using BE order + labels.
- * Shows per-step state (done/current/upcoming) and a right-aligned "Next stage" button.
+ * Renders the Farmer Order timeline.
+ * - compact=false => full rail (all stages)  ✅ (old behavior)
+ * - compact=true  => 3 steps only: prev | current | next ✅
  */
 export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
     stages,
@@ -51,19 +92,25 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
         [stages, stageKey]
     );
 
+    // Decide which keys we render:
+    const keysToRender = useMemo<FarmerOrderStageKey[]>(
+        () =>
+            compact
+                ? computeWindowedKeys(FARMER_ORDER_STAGE_KEYS, currentKey)
+                : Array.from(FARMER_ORDER_STAGE_KEYS),          // <-- clone the readonly const
+        [compact, currentKey]
+    );
+
+
     const canAdvance = !!onNextStage && !!nextKey && !disableAdvance;
 
     return (
-        <HStack
-            align="center"
-            justify="space-between"
-            gap={4}
-            py={compact ? 1 : 2}
-        >
+        <HStack align="center" justify="space-between" gap={4} py={compact ? 1 : 2}>
             {/* Timeline rail */}
             <HStack flex="1 1 auto" minW={0} overflowX="auto" gap={compact ? 2 : 3}>
-                {FARMER_ORDER_STAGE_KEYS.map((key, idx) => {
-                    const s = normalized[idx]; // normalized aligns to order
+                {keysToRender.map((key, renderIdx) => {
+                    const idx = FARMER_ORDER_STAGE_KEYS.indexOf(key); // normalized aligns to constants
+                    const s = normalized[idx];
                     const state = stepState(currentKey, key);
                     const label = labelFor(key, normalized);
 
@@ -71,8 +118,7 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                     const isCurrent = state === "current";
                     const isUpcoming = state === "upcoming";
 
-                    const circleBg =
-                        isDone ? "teal.500" : isCurrent ? "blue.500" : "fg.subtle";
+                    const circleBg = isDone ? "teal.500" : isCurrent ? "blue.500" : "fg.subtle";
                     const circleColor = isUpcoming ? "fg" : "whiteAlpha.900";
                     const railColor = isDone ? "teal.400" : isCurrent ? "blue.400" : "border.subtle";
 
@@ -110,12 +156,8 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                                             <Text fontWeight="semibold" fontSize="sm">
                                                 {label}
                                             </Text>
-                                            {s?.startedAt && (
-                                                <Text fontSize="xs">Started: {s.startedAt}</Text>
-                                            )}
-                                            {s?.completedAt && (
-                                                <Text fontSize="xs">Completed: {s.completedAt}</Text>
-                                            )}
+                                            {s?.startedAt && <Text fontSize="xs">Started: {s.startedAt}</Text>}
+                                            {s?.completedAt && <Text fontSize="xs">Completed: {s.completedAt}</Text>}
                                             {!s?.startedAt && !s?.completedAt && s?.timestamp && (
                                                 <Text fontSize="xs">Timestamp: {s.timestamp}</Text>
                                             )}
@@ -125,8 +167,8 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                                 </Tooltip.Positioner>
                             </Tooltip.Root>
 
-                            {/* Connector to next step (skip after last) */}
-                            {idx < FARMER_ORDER_STAGE_KEYS.length - 1 && (
+                            {/* Connector to next rendered step */}
+                            {renderIdx < keysToRender.length - 1 && (
                                 <Box
                                     flex="1 1 48px"
                                     minW={compact ? "28px" : "48px"}
@@ -139,39 +181,41 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                 })}
             </HStack>
 
-            {/* Advance button on the far right */}
+            {/* Advance button on the far right (kept same behavior: shows disabled at final) */}
             <Box flex="0 0 auto">
-                <Tooltip.Root disabled={canAdvance}>
-                    <Tooltip.Trigger asChild>
-                        <Box as="span">
-                            <Button
-                                size={compact ? "xs" : "sm"}
-                                variant="solid"
-                                colorPalette="blue"
-                                loading={isAdvancing}
-                                disabled={!canAdvance}
-                                aria-disabled={!canAdvance}
-                                aria-label={nextKey ? `Advance to ${labelFor(nextKey, normalized)}` : "Advance stage"}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (canAdvance && nextKey) onNextStage?.(nextKey);
-                                }}
-                            >
-                                Next stage
-                                <Icon as={FiArrowRight} ms="2" />
-                            </Button>
-
-                        </Box>
-                    </Tooltip.Trigger>
-                    <Tooltip.Positioner>
-                        <Tooltip.Content>
-                            {nextKey ? "You cannot advance this order right now." : "Already at final stage"}
-                            <Tooltip.Arrow />
-                        </Tooltip.Content>
-                    </Tooltip.Positioner>
-                </Tooltip.Root>
+                {nextKey && !disableAdvance && (
+                    <Tooltip.Root disabled={canAdvance}>
+                        <Tooltip.Trigger asChild>
+                            <Box as="span">
+                                <Button
+                                    size={compact ? "xs" : "sm"}
+                                    variant="solid"
+                                    colorPalette="blue"
+                                    loading={isAdvancing}
+                                    disabled={!canAdvance}
+                                    aria-disabled={!canAdvance}
+                                    aria-label={
+                                        nextKey ? `Advance to ${labelFor(nextKey, normalized)}` : "Advance stage"
+                                    }
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (canAdvance && nextKey) onNextStage?.(nextKey);
+                                    }}
+                                >
+                                    Next stage
+                                    <Icon as={FiArrowRight} ms="2" />
+                                </Button>
+                            </Box>
+                        </Tooltip.Trigger>
+                        <Tooltip.Positioner>
+                            <Tooltip.Content>
+                                You cannot advance this order right now.
+                                <Tooltip.Arrow />
+                            </Tooltip.Content>
+                        </Tooltip.Positioner>
+                    </Tooltip.Root>
+                )}
             </Box>
-
         </HStack>
     );
 });
