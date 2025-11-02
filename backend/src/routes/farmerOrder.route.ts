@@ -3,7 +3,7 @@ import { Router } from "express";
 import {
   create,
   updateFarmerStatus,
-  updateStageStatus,
+ 
   getFarmerOrdersUpcoming,
   getFarmerOrdersForShift,
   initContainersForFarmerOrder,
@@ -13,6 +13,9 @@ import {
 } from "../controllers/farmerOrder.controller";
 // import { listMyOrders, getOrderAndQrs } from "../controllers/ops.controller";
 import { authenticate, authorize } from "../middlewares/auth";
+import { patchFarmerOrderStage } from "../controllers/farmerOrderStages.controller";
+
+
 
 const router = Router();
 
@@ -33,8 +36,12 @@ router.get("/by-shift", authenticate, authorize("admin", "fManager"), getFarmerO
 // Writes
 router.post("/", authenticate, FM, create);
 router.patch("/:id/farmer-status", authenticate, FM, updateFarmerStatus);
-router.patch("/:id/stage", authenticate, FM, updateStageStatus);
-
+//router.patch("/:id/stage", authenticate, FM, updateStageStatus);
+router.patch(
+  "/:id/stage",
+  authorize("fManager", "admin"),
+  patchFarmerOrderStage
+);
 // Reads
 router.get("/", authenticate, FARMER_READS, listMyOrders);
 router.get("/:id/print", authenticate, FARMER_READS, getFarmerOrderAndQrs);

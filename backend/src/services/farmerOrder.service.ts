@@ -1,3 +1,4 @@
+// src/services/farmerOrder.service.ts
 import crypto from "node:crypto";
 import mongoose, { Types } from "mongoose";
 
@@ -13,7 +14,7 @@ import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
 import {
   addItemToAvailableMarketStock,
   findOrCreateAvailableMarketStock,
-} from "../services/availableMarketStock.service";
+} from "./availableMarketStock.service";
 
 import { ensureFarmerOrderToken, signPayload } from "./ops.service";
 import ApiError from "../utils/ApiError";
@@ -24,6 +25,16 @@ import {
   FARMER_ORDER_STAGE_LABELS,
   FarmerOrderStageKey,
 } from "../models/shared/stage.types";
+
+// ⬅ NEW: bring stage helpers from farmerOrderStages.service
+import {
+  isFarmerOrderProblem,
+  ensureFOStageEntry,
+  initFarmerOrderStagesAndAudit,
+  ensurePipelineOpen,
+} from "./farmerOrderStages.service";
+
+import type { AuthUser } from "./farmerOrderStages.service"; // ⬅ reuse same AuthUser
 
 /* =============================
  * Constants / helpers
@@ -46,87 +57,6 @@ const isYMD = (s: unknown) =>
 const nonEmpty = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
 type UserCtx = { userId: Types.ObjectId; role: string };
-
-export interface AuthUser {
-  id: string; // User._id string
-  role: "farmer" | "fManager" | "admin" | string;
-}
-
-/* -------------------------------- stage utils -------------------------------- */
-
-/**
- * FarmerOrder uses stageKey + stages[] just like Order.
- * We consider the FO "problem" if the current stage's status === "problem".
- */
-function isFarmerOrderProblem(fo: {
-  stageKey?: string;
-  stages?: Array<{ key?: string; status?: string }>;
-}): boolean {
-  if (!fo || !fo.stageKey || !Array.isArray(fo.stages)) return false;
-  const cur = fo.stages.find((s) => s && s.key === fo.stageKey);
-  return cur?.status === "problem";
-}
-
-/**
- * Ensure stages[] has an entry for this key.
- * Return a mutable reference.
- */
-function ensureFOStageEntry(doc: any, key: FarmerOrderStageKey) {
-  if (!Array.isArray(doc.stages)) doc.stages = [];
-  let st = doc.stages.find((s: any) => s?.key === key);
-  if (!st) {
-    st = {
-      key,
-      label: FARMER_ORDER_STAGE_LABELS[key] || key,
-      status: "pending",
-      expectedAt: null,
-      startedAt: null,
-      completedAt: null,
-      timestamp: new Date(),
-      note: "",
-    };
-    doc.stages.push(st);
-  }
-  return st;
-}
-
-/**
- * Initialize a brand-new FarmerOrder pipeline:
- *  - stageKey = "farmerAck"
- *  - that stage entry gets status="current"
- *  - audit "FARMER_ORDER_CREATED"
- *
- * We also keep farmerStatus="pending" for backward compatibility,
- * but dashboard "problem" should come from stages logic going forward.
- */
-function initFarmerOrderStagesAndAudit(doc: any, createdBy: Types.ObjectId) {
-  const now = new Date();
-  const firstKey: FarmerOrderStageKey = "farmerAck";
-
-  doc.stageKey = firstKey;
-
-  const st = ensureFOStageEntry(doc, firstKey);
-  st.status = "current";
-  st.timestamp = now;
-  if (!st.startedAt) st.startedAt = now;
-
-  doc.farmerStatus = "pending"; // legacy status snapshot
-
-  doc.addAudit(createdBy, "FARMER_ORDER_CREATED", "Farmer order created", {});
-}
-
-/**
- * STOP advancing stages if pipeline is halted (problem).
- * We now derive problem from stages, not farmerStatus.
- */
-export function ensurePipelineOpen(order: any) {
-  if (isFarmerOrderProblem(order)) {
-    const e: any = new Error("Forbidden");
-    e.name = "Forbidden";
-    e.details = ["Pipeline is halted due to a problem in current stage"];
-    throw e;
-  }
-}
 
 /* =============================
  * CREATE FarmerOrder (txn + FO QR)
@@ -220,7 +150,7 @@ export async function createFarmerOrderService(
         pickUpDate: payload.pickUpDate,
         logisticCenterId: toOID(STATIC_LC_ID),
 
-        // we'll keep farmerStatus for now, but real status is stages[]
+        // legacy
         farmerStatus: "pending",
 
         sumOrderedQuantityKg:
@@ -238,7 +168,7 @@ export async function createFarmerOrderService(
         historyAuditTrail: [],
       });
 
-      // init pipeline & audit
+      // ⬅ use imported helper to set first stage + audit
       initFarmerOrderStagesAndAudit(doc, createdBy);
 
       await doc.validate();
@@ -576,7 +506,10 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
     }
 
     const pricePerUnit = Number(
-      itemDoc?.price?.a ?? (itemDoc as any)?.priceA ?? itemDoc?.price?.kg ?? NaN
+      itemDoc?.price?.a ??
+        (itemDoc as any)?.priceA ??
+        itemDoc?.price?.kg ??
+        NaN
     );
     if (!Number.isFinite(pricePerUnit) || pricePerUnit < 0) {
       const e: any = new Error("BadRequest");
@@ -681,12 +614,14 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       note: note ?? "HALT: farmer reported problem",
     });
 
-    // ensure farmerAck stage is now marked as "problem" and is current stageKey
+    // ensure farmerAck stage exists and flag it as "problem"
     const st = ensureFOStageEntry(order, "farmerAck");
+    const now = new Date();
     st.status = "problem";
-    st.timestamp = new Date();
-    if (!st.startedAt) st.startedAt = new Date();
+    st.timestamp = now;
+    if (!st.startedAt) st.startedAt = now;
     if (note) st.note = note;
+
     order.stageKey = "farmerAck";
 
     order.addAudit(
@@ -705,153 +640,6 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       newStatus: "pending",
       byRole: user.role,
     });
-  }
-
-  await order.save();
-  return order.toJSON();
-}
-
-/* =============================
- * Stage updates (admin/fManager)
- * ============================= */
-/* =============================
- * Stage updates (admin/fManager)
- * ============================= */
-
-type StageAction = "setCurrent" | "ok" | "done" | "problem";
-
-interface UpdateStageArgs {
-  farmerOrderId: string;
-  key: string; // should be FarmerOrderStageKey, but we'll accept string input
-  action: StageAction;
-  note?: string;
-  user: AuthUser;
-}
-
-/**
- * Make sure the FarmerOrder has a stage entry for `stageKey`.
- * If missing, we create a minimal one so we can safely mark it "problem".
- * Returns the stage subdoc reference.
- */
-
-export async function updateStageStatusService(args: UpdateStageArgs) {
-  const { farmerOrderId, key, action, note, user } = args;
-
-  // --- basic validation / ACL ---
-  if (!mongoose.isValidObjectId(farmerOrderId)) {
-    const e: any = new Error("BadRequest");
-    e.name = "BadRequest";
-    e.details = ["Invalid farmer order id"];
-    throw e;
-  }
-
-  if (!["fManager", "admin"].includes(user.role)) {
-    const e: any = new Error("Forbidden");
-    e.name = "Forbidden";
-    e.details = ["Only fManager or admin can update stages"];
-    throw e;
-  }
-
-  // --- load order ---
-  const order = await FarmerOrder.findById(farmerOrderId);
-  if (!order) {
-    const e: any = new Error("NotFound");
-    e.name = "NotFound";
-    e.details = ["Farmer order not found"];
-    throw e;
-  }
-
-  // if the farmer has flagged "problem", pipeline is halted.
-  // we allow explicitly setting "problem" (to escalate/label the stage)
-  // but we block forward progress ("setCurrent", "ok", "done").
-  if (action !== "problem") {
-    ensurePipelineOpen(order);
-  }
-
-  order.updatedBy = toOID(user.id);
-  order.updatedAt = new Date();
-
-  // Stage reference if it already exists
-  const existingStage: any = (order.stages as any[])?.find(
-    (s: any) => s?.key === key
-  );
-
-  // If we're not setting a stage current, and it's not "problem",
-  // and there's no such stage... that's invalid.
-  if (!existingStage && action !== "setCurrent" && action !== "problem") {
-    const e: any = new Error("BadRequest");
-    e.name = "BadRequest";
-    e.details = [`Stage not found: ${key}`];
-    throw e;
-  }
-
-  // We'll reuse this cast a few times so TS doesn't scream.
-  const keyAsStageKey = key as FarmerOrderStageKey;
-
-  switch (action) {
-    case "setCurrent": {
-      // move pipeline focus to this stage
-      order.setStageCurrent(keyAsStageKey, order.updatedBy as any, {
-        note,
-      });
-
-      // reflect active stage at top level (dashboard shortcut)
-      (order as any).stageKey = keyAsStageKey;
-
-      // audit
-      order.addAudit(order.updatedBy as any, "STAGE_SET_CURRENT", note ?? "", {
-        key,
-        byRole: user.role,
-      });
-      break;
-    }
-
-    case "ok": {
-      order.markStageOk(keyAsStageKey, order.updatedBy as any, { note });
-
-      // audit
-      order.addAudit(order.updatedBy as any, "STAGE_SET_OK", note ?? "", {
-        key,
-        byRole: user.role,
-      });
-      break;
-    }
-
-    case "done": {
-      order.markStageDone(keyAsStageKey, order.updatedBy as any, { note });
-
-      // audit
-      order.addAudit(order.updatedBy as any, "STAGE_MARK_DONE", note ?? "", {
-        key,
-        byRole: user.role,
-      });
-      break;
-    }
-
-    case "problem": {
-      // Mark/ensure the stage and flag it as "problem"
-      const st = ensureFOStageEntry(order, keyAsStageKey);
-      const now = new Date();
-
-      st.status = "problem";
-      st.timestamp = now;
-      if (!st.startedAt) st.startedAt = now;
-      if (note) st.note = note;
-
-      // this stage is now the main focus for ops dashboards
-      (order as any).stageKey = keyAsStageKey;
-
-      // audit
-      order.addAudit(order.updatedBy as any, "STAGE_SET_PROBLEM", note ?? "", {
-        key,
-        byRole: user.role,
-      });
-      break;
-    }
-
-    default: {
-      throw new ApiError(400, "Unknown stage action");
-    }
   }
 
   await order.save();
@@ -989,7 +777,7 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
   ) => {
     const countAll = docs.length;
 
-    // new definition of "problem": active stage.status === "problem"
+    // NEW definition of "problem": active stage.status === "problem"
     const problemDocs = docs.filter((d) => isFarmerOrderProblem(d));
     const problemCount = problemDocs.length;
 
@@ -997,7 +785,7 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
     const okDocs = docs.filter((d) => d.farmerStatus === "ok");
     const pendingDocs = docs.filter((d) => d.farmerStatus === "pending");
     const legacyProblemDocs = docs.filter((d) => d.farmerStatus === "problem");
-    //stage.status if the current one is "problem" 
+    // stage.status if the current one is "problem"
     const okFO = okDocs.length;
     const pendingFO = pendingDocs.length;
     const problemFO = legacyProblemDocs.length;
