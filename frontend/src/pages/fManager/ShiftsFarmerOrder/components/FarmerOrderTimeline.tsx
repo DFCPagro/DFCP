@@ -72,9 +72,9 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                     const isUpcoming = state === "upcoming";
 
                     const circleBg =
-                        isDone ? "teal.500" : isCurrent ? "red.500" : "fg.subtle";
+                        isDone ? "teal.500" : isCurrent ? "blue.500" : "fg.subtle";
                     const circleColor = isUpcoming ? "fg" : "whiteAlpha.900";
-                    const railColor = isDone ? "teal.400" : isCurrent ? "red.400" : "border.subtle";
+                    const railColor = isDone ? "teal.400" : isCurrent ? "blue.400" : "border.subtle";
 
                     const hasTimestamps = !!(s?.startedAt || s?.completedAt || s?.timestamp);
 
@@ -91,8 +91,8 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                                             borderRadius="full"
                                             bg={circleBg}
                                             color={circleColor}
-                                            borderWidth={isUpcoming ? "1px" : 0}
-                                            borderColor={isUpcoming ? "border" : "transparent"}
+                                            borderWidth={isCurrent ? "16px" : 0}
+                                            borderColor={isCurrent ? "blue.400" : "transparent"}
                                         />
                                         <Text
                                             fontSize={compact ? "xs" : "sm"}
@@ -150,6 +150,8 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                                 colorPalette="blue"
                                 loading={isAdvancing}
                                 disabled={!canAdvance}
+                                aria-disabled={!canAdvance}
+                                aria-label={nextKey ? `Advance to ${labelFor(nextKey, normalized)}` : "Advance stage"}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (canAdvance && nextKey) onNextStage?.(nextKey);
@@ -158,6 +160,7 @@ export const FarmerOrderTimeline = memo(function FarmerOrderTimeline({
                                 Next stage
                                 <Icon as={FiArrowRight} ms="2" />
                             </Button>
+
                         </Box>
                     </Tooltip.Trigger>
                     <Tooltip.Positioner>

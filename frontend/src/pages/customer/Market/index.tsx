@@ -29,7 +29,6 @@ import type { MarketItem } from "@/types/market";
 import { getCustomerAddresses } from "@/api/market";
 
 import { useUnitPref } from "@/hooks/useUnitPref";
-import { qtyToUnits, effectiveUnitForItem } from "@/utils/market/marketUnits";
 
 /* -------------------------------- helpers -------------------------------- */
 
@@ -371,11 +370,11 @@ export default function MarketPage() {
               totalPages={totalPages}
               totalItems={totalItems}
               onPageChange={handlePageChange}
-  onAdd={({ item, qty }) => {
-    // qty is ALREADY in UNITS from children (card/page).
-    const unitsToAdd = Math.max(1, Math.min(50, Math.floor(Number(qty) || 1)));
-    addToCart(item, unitsToAdd);
-  }}
+              onAdd={({ item, qty }) => {
+                // qty is ALREADY in UNITS from children (card/page).
+                const unitsToAdd = Math.max(1, Math.min(50, Math.floor(Number(qty) || 1)));
+                addToCart(item, unitsToAdd);
+              }}
               allItemsForRelated={allItems}
             />
           </>

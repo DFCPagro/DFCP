@@ -66,10 +66,10 @@ export const OrderRow = memo(function OrderRow({
         (record as any)?.farmer?.farmName ||
         "—";
 
-    let stages = (record as any)?.stages as unknown[] | undefined;
     const stageKey = (record as any)?.stageKey as string | null | undefined;
     const orderId = (record as any)?._id as string;
     const colSpan = getColSpan(variant);
+    const ordersKG = (record as any)?.sumOrderedQuantityKg;
 
     // wire the advance-stage hook
     const { mutate: advanceStage, isPending: isAdvancing } = useAdvanceFarmerOrderStage();
@@ -114,7 +114,7 @@ export const OrderRow = memo(function OrderRow({
                 <Table.Cell>
                     <VStack align="start" gap="0">
                         <Text fontWeight="semibold">
-                            {(record as any)?.orders?.length ?? 0} orders
+                            {(record as any)?.orders?.length ?? 0} orders ({ordersKG} kg)
                         </Text>
                     </VStack>
                 </Table.Cell>
@@ -169,7 +169,6 @@ export const OrderRow = memo(function OrderRow({
                         <Box px="4" py="3" bg="bg.subtle" borderTopWidth="1px" borderColor="border">
                             <FarmerOrderTimeline
                                 stages={(row as any)?.stages}
-
                                 stageKey={(row as any)?.stageKey}
                                 compact
                                 isAdvancing={isAdvancing}
@@ -180,7 +179,6 @@ export const OrderRow = memo(function OrderRow({
                                         key: nextKey,
                                         action: "setCurrent",
                                     });
-
                                 }}
                             />
                         </Box>
