@@ -13,7 +13,7 @@ import {
   patchContainerWeightsService,
 } from "../services/farmerOrder.service";
 
-import type { AuthUser } from "../services/farmerOrder.service";
+import type { AuthUser } from "../services/farmerOrderStages.service";
 
 /** POST /api/farmer-orders */
 export async function create(req: Request, res: Response) {
@@ -29,9 +29,7 @@ export async function create(req: Request, res: Response) {
         .status(400)
         .json({ error: "Validation failed", details: err.details });
     if (err?.name === "Forbidden")
-      return res
-        .status(403)
-        .json({ error: "Forbidden", details: err.details });
+      return res.status(403).json({ error: "Forbidden", details: err.details });
     if (err?.name === "ValidationError")
       return res
         .status(400)
@@ -72,9 +70,7 @@ export async function initContainersForFarmerOrder(
     return res.status(201).json({ data });
   } catch (err: any) {
     if (err?.status === 403 || err?.name === "Forbidden")
-      return res
-        .status(403)
-        .json({ error: "Forbidden", details: err.details });
+      return res.status(403).json({ error: "Forbidden", details: err.details });
     if (err?.status === 404 || err?.name === "NotFound")
       return res.status(404).json({ error: "FarmerOrder not found" });
     if (err?.status === 400 || err?.name === "BadRequest")
@@ -116,9 +112,7 @@ export async function updateContainerWeights(req: Request, res: Response) {
     return res.status(200).json({ data });
   } catch (err: any) {
     if (err?.status === 403 || err?.name === "Forbidden")
-      return res
-        .status(403)
-        .json({ error: "Forbidden", details: err.details });
+      return res.status(403).json({ error: "Forbidden", details: err.details });
     if (err?.status === 404 || err?.name === "NotFound")
       return res.status(404).json({ error: "FarmerOrder not found" });
     if (err?.status === 400 || err?.name === "BadRequest")
@@ -160,13 +154,9 @@ export async function updateFarmerStatus(req: Request, res: Response) {
         .status(400)
         .json({ error: "Validation failed", details: err.details });
     if (err?.name === "Forbidden")
-      return res
-        .status(403)
-        .json({ error: "Forbidden", details: err.details });
+      return res.status(403).json({ error: "Forbidden", details: err.details });
     if (err?.name === "NotFound")
-      return res
-        .status(404)
-        .json({ error: "Not Found", details: err.details });
+      return res.status(404).json({ error: "Not Found", details: err.details });
     if (err?.name === "ValidationError")
       return res
         .status(400)
@@ -198,9 +188,7 @@ export async function getFarmerOrdersUpcoming(req: Request, res: Response) {
       (req as any).user?.logisticCenterId ||
       "";
     if (!logisticCenterId)
-      return res
-        .status(400)
-        .json({ message: "logisticCenterId is required" });
+      return res.status(400).json({ message: "logisticCenterId is required" });
 
     const count = parseInt(String(req.query.count ?? "5"), 10) || 5;
     const data = await farmerOrdersSummary({ logisticCenterId, count });
@@ -222,9 +210,7 @@ export async function getFarmerOrdersForShift(req: Request, res: Response) {
       (req as any).user?.logisticCenterId ||
       "";
     if (!logisticCenterId)
-      return res
-        .status(400)
-        .json({ message: "logisticCenterId is required" });
+      return res.status(400).json({ message: "logisticCenterId is required" });
 
     const date = String(req.query.date || "");
     const shiftName = String(req.query.shiftName || "");
@@ -304,9 +290,7 @@ export async function getFarmerOrderAndQrs(req: Request, res: Response) {
 
     const foId = String(req.params.id || "");
     if (!foId)
-      return res
-        .status(400)
-        .json({ error: "FarmerOrder id is required" });
+      return res.status(400).json({ error: "FarmerOrder id is required" });
 
     const data = await ensureFarmerOrderPrintPayloadService({
       farmerOrderId: foId,
