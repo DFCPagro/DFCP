@@ -60,5 +60,6 @@ router.use("/users", userRoutes);
 router.use("/pick-tasks", pickTaskRoutes);
 router.use("/containers", reconciliationRoutes);
 router.use("/farmer-inventory", farmerInventoryRoutes);
+router.use("/jobApp", jobApplicationRouter);
 
 export default router;

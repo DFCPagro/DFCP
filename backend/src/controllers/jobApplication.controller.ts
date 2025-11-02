@@ -8,12 +8,36 @@ import {
   updateStatus,
   updateMeta,
 } from "../services/jobApplication.service";
+import type { Role } from "../utils/constants";
 
-/** ---------------------------
- *  Helpers
- * -------------------------- */
-function isStaffOrAdmin(role?: string) {
-  return role === "admin" || role === "staff";
+type ApplicationRole =
+  | "farmer"
+  | "deliverer"
+  | "industrialDeliverer"
+  | "picker"
+  | "sorter";
+
+// Map which application roles each manager is allowed to view
+const MANAGER_TO_APP_ROLES: Partial<Record<Role, readonly ApplicationRole[]>> =
+  {
+    fManager: ["farmer"],
+    tManager: ["deliverer", "industrialDeliverer"],
+    // add others later (opManager, csManager, etc.)
+  };
+/** Manager roles in the system */
+const MANAGER_ROLES = [
+  "tManager",
+  "fManager",
+  "opManager",
+  "csManager",
+  "admin",
+] as const;
+/** Fast lookup at runtime */
+const MANAGER_SET = new Set<string>(MANAGER_ROLES);
+
+/** True if the role is any manager */
+export function isStaffOrAdmin(role?: string | null): role is Role {
+  return typeof role === "string" && MANAGER_SET.has(role);
 }
 
 function getUser(req: Request): { id: string; role?: string } {
@@ -48,13 +72,17 @@ export async function create(req: Request, res: Response, next: NextFunction) {
  *  GET /api/admin/job-applications
  *  (admin/staff list with filters)
  * -------------------------- */
-export async function adminList(req: Request, res: Response, next: NextFunction) {
+export async function adminList(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
-    const { role } = getUser(req);
-    if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");
+    const { role: viewerRole } = getUser(req);
+    if (!isStaffOrAdmin(viewerRole)) throw new ApiError(403, "Forbidden");
 
     const {
-      role: appliedRole,
+      role: requestedRole,
       status,
       user,
       logisticCenterId,
@@ -66,9 +94,38 @@ export async function adminList(req: Request, res: Response, next: NextFunction)
       includeUser = "false",
     } = req.query as Record<string, string | undefined>;
 
+    // Determine effective role filter based on viewer role
+    let effectiveRole: string | string[] | undefined = requestedRole;
+
+    if (viewerRole !== "admin" && isStaffOrAdmin(viewerRole)) {
+      const allowed = MANAGER_TO_APP_ROLES[viewerRole as Role];
+
+      // If the manager isn't in our map yet, block by default (or relax if you prefer).
+      if (!allowed || allowed.length === 0) {
+        throw new ApiError(
+          403,
+          "Forbidden: no allowed roles configured for your manager role"
+        );
+      }
+
+      if (requestedRole) {
+        // Manager tried to pick a role; it must be allowed
+        if (!allowed.includes(requestedRole as ApplicationRole)) {
+          throw new ApiError(
+            403,
+            "Forbidden: role filter not permitted for your manager role"
+          );
+        }
+        effectiveRole = requestedRole; // allowed explicit filter
+      } else {
+        // No query filter → restrict to all allowed roles for this manager
+        effectiveRole = allowed as string[];
+      }
+    }
+
     const { items, total } = await listApplications(
       {
-        role: appliedRole as any,
+        role: effectiveRole as any, // string | string[]
         status: status as any,
         user,
         logisticCenterId,
@@ -98,7 +155,11 @@ export async function adminList(req: Request, res: Response, next: NextFunction)
  *  GET /api/admin/job-applications/:id
  *  (admin/staff read single)
  * -------------------------- */
-export async function adminRead(req: Request, res: Response, next: NextFunction) {
+export async function adminRead(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
     const { role } = getUser(req);
     if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");
@@ -117,7 +178,11 @@ export async function adminRead(req: Request, res: Response, next: NextFunction)
  *  PATCH /api/admin/job-applications/:id/status
  *  (admin/staff status change)
  * -------------------------- */
-export async function adminPatchStatus(req: Request, res: Response, next: NextFunction) {
+export async function adminPatchStatus(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
     const { id: actorId, role } = getUser(req);
     if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");
@@ -143,7 +208,11 @@ export async function adminPatchStatus(req: Request, res: Response, next: NextFu
  *  (admin/staff meta updates — e.g., center)
  *  Note: status changes must go through /:id/status
  * -------------------------- */
-export async function adminPatchMeta(req: Request, res: Response, next: NextFunction) {
+export async function adminPatchMeta(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
     const { role } = getUser(req);
     if (!isStaffOrAdmin(role)) throw new ApiError(403, "Forbidden");

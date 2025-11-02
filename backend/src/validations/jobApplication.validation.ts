@@ -12,7 +12,8 @@ const MAX_LIMIT = 100; // local cap
 const OPTIONAL_TRIMMED_STRING = (field: string, min = 1, max = 200) =>
   body(field)
     .optional({ nullable: true })
-    .isString().withMessage(`${field} must be a string`)
+    .isString()
+    .withMessage(`${field} must be a string`)
     .bail()
     .trim()
     .isLength({ min, max })
@@ -22,10 +23,16 @@ const OPTIONAL_TRIMMED_STRING = (field: string, min = 1, max = 200) =>
  * Accepts "createdAt", "updatedAt", "status", "appliedRole"
  * Optional leading "-" for desc.
  */
-const SORT_FIELD_WHITELIST = ["createdAt", "updatedAt", "status", "appliedRole"] as const;
+const SORT_FIELD_WHITELIST = [
+  "createdAt",
+  "updatedAt",
+  "status",
+  "appliedRole",
+] as const;
 const sortQueryValidation = query("sort")
   .optional({ nullable: true })
-  .isString().withMessage("sort must be a string")
+  .isString()
+  .withMessage("sort must be a string")
   .bail()
   .trim()
   .custom((val: string) => {
@@ -33,7 +40,9 @@ const sortQueryValidation = query("sort")
     return (SORT_FIELD_WHITELIST as readonly string[]).includes(field);
   })
   .withMessage(
-    `sort must be one of: ${SORT_FIELD_WHITELIST.join(", ")} (prefix with "-" for descending)`
+    `sort must be one of: ${SORT_FIELD_WHITELIST.join(
+      ", "
+    )} (prefix with "-" for descending)`
   );
 
 /* ------------------------- Reusable validators ------------------------- */
@@ -61,7 +70,9 @@ export const createJobApplicationValidation = [
     .withMessage("appliedRole is required")
     .bail()
     .isIn(jobApplicationRoles as unknown as string[])
-    .withMessage(`appliedRole must be one of: ${jobApplicationRoles.join(", ")}`),
+    .withMessage(
+      `appliedRole must be one of: ${jobApplicationRoles.join(", ")}`
+    ),
 
   body("applicationData")
     .exists()
@@ -79,7 +90,8 @@ export const createJobApplicationValidation = [
 
   body("contactEmail")
     .optional({ nullable: true })
-    .isString().withMessage("contactEmail must be a string")
+    .isString()
+    .withMessage("contactEmail must be a string")
     .bail()
     .trim()
     .isEmail()
@@ -87,18 +99,22 @@ export const createJobApplicationValidation = [
 
   body("contactPhone")
     .optional({ nullable: true })
-    .isString().withMessage("contactPhone must be a string")
+    .isString()
+    .withMessage("contactPhone must be a string")
     .bail()
     .trim()
     .isLength({ min: 6, max: 30 })
     .withMessage("contactPhone must be between 6 and 30 characters"),
 
-  body("status").not().exists().withMessage("status cannot be set by applicant"),
+  body("status")
+    .not()
+    .exists()
+    .withMessage("status cannot be set by applicant"),
 ];
 
 /* ----------------------------- Admin list ----------------------------- */
 /**
- * GET /api/admin/job-applications
+ * GET /api/manager/job-applications
  * Admin-only listing with filters & pagination
  */
 export const adminListJobApplicationsValidation = [
@@ -147,7 +163,7 @@ export const adminListJobApplicationsValidation = [
 
 /* ------------------------- Admin status update ------------------------ */
 /**
- * PATCH /api/admin/job-applications/:id/status
+ * PATCH /api/manager/job-applications/:id/status
  * Admin-only status changes.
  * (Transition validity is enforced in service)
  */
@@ -175,7 +191,7 @@ export const adminStatusUpdateValidation = [
 
 /* --------------------------- Admin edit fields ------------------------ */
 /**
- * PATCH /api/admin/job-applications/:id
+ * PATCH /api/manager/job-applications/:id
  * Non-status field edits by admins (e.g., correcting contact info, role, center).
  */
 export const adminUpdateJobApplicationValidation = [
@@ -185,7 +201,8 @@ export const adminUpdateJobApplicationValidation = [
 
   body("contactEmail")
     .optional({ nullable: true })
-    .isString().withMessage("contactEmail must be a string")
+    .isString()
+    .withMessage("contactEmail must be a string")
     .bail()
     .trim()
     .isEmail()
@@ -193,7 +210,8 @@ export const adminUpdateJobApplicationValidation = [
 
   body("contactPhone")
     .optional({ nullable: true })
-    .isString().withMessage("contactPhone must be a string")
+    .isString()
+    .withMessage("contactPhone must be a string")
     .bail()
     .trim()
     .isLength({ min: 6, max: 30 })
@@ -202,7 +220,9 @@ export const adminUpdateJobApplicationValidation = [
   body("appliedRole")
     .optional({ nullable: true })
     .isIn(jobApplicationRoles as unknown as string[])
-    .withMessage(`appliedRole must be one of: ${jobApplicationRoles.join(", ")}`),
+    .withMessage(
+      `appliedRole must be one of: ${jobApplicationRoles.join(", ")}`
+    ),
 
   body("logisticCenterId")
     .optional({ nullable: true })

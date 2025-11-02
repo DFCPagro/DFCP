@@ -9,7 +9,6 @@ import type {
   JobApplicationCreateInput,
 } from "@/types/jobApplications";
 
-
 function toIso(v: string | Date | undefined): string | undefined {
   if (v == null) return undefined;
   return v instanceof Date ? v.toISOString() : v;
@@ -24,16 +23,14 @@ function prune<T extends object>(obj: T): T {
   return out as T;
 }
 
-
 const BASE = "/jobApp";
-
 
 /* =========================
  * API
  * ======================= */
 
 /**
- * GET /job-applications/admin
+ * GET /job-applications/manager
  * List job applications with server-side pagination & filtering.
  */
 export async function listJobApplications(
@@ -53,14 +50,14 @@ export async function listJobApplications(
   });
 
   const { data }: AxiosResponse<Paginated<JobApplicationDTO>> = await api.get(
-    `${BASE}/admin`,
+    `${BASE}/manager`,
     { params: query }
   );
   return data;
 }
 
 /**
- * PATCH /job-applications/admin/:id/status
+ * PATCH /job-applications/manager/:id/status
  * Update application status (pending→contacted/approved/denied; contacted→approved/denied).
  */
 export async function patchJobApplicationStatus(
@@ -75,7 +72,7 @@ export async function patchJobApplicationStatus(
   });
 
   const { data }: AxiosResponse<JobApplicationDTO> = await api.patch(
-    `${BASE}/admin/${id}/status`,
+    `${BASE}/manager/${id}/status`,
     body
   );
   return data;
@@ -87,7 +84,9 @@ export async function createJobApplication(
   payload: JobApplicationCreateInput
 ): Promise<JobApplicationDTO> {
   const body = prune(payload); // drop top-level undefined; keep nulls
-  const { data }: AxiosResponse<JobApplicationDTO> = await api.post(`${BASE}`, body);
+  const { data }: AxiosResponse<JobApplicationDTO> = await api.post(
+    `${BASE}`,
+    body
+  );
   return data;
 }
-
