@@ -98,6 +98,7 @@ function initOrderStagesAndAudit(orderDoc: any, customerOID: Types.ObjectId, ite
   const st = ensureStageEntry(orderDoc, firstStageKey);
   st.status = "current";
   st.timestamp = now;
+  
   if (!st.startedAt) st.startedAt = now;
   // completedAt stays null
 
@@ -703,3 +704,5 @@ export async function listOrdersForShift(params: {
     items,
   };
 }
+
+

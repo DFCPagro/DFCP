@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authenticate, authorize } from "../middlewares/auth";
 import * as ctrl from "../controllers/orders.controller";
 import { postPackOrder } from "../controllers/packing.controller"; // ⬅️ add this
+import { postUpdateOrderStage } from "../controllers/orderStages.controller";
 
 const router = Router();
 
@@ -24,5 +25,8 @@ router.get(
 
 
 router.post("/:id/pack", authorize("admin", "csManager", "tManager"), postPackOrder); // ⬅️ add
+
+router.patch("/:orderId/stage", authorize("admin", "csManager", "tManager"), postUpdateOrderStage);
+
 
 export default router;

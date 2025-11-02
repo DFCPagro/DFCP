@@ -61,7 +61,7 @@ export const ORDER_STAGE_DEFS = [
   { key: "ready_for_pickUp",   label: "Ready for Pickup" },
   { key: "out_for_delivery",   label: "Out for Delivery" },
   { key: "delivered",          label: "Delivered" },
-  { key: "received",           label: "Received by Customer" },
+  { key: "received",           label: "Received" },
   { key: "canceled",           label: "Canceled" },
 ] as const;
 
