@@ -14,47 +14,18 @@
     "maxSlots": 3,
     "maxWeightKg": 180,
     "slots": [
-      {
-        "slotId": "1",
-        "capacityKg": 60,
-        "currentWeightKg": 0,
-        "containerOpsId": null,
-        "occupiedAt": null,
-        "emptiedAt": null,
-        "liveActiveTasks": 0,
-        "lastTaskPingAt": null
-      },
-      {
-        "slotId": "2",
-        "capacityKg": 60,
-        "currentWeightKg": 0,
-        "containerOpsId": null,
-        "occupiedAt": null,
-        "emptiedAt": null,
-        "liveActiveTasks": 0,
-        "lastTaskPingAt": null
-      },
-      {
-        "slotId": "3",
-        "capacityKg": 60,
-        "currentWeightKg": 20,
-        "containerOpsId": "66f2bb0000000000000000a2",
-        "occupiedAt": "2025-10-14T09:35:00.000Z",
-        "emptiedAt": null,
-        "liveActiveTasks": 0,
-        "lastTaskPingAt": null
-      }
+      { "slotId": "1", "capacityKg": 60, "currentWeightKg": 0, "containerOpsId": null, "occupiedAt": null, "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "2", "capacityKg": 60, "currentWeightKg": 0, "containerOpsId": null, "occupiedAt": null, "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "3", "capacityKg": 60, "currentWeightKg": 20, "containerOpsId": "66f2bb0000000000000000a2", "occupiedAt": "2025-10-14T09:35:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null }
     ],
     "currentWeightKg": 20,
     "occupiedSlots": 1,
     "liveActiveTasks": 0,
-    "lastTaskPingAt": null,
     "busyScore": 0,
     "isTemporarilyAvoid": false,
     "createdAt": "2025-10-14T09:30:00.000Z",
     "updatedAt": "2025-10-14T09:35:00.000Z"
   },
-
   {
     "_id": "66e0070000000000000aaa01",
     "logisticCenterId": "66e007000000000000000001",
@@ -70,47 +41,18 @@
     "maxSlots": 3,
     "maxWeightKg": 180,
     "slots": [
-      {
-        "slotId": "1",
-        "capacityKg": 60,
-        "currentWeightKg": 60,
-        "containerOpsId": "66f2bb0000000000000000a3",
-        "occupiedAt": "2025-10-14T09:45:00.000Z",
-        "emptiedAt": null,
-        "liveActiveTasks": 0,
-        "lastTaskPingAt": null
-      },
-      {
-        "slotId": "2",
-        "capacityKg": 60,
-        "currentWeightKg": 0,
-        "containerOpsId": null,
-        "occupiedAt": null,
-        "emptiedAt": null,
-        "liveActiveTasks": 0,
-        "lastTaskPingAt": null
-      },
-      {
-        "slotId": "3",
-        "capacityKg": 60,
-        "currentWeightKg": 0,
-        "containerOpsId": null,
-        "occupiedAt": null,
-        "emptiedAt": null,
-        "liveActiveTasks": 0,
-        "lastTaskPingAt": null
-      }
+      { "slotId": "1", "capacityKg": 60, "currentWeightKg": 60, "containerOpsId": "66f2bb0000000000000000a3", "occupiedAt": "2025-10-14T09:45:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "2", "capacityKg": 60, "currentWeightKg": 0, "containerOpsId": null, "occupiedAt": null, "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "3", "capacityKg": 60, "currentWeightKg": 0, "containerOpsId": null, "occupiedAt": null, "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null }
     ],
     "currentWeightKg": 60,
     "occupiedSlots": 1,
     "liveActiveTasks": 0,
-    "lastTaskPingAt": null,
     "busyScore": 0,
     "isTemporarilyAvoid": false,
     "createdAt": "2025-10-14T09:30:00.000Z",
     "updatedAt": "2025-10-14T09:45:00.000Z"
   },
-
   {
     "_id": "66e0070000000000000aaa02",
     "logisticCenterId": "66e007000000000000000001",
@@ -126,10 +68,44 @@
     "maxSlots": 3,
     "maxWeightKg": 180,
     "slots": [
+      { "slotId": "1", "capacityKg": 60, "currentWeightKg": 0, "containerOpsId": null, "occupiedAt": null, "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "2", "capacityKg": 60, "currentWeightKg": 0, "containerOpsId": null, "occupiedAt": null, "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "3", "capacityKg": 60, "currentWeightKg": 0, "containerOpsId": null, "occupiedAt": null, "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null }
+    ],
+    "currentWeightKg": 0,
+    "occupiedSlots": 0,
+    "liveActiveTasks": 0,
+    "busyScore": 0,
+    "isTemporarilyAvoid": false,
+    "createdAt": "2025-10-14T09:30:00.000Z",
+    "updatedAt": "2025-10-14T09:30:00.000Z"
+  },
+  {
+    "_id": "66e0070000000000000ddd01",
+    "logisticCenterId": "66e007000000000000000001",
+    "shelfId": "DLV-01",
+    "type": "delivery",
+    "zone": "D",
+    "aisle": "L1",
+    "level": "staging",
+    "row": 2,
+    "col": 1,
+    "canvasX": 40,
+    "canvasY": 0,
+    "isDeliveryShelf": true,
+    "assignedDelivererId": "64fa1b9f0000000000001234",
+    "maxSlots": 2,
+    "maxWeightKg": 200,
+    "slots": [
       {
-        "slotId": "1",
-        "capacityKg": 60,
+        "slotId": "A1",
+        "capacityKg": 120,
+        "maxPackages": 10,
         "currentWeightKg": 0,
+        "currentPackages": 0,
+        "packages": [],
+        "delivererId": "64fa1b9f0000000000001234",
+        "allowedOccupant": "package",
         "containerOpsId": null,
         "occupiedAt": null,
         "emptiedAt": null,
@@ -137,19 +113,14 @@
         "lastTaskPingAt": null
       },
       {
-        "slotId": "2",
-        "capacityKg": 60,
+        "slotId": "A2",
+        "capacityKg": 80,
+        "maxPackages": 8,
         "currentWeightKg": 0,
-        "containerOpsId": null,
-        "occupiedAt": null,
-        "emptiedAt": null,
-        "liveActiveTasks": 0,
-        "lastTaskPingAt": null
-      },
-      {
-        "slotId": "3",
-        "capacityKg": 60,
-        "currentWeightKg": 0,
+        "currentPackages": 0,
+        "packages": [],
+        "delivererId": null,
+        "allowedOccupant": "package",
         "containerOpsId": null,
         "occupiedAt": null,
         "emptiedAt": null,
@@ -160,7 +131,6 @@
     "currentWeightKg": 0,
     "occupiedSlots": 0,
     "liveActiveTasks": 0,
-    "lastTaskPingAt": null,
     "busyScore": 0,
     "isTemporarilyAvoid": false,
     "createdAt": "2025-10-14T09:30:00.000Z",

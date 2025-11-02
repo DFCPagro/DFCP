@@ -25,6 +25,7 @@ import farmerInventoryRoutes from "./farmerInventory.route";
 import worldLayoutRoutes from "./worldLayout.routes";
 import demandStaticsRoutes from "./demandStatics.routes";
 import pickerRoutes from "./picker.routes";
+import deliveryShelvingRoutes from "./deliveryShelving.routes";
 
 const router = Router();
 
@@ -33,6 +34,7 @@ router.use("/auth", authRoutes);
 router.use("/logistics-centers", logisticsCenterRouter);
 router.use("/picker", pickerRoutes);
 router.use("/pick-tasks", pickTaskRoutes);
+router.use("/delivery-shelving", deliveryShelvingRoutes);
 
 // 🧱 Warehouse / LC ops
 router.use("/shelves", shelfRoutes); // /shelves/:id, /shelves/:id/slots/place, etc.
