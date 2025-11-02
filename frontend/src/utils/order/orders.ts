@@ -120,7 +120,7 @@ export function partitionOrders(orders: OrderRowAPI[]) {
   const reported: OrderRowAPI[] = [];
   for (const o of orders ?? []) {
     if (isReported(o)) { reported.push(o); continue; }
-    const ui = normalizeStatus((o as any).status);
+    const ui = normalizeStatus((o as any).stageKey);
     if (ui === "delivered" || ui === "confirm_receiving") old.push(o);
     else active.push(o);
   }

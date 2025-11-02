@@ -45,6 +45,7 @@ export interface BaseMenuEntry {
    * Defaults to true if omitted.
    */
   visible?: boolean | ((ctx: MenuContext) => boolean);
+  badgeId?: "mdcoin" | string;
 }
 
 /** A single navigable link. */
@@ -58,6 +59,7 @@ export interface MenuLink extends BaseMenuEntry {
   newTab?: boolean;
   /** If true, UI can mark active only on exact match. */
   exact?: boolean;
+
 }
 
 /** A group that expands to reveal a set of links. */

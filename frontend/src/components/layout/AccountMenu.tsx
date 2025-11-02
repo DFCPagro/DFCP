@@ -1,11 +1,12 @@
 // src/components/layout/AccountMenu.tsx
-import { Menu, Portal, IconButton ,Box, HStack, Avatar ,Text} from "@chakra-ui/react";
+import { Menu, Portal, Box, HStack, Avatar, Text, Badge, Icon } from "@chakra-ui/react";
 import { FiUser } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { useSessionStore } from "@/store/session";
 import { getDefaultLanding } from "@/config/nav.defaults";
 import { toaster } from "@/components/ui/toaster";
 import { useAuthStore } from "@/store/auth";
+import { Coins } from "lucide-react";
 
 /**
  * Account menu (Chakra v3.25 slot API + custom toaster)
@@ -33,8 +34,13 @@ export default function AccountMenu() {
   const logout = useAuthStore((s) => s.logout);
 
   const canWork = Boolean(role);
+  
   const isGuest = !user || mode === "noUser";
-
+const mdCoin =  (user as any)?.coins ??
+  (user as any)?.coins ??
+  (user as any)?.coins ??
+   (user as any)?.wallet?.mdc ??
+   0;
   const handleRegion = () => {
     toaster.create({
       title: "Change Region",
@@ -72,6 +78,9 @@ export default function AccountMenu() {
       <Menu.Trigger asChild>
         <Box cursor="pointer">
           <HStack gap={2}>
+                 <Icon as={Coins} />
+                  <Text flex="1">MDCoin</Text>
+                  <Badge>{mdCoin}</Badge>
             <Avatar.Root colorPalette={pickPalette(user?.name)}>
               <Avatar.Fallback name={user?.name ?? "Guest"} />
             </Avatar.Root>
@@ -83,6 +92,7 @@ export default function AccountMenu() {
       <Portal>
         <Menu.Positioner>
           <Menu.Content>
+
             {isGuest ? (
               <>
                 <Menu.Item value="login" onClick={() => navigate("/login")}>
@@ -93,7 +103,9 @@ export default function AccountMenu() {
                 </Menu.Item>
               </>
             ) : (
+              
               <>
+             
                 <Menu.Item value="region" onClick={handleRegion}>
                   Change Region
                 </Menu.Item>
@@ -116,6 +128,7 @@ export default function AccountMenu() {
                   Logout
                 </Menu.Item>
               </>
+            
             )}
 
             <Menu.Arrow />

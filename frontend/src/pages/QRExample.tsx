@@ -64,7 +64,7 @@ const QRExample: React.FC = () => {
 
           <VStack align="start" gap={1}>
             <Text><b>Scope:</b> {data.data.scope}</Text>
-            <Text><b>Status:</b> {data.data.status}</Text>
+            <Text><b>Status:</b> {data.data.stageKey}</Text>
             <Text><b>Subject:</b> {data.data.subjectType} • {data.data.subjectId}</Text>
             <Text><b>Scans:</b> {data.data.scansCount}</Text>
             <Text><b>Order ID:</b> {data.data.claims.orderId ?? "—"}</Text>

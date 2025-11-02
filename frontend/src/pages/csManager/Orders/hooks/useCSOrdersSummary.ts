@@ -6,12 +6,12 @@ export function useCSOrdersSummary({
   ordersNow,
   prevShifts,
 }: {
-  ordersNow: Array<{ status: string }>;
+  ordersNow: Array<{ stageKey: string }>;
   prevShifts: PrevShiftRow[];
 }) {
   const totalsNow = useMemo(() => {
     const total = ordersNow.length;
-    const problem = ordersNow.filter(o => o.status === "problem").length;
+    const problem = ordersNow.filter(o => o.stageKey === "problem").length;
     return { total, problem };
   }, [ordersNow]);
 

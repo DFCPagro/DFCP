@@ -22,7 +22,7 @@ export interface ScanData {
   subjectType: string;
   subjectId: string;
   claims: ScanClaims;
-  status: string;
+  stageKey: string;
   scansCount: number;
 }
 

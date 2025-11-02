@@ -13,7 +13,7 @@ import { api } from "./config";
 import type { CreateOrderBody, Order, OrderRowAPI } from "@/types/orders";
 import type { CSOrdersResponse, OrderStatus } from "@/types/cs.orders";
 export type ApiError = {
-  status: number;
+  stageKey: number;
   message: string;
   details?: unknown;
 };
@@ -64,12 +64,12 @@ export async function createOrder(body: CreateOrderBody): Promise<Order> {
     return out as Order;
   } catch (err: any) {
     // Normalize error
-    const status = err?.response?.status ?? 0;
+    const stageKey = err?.response?.stageKey ?? 0;
     const message =
       err?.response?.data?.error ?? err?.message ?? "Order creation failed";
     const details = err?.response?.data?.details ?? err?.response?.data;
 
-    const apiErr: ApiError = { status, message, details };
+    const apiErr: ApiError = { stageKey, message, details };
     throw apiErr;
   }
 }
@@ -88,7 +88,7 @@ export async function fetchOrders(limit = 15): Promise<OrderRowAPI[]> {
     return {
       id,
       orderId,
-      status: o.status ?? "created",
+      stageKey: o.stageKey ?? "created",
       createdAt: o.createdAt ?? new Date().toISOString(),
       acceptedAt: o.acceptedAt,
       deliveryDate: o.deliveryDate,
@@ -119,12 +119,12 @@ export async function getOrderById(orderId: string): Promise<Order> {
     const out = res?.data?.data ?? res?.data;
     return out as Order;
   } catch (err: any) {
-    const status = err?.response?.status ?? 0;
+    const stageKey = err?.response?.stageKey ?? 0;
     const message =
       err?.response?.data?.error ?? err?.message ?? "Failed to fetch order";
     const details = err?.response?.data?.details ?? err?.response?.data;
 
-    const apiErr: ApiError = { status, message, details };
+    const apiErr: ApiError = { stageKey, message, details };
     throw apiErr;
   }
 }
@@ -178,7 +178,7 @@ type GetOrdersForShiftParams = {
   logisticCenterId: string;
   date: string;       // yyyy-mm-dd
   shiftName: string;
-  status?: OrderStatus;     // optional; server may ignore
+  stageKey?: OrderStatus;     // optional; server may ignore
   page?: number;
   limit?: number;
   fields?: string[];        // optional projection
@@ -193,7 +193,7 @@ export async function getOrderByOpsToken(token: string) {
 
 
 export async function getOrdersForShift(params: GetOrdersForShiftParams): Promise<CSOrdersResponse> {
-  const { logisticCenterId, date, shiftName, status, page, limit, fields } = params;
+  const { logisticCenterId, date, shiftName, stageKey, page, limit, fields } = params;
 
   // Only send defined params
   const query: Record<string, any> = {
@@ -201,7 +201,7 @@ export async function getOrdersForShift(params: GetOrdersForShiftParams): Promis
     date,
     shiftName,
   };
-  if (status) query.status = status;
+  if (stageKey) query.stageKey = stageKey;
   if (page) query.page = page;
   if (limit) query.limit = limit;
   if (fields?.length) query.fields = fields.join(",");

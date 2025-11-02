@@ -8,7 +8,7 @@ export const MOCK_ORDERS: OrderRowLoose[] = [
   {
     id: "o-20001",
     orderId: "ORD-20001",
-    status: "accepted" as any,
+    stageKey: "accepted" as any,
     acceptedAt: "2025-09-29",
     acceptedWindowStart: "19:00",
     acceptedWindowEnd: "20:00",
@@ -28,7 +28,7 @@ export const MOCK_ORDERS: OrderRowLoose[] = [
   {
     id: "o-20002",
     orderId: "ORD-20002",
-    status: "from_the_logistic_to_the_customer" as any,
+    stageKey: "from_the_logistic_to_the_customer" as any,
     acceptedAt: "2025-10-02",
     acceptedWindowStart: "18:00",
     acceptedWindowEnd: "19:00",
@@ -50,7 +50,7 @@ export const MOCK_ORDERS: OrderRowLoose[] = [
   {
     id: "o-20003",
     orderId: "ORD-20003",
-    status: "delivered" as any,
+    stageKey: "delivered" as any,
     acceptedAt: "2025-09-27",
     acceptedWindowStart: "09:00",
     acceptedWindowEnd: "10:00",
@@ -72,7 +72,7 @@ export const MOCK_ORDERS: OrderRowLoose[] = [
   {
     id: "o-20004",
     orderId: "ORD-20004",
-    status: "packed" as any,
+    stageKey: "packed" as any,
     reported: true,
     acceptedAt: "2025-10-01",
     acceptedWindowStart: "11:00",

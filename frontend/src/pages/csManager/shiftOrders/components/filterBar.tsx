@@ -2,7 +2,7 @@ import { HStack, Select, Switch, Text, createListCollection } from "@chakra-ui/r
 import type { OrderStatus } from "@/types/cs.orders";
 
 type Props = {
-  status?: string;
+  stageKey?: string;
   setStatus: (v: string | undefined) => void;
   problemOnly: boolean;
   setProblemOnly: (v: boolean) => void;
@@ -34,7 +34,7 @@ const collection = createListCollection<SelectItem>({
   itemToString: (item) => item.label,
 });
 
-export function FilterBar({ status, setStatus, problemOnly, setProblemOnly }: Props) {
+export function FilterBar({ stageKey, setStatus, problemOnly, setProblemOnly }: Props) {
   return (
     <HStack gap="4" flexWrap="wrap" position="relative" zIndex="1">
       <HStack gap="2" opacity={problemOnly ? 0.5 : 1}>
@@ -43,7 +43,7 @@ export function FilterBar({ status, setStatus, problemOnly, setProblemOnly }: Pr
         <Select.Root
           size="sm"
           collection={collection}
-          value={[status ?? ""]} // Select expects string[] of item ids
+          value={[stageKey ?? ""]} // Select expects string[] of item ids
           onValueChange={(e) => {
             const v = e.value?.[0] ?? "";
             setStatus(v ? v : undefined);

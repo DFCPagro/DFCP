@@ -46,14 +46,14 @@ export default function OrderCard({
 }: Props) {
   if (!order) return null;
 
-  const onlyDelivery = isOldStatus((order as any).status);
+  const onlyDelivery = isOldStatus((order as any).stageKey);
   const [timelineOpen, setTimelineOpen] = useState(!onlyDelivery);
 
   useEffect(() => {
     setTimelineOpen(!onlyDelivery);
   }, [onlyDelivery, order?.id]);
 
-  const ui = normalizeStatus((order as any).status);
+  const ui = normalizeStatus((order as any).stageKey);
   const emoji = STATUS_EMOJI[ui];
   const statusLabel = STATUS_LABEL[ui];
 
@@ -179,7 +179,7 @@ export default function OrderCard({
 
       {timelineOpen && (
         <Box mt={3}>
-          <OrderTimeline status={(order as any).status} />
+          <OrderTimeline stageKey={(order as any).stageKey} />
         </Box>
       )}
 

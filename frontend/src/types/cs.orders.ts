@@ -41,7 +41,7 @@ export type CSOrder = {
   orderId: string;          // human-friendly short id/seq if you have it
   customerId?: string;      // table shows short suffix
   createdAt?: string;       // ISO; optional to be safe
-  status: OrderStatus;
+  stageKey: OrderStatus;
   deliveryAddress?: Address;
   totalPrice?: number;
   shiftName: string;
@@ -76,7 +76,7 @@ export type GetCSOrdersForShiftParams = {
   logisticCenterId: string;
   date: string;           // yyyy-mm-dd
   shiftName: string;      // "morning" | "afternoon" | ...
-  status?: OrderStatus;   // optional filter; UI sends "problem" if toggle on
+  stageKey?: OrderStatus;   // optional filter; UI sends "problem" if toggle on
   page?: number;
   limit?: number;
   fields?: string[];      // optional projection hint
@@ -85,16 +85,16 @@ export type GetCSOrdersForShiftParams = {
 export type GetCSOrderDetailResponse = {
   id: string;
   orderId: string;
-  status: OrderStatus;
+  stageKey: OrderStatus;
   lines: CSOrderLine[];
 };
 
 export type PatchOrderStatusBody = {
-  status: OrderStatus;
+  stageKey: OrderStatus;
 };
 export type PatchOrderStatusResponse = {
   ok: true;
-  status: OrderStatus;
+  stageKey: OrderStatus;
 };
 
 // ----------------------

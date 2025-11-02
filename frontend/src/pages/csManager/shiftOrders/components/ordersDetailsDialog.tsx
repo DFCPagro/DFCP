@@ -99,7 +99,7 @@ export function useOrderDetails({
   const [total, setTotal] = useState<number | undefined>(undefined);
   const [shortCode, setShortCode] = useState<string>("");
   const [audit, setAudit] = useState<any[]>([]);
-  const [status, setStatus] = useState<string>("");
+  const [stageKey, setStatus] = useState<string>("");
 
   const [stage, setStage] = useState<string>(""); // optional if you have stage separate from status
   const [createdAt, setCreatedAt] = useState<string>("");
@@ -142,7 +142,7 @@ export function useOrderDetails({
         );
 
         // status / stage
-        setStatus(ord.status || "");
+        setStatus(ord.stageKey || "");
         setStage(ord.stage || ""); // if you have "stage" separately, otherwise leave ""
 
         // audit
@@ -178,7 +178,7 @@ export function useOrderDetails({
     total,
     shortCode,
     audit,
-    status,
+    stageKey,
     stage,
     createdAt,
   };
@@ -206,7 +206,7 @@ export default function OrdersDetailsDialog({
     total,
     shortCode,
     audit,
-    status,
+    stageKey,
     stage,
     createdAt,
   } = useOrderDetails({
@@ -290,12 +290,12 @@ export default function OrdersDetailsDialog({
                           <Badge
                             variant="subtle"
                             colorPalette={
-                              isProblem || status === "problem"
+                              isProblem || stageKey === "problem"
                                 ? "orange"
                                 : "green"
                             }
                           >
-                            {status || "—"}
+                            {stageKey || "—"}
                           </Badge>
                           <Badge variant="subtle" colorPalette="gray">
                             {stage || "—"}

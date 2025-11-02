@@ -26,13 +26,13 @@ export default function CSManagerShiftOrders() {
   const logisticCenterId = "66e007000000000000000001";
 
   // UI filters
-  const [status, setStatus] = useState<OrderStatus | undefined>();
+  const [stageKey, setStatus] = useState<OrderStatus | undefined>();
   const [problemOnly, setProblemOnly] = useState(false);
 
   // When "problem only" is on, ignore manual status
   const effectiveStatus: OrderStatus | undefined = problemOnly
     ? "problem"
-    : status;
+    :   stageKey;
 
   // Query — server may or may not respect status filter,
   // the hook will fallback-filter client-side if needed.
@@ -40,7 +40,7 @@ export default function CSManagerShiftOrders() {
     logisticCenterId,
     date,
     shiftName,
-    status: effectiveStatus,
+    stageKey: effectiveStatus,
   });
 
   // Sort & normalize array
@@ -48,8 +48,8 @@ export default function CSManagerShiftOrders() {
     const arr = (data?.items ?? []).slice();
     arr.sort((a, b) => {
       // Problems always top
-      if (a.status === "problem" && b.status !== "problem") return -1;
-      if (a.status !== "problem" && b.status === "problem") return 1;
+      if (a.stageKey === "problem" && b.stageKey !== "problem") return -1;
+      if (a.stageKey !== "problem" && b.stageKey === "problem") return 1;
 
       const at = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -83,7 +83,7 @@ export default function CSManagerShiftOrders() {
 
         {/* ---- Filters ---- */}
         <FilterBar
-          status={status}
+          stageKey={stageKey}
           setStatus={(v) => setStatus(v as OrderStatus | undefined)}
           problemOnly={problemOnly}
           setProblemOnly={(v) => {

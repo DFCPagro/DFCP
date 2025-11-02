@@ -180,7 +180,7 @@ export default function DeliveryNotePage() {
   }, [id, fromState]);
 
   const ui = useMemo(
-    () => (order ? normalizeStatus((order as any).status) : "pending"),
+    () => (order ? normalizeStatus((order as any).stageKey) : "pending"),
     [order]
   );
 

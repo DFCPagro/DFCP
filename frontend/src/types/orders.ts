@@ -159,7 +159,7 @@ export type Order = {
   // Per-order tolerance
   tolerancePct: number;
 
-  status: OrderStages;
+  stageKey: OrderStages;
 
   assignedDelivererId?: string;
   customerDeliveryId?: string;
@@ -185,7 +185,7 @@ export type CreateOrderResponse = {
 export type OrderRowAPI = {
   id: string;
   orderId: string;
-  stages: OrderStages;
+  stageKey: OrderStages;
   deliverySlot?: string | null;
   createdAt: string;
   items: OrderItem[];

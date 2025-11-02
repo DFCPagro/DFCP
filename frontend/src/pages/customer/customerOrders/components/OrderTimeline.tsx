@@ -10,7 +10,7 @@ import {
 } from "./helpers";
 
 type Props = {
-  status: string;
+  stageKey: string;
   size?: "sm" | "md";
 };
 
@@ -30,8 +30,8 @@ function mapStatus(s: string): UIStatus {
   return ui === "received" ? "delivered" : ui;
 }
 
-export default function OrderTimeline({ status, size = "md" }: Props) {
-  const ui = mapStatus(status);
+export default function OrderTimeline({ stageKey, size = "md" }: Props) {
+  const ui = mapStatus(stageKey);
   const cancelled = ui === "cancelled";
   const steps: UIStatus[] = cancelled ? ([...FLOW.slice(0, -1), "cancelled"] as UIStatus[]) : FLOW;
   const currentIndex = steps.findIndex((x) => x === ui);

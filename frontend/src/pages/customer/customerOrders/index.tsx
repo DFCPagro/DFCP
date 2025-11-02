@@ -172,7 +172,7 @@ export default function OrdersIndex() {
         ? base
         : base.filter(
             (o) =>
-              normalizeStatus((o as any).status) ===
+              normalizeStatus((o as any).stageKey) ===
               normalizeStatus(statusFilter as string)
           );
 
@@ -200,12 +200,12 @@ export default function OrdersIndex() {
   }, [orders, statusFilter, dateFilter, customFrom, customTo]);
 
   const activeOrders = useMemo(
-    () => (filtered ?? []).filter((o) => !isOldStatus((o as any).status)),
+    () => (filtered ?? []).filter((o) => !isOldStatus((o as any).stageKey)),
     [filtered]
   );
 
   const oldOrders = useMemo(
-    () => (filtered ?? []).filter((o) => isOldStatus((o as any).status)),
+    () => (filtered ?? []).filter((o) => isOldStatus((o as any).stageKey)),
     [filtered]
   );
 
@@ -258,7 +258,7 @@ export default function OrdersIndex() {
   );
 
   const showRoute = useMemo(
-    () => !!orderForMap && !!dest && !isOldStatus((orderForMap as any).status),
+    () => !!orderForMap && !!dest && !isOldStatus((orderForMap as any).stageKey),
     [orderForMap, dest]
   );
 

@@ -13,7 +13,7 @@ export function useCSCurrentOrders({ limit = 20 }: { limit?: number } = {}) {
     return Array.from({ length: limit }).map((_, i) => ({
       id: `cur_${now}_${i}`,
       orderId: `${ri(100000, 999999)}`,
-      status: pick(STATUSES),
+      stageKey: pick(STATUSES),
       createdAt: new Date(now - ri(0, 90) * 60_000).toISOString(),
     }));
   }, [limit]);
