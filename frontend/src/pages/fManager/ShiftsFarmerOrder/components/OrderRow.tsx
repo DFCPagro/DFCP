@@ -11,12 +11,15 @@ import {
     VStack,
     Box,
     Dialog,
+    Menu,           // <-- add
+    IconButton,
 } from "@chakra-ui/react";
 import type { ShiftFarmerOrderItem } from "@/types/farmerOrders";
 import { FarmerOrderTimeline } from "./FarmerOrderTimeline";
 import type { FarmerOrderStageKey } from "@/types/farmerOrders";
 import { useAdvanceFarmerOrderStage } from "../hooks/useAdvanceFarmerOrderStage";
 import OrderAuditSection from "@/components/common/OrderAuditSection";
+import { useUpdateFarmerOrderStatus } from "../hooks/useUpdateFarmerOrderStatus"; // <-- add
 
 type AuditEvent = {
     action: string;
@@ -94,7 +97,11 @@ export const OrderRow = memo(function OrderRow({
     const ordersKG = (record as any)?.sumOrderedQuantityKg ?? 0;
 
     // wire the advance-stage hook
+    // wire the advance-stage hook
     const { mutate: advanceStage, isPending: isAdvancing } = useAdvanceFarmerOrderStage();
+
+    // + wire the status update hook
+    const { mutate: updateStatus, isPending: isUpdating } = useUpdateFarmerOrderStatus();
 
 
     const handleView = (r: ShiftFarmerOrderItem) => {
@@ -151,19 +158,59 @@ export const OrderRow = memo(function OrderRow({
 
                 {/* Status */}
                 <Table.Cell>
-                    <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                            <Badge variant="solid" colorPalette={palette} textTransform="capitalize">
+                    <Menu.Root>
+                        <Menu.Trigger asChild>
+                            <Badge
+                                variant="solid"
+                                colorPalette={palette}
+                                textTransform="capitalize"
+                                cursor="pointer"
+                                onClick={(e) => e.stopPropagation()}  // don't toggle the row
+                                opacity={isUpdating ? 0.65 : 1}
+                            >
                                 {status}
                             </Badge>
-                        </Tooltip.Trigger>
+                        </Menu.Trigger>
+
                         <Portal>
-                            <Tooltip.Positioner>
-                                <Tooltip.Content>Status: {status}</Tooltip.Content>
-                            </Tooltip.Positioner>
+                            <Menu.Positioner>
+                                <Menu.Content>
+                                    {(["pending", "ok", "problem"] as const).map((s) => (
+                                        <Menu.Item
+                                            key={s}
+                                            value={s}
+                                            disabled={isUpdating || s === status}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                updateStatus({ orderId, status: s });
+                                            }}
+                                        >
+                                            <HStack gap="2">
+                                                <Box
+                                                    w="2.5"
+                                                    h="2.5"
+                                                    borderRadius="full"
+                                                    bg={
+                                                        s === "ok" ? "green.500" :
+                                                            s === "problem" ? "red.500" :
+                                                                "yellow.500"
+                                                    }
+                                                />
+                                                <Text textTransform="capitalize">{s}</Text>
+                                                {s === status && (
+                                                    <Text ml="auto" fontSize="xs" color="fg.muted">
+                                                        current
+                                                    </Text>
+                                                )}
+                                            </HStack>
+                                        </Menu.Item>
+                                    ))}
+                                </Menu.Content>
+                            </Menu.Positioner>
                         </Portal>
-                    </Tooltip.Root>
+                    </Menu.Root>
                 </Table.Cell>
+
 
                 <Table.Cell>
                     <HStack gap="2">

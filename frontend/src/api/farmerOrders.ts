@@ -13,6 +13,7 @@ import type {
   ShiftFarmerOrdersResponse,
   FarmerOrderStageKey,
   ShiftFarmerOrderItem,
+  FarmerOrderStatus,
 } from "@/types/farmerOrders";
 import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
 
@@ -123,6 +124,22 @@ export async function advanceFarmerOrderStage(
   const { data } = await api.patch(
     `/farmer-orders/${encodeURIComponent(orderId)}/stage`,
     body
+  );
+  return (data as any)?.data ?? data;
+}
+
+// PATCH /api/v1/farmer-orders/:id/farmer-status
+export async function updateFarmerOrderStatus(
+  orderId: string,
+  status: FarmerOrderStatus,
+  note?: string
+): Promise<ShiftFarmerOrderItem> {
+  if (!orderId) throw new Error("orderId is required");
+  if (!status) throw new Error("status is required");
+
+  const { data } = await api.patch(
+    `${BASE}/${encodeURIComponent(orderId)}/farmer-status`,
+    { status, note }
   );
   return (data as any)?.data ?? data;
 }
