@@ -1,40 +1,52 @@
-// types/packing.ts
-export type BoxContent = {
+// frontend/src/types/packing.ts
+
+// One line in a box (one bag / one bundle)
+export interface PackedPiece {
   itemId: string;
-  itemName?: string;          // ← now sent by backend
+  itemName?: string;
   pieceType: "bag" | "bundle";
   mode: "kg" | "unit";
-  qtyKg?: number;             // undefined if mode = "unit"
-  units?: number;             // undefined if mode = "kg"
+  qtyKg?: number;          // only if mode === "kg"
+  units?: number;          // only if mode === "unit"
   liters: number;
-};
+  estWeightKgPiece: number; // estimated kg for THIS piece
+}
 
-export type BoxPlan = {
-  boxNo: number;
-  boxType: string;            // PackageSize.key
+// A single physical box/crate in the plan
+export interface PackedBox {
+  boxNo: number;           // 1, 2, 3...
+  boxType: string;         // "Small" | "Medium" | "Large"
   vented?: boolean;
-  estFillLiters: number;
-  estWeightKg: number;
-  fillPct: number;            // 0..1  (NOT percent)
-  contents: BoxContent[];
-};
 
-export type SummaryByItem = {
+  estFillLiters: number;   // sum of liters in this box
+  estWeightKg: number;     // sum of estWeightKgPiece of contents
+  fillPct: number;         // estFillLiters / usableLiters(box)
+
+  contents: PackedPiece[];
+}
+
+// Per-item rollup summary at the bottom of the UI
+export interface PackedItemSummary {
   itemId: string;
-  itemName?: string;          // ← optional helper for UI
-  mode: "kg" | "unit";
+  itemName?: string;
+  bags: number;
+  bundles: number;
   totalKg?: number;
   totalUnits?: number;
-  liters?: number;
-  bags?: number;
-  bundles?: number;
-};
+}
 
-export type PackingPlan = {
-  boxes: BoxPlan[];
+// The full plan for the order (what backend calls PackingPlan / PackedOrder)
+export interface PackedOrder {
+  boxes: PackedBox[];
   summary: {
     totalBoxes: number;
-    byItem: SummaryByItem[];
+    byItem: PackedItemSummary[];
     warnings: string[];
   };
-};
+}
+
+// Server response shape from the controller
+// (your controller returns { data: plan })
+export interface PackOrderResponse {
+  data: PackedOrder;
+}

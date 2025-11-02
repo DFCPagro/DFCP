@@ -1,9 +1,13 @@
 // src/api/packing.ts
 
-import { api } from "./config"; 
-import type { PackingPlan } from "@/types/packing";
+import { api } from "./config";
+import type { PackedOrder, PackOrderResponse } from "@/types/packing";
 
-export async function packOrder(orderId: string): Promise<PackingPlan> {
-  const { data } = await api.post<{ data: PackingPlan }>(`/orders/${orderId}/pack`);
+/**
+ * POST /orders/:id/pack
+ * Returns a full packing plan (PackedOrder)
+ */
+export async function packOrder(orderId: string): Promise<PackedOrder> {
+  const { data } = await api.post<PackOrderResponse>(`/orders/${orderId}/pack`);
   return data.data;
 }

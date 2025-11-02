@@ -5,13 +5,19 @@
     "key": "Small",
     "innerDimsCm": { "l": 20, "w": 20, "h": 20 },
     "headroomPct": 0.15,
-    "maxSkusPerBox": 2,
+    "maxSkusPerBox": 3,
     "maxWeightKg": 6,
     "mixingAllowed": true,
     "tareWeightKg": 0.25,
     "usableLiters": 68,
     "vented": false,
-    "values": { "Length (cm)": 20, "Width (cm)": 20, "Height (cm)": 20, "HeadroomPct": 0.15, "Max Kg": 6 }
+    "values": {
+      "Length (cm)": 20,
+      "Width (cm)": 20,
+      "Height (cm)": 20,
+      "HeadroomPct": 0.15,
+      "Max Kg": 6
+    }
   },
   {
     "_id": "66f3b0000000000000000002",
@@ -19,13 +25,19 @@
     "key": "Small",
     "innerDimsCm": { "l": 20, "w": 20, "h": 20 },
     "headroomPct": 0.15,
-    "maxSkusPerBox": 2,
+    "maxSkusPerBox": 3,
     "maxWeightKg": 6,
     "mixingAllowed": true,
     "tareWeightKg": 0.25,
     "usableLiters": 68,
     "vented": true,
-    "values": { "Length (cm)": 20, "Width (cm)": 20, "Height (cm)": 20, "HeadroomPct": 0.15, "Max Kg": 6 }
+    "values": {
+      "Length (cm)": 20,
+      "Width (cm)": 20,
+      "Height (cm)": 20,
+      "HeadroomPct": 0.15,
+      "Max Kg": 6
+    }
   },
   {
     "_id": "66f3b0000000000000000003",
@@ -33,13 +45,19 @@
     "key": "Medium",
     "innerDimsCm": { "l": 30, "w": 30, "h": 30 },
     "headroomPct": 0.15,
-    "maxSkusPerBox": 2,
+    "maxSkusPerBox": 4,
     "maxWeightKg": 12,
     "mixingAllowed": true,
     "tareWeightKg": 0.35,
     "usableLiters": 229.5,
     "vented": false,
-    "values": { "Length (cm)": 30, "Width (cm)": 30, "Height (cm)": 30, "HeadroomPct": 0.15, "Max Kg": 12 }
+    "values": {
+      "Length (cm)": 30,
+      "Width (cm)": 30,
+      "Height (cm)": 30,
+      "HeadroomPct": 0.15,
+      "Max Kg": 12
+    }
   },
   {
     "_id": "66f3b0000000000000000004",
@@ -47,13 +65,19 @@
     "key": "Medium",
     "innerDimsCm": { "l": 30, "w": 30, "h": 30 },
     "headroomPct": 0.15,
-    "maxSkusPerBox": 2,
+    "maxSkusPerBox": 4,
     "maxWeightKg": 12,
     "mixingAllowed": true,
     "tareWeightKg": 0.35,
     "usableLiters": 229.5,
     "vented": true,
-    "values": { "Length (cm)": 30, "Width (cm)": 30, "Height (cm)": 30, "HeadroomPct": 0.15, "Max Kg": 12 }
+    "values": {
+      "Length (cm)": 30,
+      "Width (cm)": 30,
+      "Height (cm)": 30,
+      "HeadroomPct": 0.15,
+      "Max Kg": 12
+    }
   },
   {
     "_id": "66f3b0000000000000000005",
@@ -61,13 +85,19 @@
     "key": "Large",
     "innerDimsCm": { "l": 60, "w": 60, "h": 60 },
     "headroomPct": 0.15,
-    "maxSkusPerBox": 3,
+    "maxSkusPerBox": 6,
     "maxWeightKg": 25,
     "mixingAllowed": true,
     "tareWeightKg": 0.7,
     "usableLiters": 183.6,
     "vented": false,
-    "values": { "Length (cm)": 60, "Width (cm)": 60, "Height (cm)": 60, "HeadroomPct": 0.15, "Max Kg": 25 }
+    "values": {
+      "Length (cm)": 60,
+      "Width (cm)": 60,
+      "Height (cm)": 60,
+      "HeadroomPct": 0.15,
+      "Max Kg": 25
+    }
   },
   {
     "_id": "66f3b0000000000000000006",
@@ -75,12 +105,18 @@
     "key": "Large",
     "innerDimsCm": { "l": 60, "w": 60, "h": 60 },
     "headroomPct": 0.15,
-    "maxSkusPerBox": 3,
+    "maxSkusPerBox": 6,
     "maxWeightKg": 25,
     "mixingAllowed": true,
     "tareWeightKg": 0.7,
     "usableLiters": 183.6,
     "vented": true,
-    "values": { "Length (cm)": 60, "Width (cm)": 60, "Height (cm)": 60, "HeadroomPct": 0.15, "Max Kg": 25 }
+    "values": {
+      "Length (cm)": 60,
+      "Width (cm)": 60,
+      "Height (cm)": 60,
+      "HeadroomPct": 0.15,
+      "Max Kg": 25
+    }
   }
 ]
