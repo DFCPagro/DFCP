@@ -15,7 +15,7 @@ import {
   HydratedDocument,
   Model,
 } from "mongoose";
-  import toJSON from "../utils/toJSON";
+import toJSON from "../utils/toJSON";
 import { AuditEntrySchema } from "./shared/audit.schema";
 
 /**
@@ -73,131 +73,125 @@ const CleaningInfoSchema = new Schema(
 );
 
 /**
- * Details about sorting.  When a container is opened and its
- * contents are distributed among storage bins or shelves, the
- * sorting record captures the user, time and optional metadata
- * (such as the breakdown of quantities moved to each shelf).
+ * Sorting information for a container.  Captures when sorting begins
+ * and ends, who performed it, and any free-form notes.
  */
 const SortingInfoSchema = new Schema(
   {
-    sortedAt: { type: Date, default: null },
+    startedAt: { type: Date, default: null },
+    finishedAt: { type: Date, default: null },
     by: { type: Types.ObjectId, ref: "User", default: null },
-    details: { type: Schema.Types.Mixed, default: {} },
+    notes: { type: String, default: "" },
   },
   { _id: false }
 );
 
 /**
- * Location of the container within the facility.  A container may
- * reside in a warehouse overflow area, on a particular shelf slot
- * or be out for delivery.  For shelf placement the `shelfId` and
- * `slotId` identify the exact location.  For warehouse overflow
- * only the zone and aisle are stored.
+ * Location within the facility or outside (e.g., dispatched/out).
+ * `updatedAt` is also kept in sync via a pre-save hook.
  */
- const LocationSchema = new Schema(
-   {
-    // 'warehouse' | 'shelf' | 'pickerShelf' | 'out'
-     area: { type: String, enum: ["warehouse", "shelf", "pickerShelf", "out"], default: "warehouse" },
-    // For warehouse/out: zone/aisle optional. For shelf/pickerShelf: shelfId + slotId are used.
+const LocationSchema = new Schema(
+  {
+    area: {
+      type: String,
+      enum: [
+        "intake",
+        "cleaning",
+        "weighing",
+        "sorting",
+        "warehouse",
+        "shelf",
+        "picker",
+        "out",
+      ],
+      default: "intake",
+    },
     zone: { type: String, default: null },
     aisle: { type: String, default: null },
     shelfId: { type: Types.ObjectId, ref: "Shelf", default: null },
     slotId: { type: String, default: null },
-     updatedAt: { type: Date, default: Date.now },
-   },
-   { _id: false }
- );
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 
 /**
- * Primary schema for container operations.  One document per
- * physical container.  The document references the container's
- * parent farmerOrder and item, stores a current state and holds
- * arrays of past weight measurements and audit events.  Indexes
- * enable fast lookups by `state`, `logisticCenterId` and
- * `containerId`.
+ * Main operational model for containers within the LC.
  */
 const ContainerOpsSchema = new Schema(
   {
     containerId: { type: String, required: true, index: true },
-    farmerOrderId: { type: Types.ObjectId, ref: "FarmerOrder", required: true, index: true },
+    farmerOrderId: { type: Types.ObjectId, ref: "FarmerOrder", default: null },
     itemId: { type: Types.ObjectId, ref: "Item", required: true },
-    logisticCenterId: { type: Types.ObjectId, ref: "LogisticsCenter", required: true, index: true },
-    // Optional link back to the QR token used for scanning this container
-    qrId: { type: Types.ObjectId, ref: "QRModel", default: null },
-    state: { type: String, enum: CONTAINER_OPS_STATES, default: "arrived", index: true },
+
+    // logistics centre this container is currently associated with
+    logisticCenterId: {
+      type: Types.ObjectId,
+      ref: "LogisticsCenter",
+      required: true,
+      index: true,
+    },
+
+    // current operational state
+    state: {
+      type: String,
+      enum: CONTAINER_OPS_STATES,
+      default: "arrived",
+      index: true,
+    },
+
+    // physical location metadata
+    location: { type: LocationSchema, default: () => ({}) },
+
+    // weights
+    intendedWeightKg: { type: Number, default: 0 },
+    totalWeightKg: { type: Number, default: 0 },
     weightHistory: { type: [WeightEntrySchema], default: [] },
-    cleaning: { type: CleaningInfoSchema, default: {} },
-    sorting: { type: SortingInfoSchema, default: {} },
-    location: { type: LocationSchema, default: {} },
-    auditTrail: { type: [AuditEntrySchema], default: [] },
-    /**
-     * Intended weight in kilograms for this container.  When a container
-     * is sorted, the sorter indicates how many kilograms should be
-     * placed onto shelves.  The container remains in the `sorted` state
-     * until the sum of distributed weights equals this value.  This
-     * field is persisted as Decimal128 for precision.
-     */
-    intendedWeightKg: { type: Schema.Types.Decimal128, required: true, default: () => Types.Decimal128.fromString("0"), min: 0 },
 
-    /**
-     * Total weight in kilograms across all shelves/slots.  This field is
-     * maintained by services when placing, consuming, refilling or moving
-     * containers.  It is stored as Decimal128 to avoid floating point
-     * errors.
-     */
-    totalWeightKg: { type: Schema.Types.Decimal128, required: true, default: () => Types.Decimal128.fromString("0"), min: 0 },
-
-    /**
-     * Record of distributed weights across shelves/slots.  Each entry
-     * identifies a shelf and slot and how much weight is present.  The
-     * sum of all `weightKg` values should equal `totalWeightKg`.
-     */
+    // distribution across shelves (for multi-slot presence)
     distributedWeights: {
       type: [
         new Schema(
           {
             shelfId: { type: Types.ObjectId, ref: "Shelf", required: true },
             slotId: { type: String, required: true },
-            weightKg: { type: Schema.Types.Decimal128, required: true, min: 0 },
+            weightKg: { type: Number, required: true, min: 0 },
           },
           { _id: false }
         ),
       ],
       default: [],
     },
+
+    // process details
+    cleaning: { type: CleaningInfoSchema, default: () => ({}) },
+    sorting: { type: SortingInfoSchema, default: () => ({}) },
+
+    // audits
+    auditTrail: { type: [AuditEntrySchema], default: [] },
   },
   { timestamps: true }
 );
 
- // Validation: ensure the sum of distributed weightKg equals totalWeightKg
-ContainerOpsSchema.pre("validate", function (next) {
-  const doc = this as any;
-  // Only validate when distributedWeights is present and totalWeightKg is defined
-  if (!doc.distributedWeights || typeof doc.totalWeightKg === "undefined") return next();
-  try {
-    const sum = Array.isArray(doc.distributedWeights)
-      ? doc.distributedWeights.reduce((acc: number, entry: any) => {
-          const val = entry?.weightKg ? parseFloat(entry.weightKg.toString()) : 0;
-          return acc + val;
-        }, 0)
-      : 0;
-    const total = doc.totalWeightKg ? parseFloat(doc.totalWeightKg.toString()) : 0;
-    // allow tiny floating point epsilon
-    if (Math.abs(sum - total) > 1e-6) {
-      return next(new Error(`Sum of distributedWeights (${sum}) does not equal totalWeightKg (${total})`));
-    }
-    return next();
-  } catch (e) {
-    return next(e as any);
-  }
-});
-
-// Composite indexes for queries across facility and state
+// indexes to support common queries
 ContainerOpsSchema.index({ logisticCenterId: 1, state: 1 });
-ContainerOpsSchema.index({ logisticCenterId: 1, "location.area": 1, "location.zone": 1 });
+ContainerOpsSchema.index({
+  logisticCenterId: 1,
+  "location.area": 1,
+  "location.zone": 1,
+});
 
 // Attach toJSON plugin for friendly JSON representations
 ContainerOpsSchema.plugin(toJSON as any);
+
+// give `containerId` a sensible default if missing
+ContainerOpsSchema.pre("validate", function (next) {
+  const doc = this as ContainerOpsDoc;
+  if (!doc.containerId && (doc as any)._id) {
+    doc.containerId = String((doc as any)._id);
+  }
+  next();
+});
 
 // ✨ keep location.updatedAt fresh if location changes
 ContainerOpsSchema.pre("save", function (next) {
@@ -207,6 +201,11 @@ ContainerOpsSchema.pre("save", function (next) {
   }
   next();
 });
+
+// Export the raw schema for reuse in shared schemas.  Other modules
+// can import `ContainerOpsSchema` when embedding container documents
+// to guarantee a single source of truth for field names and types.
+export { ContainerOpsSchema };
 
 // Types inferred from the schema
 export type ContainerOps = InferSchemaType<typeof ContainerOpsSchema>;

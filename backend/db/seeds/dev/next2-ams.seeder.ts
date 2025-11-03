@@ -19,10 +19,11 @@ import {
   getAvailableMarketStockByKey,
 } from "../../../src/services/availableMarketStock.service";
 import { AvailableMarketStockModel } from "../../../src/models/availableMarketStock.model";
-import { FarmerOrder } from "../../../src/models/farmerOrder.model";
+import FarmerOrder from "../../../src/models/farmerOrder.model";
 import ItemModel from "../../../src/models/Item.model";
 import { getContactInfoByIdService } from "../../../src/services/user.service";
 import { buildAmsItemFromItem } from "../../../src/services/amsLine.builder";
+import ContainerOps from "../../../src/models/ContainerOps.model";
 
 // -----------------------------
 // Config
@@ -208,7 +209,7 @@ const isUnitMode = (v: any): v is UnitMode =>
 function getDerivedPerUnit(item: any): number | 0.5 {
   const category = String(item?.category || "").toLowerCase();
   const byUnit = !!item?.sellModes?.byUnit;
-  if (!byUnit) return 0.5 ;
+  if (!byUnit) return 0.5;
 
   // eggs/dairy: use override
   if (category === "egg_dairy") {
@@ -229,7 +230,7 @@ function getDerivedPerUnit(item: any): number | 0.5 {
   return 0.5;
 }
 
-function getSafePerKg(item: any): number | 0.5{
+function getSafePerKg(item: any): number | 0.5 {
   const category = String(item?.category || "").toLowerCase();
 
   // usual case
@@ -324,14 +325,14 @@ async function seed() {
           continue; // do not attempt AMS for this item
         }
 
-        const derivedPerUnit = getDerivedPerUnit(itemDoc); // may be null
+        const derivedPerUnit = getDerivedPerUnit(itemDoc);
         const category = String(itemDoc?.category || "").toLowerCase();
 
         for (const farmer of FARMERS) {
           const committedKg = category === "egg_dairy" ? 80 : randInt(50, 80);
 
-          // ---------- FarmerOrder (unchanged) ----------
-          const created = await FarmerOrder.create({
+          // ---------- FarmerOrder (authoritative containers are refs) ----------
+          const createdFO = await FarmerOrder.create({
             createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
             updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
 
@@ -356,44 +357,74 @@ async function seed() {
             forcastedQuantityKg: committedKg,
 
             orders: [],
-            containers: [],
+            containers: [], // IMPORTANT: will set to ContainerOps IDs after creating them
+            containerSnapshots: [], // (optional tiny UI-only)
             historyAuditTrail: [],
           });
 
-          // track summary
-          summary.farmerOrders.total += 1;
-          summary.farmerOrders.byFarmer.set(
-            farmer.farmerName,
-            (summary.farmerOrders.byFarmer.get(farmer.farmerName) ?? 0) + 1
-          );
+          // ---------- Create ContainerOps docs (A & B) ----------
+          const baseContainer = {
+            farmerOrderId: createdFO._id,
+            itemId: new Types.ObjectId(itemDoc._id),
+            logisticCenterId: new Types.ObjectId(STATIC_LC_ID),
+            state: "arrived",
+            location: { area: "intake", zone: null, shelfId: null, slotId: null },
+            intendedWeightKg: 0,
+            totalWeightKg: 0,
+            weightHistory: [],
+            distributedWeights: [],
+            cleaning: {},
+            sorting: {},
+            auditTrail: [],
+          };
 
-          // containers (unchanged)
-          const containers = [
-            {
-              containerId: CONTAINERA,
-              itemId: new Types.ObjectId("6873f67b8027abff0fdb32f3"),
-              farmerOrder: created._id,
-              qrUrl: makeQrUrlForContainer(created._id, CONTAINERA),
-            },
-            {
-              containerId: CONTAINERB,
-              itemId: new Types.ObjectId("6873f67b8027abff0fdb32f3"),
-              farmerOrder: created._id,
-              qrUrl: makeQrUrlForContainer(created._id, CONTAINERB),
-            },
-          ];
+          const containerOpsA = await ContainerOps.create({
+            ...baseContainer,
+            containerId: CONTAINERA,
+          });
+          const containerOpsB = await ContainerOps.create({
+            ...baseContainer,
+            containerId: CONTAINERB,
+          });
+
+          // ---------- Link FO.containers to ContainerOps IDs ----------
           await FarmerOrder.updateOne(
-            { _id: created._id },
-            { $set: { containers } }
+            { _id: createdFO._id },
+            {
+              $set: {
+                containers: [containerOpsA._id, containerOpsB._id],
+                // OPTIONAL: tiny non-authoritative snapshots for UI lists
+                containerSnapshots: [
+                  {
+                    containerOpsId: containerOpsA._id,
+                    containerId: containerOpsA.containerId,
+                    itemId: containerOpsA.itemId,
+                    state: containerOpsA.state,
+                    totalWeightKg: containerOpsA.totalWeightKg ?? 0,
+                    locationArea: containerOpsA.location?.area ?? "intake",
+                    capturedAt: new Date(),
+                  },
+                  {
+                    containerOpsId: containerOpsB._id,
+                    containerId: containerOpsB.containerId,
+                    itemId: containerOpsB.itemId,
+                    state: containerOpsB.state,
+                    totalWeightKg: containerOpsB.totalWeightKg ?? 0,
+                    locationArea: containerOpsB.location?.area ?? "intake",
+                    capturedAt: new Date(),
+                  },
+                ],
+              },
+            }
           );
 
           // --- Build AMS item using your builder ---
           const amsLine = buildAmsItemFromItem({
             item: itemDoc,
             farmer: {
-              id: created.farmerId,
-              name: created.farmerName,
-              farmName: created.farmName,
+              id: createdFO.farmerId,
+              name: createdFO.farmerName,
+              farmName: createdFO.farmName,
               farmLogo: farmer.farmLogo ?? undefined,
             },
             committedKg,
@@ -401,7 +432,7 @@ async function seed() {
           });
 
           // Ensure links & mode
-          (amsLine as any).farmerOrderId = created._id;
+          (amsLine as any).farmerOrderId = createdFO._id;
           const unitMode: UnitMode =
             (amsLine as any).unitMode === "unit" ||
             (amsLine as any).unitMode === "mixed"
@@ -434,7 +465,7 @@ async function seed() {
                 : 0.02,
           };
 
-          // ---------- AMS add (FIX: include price.a) ----------
+          // ---------- AMS add (include price.a) ----------
           await addItemToAvailableMarketStock({
             docId: amsId,
             item: {
@@ -443,11 +474,9 @@ async function seed() {
               imageUrl: (amsLine as any).imageUrl ?? null,
               category: (amsLine as any).category,
 
-              // service expects item.price.a; provide both legacy and new fields
               price: { a: pricePerKg, b: null, c: null },
               pricePerKg: pricePerKg,
 
-              // Optional per-unit price only for unit/mixed
               pricePerUnit:
                 unitMode === "unit" || unitMode === "mixed"
                   ? derivedPerUnit
@@ -456,7 +485,7 @@ async function seed() {
               originalCommittedQuantityKg: committedKg,
               currentAvailableQuantityKg: committedKg,
 
-              farmerOrderId: String(created._id),
+              farmerOrderId: String(createdFO._id),
               farmerID: String(farmer.farmerId),
               farmerName: farmer.farmerName,
               farmName: farmer.farmName,

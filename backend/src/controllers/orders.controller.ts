@@ -226,7 +226,6 @@ export async function checkOrderPickerFulfillment(
   next: Function
 ) {
   try {
-    console.log("hiii man");
     const { orderId } = req.params;
     const result = await canFulfillOrderFromPickerShelves(orderId);
     res.json({ ok: true, data: result });

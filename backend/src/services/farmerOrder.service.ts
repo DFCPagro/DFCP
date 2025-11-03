@@ -187,9 +187,9 @@ export async function createFarmerOrderService(
         token: foQR.token,
         sig: foQR.sig,
         scope: foQR.scope, // "farmer-order"
-        url: `/scan?token=${encodeURIComponent(
-          foQR.token
-        )}&sig=${encodeURIComponent(foQR.sig)}`,
+        // url: `/scan?token=${encodeURIComponent(
+        //   foQR.token
+        // )}&sig=${encodeURIComponent(foQR.sig)}`,
       };
     });
 

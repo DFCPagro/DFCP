@@ -51,7 +51,6 @@ const ShelfSchema = new Schema(
 
     zone: { type: String, default: null },
     aisle: { type: String, default: null },
-    level: { type: String, default: null },
 
     row: { type: Number, default: null },
     col: { type: Number, default: null },

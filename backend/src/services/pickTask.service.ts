@@ -5,9 +5,8 @@
 // completing tasks, updating crowd counters accordingly.
 
 import { Types } from "mongoose";
-import PickTask from "@/models/PickerTasks.model";
-import CrowdState from "@/models/CrowdState.model";
-import { PersistedCrowdService } from "./crowdPersistence.service";
+import PickTask from "@/models/PickTask.model";
+import { CrowdService } from "./shelfCrowd.service";
 import ApiError from "@/utils/ApiError";
 import { getCurrentShift } from "./shiftConfig.service";
 
@@ -38,8 +37,9 @@ export namespace PickTaskService {
           const shelfId = String(slot.shelfId);
           if (shelfIds.has(shelfId)) continue;
           shelfIds.add(shelfId);
-          const state = await CrowdState.findOne({ shelfId });
-          const busy = state?.busyScore ?? 0;
+          // compute crowd score using in-memory counters
+          const crowd = await CrowdService.computeShelfCrowd(shelfId);
+          const busy = crowd?.score ?? 0;
           score += busy;
         }
         return { task, score };
@@ -83,7 +83,7 @@ export namespace PickTaskService {
       const sid = String(slot.shelfId);
       if (!uniqueShelves.has(sid)) {
         uniqueShelves.add(sid);
-        await PersistedCrowdService.bump(sid, +1, "pick");
+        await CrowdService.bump(sid, +1, "pick");
       }
     }
     return task.toObject();
@@ -111,7 +111,7 @@ export namespace PickTaskService {
       const sid = String(slot.shelfId);
       if (!uniqueShelves.has(sid)) {
         uniqueShelves.add(sid);
-        await PersistedCrowdService.bump(sid, -1, "pick");
+        await CrowdService.bump(sid, -1, "pick");
       }
     }
     return task.toObject();

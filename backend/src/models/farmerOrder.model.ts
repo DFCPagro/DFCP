@@ -17,19 +17,15 @@ import {
 } from "./shared/stage.types";
 import { buildFarmerOrderDefaultStages } from "./shared/stage.utils";
 import { AuditEntrySchema } from "./shared/audit.schema";
-import { ContainerSchema } from "./shared/container.schema";
-import {
-  VisualInspectionSchema,
-  QSReportSchema,
-} from "./shared/inspection.schema";
+// ⛔ Removed: embedded ContainerSchema (we now reference ContainerOps)
+// import { ContainerSchema } from "./shared/container.schema";
 
 // ---------- enums ----------
 export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
 export type Shift = (typeof SHIFTS)[number];
 
 export const FARMER_APPROVAL_STATUSES = ["pending", "ok", "problem"] as const;
-export type FarmerApprovalStatus =
-  (typeof FARMER_APPROVAL_STATUSES)[number];
+export type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
 
 // ---------- sub-schema: linked customer orders (orderId + allocated kg) ----------
 const OrderLinkSchema = new Schema(
@@ -48,6 +44,59 @@ const OrderLinkSchema = new Schema(
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   }
+);
+
+// ---------- OPTIONAL tiny snapshot (non-authoritative) ----------
+// If you want quick UI lists without populate, you can keep a tiny snapshot per container.
+// IMPORTANT: Do NOT write business logic against snapshots — ContainerOps is the truth.
+const ContainerMiniSnapshotSchema = new Schema(
+  {
+    containerOpsId: {
+      type: Schema.Types.ObjectId,
+      ref: "ContainerOps",
+      required: true,
+      index: true,
+    },
+    containerId: { type: String, required: true },
+    itemId: { type: Schema.Types.ObjectId, ref: "Item", required: true },
+    state: {
+      type: String,
+      enum: [
+        "arrived",
+        "rejected",
+        "cleaning",
+        "cleaned",
+        "weighing",
+        "weighed",
+        "sorting",
+        "sorted",
+        "stored",
+        "shelved",
+        "picked",
+        "packaged",
+        "dispatched",
+        "depleted",
+      ],
+      required: true,
+    },
+    totalWeightKg: { type: Number, default: 0 },
+    locationArea: {
+      type: String,
+      enum: [
+        "intake",
+        "cleaning",
+        "weighing",
+        "sorting",
+        "warehouse",
+        "shelf",
+        "picker",
+        "out",
+      ],
+      default: "intake",
+    },
+    capturedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
 );
 
 // ---------- main schema ----------
@@ -123,9 +172,19 @@ const FarmerOrderSchema = new Schema(
       default: [],
     },
 
-    // Containers linked to this farmer order
-    containers: {
-      type: [ContainerSchema],
+    // ⛳️ Containers linked to this farmer order — now as references to ContainerOps (authoritative)
+    containers: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "ContainerOps",
+        index: true,
+      },
+    ],
+
+    // OPTIONAL: non-authoritative, minimal snapshots for UI lists.
+    // Keep or drop based on your needs. If you keep it, refresh via service on transitions.
+    containerSnapshots: {
+      type: [ContainerMiniSnapshotSchema],
       default: [],
     },
 
@@ -147,15 +206,12 @@ const FarmerOrderSchema = new Schema(
       validate: [
         {
           validator: (arr: any[]) =>
-            (arr || []).every((s) =>
-              FARMER_ORDER_STAGE_KEYS.includes(s?.key)
-            ),
+            (arr || []).every((s) => FARMER_ORDER_STAGE_KEYS.includes(s?.key)),
           message: "Invalid stage key in FarmerOrder.stages",
         },
         {
           validator: (arr: any[]) =>
-            (arr || []).filter((s) => s?.status === "current").length <=
-            1,
+            (arr || []).filter((s) => s?.status === "current").length <= 1,
           message: "Only one stage may have status 'current'",
         },
       ],
@@ -163,17 +219,17 @@ const FarmerOrderSchema = new Schema(
 
     // --- QS reports ---
     farmersQSreport: {
-      type: QSReportSchema,
+      type: Schema.Types.Mixed, // keep original type if QSReportSchema not required here
       default: undefined,
     }, // farmer’s submitted QS values
     inspectionQSreport: {
-      type: QSReportSchema,
+      type: Schema.Types.Mixed, // keep original type if QSReportSchema not required here
       default: undefined,
     }, // LC/inspection QS values
 
     // --- quick visual inspection status (optional) ---
     visualInspection: {
-      type: VisualInspectionSchema,
+      type: Schema.Types.Mixed, // keep original type if VisualInspectionSchema not required here
       default: undefined,
     },
     inspectionStatus: {
@@ -206,6 +262,7 @@ FarmerOrderSchema.index({
 FarmerOrderSchema.index({ stageKey: 1, updatedAt: -1 });
 FarmerOrderSchema.index({ "stages.status": 1, updatedAt: -1 });
 FarmerOrderSchema.index({ "orders.orderId": 1 });
+FarmerOrderSchema.index({ containers: 1 }); // helpful for lookups by container
 
 // ---------- inferred types ----------
 export type FarmerOrder = InferSchemaType<typeof FarmerOrderSchema>;
@@ -251,11 +308,7 @@ export interface FarmerOrderMethods {
   recomputeInspectionStatus(): void;
 }
 
-export type FarmerOrderModel = Model<
-  FarmerOrder,
-  {},
-  FarmerOrderMethods
->;
+export type FarmerOrderModel = Model<FarmerOrder, {}, FarmerOrderMethods>;
 
 // ---------- methods impl ----------
 FarmerOrderSchema.methods.addAudit = function (
@@ -314,8 +367,7 @@ FarmerOrderSchema.methods.setStageCurrent = function (
     target.startedAt = target.startedAt ?? now;
     target.timestamp = now;
     if (opts.note) target.note = opts.note;
-    if (opts.expectedAt !== undefined)
-      target.expectedAt = opts.expectedAt;
+    if (opts.expectedAt !== undefined) target.expectedAt = opts.expectedAt;
   }
 
   // keep stageKey synced
@@ -380,10 +432,7 @@ FarmerOrderSchema.methods.linkOrder = function (
     (e) => e.orderId?.toString() === orderId.toString()
   );
   if (existing) {
-    if (
-      allocatedQuantityKg !== null &&
-      allocatedQuantityKg !== undefined
-    ) {
+    if (allocatedQuantityKg !== null && allocatedQuantityKg !== undefined) {
       existing.allocatedQuantityKg = allocatedQuantityKg;
     }
   } else {
@@ -415,27 +464,27 @@ FarmerOrderSchema.methods.recalcQuantities = function (
 FarmerOrderSchema.methods.recomputeInspectionStatus = function (
   this: HydratedDocument<FarmerOrder> & FarmerOrderMethods
 ) {
-  const visualOk = this.visualInspection?.status === "ok";
-  const farmerVals = this.farmersQSreport?.values;
-  const inspVals = this.inspectionQSreport?.values;
+  const visualOk = (this as any).visualInspection?.status === "ok";
+  const farmerVals = (this as any).farmersQSreport?.values;
+  const inspVals = (this as any).inspectionQSreport?.values;
 
   // gate 1: need visual ok
   if (!visualOk) {
-    this.inspectionStatus = "pending";
+    (this as any).inspectionStatus = "pending";
     return;
   }
 
   // gate 2: need both QS inputs
   if (!farmerVals || !inspVals) {
-    this.inspectionStatus = "pending";
+    (this as any).inspectionStatus = "pending";
     return;
   }
 
   // optional: compare overall grades if provided
-  const farmerGrade = this.farmersQSreport?.overallGrade || "";
-  const inspGrade = this.inspectionQSreport?.overallGrade || "";
+  const farmerGrade = (this as any).farmersQSreport?.overallGrade || "";
+  const inspGrade = (this as any).inspectionQSreport?.overallGrade || "";
   if (farmerGrade && inspGrade && farmerGrade !== inspGrade) {
-    this.inspectionStatus = "failed";
+    (this as any).inspectionStatus = "failed";
     return;
   }
 
@@ -467,26 +516,25 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
     const iv = inspValsAny?.[k];
     if (fv == null || iv == null) continue; // only compare when both are present
     if (!within2Percent(fv, iv)) {
-      this.inspectionStatus = "failed";
+      (this as any).inspectionStatus = "failed";
       return;
     }
   }
 
-  this.inspectionStatus = "passed";
+  (this as any).inspectionStatus = "passed";
 };
 
 // ---------- hooks ----------
 // Keep aggregates consistent even if orders changed via direct array ops
 FarmerOrderSchema.pre("validate", function (next) {
-  const doc = this as HydratedDocument<FarmerOrder> &
-    FarmerOrderMethods;
+  const doc = this as HydratedDocument<FarmerOrder> & FarmerOrderMethods;
   doc.recalcQuantities();
   next();
 });
 
 // ---------- model ----------
-export const FarmerOrder = model<
-  FarmerOrder,
-  FarmerOrderModel
->("FarmerOrder", FarmerOrderSchema);
+export const FarmerOrder = model<FarmerOrder, FarmerOrderModel>(
+  "FarmerOrder",
+  FarmerOrderSchema
+);
 export default FarmerOrder;

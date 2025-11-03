@@ -25,6 +25,7 @@ import {
 import ApiError from "@/utils/ApiError";
 import ContainerOps from "@/models/ContainerOps.model";
 import Shelf from "@/models/Shelf.model";
+import Item from "@/models/Item.model";
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
@@ -702,15 +703,61 @@ export async function listOrdersForShift(params: {
   };
 }
 
+
+/**
+ * Convert a single order line into required weight (kg),
+ * respecting the user's chosen mode (kg or unit).
+ */
+async function requiredKgForLine(it: any): Promise<number> {
+  const mode: "kg" | "unit" | "mixed" | undefined = it.unitMode;
+
+  const qtyKg = Number(it.quantityKg ?? 0);
+  const units = Number(it.units ?? 0);
+
+  // use snapshot avgWeightPerUnitKg if available
+  const snapshotAvgKg =
+    it.estimatesSnapshot?.avgWeightPerUnitKg != null
+      ? Number(it.estimatesSnapshot.avgWeightPerUnitKg)
+      : null;
+
+  let avgKg = snapshotAvgKg;
+
+  // fallback: get from Item if not present
+  if (avgKg == null) {
+    const item = await Item.findById(it.itemId, {
+      avgWeightPerUnitGr: 1,
+      "sellModes.byKg": 1,
+      "sellModes.byUnit": 1,
+    }).lean();
+    if (item?.avgWeightPerUnitGr != null) {
+      avgKg = item.avgWeightPerUnitGr / 1000;
+    }
+  }
+
+  if (mode === "kg") {
+    return Math.max(0, qtyKg);
+  }
+
+  if (mode === "unit") {
+    if (avgKg == null) {
+      throw new ApiError(422, `Missing avgWeightPerUnit for unit-mode item: ${it.name || it.itemId}`);
+    }
+    return Math.max(0, units * avgKg);
+  }
+
+  // fallback — mixed or undefined (prefer whichever field was actually filled)
+  if (qtyKg > 0) return qtyKg;
+  if (units > 0 && avgKg != null) return units * avgKg;
+
+  return 0;
+}
+
 /**
  * Check if ALL items of an Order can be fully picked from **picker** shelves.
- * Used for: /orders/:orderId/can-fulfill
+ * Counts ONLY what’s physically on picker shelves.
  */
-export async function canFulfillOrderFromPickerShelves(
-  orderId: string | Types.ObjectId
-) {
-  const _id =
-    typeof orderId === "string" ? new Types.ObjectId(orderId) : orderId;
+export async function canFulfillOrderFromPickerShelves(orderId: string | Types.ObjectId) {
+  const _id = typeof orderId === "string" ? new Types.ObjectId(orderId) : orderId;
   const order = await Order.findById(_id).lean();
   if (!order) throw new ApiError(404, "Order not found");
 
@@ -718,34 +765,26 @@ export async function canFulfillOrderFromPickerShelves(
     throw new ApiError(400, "Order has no items");
   }
 
-  const requirements = order.items.map((it: any) => {
-    const requiredKg = Number(
-      it.estimatedEffectiveKg ??
-        (it.quantityKg ?? 0) +
-          (it.units ?? 0) * (it.estimatesSnapshot?.avgWeightPerUnitKg ?? 0)
-    );
-    return {
-      itemId: String(it.itemId),
-      name: it.name,
-      requiredKg: Math.max(0, requiredKg || 0),
-    };
-  });
-  // console.log("requirements:", requirements);
-
-  const itemIds = [...new Set(requirements.map((r) => r.itemId))]
-    .filter(Boolean)
-    .map((id) => new Types.ObjectId(id));
-
-  // If nothing to check, it's trivially fulfillable
-  if (itemIds.length === 0) {
-    return {
-      ok: true as const,
-      summary: { totalRequired: 0, totalAvailable: 0, totalShort: 0 },
-    };
+  // Build requirements from order lines
+  const requirements = [];
+  for (const line of order.items) {
+    const requiredKg = await requiredKgForLine(line);
+    requirements.push({
+      itemId: String(line.itemId),
+      name: line.name,
+      requiredKg,
+    });
   }
 
-  // Aggregate availability from ContainerOps that are currently placed on **picker** shelves.
-  // IMPORTANT: no state filter — we only care what sits on picker shelves right now.
+  const itemIds = [...new Set(requirements.map(r => r.itemId))]
+    .filter(Boolean)
+    .map(id => new Types.ObjectId(id));
+
+  if (itemIds.length === 0) {
+    return { ok: true, summary: { totalRequired: 0, totalAvailable: 0, totalShort: 0 } };
+  }
+
+  // Aggregate weights on picker shelves only
   const pickerAvailability = await ContainerOps.aggregate([
     { $match: { itemId: { $in: itemIds } } },
     { $unwind: "$distributedWeights" },
@@ -762,15 +801,10 @@ export async function canFulfillOrderFromPickerShelves(
     {
       $group: {
         _id: "$itemId",
-        totalAvailableKg: {
-          // Decimal128 -> number; if it's already number/string, $toDouble still works
-          $sum: { $toDouble: "$distributedWeights.weightKg" },
-        },
+        totalAvailableKg: { $sum: { $toDouble: "$distributedWeights.weightKg" } },
       },
     },
   ]);
-
-  // console.log("pickerAvailability: ", pickerAvailability);
 
   const availableMap = new Map<string, number>();
   for (const row of pickerAvailability) {
@@ -779,44 +813,30 @@ export async function canFulfillOrderFromPickerShelves(
 
   let totalRequired = 0;
   let totalAvailable = 0;
-  const missing: Array<{
-    itemId: string;
-    name?: string;
-    requiredKg: number;
-    availableKg: number;
-    shortByKg: number;
-  }> = [];
+  const missing: any[] = [];
 
   for (const req of requirements) {
     const avail = availableMap.get(req.itemId) ?? 0;
     totalRequired += req.requiredKg;
     totalAvailable += Math.min(avail, req.requiredKg);
-
     if (avail + 1e-9 < req.requiredKg) {
       missing.push({
         itemId: req.itemId,
         name: req.name,
         requiredKg: req.requiredKg,
         availableKg: avail,
-        shortByKg: Math.max(0, req.requiredKg - avail),
+        shortByKg: req.requiredKg - avail,
       });
     }
   }
 
-  const ok = missing.length === 0;
   const summary = {
     totalRequired,
     totalAvailable,
     totalShort: Math.max(0, totalRequired - totalAvailable),
   };
 
-  return ok ? { ok: true as const, summary } : { ok: false as const, summary, missing };
-}
-
-
-export function summaryDeltaForApproval(summary: {
-  totalRequired: number;
-  totalAvailable: number;
-}) {
-  return Math.min(summary.totalAvailable, summary.totalRequired);
+  return missing.length === 0
+    ? { ok: true, summary }
+    : { ok: false, summary, missing };
 }
