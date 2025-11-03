@@ -144,7 +144,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     label: "Op Manager",
     children: [
       //{ type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
-      { type: "link", key: "pickerTasks", label: "picker tasks", path: "PickerTasksPage" },
+      { type: "link", key: "pickerTasks", label: "picker tasks", path: P.PickerTasksPage },
       //{ type: "link", key: "mgr-packages", label: "Packages", path: "#" },
     ],
   },

@@ -1,5 +1,4 @@
-import PickTaskPage from '@/pages/picker/pick-task';
-import pick from '../../../backend/src/utils/pick';
+
 // src/routes/paths.ts
 export const PATHS = {
   home: "/",
