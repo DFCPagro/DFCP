@@ -177,6 +177,7 @@ export default function PackOrderSection({
     mutationKey: ["packOrder", orderId],
     mutationFn: async () => {
       const result = await packOrder(orderId) // returns PackedOrder
+      console.log(result)
       return result
     },
     onSuccess: (packed) => {

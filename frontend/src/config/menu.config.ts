@@ -137,6 +137,17 @@ const workAdmin: ReadonlyArray<MenuItem> = [
       },
     ],
   },
+  // Transport Manager placeholder
+  {
+    type: "group",
+    key: "OpManager",
+    label: "Op Manager",
+    children: [
+      //{ type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
+      { type: "link", key: "pickerTasks", label: "picker tasks", path: "PickerTasksPage" },
+      //{ type: "link", key: "mgr-packages", label: "Packages", path: "#" },
+    ],
+  },
 
   // Transport Manager placeholder
   {

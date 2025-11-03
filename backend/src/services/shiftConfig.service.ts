@@ -3,7 +3,7 @@ import ApiError from "../utils/ApiError";
 import { DateTime } from "luxon";
 import { normalizeWindow } from "../utils/time";
 
-const SHIFT_ORDER: Array<ShiftConfigType["name"]> = ["morning", "afternoon", "evening", "night"];
+export const SHIFT_ORDER: Array<ShiftConfigType["name"]> = ["morning", "afternoon", "evening", "night"];
 
 function isNowInShift(nowMinutes: number, start: number, end: number): boolean {
   if (start <= end) return nowMinutes >= start && nowMinutes < end;

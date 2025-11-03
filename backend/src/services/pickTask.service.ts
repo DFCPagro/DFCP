@@ -5,10 +5,11 @@
 // completing tasks, updating crowd counters accordingly.
 
 import { Types } from "mongoose";
-import PickTask from "@/models/PickTask.model";
+import PickTask from "@/models/PickerTasks.model";
 import CrowdState from "@/models/CrowdState.model";
 import { PersistedCrowdService } from "./crowdPersistence.service";
 import ApiError from "@/utils/ApiError";
+import { getCurrentShift } from "./shiftConfig.service";
 
 export namespace PickTaskService {
   /**

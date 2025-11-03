@@ -1,3 +1,5 @@
+import PickTaskPage from '@/pages/picker/pick-task';
+import pick from '../../../backend/src/utils/pick';
 // src/routes/paths.ts
 export const PATHS = {
   home: "/",
@@ -35,6 +37,7 @@ export const PATHS = {
   JobAppReview: "/admin/jobReview",
   cropHarvest: "/admin/crop-harvest",
   PackageSizes: "/admin/package-sizes",
+  PickerTasksPage: "/admin/picker-tasks",
 
   // driver pages
   shipments: "/shipments",

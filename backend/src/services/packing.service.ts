@@ -12,6 +12,7 @@ export type OrderLineLite = {
   itemId: string | ObjectId;
   quantityKg?: number; // kg-mode (produce sold by weight)
   units?: number;      // unit-mode (produce sold by count, eggs, bread, etc.)
+  farmerOrderId?: string | ObjectId;
 };
 
 export type ItemLite = {
@@ -823,6 +824,7 @@ export function computePackingPlan(
     {
       itemId: string;
       itemName?: string;
+      farmerOrderId?: string | ObjectId;
       bags: number;
       bundles: number;
       totalKg?: number;
@@ -878,6 +880,7 @@ export function computePackingForOrderDoc(
       quantity?: number;     // legacy: could be kg
       quantityKg?: number;   // kg explicitly
       units?: number;        // count explicitly
+      farmerOrderId?: string | ObjectId;
     }>;
   },
   itemsById: Record<string, ItemLite>,
@@ -890,6 +893,7 @@ export function computePackingForOrderDoc(
       quantity?: number;
       quantityKg?: number;
       units?: number;
+      farmerOrderId?: string | ObjectId;
     }>;
   },
   itemsById: Record<string, ItemLite>,
@@ -904,6 +908,7 @@ export function computePackingForOrderDoc(
       quantity?: number;
       quantityKg?: number;
       units?: number;
+      farmerOrderId?: string | ObjectId;
     }>;
   },
   itemsById: Record<string, ItemLite>,
@@ -919,6 +924,7 @@ export function computePackingForOrderDoc(
         ? it.quantity
         : undefined,
     units: typeof it.units === "number" ? it.units : undefined,
+    farmerOrderId: it.farmerOrderId,
   }));
 
   return computePackingPlan(

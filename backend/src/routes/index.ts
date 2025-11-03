@@ -19,13 +19,14 @@ import scanRoute from "./scan.routes";
 import industrialDelivererRoute from "./industrialDeliverer.routes";
 import shelfRoutes from "./shelf.routes";
 import containerOpsRoutes from "./containerOps.routes";
-import pickTaskRoutes from "./pickTask.routes";
+import pickTaskRoutes from "./pickerTask.routes";
 import reconciliationRoutes from "./reconciliation.routes";
 import farmerInventoryRoutes from "./farmerInventory.route";
 import worldLayoutRoutes from "./worldLayout.routes";
 import demandStaticsRoutes from "./demandStatics.routes";
 import pickerRoutes from "./picker.routes";
 import deliveryShelvingRoutes from "./deliveryShelving.routes";
+import pickerTasksRoutes from "./pickerTask.routes";
 
 const router = Router();
 
@@ -59,9 +60,12 @@ router.use("/scan", scanRoute);
 // router.use(centerMapRoutes);
 router.use("/shifts", shiftRoutes);
 router.use("/users", userRoutes);
-router.use("/pick-tasks", pickTaskRoutes);
+
 router.use("/containers", reconciliationRoutes);
 router.use("/farmer-inventory", farmerInventoryRoutes);
 router.use("/jobApp", jobApplicationRouter);
+
+//pickers
+router.use("/pickerTasks", pickerTasksRoutes);
 
 export default router;

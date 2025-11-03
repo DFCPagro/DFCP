@@ -6,6 +6,7 @@ import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
+import pick from '../../../backend/src/utils/pick';
 
 // Lazy pages (unchanged) (no role)
 const Home = lazy(() => import("@/pages/Home"));
@@ -43,6 +44,7 @@ const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const LogisticCenter = lazy(() => import("@/pages/LogisticCenter"));
+const PickerTasks = lazy(() => import("@/pages/opManager/pickerTasks"));
 
 //csManager pages
 const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
