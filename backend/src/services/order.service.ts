@@ -22,6 +22,9 @@ import {
   ORDER_STAGE_LABELS,
   OrderStageKey,
 } from "../models/shared/stage.types";
+import ApiError from "@/utils/ApiError";
+import ContainerOps from "@/models/ContainerOps.model";
+import Shelf from "@/models/Shelf.model";
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
@@ -30,8 +33,6 @@ type ShiftName = "morning" | "afternoon" | "evening" | "night";
 type IdLike = string | Types.ObjectId;
 const toOID = (v: IdLike) =>
   v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
-
-
 
 type PayloadItem = CreateOrderInput["items"][number];
 
@@ -87,7 +88,11 @@ function ensureStageEntry(orderDoc: any, key: OrderStageKey) {
  *
  * NOTE: we do NOT close any previous stage here because it's the first stage.
  */
-function initOrderStagesAndAudit(orderDoc: any, customerOID: Types.ObjectId, itemsCount: number) {
+function initOrderStagesAndAudit(
+  orderDoc: any,
+  customerOID: Types.ObjectId,
+  itemsCount: number
+) {
   const now = new Date();
   const firstStageKey: OrderStageKey = "pending";
 
@@ -98,17 +103,14 @@ function initOrderStagesAndAudit(orderDoc: any, customerOID: Types.ObjectId, ite
   const st = ensureStageEntry(orderDoc, firstStageKey);
   st.status = "current";
   st.timestamp = now;
-  
+
   if (!st.startedAt) st.startedAt = now;
   // completedAt stays null
 
   // audit
-  orderDoc.addAudit(
-    customerOID,
-    "ORDER_CREATED",
-    "Customer placed an order",
-    { itemsCount }
-  );
+  orderDoc.addAudit(customerOID, "ORDER_CREATED", "Customer placed an order", {
+    itemsCount,
+  });
 }
 
 /** ------------------------ legacy / normalization helpers ------------------------ */
@@ -158,9 +160,7 @@ function ensureAmsLineEstimatesAndValidate(line: AmsLine, foIdForMsg: string) {
 
   if (requiresPerUnitAvg) {
     const avg = line.estimates.avgWeightPerUnitKg;
-    const ok =
-      Number.isFinite(avg) &&
-      (avg as number) > 0;
+    const ok = Number.isFinite(avg) && (avg as number) > 0;
 
     if (!ok) {
       const e: any = new Error("BadRequest");
@@ -426,8 +426,9 @@ export async function createOrderForCustomer(
             unitMode: n.unitMode,
             quantityKg: n.quantityKg,
             units: n.units,
-            estimatesSnapshot:
-              Object.keys(snapshot).length ? snapshot : undefined,
+            estimatesSnapshot: Object.keys(snapshot).length
+              ? snapshot
+              : undefined,
             sourceFarmerName,
             sourceFarmName,
             farmerOrderId: toOID((it as any).farmerOrderId),
@@ -483,8 +484,6 @@ export async function createOrderForCustomer(
     session.endSession();
   }
 }
-
-
 
 /** ============================================================================
  * LIST latest orders for a customer
@@ -578,9 +577,7 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
     });
 
     const summaries = await Promise.all(
-      nextShifts.map(async (s) =>
-        summarizeWindow(s.date, s.name as ShiftName)
-      )
+      nextShifts.map(async (s) => summarizeWindow(s.date, s.name as ShiftName))
     );
 
     return {
@@ -705,4 +702,121 @@ export async function listOrdersForShift(params: {
   };
 }
 
+/**
+ * Check if ALL items of an Order can be fully picked from **picker** shelves.
+ * Used for: /orders/:orderId/can-fulfill
+ */
+export async function canFulfillOrderFromPickerShelves(
+  orderId: string | Types.ObjectId
+) {
+  const _id =
+    typeof orderId === "string" ? new Types.ObjectId(orderId) : orderId;
+  const order = await Order.findById(_id).lean();
+  if (!order) throw new ApiError(404, "Order not found");
 
+  if (!Array.isArray(order.items) || order.items.length === 0) {
+    throw new ApiError(400, "Order has no items");
+  }
+
+  const requirements = order.items.map((it: any) => {
+    const requiredKg = Number(
+      it.estimatedEffectiveKg ??
+        (it.quantityKg ?? 0) +
+          (it.units ?? 0) * (it.estimatesSnapshot?.avgWeightPerUnitKg ?? 0)
+    );
+    return {
+      itemId: String(it.itemId),
+      name: it.name,
+      requiredKg: Math.max(0, requiredKg || 0),
+    };
+  });
+  // console.log("requirements:", requirements);
+
+  const itemIds = [...new Set(requirements.map((r) => r.itemId))]
+    .filter(Boolean)
+    .map((id) => new Types.ObjectId(id));
+
+  // If nothing to check, it's trivially fulfillable
+  if (itemIds.length === 0) {
+    return {
+      ok: true as const,
+      summary: { totalRequired: 0, totalAvailable: 0, totalShort: 0 },
+    };
+  }
+
+  // Aggregate availability from ContainerOps that are currently placed on **picker** shelves.
+  // IMPORTANT: no state filter — we only care what sits on picker shelves right now.
+  const pickerAvailability = await ContainerOps.aggregate([
+    { $match: { itemId: { $in: itemIds } } },
+    { $unwind: "$distributedWeights" },
+    {
+      $lookup: {
+        from: Shelf.collection.name,
+        localField: "distributedWeights.shelfId",
+        foreignField: "_id",
+        as: "shelf",
+      },
+    },
+    { $unwind: "$shelf" },
+    { $match: { "shelf.type": "picker" } },
+    {
+      $group: {
+        _id: "$itemId",
+        totalAvailableKg: {
+          // Decimal128 -> number; if it's already number/string, $toDouble still works
+          $sum: { $toDouble: "$distributedWeights.weightKg" },
+        },
+      },
+    },
+  ]);
+
+  // console.log("pickerAvailability: ", pickerAvailability);
+
+  const availableMap = new Map<string, number>();
+  for (const row of pickerAvailability) {
+    availableMap.set(String(row._id), Number(row.totalAvailableKg ?? 0));
+  }
+
+  let totalRequired = 0;
+  let totalAvailable = 0;
+  const missing: Array<{
+    itemId: string;
+    name?: string;
+    requiredKg: number;
+    availableKg: number;
+    shortByKg: number;
+  }> = [];
+
+  for (const req of requirements) {
+    const avail = availableMap.get(req.itemId) ?? 0;
+    totalRequired += req.requiredKg;
+    totalAvailable += Math.min(avail, req.requiredKg);
+
+    if (avail + 1e-9 < req.requiredKg) {
+      missing.push({
+        itemId: req.itemId,
+        name: req.name,
+        requiredKg: req.requiredKg,
+        availableKg: avail,
+        shortByKg: Math.max(0, req.requiredKg - avail),
+      });
+    }
+  }
+
+  const ok = missing.length === 0;
+  const summary = {
+    totalRequired,
+    totalAvailable,
+    totalShort: Math.max(0, totalRequired - totalAvailable),
+  };
+
+  return ok ? { ok: true as const, summary } : { ok: false as const, summary, missing };
+}
+
+
+export function summaryDeltaForApproval(summary: {
+  totalRequired: number;
+  totalAvailable: number;
+}) {
+  return Math.min(summary.totalAvailable, summary.totalRequired);
+}

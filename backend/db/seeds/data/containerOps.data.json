@@ -91,5 +91,166 @@
     ],
     "createdAt": "2025-10-14T09:45:00.000Z",
     "updatedAt": "2025-10-14T09:45:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001a1",
+    "containerId": "ORD-A-APPLE-01",
+    "farmerOrderId": "47dc273e04232adae78e5dd3",
+    "itemId": "db63c0177cfae45a8385313a",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 2.13,
+    "totalWeightKg": 2.13,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa03", "slotId": "2", "weightKg": 2.13 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa03", "slotId": "2", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001a2",
+    "containerId": "ORD-A-CARROT-01",
+    "farmerOrderId": "f290716e5e11fae8b33c9f3a",
+    "itemId": "885df3d97431436c3a205ff3",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 1.85,
+    "totalWeightKg": 1.85,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa03", "slotId": "2", "weightKg": 1.85 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa03", "slotId": "2", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001a3",
+    "containerId": "ORD-A-GRAPES-01",
+    "farmerOrderId": "4dd7f4e04e355de606436395",
+    "itemId": "497bb3e65bf348533160cec0",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 1.99,
+    "totalWeightKg": 1.99,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa03", "slotId": "3", "weightKg": 1.99 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa03", "slotId": "3", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001a4",
+    "containerId": "ORD-A-LETTUCE-01",
+    "farmerOrderId": "df42c911a40c7245463f3ef3",
+    "itemId": "39bd70c4db17647c60d33c8f",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 7.86,
+    "totalWeightKg": 7.86,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa03", "slotId": "1", "weightKg": 5.00 },
+      { "shelfId": "66e0070000000000000aaa04", "slotId": "1", "weightKg": 2.86 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa03", "slotId": "1", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001a5",
+    "containerId": "ORD-A-STRAWBERRY-01",
+    "farmerOrderId": "a80d62f696d7f51ae0cbf29b",
+    "itemId": "30eb71d9a20cb517be34112f",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 0.71,
+    "totalWeightKg": 0.71,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa04", "slotId": "2", "weightKg": 0.71 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa04", "slotId": "2", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+
+
+  {
+    "_id": "66f2bb0000000000000001b1",
+    "containerId": "ORD-B-CARROT-01",
+    "farmerOrderId": "2e400be0900938a0b549c00c",
+    "itemId": "885df3d97431436c3a205ff3",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 1.30,
+    "totalWeightKg": 1.00,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa04", "slotId": "3", "weightKg": 1.00 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa04", "slotId": "3", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001b2",
+    "containerId": "ORD-B-LETTUCE-01",
+    "farmerOrderId": "326020f2cb3293a622605501",
+    "itemId": "39bd70c4db17647c60d33c8f",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 5.08,
+    "totalWeightKg": 3.00,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa04", "slotId": "1", "weightKg": 3.00 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa04", "slotId": "1", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001b3",
+    "containerId": "ORD-B-GRAPES-01",
+    "farmerOrderId": "3ab74e13cbddd73b199ec82d",
+    "itemId": "497bb3e65bf348533160cec0",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 0.97,
+    "totalWeightKg": 0.50,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa03", "slotId": "3", "weightKg": 0.50 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa03", "slotId": "3", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001b4",
+    "containerId": "ORD-B-STRAWBERRY-01",
+    "farmerOrderId": "b0565ed728cdf62c4ddfdf65",
+    "itemId": "30eb71d9a20cb517be34112f",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 1.80,
+    "totalWeightKg": 0.00,
+    "distributedWeights": [],
+    "location": { "area": "warehouse", "zone": "A", "aisle": "inbound", "shelfId": null, "slotId": null, "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
+  },
+  {
+    "_id": "66f2bb0000000000000001b5",
+    "containerId": "ORD-B-BANANA-01",
+    "farmerOrderId": "57bb17c08221f3eebe0d2909",
+    "itemId": "6873f67b8027abff0fdb32f3",
+    "logisticCenterId": "66e007000000000000000001",
+    "qrId": null,
+    "state": "shelved",
+    "intendedWeightKg": 2.14,
+    "totalWeightKg": 1.00,
+    "distributedWeights": [
+      { "shelfId": "66e0070000000000000aaa03", "slotId": "2", "weightKg": 1.00 }
+    ],
+    "location": { "area": "shelf", "zone": "A", "aisle": "1", "shelfId": "66e0070000000000000aaa03", "slotId": "2", "updatedAt": "2025-11-03T12:56:00.000Z" },
+    "createdAt": "2025-11-03T12:56:00.000Z", "updatedAt": "2025-11-03T12:56:00.000Z"
   }
 ]

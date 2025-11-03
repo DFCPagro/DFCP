@@ -135,5 +135,60 @@
     "isTemporarilyAvoid": false,
     "createdAt": "2025-10-14T09:30:00.000Z",
     "updatedAt": "2025-10-14T09:30:00.000Z"
+  },
+    {
+    "_id": "66e0070000000000000aaa03",
+    "logisticCenterId": "66e007000000000000000001",
+    "shelfId": "A4",
+    "type": "picker",
+    "zone": "A",
+    "aisle": "1",
+    "level": "mid",
+    "row": 1,
+    "col": 4,
+    "canvasX": 46,
+    "canvasY": 12,
+    "maxSlots": 3,
+    "maxWeightKg": 180,
+    "slots": [
+      { "slotId": "1", "capacityKg": 60, "currentWeightKg": 8.00, "containerOpsId": null, "occupiedAt": "2025-11-03T12:55:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "2", "capacityKg": 60, "currentWeightKg": 7.00, "containerOpsId": null, "occupiedAt": "2025-11-03T12:55:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "3", "capacityKg": 60, "currentWeightKg": 2.50, "containerOpsId": null, "occupiedAt": "2025-11-03T12:55:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null }
+    ],
+    "currentWeightKg": 17.50,
+    "occupiedSlots": 3,
+    "liveActiveTasks": 0,
+    "busyScore": 0,
+    "isTemporarilyAvoid": false,
+    "createdAt": "2025-11-03T12:55:00.000Z",
+    "updatedAt": "2025-11-03T12:55:00.000Z"
+  },
+  {
+    "_id": "66e0070000000000000aaa04",
+    "logisticCenterId": "66e007000000000000000001",
+    "shelfId": "A5",
+    "type": "picker",
+    "zone": "A",
+    "aisle": "1",
+    "level": "bottom",
+    "row": 1,
+    "col": 5,
+    "canvasX": 69,
+    "canvasY": 12,
+    "maxSlots": 3,
+    "maxWeightKg": 180,
+    "slots": [
+      { "slotId": "1", "capacityKg": 60, "currentWeightKg": 6.50, "containerOpsId": null, "occupiedAt": "2025-11-03T12:55:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "2", "capacityKg": 60, "currentWeightKg": 1.80, "containerOpsId": null, "occupiedAt": "2025-11-03T12:55:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null },
+      { "slotId": "3", "capacityKg": 60, "currentWeightKg": 1.50, "containerOpsId": null, "occupiedAt": "2025-11-03T12:55:00.000Z", "emptiedAt": null, "liveActiveTasks": 0, "lastTaskPingAt": null }
+    ],
+    "currentWeightKg": 9.80,
+    "occupiedSlots": 3,
+    "liveActiveTasks": 0,
+    "busyScore": 0,
+    "isTemporarilyAvoid": false,
+    "createdAt": "2025-11-03T12:55:00.000Z",
+    "updatedAt": "2025-11-03T12:55:00.000Z"
   }
+
 ]

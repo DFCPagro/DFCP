@@ -8,3 +8,5 @@ package-lock.json
 backend/db/seeds/exports/
 
 /data/
+
+*.zip

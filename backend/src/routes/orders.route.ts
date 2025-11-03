@@ -29,4 +29,8 @@ router.post("/:id/pack", authorize("admin", "csManager", "tManager"), postPackOr
 router.patch("/:orderId/stage", authorize("admin", "csManager", "tManager"), postUpdateOrderStage);
 
 
+
+// GET /orders/:orderId/can-fulfill
+router.get("/:orderId/can-fulfill", ctrl.checkOrderPickerFulfillment);
+
 export default router;
