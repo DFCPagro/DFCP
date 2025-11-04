@@ -18,8 +18,8 @@ import type { ShiftFarmerOrderItem } from "@/types/farmerOrders";
 import { FarmerOrderTimeline } from "./FarmerOrderTimeline";
 import type { FarmerOrderStageKey } from "@/types/farmerOrders";
 import { useAdvanceFarmerOrderStage } from "../hooks/useAdvanceFarmerOrderStage";
-import OrderAuditSection from "@/components/common/OrderAuditSection";
 import { useUpdateFarmerOrderStatus } from "../hooks/useUpdateFarmerOrderStatus"; // <-- add
+import ShiftFarmerOrderDetails from "./ShiftFarmerOrderDetails"; // 👈 add
 
 type AuditEvent = {
     action: string;
@@ -30,16 +30,7 @@ type AuditEvent = {
     meta?: Record<string, any>;
 };
 
-function getAuditFromRow(r: any): AuditEvent[] {
-    const src = r?.audit ?? r?.auditTrail ?? r?.historyAuditTrail ?? [];
-    return Array.isArray(src) ? src : [];
-}
 
-function shortId(id?: string, tail = 6) {
-    if (!id) return "-";
-    const s = String(id);
-    return s.length <= tail ? s : `…${s.slice(-tail)}`;
-}
 
 
 export type OrderRowProps = {
@@ -106,7 +97,7 @@ export const OrderRow = memo(function OrderRow({
 
     const handleView = (r: ShiftFarmerOrderItem) => {
         // eslint-disable-next-line no-console
-        console.log("[OrderRow] view clicked:", (r as any)._id);
+        // console.log("[OrderRow] view clicked:", (r as any)._id);
         setViewOpen(true);
     };
 
@@ -255,51 +246,12 @@ export const OrderRow = memo(function OrderRow({
             )}
 
             {/* View Dialog with OrderAuditSection */}
-            <Dialog.Root
+            <ShiftFarmerOrderDetails
+                row={record}
                 open={viewOpen}
-                onOpenChange={(e) => {
-                    if (!e.open) setViewOpen(false);
-                }}
-            >
-                <Portal>
-                    <Dialog.Backdrop />
-                    <Dialog.Positioner zIndex={1400}>
-                        <Dialog.Content maxW="720px">
-                            <Dialog.Header>
-                                <Dialog.Title>
-                                    Farmer Order · {shortId(orderId, 8)}
-                                </Dialog.Title>
-                                <Dialog.CloseTrigger />
-                            </Dialog.Header>
+                onOpenChange={setViewOpen}
+            />
 
-                            <Dialog.Body>
-                                <VStack align="stretch" gap="4">
-                                    {/* tiny header about the row (optional) */}
-                                    <Box>
-                                        <Text fontWeight="medium">
-                                            {(record as any)?.farmerName ?? (record as any)?.farmer?.name ?? "—"}
-                                        </Text>
-                                        <Text color="fg.muted" fontSize="sm">
-                                            {productLabel} · {(record as any)?.farmName ?? "—"}
-                                        </Text>
-                                    </Box>
-
-                                    {/* the audit you asked to reuse */}
-                                    <OrderAuditSection audit={getAuditFromRow(record)} />
-                                </VStack>
-                            </Dialog.Body>
-
-                            <Dialog.Footer>
-                                <HStack justify="flex-end" w="full">
-                                    <Button variant="solid" colorPalette="teal" onClick={() => setViewOpen(false)}>
-                                        Close
-                                    </Button>
-                                </HStack>
-                            </Dialog.Footer>
-                        </Dialog.Content>
-                    </Dialog.Positioner>
-                </Portal>
-            </Dialog.Root>
 
         </Fragment>
     );
