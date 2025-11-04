@@ -2,6 +2,88 @@
 import { z } from "zod";
 import { ShiftEnum, IsoDateString } from "@/types/shifts";
 
+/* ------------ Shared helpers (safe for Mongoose/ISO strings) ------------ */
+const IsoDateLike = z.union([z.string(), z.date()]); // accepts ISO or Date
+const UserRefLoose = z.union([
+  z.string(), // plain ObjectId string
+  z.object({
+    id: z.string(),
+    name: z.string().optional(),
+    role: z.string().optional(),
+  }),
+]);
+
+/* -------------------- FarmerOrder stage visual states -------------------- */
+export const StageStateEnum = z
+  .enum(["pending", "current", "done", "problem"])
+  .catch("pending");
+export const FarmerOrderStageSchema = z.object({
+  key: z.string(), // one of FARMER_ORDER_STAGE_KEYS
+  state: StageStateEnum.optional(), // for timeline UI
+  by: UserRefLoose.optional(),
+  at: IsoDateLike.optional(),
+  note: z.string().optional(),
+  meta: z.record(z.any()).optional(),
+});
+export type FarmerOrderStage = z.infer<typeof FarmerOrderStageSchema>;
+
+/* --------------------------------- Audit --------------------------------- */
+export const AuditEventSchema = z.object({
+  action: z.string(), // e.g. "created" | "stage:ok" | "inspection:passed"
+  note: z.string().optional(),
+  by: UserRefLoose.optional(),
+  at: IsoDateLike.optional(),
+  timestamp: IsoDateLike.optional(), // some BE structs use 'timestamp'
+  meta: z.record(z.any()).optional(),
+});
+export type AuditEvent = z.infer<typeof AuditEventSchema>;
+
+/* -------------------------- QS & Inspection types ------------------------- */
+// BE: export const GRADES = ["A","B","C"] as const;
+export const QSGradeEnum = z.enum(["A", "B", "C"]);
+
+export const VisualInspectionSchema = z.object({
+  status: z.enum(["ok", "problem", "pending"]).optional(), // BE default "pending" handled server-side
+  note: z.string().optional(),
+  timestamp: IsoDateLike.optional(),
+});
+export type VisualInspection = z.infer<typeof VisualInspectionSchema>;
+
+// If you already have a strict QSInput type, import it instead of this fallback:
+const QSInputLooseSchema = z
+  .record(z.union([z.number(), z.string(), z.boolean()]))
+  .optional();
+
+export const QSReportSchema = z.object({
+  values: QSInputLooseSchema, // replace with your strict QSInputSchema when available
+  perMetricGrades: z.record(z.any()).default({}).optional(), // { brix: "B", colorDescription: "A", ... }
+  overallGrade: z
+    .union([QSGradeEnum, z.literal("")])
+    .default("")
+    .optional(),
+  note: z.string().optional(),
+  byUserId: UserRefLoose.optional(),
+  timestamp: IsoDateLike.optional(),
+});
+export type QSReport = z.infer<typeof QSReportSchema>;
+
+/* --------------------------- Containers & orders -------------------------- */
+export const ContainerLineSchema = z.object({
+  type: z.string().optional(), // "crate" | "bin" | "pallet" | ...
+  count: z.number().nonnegative().optional(),
+  estWeightKg: z.number().nonnegative().optional(),
+  note: z.string().optional(),
+});
+export type ContainerLine = z.infer<typeof ContainerLineSchema>;
+
+export const LinkedOrderSummarySchema = z.object({
+  _id: z.string(),
+  buyerName: z.string().optional(),
+  quantityKg: z.number().nonnegative().optional(),
+  status: z.string().optional(), // tighten later if you have an enum
+});
+export type LinkedOrderSummary = z.infer<typeof LinkedOrderSummarySchema>;
+
 /* --------------------------------- Enums --------------------------------- */
 
 export const FarmerOrderStatusEnum = z.enum(["pending", "ok", "problem"]);
@@ -226,19 +308,36 @@ export const ShiftFarmerOrderItemSchema = z.object({
 
   pictureUrl: z.string().url().optional(),
 
+  // quantities (preserve BE misspelling but also expose canonical alias)
   forcastedQuantityKg: z.number().nonnegative().optional(),
+  forecastedQuantityKg: z.number().nonnegative().optional(), // NEW alias for FE convenience
   finalQuantityKg: z.number().nonnegative().optional(),
   sumOrderedQuantityKg: z.number().nonnegative().optional(),
 
-  inspectionStatus: z.string().optional(), // tighten to enum later if you have one
+  // --- inspection status tightened to BE enum ---
+  inspectionStatus: z.enum(["pending", "passed", "failed"]).optional(),
+
+  // --- stages now typed (was unknown[]) ---
   stageKey: z.string().nullable().optional(),
-  stages: z.array(z.unknown()).optional(),
+  stages: z.array(FarmerOrderStageSchema).optional(),
 
-  containers: z.array(z.unknown()).optional(),
-  orders: z.array(z.unknown()).optional(),
+  // --- QS reports (farmer & inspection) ---
+  farmersQSreport: QSReportSchema.optional(),
+  inspectionQSreport: QSReportSchema.optional(),
 
-  createdAt: z.string().optional(), // or z.string().datetime().optional()
-  updatedAt: z.string().optional(),
+  // --- quick visual inspection struct ---
+  visualInspection: VisualInspectionSchema.optional(),
+
+  // --- audit typed (if BE provides audit/auditTrail) ---
+  audit: z.array(AuditEventSchema).optional(),
+
+  // --- containers & orders typed (were unknown[]) ---
+  containers: z.array(ContainerLineSchema).optional(),
+  orders: z.array(LinkedOrderSummarySchema).optional(),
+
+  // metadata (accept Date or ISO)
+  createdAt: z.union([z.string(), z.date()]).optional(),
+  updatedAt: z.union([z.string(), z.date()]).optional(),
   createdBy: z.string().optional(),
   updatedBy: z.string().optional(),
   __v: z.number().optional(),
