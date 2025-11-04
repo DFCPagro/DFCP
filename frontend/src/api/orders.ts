@@ -175,7 +175,7 @@ export async function confirmOrderByCustomerToken(
 }
 
 type GetOrdersForShiftParams = {
-  logisticCenterId: string;
+ 
   date: string;       // yyyy-mm-dd
   shiftName: string;
   stageKey?: OrderStatus;     // optional; server may ignore
@@ -193,11 +193,11 @@ export async function getOrderByOpsToken(token: string) {
 
 
 export async function getOrdersForShift(params: GetOrdersForShiftParams): Promise<CSOrdersResponse> {
-  const { logisticCenterId, date, shiftName, stageKey, page, limit, fields } = params;
+  const {  date, shiftName, stageKey, page, limit, fields } = params;
 
   // Only send defined params
   const query: Record<string, any> = {
-    logisticCenterId,
+    
     date,
     shiftName,
   };

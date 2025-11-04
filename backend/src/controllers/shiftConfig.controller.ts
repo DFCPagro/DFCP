@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import ApiError from "../utils/ApiError";
-import { getShiftWindows, listShiftWindowsByLC, getNextAvailableShifts } from "../services/shiftConfig.service";
+import { getShiftWindows, listShiftWindowsByLC, getNextAvailableShifts, getCurrentShift } from "../services/shiftConfig.service";
+import { get } from "node:http";
 
 export async function getShiftWindowsController(req: Request, res: Response, next: NextFunction) {
   try {
@@ -41,4 +42,20 @@ export async function getNextShiftsController(req: Request, res: Response, next:
     next(err);
   }
 }
+
+
+export async function getCurrentShiftController(req: Request, res: Response, next: NextFunction) {
+  try {
+    console.log("getCurrentShiftController called");
+    const shift = await getCurrentShift();
+
+    if (shift === "none") {
+      return res.status(404).json({ error: "No active shift right now" });
+    }
+    return res.status(200).json({ data: { shift } });
+  } catch (err) {
+    next(err);
+  }
+}
+
 

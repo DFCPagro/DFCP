@@ -137,7 +137,8 @@ export async function getOrdersSummary(req: Request, res: Response) {
 
 export async function getOrdersForShift(req: Request, res: Response) {
   try {
-    const logisticCenterId = LCid;;
+    const user=(req as any).user;
+    const logisticCenterId = user.logisticCenterId;
     const date = String(req.query.date || ""); // yyyy-LL-dd in LC timezone
     const shiftName = String(req.query.shift || req.query.shiftName || "");
 
@@ -168,7 +169,7 @@ export async function getOrdersForShift(req: Request, res: Response) {
       limit,
       fields,
     });
-    console.log("data:", data);
+    //console.log("data:", data);
     return res.status(200).json({ data });
   } catch (err: any) {
     if (err.statusCode) return res.status(err.statusCode).json({ error: err.message });

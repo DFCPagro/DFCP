@@ -1,11 +1,13 @@
 // src/controllers/pickerTasks.controller.ts
 import { Request, Response } from "express";
 import mongoose from "mongoose";
+import LogisticCenter from '../models/logisticsCenter.model';
 import {
   generatePickerTasksForShift,
   listPickerTasksForCurrentShift,
   listPickerTasksForShift,
 } from "../services/pickerTasks.service";
+
 
 type Role = "admin" | "opManager" | "picker" | string;
 const hasRole = (u: any, roles: Role[]) => !!u && roles.includes(u.role);
@@ -14,17 +16,14 @@ const hasRole = (u: any, roles: Role[]) => !!u && roles.includes(u.role);
 export async function postGeneratePickerTasks(req: Request, res: Response) {
   try {
     const user = (req as any).user;
-    if (!hasRole(user, ["admin", "opManager"])) {
-      return res.status(403).json({ error: "Forbidden", details: "Only admin or opManager can generate tasks." });
-    }
-
-    const { logisticCenterId, shiftName, shiftDate } = req.body || {};
-    if (!mongoose.isValidObjectId(logisticCenterId)) {
+    const logisticCenterID= user.logisticCenterId
+    const {  shiftName, shiftDate } = req.body || {};
+    if (!mongoose.isValidObjectId(logisticCenterID)) {
       return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
     }
 
     const result = await generatePickerTasksForShift({
-      logisticCenterId,
+      logisticCenterId: logisticCenterID,
       createdByUserId: String(user._id),
       shiftName,
       shiftDate,
@@ -47,9 +46,9 @@ export async function getPickerTasksForCurrentShift(req: Request, res: Response)
     if (!hasRole(user, ["admin", "opManager", "picker"])) {
       return res.status(403).json({ error: "Forbidden", details: "Insufficient role." });
     }
-
+    const logisticCenterId= user.logisticCenterId
     const {
-      logisticCenterId,
+  
       status,
       mine,
       page,
@@ -84,12 +83,12 @@ export async function getPickerTasksForCurrentShift(req: Request, res: Response)
 export async function getPickerTasksForShiftController(req: Request, res: Response) {
   try {
     const user = (req as any).user;
-    if (!hasRole(user, ["admin", "opManager", "picker"])) {
-      return res.status(403).json({ error: "Forbidden", details: "Insufficient role." });
-    }
-
+    // if (!hasRole(user, ["admin", "opManager", "picker"])) {
+    //   return res.status(403).json({ error: "Forbidden", details: "Insufficient role." });
+    // }
+    const logisticCenterId= user.logisticCenterId
     const {
-      logisticCenterId,
+      
       shiftName,
       shiftDate,
       status,

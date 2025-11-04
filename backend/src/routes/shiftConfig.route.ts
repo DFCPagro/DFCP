@@ -15,5 +15,6 @@ router.get(
   v.nextQuery,
   ctrl.getNextShiftsController
 );
+router.get("/current",  ctrl.getCurrentShiftController);
 
 export default router;

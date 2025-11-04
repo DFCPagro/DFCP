@@ -3,7 +3,11 @@ import ApiError from "../utils/ApiError";
 import { DateTime } from "luxon";
 import { normalizeWindow } from "../utils/time";
 
+
 export const SHIFT_ORDER: Array<ShiftConfigType["name"]> = ["morning", "afternoon", "evening", "night"];
+
+// add this union locally (or import from a pure types module)
+export type ShiftName = "morning" | "afternoon" | "evening" | "night" | "none";
 
 function isNowInShift(nowMinutes: number, start: number, end: number): boolean {
   if (start <= end) return nowMinutes >= start && nowMinutes < end;
@@ -87,14 +91,44 @@ export async function getNextAvailableShifts(params: {
   return out;
 }
 
-export async function getCurrentShift(): Promise<"morning"|"afternoon"|"evening"|"night"|"none"> {
+export async function getCurrentShift(): Promise<ShiftName> {
   const configs = await ShiftConfig.find({}).lean().exec();
   if (!configs.length) return "none";
-  const tz = configs[0].timezone || "Asia/Jerusalem";
+
+  // figure timezone (prefer doc.tz if present)
+  const tz =
+    (configs[0] as any).timezone ||
+    (configs[0] as any).tz ||
+    "Asia/Jerusalem";
   const now = DateTime.now().setZone(tz);
   const nowMinutes = now.hour * 60 + now.minute;
-  for (const cfg of configs) {
-    if (isNowInShift(nowMinutes, cfg.generalStartMin, cfg.generalEndMin)) return cfg.name as any;
+
+  console.log(`Now in ${tz}: ${now.toISO()} (${nowMinutes} min)`);
+
+  // case A: multiple docs, each a shift
+  const looksLikePerShiftDocs =
+    typeof (configs[0] as any).name === "string" &&
+    ("generalStartMin" in configs[0] || "generalEndMin" in configs[0]);
+
+  if (looksLikePerShiftDocs) {
+    for (const cfg of configs as any[]) {
+      if (isNowInShift(nowMinutes, cfg.generalStartMin, cfg.generalEndMin)) {
+        console.log("Matched shift (per-doc):", cfg.name);
+        return cfg.name;
+      }
+    }
+    return "none";
+  }
+
+  // case B: one doc with nested shifts array
+  const shifts = (configs[0] as any).shifts;
+  if (Array.isArray(shifts)) {
+    for (const s of shifts) {
+      if (isNowInShift(nowMinutes, s.generalStartMin, s.generalEndMin)) {
+        console.log("Matched shift (nested):", s.name);
+        return s.name as ShiftName;
+      }
+    }
   }
   return "none";
 }
@@ -119,7 +153,8 @@ export async function getCurrentShiftIsoWindow(logisticCenterId?: string) {
     return shiftMinsToIsoRange(
       anyCfg.timezone || "Asia/Jerusalem",
       anyCfg.generalStartMin,
-      anyCfg.generalEndMin
+      anyCfg.generalEndMin,
+     
     );
   }
 
