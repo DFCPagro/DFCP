@@ -127,7 +127,7 @@ export default function AppRoutes() {
 <Route element={<AppShell showFooter={true} showHeader={false}/>}>
   <Route path={PATHS.profile} element={<Profile />} />
 </Route>
-<Route element={<AppShell showFooter={true} showHeader={false} />}>
+<Route element={<AppShell showFooter={true} maxW="1 1 auto" showHeader={false} />}>
   <Route path={PATHS.orders} element={<Orders />} />
 </Route>
           {/* Admin-only */}
@@ -295,11 +295,14 @@ export default function AppRoutes() {
         <Route
           element={
             <AuthGuard>
+              <AppShell showFooter={false}  maxW="5xl"/>
             </AuthGuard>
+              
           }
         >
 
-          <Route path={PATHS.checkout} element={<Checkout />} />
+          <Route path={PATHS.checkout} element={<Checkout /> 
+        } />
         </Route>
 
         {/* --- Authenticated, no FOOTER + wider --- */}

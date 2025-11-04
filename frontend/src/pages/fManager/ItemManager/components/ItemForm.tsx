@@ -1,3 +1,4 @@
+// src/pages/items/ItemForm.tsx
 import { useMemo } from "react";
 import {
   Box,
@@ -23,6 +24,9 @@ import {
 } from "./form/useItemFormState";
 import ItemsPackingSection from "./form/sections/itemPacking";
 import SellModesSection from "./form/sections/sellModeSection";
+import NonProduceQualitySection, {
+  type NonProduceQuality,
+} from "./form/sections/NonProduceQualitySection";
 
 type Props = {
   defaultValues?: Partial<ItemFormValues>;
@@ -92,7 +96,8 @@ export default function ItemForm({
     }
   };
 
-  const countQs = (qs: QualityStandards | undefined) => {
+  // Count for produce matrix. Keeps previous UX metric text.
+  const countProduceMetrics = (qs: QualityStandards | undefined) => {
     if (!qs) return 0;
     let c = 0;
     for (const k of Object.keys(qs) as StringKeys<QualityStandards>[]) {
@@ -102,7 +107,7 @@ export default function ItemForm({
     return c;
   };
 
-  const showQS = isFruitOrVegetable(values.category);
+  const isProduce = isFruitOrVegetable(values.category);
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -290,11 +295,13 @@ export default function ItemForm({
           </Field.ErrorText>
         </Field.Root>
 
-        {showQS ? (
+        {isProduce ? (
           <>
             <QualityStandardsSection
               value={
-                (values as any).qualityStandards as QualityStandards | undefined
+                (values as any).qualityStandards as
+                  | QualityStandards
+                  | undefined
               }
               onChange={(next) => {
                 if (readOnly) return;
@@ -303,14 +310,33 @@ export default function ItemForm({
               readOnly={readOnly}
             />
             <Text fontSize="xs" color="fg.muted">
-              {countQs((values as any).qualityStandards)} metric
-              {countQs((values as any).qualityStandards) === 1 ? "" : "s"} set
+              {countProduceMetrics(
+                (values as any).qualityStandards as QualityStandards | undefined
+              )}{" "}
+              metric
+              {countProduceMetrics(
+                (values as any).qualityStandards as QualityStandards | undefined
+              ) === 1
+                ? ""
+                : "s"}{" "}
+              set
             </Text>
           </>
         ) : (
-          <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
-            <Text>the qulity standerds of the catagorty will appear here later..</Text>
-          </Box>
+          <NonProduceQualitySection
+            value={
+              (values as any).qualityStandards as
+                | NonProduceQuality
+                | undefined
+            }
+            onChange={(next) => {
+              if (readOnly) return;
+              const cleaned =
+                next && next.grade && next.grade.length > 0 ? next : undefined;
+              setValues((s) => ({ ...(s as any), qualityStandards: cleaned }));
+            }}
+            readOnly={readOnly}
+          />
         )}
 
         <ItemsPackingSection

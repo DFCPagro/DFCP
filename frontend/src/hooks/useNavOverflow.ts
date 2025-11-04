@@ -1,107 +1,109 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+// src/hooks/useNavOverflow.ts
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
-/**
- * Detects when a horizontal menu overflows its container.
- * Usage:
- *   const { ref, isOverflowing } = useNavOverflow();
- */
-export function useNavOverflow() {
-  const ref = useRef<HTMLDivElement | null>(null);
+/** True if any child wrapped to a new row. */
+function hasWrapped(container: HTMLElement): boolean {
+  const kids = Array.from(container.children) as HTMLElement[];
+  if (kids.length <= 1) return false;
+  const top0 = kids[0].offsetTop;
+  for (const el of kids) if (el.offsetTop > top0) return true;
+  return false;
+}
+
+
+type Options = {
+  /** Extra px slack before we COLLAPSE to the drawer. Prevents flicker near the edge. */
+  collapseSlack?: number; // default 8
+  /** Extra px slack before we EXPAND back to inline. Make this larger than collapseSlack. */
+  expandSlack?: number; // default 16
+  /** Require this many consecutive consistent reads before toggling state. */
+  stableFrames?: number; // default 2
+};
+
+/** Detects header overflow with hysteresis. Use the returned callback as the ref. */
+export function useNavOverflow(opts: Options = {}) {
+  const {
+    collapseSlack = 0,
+    expandSlack = 0,
+    stableFrames = 0,
+  } = opts;
+
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
   const [isOverflowing, setOverflow] = useState(false);
 
+  const roRef = useRef<ResizeObserver | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const stableRef = useRef(0); // consecutive confirmations of the same outcome
+  const lastDesiredRef = useRef<boolean | null>(null); // desired state before commit
+
+  const measureDesired = useCallback(() => {
+    if (!node) return null;
+
+    // Use different slack depending on current state to add hysteresis
+    const slack = isOverflowing ? expandSlack : collapseSlack;
+
+    const overflowX = node.scrollWidth > node.clientWidth + slack;
+    const wrapped = hasWrapped(node);
+
+    // Wrapping is a hard signal regardless of slack
+    const desired = overflowX || wrapped;
+    return desired;
+  }, [node, isOverflowing, collapseSlack, expandSlack]);
+
   const check = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    setOverflow(el.scrollWidth > el.clientWidth + 1);
-  }, []);
+    const desired = measureDesired();
+    if (desired == null) return;
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    // stability gate: commit only after N consecutive frames agree
+    if (lastDesiredRef.current === desired) {
+      stableRef.current += 1;
+    } else {
+      lastDesiredRef.current = desired;
+      stableRef.current = 1;
+    }
 
-    check();
+    if (stableRef.current >= stableFrames && desired !== isOverflowing) {
+      setOverflow(desired);
+      // reset stability after commit
+      stableRef.current = 0;
+      lastDesiredRef.current = null;
+    }
+  }, [measureDesired, isOverflowing, stableFrames]);
 
-    const ro = new ResizeObserver(() => check());
-    ro.observe(el);
-    for (const child of Array.from(el.children)) ro.observe(child as Element);
+  const run = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(check);
+  }, [check]);
 
-    const onWin = () => check();
-    window.addEventListener("resize", onWin);
+  // Rebind observer whenever the target node changes
+  useLayoutEffect(() => {
+    roRef.current?.disconnect();
+    if (!node) return;
+
+    const ro = new ResizeObserver(run);
+    roRef.current = ro;
+
+    ro.observe(node);
+    for (const child of Array.from(node.children)) ro.observe(child);
+
+    window.addEventListener("resize", run);
+    const fontsReady: Promise<unknown> | undefined = (document as any).fonts?.ready;
+    fontsReady?.then(() => run()).catch(() => {});
+
+    // initial
+    run();
 
     return () => {
       ro.disconnect();
-      window.removeEventListener("resize", onWin);
+      window.removeEventListener("resize", run);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [check]);
+  }, [node, run]);
 
-  return { ref, isOverflowing };
-}
-
-/**
- * NEW: Dynamic overflow splitter.
- * Gives you refs to attach to each item and splits items into visible/overflow based on actual width.
- */
-export function useNavOverflowSplit<T extends { key: string }>() {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [itemWidths, setItemWidths] = useState<Record<string, number>>({});
-
-  // attach to each rendered item wrapper
-  const registerItem = (key: string) => (el: HTMLElement | null) => {
-    if (!el) return;
-    const measure = () => {
-      const w = Math.ceil(el.getBoundingClientRect().width);
-      setItemWidths(prev => (prev[key] === w ? prev : { ...prev, [key]: w }));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    // store for cleanup
-    (el as any).__ro = ro;
-  };
-
-  useLayoutEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-    const measure = () => {
-      const w = Math.floor(node.getBoundingClientRect().width);
-      setContainerWidth(prev => (prev === w ? prev : w));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(node);
-    return () => ro.disconnect();
+  /** Use this as the ref prop: <Stack ref={setRef}> or for the hidden probe. */
+  const setRef = useCallback((el: HTMLDivElement | null) => {
+    setNode(el);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      document.querySelectorAll("[data-overflow-item]").forEach((n: any) => {
-        try { n.__ro?.disconnect?.(); } catch {}
-      });
-    };
-  }, []);
-
-  function split(items: T[], gapBuffer = 8) {
-    // sum until we run out of space
-    let used = 0;
-    let cut = items.length;
-    for (let i = 0; i < items.length; i++) {
-      const w = itemWidths[items[i].key] ?? 0;
-      if (used + w + gapBuffer <= containerWidth) {
-        used += w;
-      } else {
-        cut = i;
-        break;
-      }
-    }
-    return {
-      visible: items.slice(0, cut),
-      overflow: items.slice(cut),
-      isOverflowing: cut < items.length,
-      containerRef,
-      registerItem,
-    };
-  }
-
-  return { split };
+  return { setRef, isOverflowing, recheck: run };
 }

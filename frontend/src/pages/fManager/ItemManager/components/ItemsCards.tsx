@@ -67,7 +67,7 @@ function sellBadgeLabel(it: any) {
   const bundle = it?.sellModes?.unitBundleSize ?? 1;
   const bundleTxt = mode === "unit" && bundle > 1 ? ` (${bundle})` : "";
   if (mode === "kg") return "Sell: kg";
-  if (mode === "unit") return `Sell: unit${bundleTxt}`;
+  if (mode === "unit") return `Sell: Package${bundleTxt}`;
   return "Sell: mixed";
 }
 
@@ -252,7 +252,7 @@ export default function ItemsCards({
                         it.pricePerUnitOverride != null && (
                           <Tooltip content="Explicit per-unit price override">
                             <Badge variant="solid" colorPalette="gray">
-                              {fmtPrice(it.pricePerUnitOverride)} / unit
+                              {fmtPrice(it.pricePerUnitOverride)} / Package Qual A
                             </Badge>
                           </Tooltip>
                         )}

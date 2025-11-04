@@ -12,13 +12,10 @@ import { getMenuFor } from "@/config/menu.config";
 import HeaderMenu from "./HeaderMenu";
 import SideDrawer from "./SideDrawer";
 import AccountMenu from "./AccountMenu";
-
-// ✅ use your custom color-mode utilities (next-themes + Chakra)
 import { useColorModeValue, ColorModeButton } from "@/components/ui/color-mode";
 import logo from "/DFCPlogo.png";
 
 export default function NavBar() {
-  // use your hook instead of Chakra's
   const bg = useColorModeValue("gray.50", "gray.900");
   const border = useColorModeValue("gray.200", "gray.700");
 
@@ -26,69 +23,47 @@ export default function NavBar() {
   const role = useSessionStore((s) => s.activeWorkerRole);
   const items = getMenuFor(mode, role);
 
-  const { ref, isOverflowing } = useNavOverflow();
+ const { setRef, isOverflowing } = useNavOverflow({ collapseSlack: 0, expandSlack: 12, stableFrames: 1 });
   const openDrawer = useUIStore((s) => s.openDrawer);
+  const showDesktopBurger = isOverflowing || !items?.length;
 
   return (
-    <Box
-      as="header"
-      bg={bg}
-      borderBottom="1px solid"
-      borderColor={border}
-      position="sticky"
-      top={0}
-      zIndex={100}
-    >
+    <Box as="header" bg={bg} borderBottom="1px solid" borderColor={border} position="sticky" top={0} zIndex={100}>
       <Flex h="14" align="center" px="3" gap="3">
-        {/* Burger appears when items overflow (or if there are none) */}
-        {(isOverflowing || !items?.length) && (
-          <StyledIconButton
-            aria-label="Open menu"
-            variant="ghost"
-            onClick={openDrawer}
-          >
-            <FiMenu />
-          </StyledIconButton>
+        {showDesktopBurger && (
+          <Box display={{ base: "none", md: "block" }}>
+            <StyledIconButton aria-label="Open menu" variant="ghost" onClick={openDrawer}>
+              <FiMenu />
+            </StyledIconButton>
+          </Box>
         )}
 
-        {/* Brand */}
         <CLink asChild _hover={{ textDecoration: "none" }}>
-          <RouterLink to="/">
-            <CImage
-              src={logo}
-              alt="Simple Market"
-              height="8"
-              objectFit="contain"
-            />
-          </RouterLink>
+          <RouterLink to="/"><CImage src={logo} alt="DFCP" h="8" objectFit="contain" /></RouterLink>
         </CLink>
 
         {/* Right cluster */}
-        <Flex align="center" gap="2" ml="auto" minW={0}>
-          {/* Inline menu when there is room */}
-          {!isOverflowing && items?.length ? (
-            <HeaderMenu items={items} containerRef={ref} />
-          ) : (
-            // Keep a measurable element for overflow detection even when hidden
-            <Box
-              ref={ref as any}
-              style={{
-                position: "absolute",
-                left: -9999,
-                visibility: "hidden",
-              }}
-            />
-          )}
+<Flex align="center" gap="2" ml="auto" minW={0} flex="1" position="relative">
+          {/* Visible inline menu only when it fits */}
+  {!isOverflowing && items?.length ? <HeaderMenu items={items} /> : null}
 
-          {/* Account menu */}
+          {/* Probe: always mounted, hidden, measured. Must render the SAME structure as the real menu. */}
+          <Box
+    position="absolute"
+    left={0}
+    right={0}
+    top={0}
+    visibility="hidden"
+    pointerEvents="none"
+    aria-hidden="true"
+  >
+    <HeaderMenu items={items} containerRef={setRef} />
+  </Box>
           <AccountMenu />
-
-          {/* Theme toggle (your component) */}
           <ColorModeButton />
         </Flex>
       </Flex>
 
-      {/* Mobile / overflow drawer uses the same items registry */}
       <SideDrawer items={items} />
     </Box>
   );

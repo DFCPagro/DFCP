@@ -1,53 +1,47 @@
-// src/components/layout/HeaderMenu.tsx
+import React from "react";
 import { Box, Stack, IconButton, Icon } from "@chakra-ui/react";
 import { FiMenu } from "react-icons/fi";
 import { NavLink, useLocation } from "react-router-dom";
-import {
-  isMenuGroup,
-  isVisible,
-  type MenuItem,
-  type MenuLink,
-} from "@/types/menu";
+import { isMenuGroup, isVisible, type MenuItem, type MenuLink } from "@/types/menu";
 import GroupMenu from "./GroupMenu";
 import { linkIsActive } from "@/helpers/activeMatch";
 import { StyledButton } from "@/components/ui/Button";
-import SideDrawer from "./SideDrawer";
 import { useUIStore } from "@/store/ui";
 
 interface Props {
   items: ReadonlyArray<MenuItem>;
-  containerRef: React.RefObject<HTMLDivElement>;
+  /** Optional: only needed when this instance is the overflow probe. */
+  containerRef?: React.Ref<HTMLDivElement> | null;
+  /** Optional per-item ref from useNavOverflowSplit. */
+  registerItem?: (key: string) => (el: HTMLElement | null) => void;
 }
 
-export default function HeaderMenu({ items, containerRef }: Props) {
+export default function HeaderMenu({ items, containerRef, registerItem }: Props) {
   const location = useLocation();
   const openDrawer = useUIStore((s) => s.openDrawer);
   const childActive = (link: MenuLink) => linkIsActive(location.pathname, link);
 
   return (
     <>
-      {/* Always mount the drawer so it can open from anywhere (mobile button or AccountMenu) */}
-      <SideDrawer items={items} />
-
-      {/* Mobile: hamburger trigger */}
       <Box display={{ base: "flex", md: "none" }} alignItems="center">
         <IconButton aria-label="Open menu" variant="ghost" size="sm" onClick={openDrawer}>
           <Icon as={FiMenu} />
         </IconButton>
       </Box>
 
-      {/* Desktop: horizontal, wrapping menu */}
-      <Box display={{ base: "none", md: "block" }}>
+      <Box display={{ base: "none", md: "block" }} w="full">
         <Stack
-          ref={containerRef as any}
+          ref={containerRef ?? undefined}
           as="nav"
           direction="row"
           flexWrap="wrap"
           gap="2"
           alignItems="center"
           overflow="visible"
-          whiteSpace="normal"
+          whiteSpace="nowrap"     // enforce single-line items
           minW={0}
+          w="full"
+          lineHeight={1}
         >
           {items.map((item) => {
             const visible = isVisible(item, { isAuthenticated: true, region: null });
@@ -55,26 +49,53 @@ export default function HeaderMenu({ items, containerRef }: Props) {
 
             if (isMenuGroup(item)) {
               const anyChildActive = item.children.some(childActive);
-              return <GroupMenu key={item.key} group={item} active={anyChildActive} />;
+              return (
+                <Box
+                  key={item.key}
+                  ref={registerItem ? registerItem(item.key) : undefined}
+                  data-overflow-item=""
+                  flex="0 0 auto"   // item treated as a single unit
+                  minW={0}
+                >
+                  <GroupMenu group={item} active={anyChildActive} />
+                </Box>
+              );
             }
 
-            const active = childActive(item); // item is MenuLink
+            const link = item as MenuLink;
+            const active = childActive(link);
+
             return (
-              <StyledButton
-                key={item.key}
-                visual={active ? "solid" : "ghost"}
-                size="sm"
-                asChild
-                sx={{ whiteSpace: "normal", maxWidth: "100%" }}
+              <Box
+                key={link.key}
+                ref={registerItem ? registerItem(link.key) : undefined}
+                data-overflow-item=""
+                flex="0 0 auto"
                 minW={0}
+                maxW="240px"       // prevent ultra-wide labels from breaking layout
               >
-                <NavLink
-                  to={item.path}
-                  style={{ display: "inline-block", whiteSpace: "normal", maxWidth: "100%" }}
+                <StyledButton
+                  visual={active ? "solid" : "ghost"}
+                  size="sm"
+                  asChild
+                  minW={0}
+                  w="full"
                 >
-                  {item.label}
-                </NavLink>
-              </StyledButton>
+                  <NavLink
+                    to={link.path}
+                    style={{
+                      display: "inline-block",
+                      whiteSpace: "nowrap",     // no internal wrapping
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: "100%",
+                      verticalAlign: "middle",
+                    }}
+                  >
+                    {link.label}
+                  </NavLink>
+                </StyledButton>
+              </Box>
             );
           })}
         </Stack>

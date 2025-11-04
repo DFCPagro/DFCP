@@ -23,6 +23,30 @@ function fmtCreated(ts?: string | number) {
   }
 }
 
+/** Try common shapes used in our models to extract assignee/driver/transporter */
+function getAssigneeLabel(o: any): { label: string | null; title?: string } {
+  const name =
+    o?.assignedDelivery?.name ??
+    o?.delivery?.assignee?.name ??
+    o?.driver?.name ??
+    o?.transporter?.name ??
+    null;
+
+  const id =
+    o?.assignedDelivery?.id ??
+    o?.assignedDeliveryId ??
+    o?.delivery?.assignee?.id ??
+    o?.driverId ??
+    o?.driver?._id ??
+    o?.transporterId ??
+    o?.transporter?._id ??
+    null;
+
+  if (name) return { label: name, title: id ? String(id) : undefined };
+  if (id) return { label: shortId(String(id)), title: String(id) };
+  return { label: null };
+}
+
 export function OrdersTable({ items }: { items: any[] }) {
   const [rows, setRows] = useState<any[]>(items);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -55,27 +79,26 @@ export function OrdersTable({ items }: { items: any[] }) {
     });
   };
 
-const advanceStage = async (o: any) => {
-  const id = getOrderId(o);
-  if (!id) return;
+  const advanceStage = async (o: any) => {
+    const id = getOrderId(o);
+    if (!id) return;
 
-  const current = String(o.stageKey) as StageKey;
-  const next = nextStageOf(current);
-  if (next === current) return; // terminal
+    const current = String(o.stageKey) as StageKey;
+    const next = nextStageOf(current);
+    if (next === current) return; // terminal
 
-  // optimistic UI to next
-  setRows((prev) => prev.map((r) => (getOrderId(r) === id ? { ...r, stageKey: next } : r)));
-  setExpanded((prev) => ({ ...prev, [id]: true }));
+    // optimistic UI to next
+    setRows((prev) => prev.map((r) => (getOrderId(r) === id ? { ...r, stageKey: next } : r)));
+    setExpanded((prev) => ({ ...prev, [id]: true }));
 
-  try {
-    // tell backend we finished the *current* stage; it will advance to next
-    await updateOrderStage(id, current, "ok");
-  } catch (e) {
-    // rollback
-    setRows((prev) => prev.map((r) => (getOrderId(r) === id ? { ...r, stageKey: current } : r)));
-  }
-};
-
+    try {
+      // tell backend we finished the *current* stage; it will advance to next
+      await updateOrderStage(id, current, "ok");
+    } catch {
+      // rollback
+      setRows((prev) => prev.map((r) => (getOrderId(r) === id ? { ...r, stageKey: current } : r)));
+    }
+  };
 
   function makeStatusCellProps() {
     return {
@@ -102,6 +125,7 @@ const advanceStage = async (o: any) => {
             <Table.ColumnHeader>Status/Stage</Table.ColumnHeader>
             <Table.ColumnHeader>Customer</Table.ColumnHeader>
             <Table.ColumnHeader>Address</Table.ColumnHeader>
+            <Table.ColumnHeader>Assigned delivery</Table.ColumnHeader>
             <Table.ColumnHeader>Created</Table.ColumnHeader>
             <Table.ColumnHeader textAlign="end">Total</Table.ColumnHeader>
             <Table.ColumnHeader />
@@ -113,6 +137,7 @@ const advanceStage = async (o: any) => {
             const key = getOrderId(o) || `row-${idx}`;
             const isExpanded = !!expanded[key];
             const stage: StageKey = o.stageKey;
+            const assignee = getAssigneeLabel(o);
 
             return (
               <React.Fragment key={key}>
@@ -144,6 +169,14 @@ const advanceStage = async (o: any) => {
                     {o.deliveryAddress?.address || "-"}
                   </Table.Cell>
 
+                  <Table.Cell title={assignee.title}>
+                    {assignee.label ? (
+                      <Text>{assignee.label}</Text>
+                    ) : (
+                      <Badge colorPalette="gray">Unassigned yet</Badge>
+                    )}
+                  </Table.Cell>
+
                   <Table.Cell>{fmtCreated(o.createdAt)}</Table.Cell>
 
                   <Table.Cell textAlign="end">
@@ -167,7 +200,8 @@ const advanceStage = async (o: any) => {
 
                 {isExpanded && (
                   <Table.Row>
-                    <Table.Cell colSpan={7}>
+                    {/* 8 visible columns above */}
+                    <Table.Cell colSpan={8}>
                       <HStack justify="space-between" align="center" px={4} py={3}>
                         <OrderTimeline stageKey={stage} size="sm" />
                         <Button

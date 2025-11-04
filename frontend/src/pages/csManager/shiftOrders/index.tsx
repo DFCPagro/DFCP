@@ -1,6 +1,6 @@
 /** @jsxImportSource @emotion/react */
 import { css } from "@emotion/react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -15,8 +15,9 @@ import {
   Button,
   Badge,
   IconButton,
+  Tooltip,
 } from "@chakra-ui/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 
 import { useShiftQueryParams } from "./hooks/useShiftQueryParams";
 import { useCSOrdersForShift } from "./hooks/useCSOrdersForShift";
@@ -79,6 +80,23 @@ export default function CSManagerShiftOrders() {
     stageKey: effectiveStatus,
   });
 
+  const handleReload = useCallback(async () => {
+    console.log("[CSManagerShiftOrders] reload click", {
+      date,
+      shiftName,
+      at: new Date().toISOString(),
+    });
+    try {
+      const res = await refetch();
+      console.log("[CSManagerShiftOrders] reload done", {
+        items: res.data?.items?.length ?? 0,
+        at: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error("[CSManagerShiftOrders] reload error", err);
+    }
+  }, [refetch, date, shiftName]);
+
   // Sort & normalize
   const items: CSOrder[] = useMemo(() => {
     const arr = (data?.items ?? []).slice();
@@ -139,22 +157,36 @@ export default function CSManagerShiftOrders() {
               </Heading>
               <Box>{statChips}</Box>
             </VStack>
+
             <HStack gap="2">
-              <IconButton
-                aria-label="Back"
-                variant="outline"
-                onClick={() => navigate(-1)}
-              >
+              <IconButton aria-label="Back" variant="outline" onClick={() => navigate(-1)}>
                 <ArrowLeft size={18} />
               </IconButton>
-              <Button variant="outline" onClick={() => refetch()} loading={!!isFetching}>
-                Refresh
-              </Button>
+
+              <Tooltip.Root openDelay={300}>
+                <Tooltip.Trigger asChild>
+                  <IconButton
+                    aria-label="Reload"
+                    variant="outline"
+                    title="Reload"
+                    onClick={handleReload}
+                    disabled={!!isFetching}
+                  >
+                    {isFetching ? <Spinner size="sm" /> : <RotateCcw size={18} />}
+                  </IconButton>
+                </Tooltip.Trigger>
+                <Tooltip.Positioner>
+                  <Tooltip.Content>
+                    <Tooltip.Arrow />
+                    {isFetching ? "Reloading…" : "Reload"}
+                  </Tooltip.Content>
+                </Tooltip.Positioner>
+              </Tooltip.Root>
             </HStack>
           </HStack>
         </Box>
 
-        {/* Filte rs */}
+        {/* Filters */}
         <Box css={stickyFiltersCss}>
           <FilterBar
             stageKey={stageKey}
@@ -186,7 +218,9 @@ export default function CSManagerShiftOrders() {
                 Failed to load orders for {date} · {shiftName}.
               </Alert.Description>
               <HStack mt="2">
-                <Button size="sm" onClick={() => refetch()}>Retry</Button>
+                <Button size="sm" onClick={handleReload}>
+                  Retry
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => navigate(-1)}>
                   Back
                 </Button>
@@ -201,7 +235,25 @@ export default function CSManagerShiftOrders() {
               <Alert.Title>No orders found</Alert.Title>
               <Alert.Description>No orders found for this shift.</Alert.Description>
               <HStack mt="2">
-                <Button size="sm" onClick={() => refetch()}>Refresh</Button>
+                <Tooltip.Root openDelay={300}>
+                  <Tooltip.Trigger asChild>
+                    <IconButton
+                      aria-label="Reload"
+                      variant="outline"
+                      title="Reload"
+                      onClick={handleReload}
+                      disabled={!!isFetching}
+                    >
+                      {isFetching ? <Spinner size="sm" /> : <RotateCcw size={18} />}
+                    </IconButton>
+                  </Tooltip.Trigger>
+                  <Tooltip.Positioner>
+                    <Tooltip.Content>
+                      <Tooltip.Arrow />
+                      {isFetching ? "Reloading…" : "Reload"}
+                    </Tooltip.Content>
+                  </Tooltip.Positioner>
+                </Tooltip.Root>
               </HStack>
             </Alert.Root>
           )}
