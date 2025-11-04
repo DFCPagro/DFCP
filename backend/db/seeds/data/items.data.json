@@ -15,14 +15,30 @@
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": 0.45,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -50,14 +66,30 @@
     "price": { "a": 3, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": 0.36,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -85,14 +117,30 @@
     "price": { "a": 5, "b": 3, "c": 2.5 },
     "pricePerUnitOverride": 1.0,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -120,14 +168,30 @@
     "price": { "a": 3, "b": 2.5, "c": 1.7 },
     "pricePerUnitOverride": 0.02,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -155,14 +219,30 @@
     "price": { "a": 20, "b": 17, "c": 16 },
     "pricePerUnitOverride": 10,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -185,19 +265,35 @@
       "Supports a healthy immune system"
     ],
     "farmerTips": "Harvest early in the morning for best shelf life.",
-    "imageUrl": "https://www.simplyrecipes.com/thmb/3Y2Y-1oXoJv6pXvR7b0Fq4Z9m0g=/2000x1333/filters:fill(auto,1)/Simply-Recipes-Cherry-Tomatoes-LEAD-05-8b2a6f4f1f1e4e2a8b8b5f4e1e5f4c3e.jpg",
+    "imageUrl": "https://media.istockphoto.com/id/2159645736/photo/red-cherry-tomatoes-small-cocktail-tomatoes-in-a-wooden-bowl-on-linen.jpg?s=612x612&w=0&k=20&c=E85pmNf90Q2327ioimC40bkKOOLBuNy2HQ_HZAW9134=",
     "lastUpdated": "2025-07-15T10:03:54.619Z",
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": 2.5,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -225,14 +321,30 @@
     "price": { "a": 7, "b": 6, "c": 5.5 },
     "pricePerUnitOverride": 4.2,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -260,14 +372,30 @@
     "price": { "a": 3.5, "b": 3, "c": 2.5 },
     "pricePerUnitOverride": 0.18,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -295,14 +423,30 @@
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": 0.18,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },
@@ -330,14 +474,30 @@
     "price": { "a": 2.5, "b": 2, "c": 1.5 },
     "pricePerUnitOverride": 1.25,
     "qualityStandards": {
-      "acidityPercentage": { "A": "0.4-0.6%", "B": "0.3-0.39%", "C": "below 0.3%" },
+      "acidityPercentage": {
+        "A": "0.4-0.6%",
+        "B": "0.3-0.39%",
+        "C": "below 0.3%"
+      },
       "brix": { "A": "13%+", "B": "11-12.9%", "C": "9-10.9%" },
-      "colorDescription": { "A": "Bright coloration", "B": "Moderate coloration", "C": "Pale or uneven coloration" },
+      "colorDescription": {
+        "A": "Bright coloration",
+        "B": "Moderate coloration",
+        "C": "Pale or uneven coloration"
+      },
       "colorPercentage": { "A": "85-100%", "B": "60-84%", "C": "under 60%" },
       "diameterMM": { "A": "75mm+", "B": "65-74mm", "C": "under 65mm" },
       "maxDefectRatioLengthDiameter": { "A": "≤3%", "B": "≤5%", "C": "≤7%" },
-      "pressure": { "A": "7.5 kg/cm²", "B": "6-7.4 kg/cm²", "C": "below 6 kg/cm²" },
-      "qualityGrade": { "A": "Premium", "B": "Standard", "C": "Below Standard" },
+      "pressure": {
+        "A": "7.5 kg/cm²",
+        "B": "6-7.4 kg/cm²",
+        "C": "below 6 kg/cm²"
+      },
+      "qualityGrade": {
+        "A": "Premium",
+        "B": "Standard",
+        "C": "Below Standard"
+      },
       "rejectionRate": { "A": "≤2%", "B": "≤4%", "C": "≤6%" },
       "weightPerUnitG": { "A": "180g+", "B": "150-179g", "C": "under 150g" }
     },

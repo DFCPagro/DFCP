@@ -122,7 +122,7 @@ export async function advanceFarmerOrderStage(
   body: AdvanceFarmerOrderStageBody
 ): Promise<ShiftFarmerOrderItem> {
   const { data } = await api.patch(
-    `/farmer-orders/${encodeURIComponent(orderId)}/stage`,
+    `${BASE}/${encodeURIComponent(orderId)}/stage`,
     body
   );
   return (data as any)?.data ?? data;

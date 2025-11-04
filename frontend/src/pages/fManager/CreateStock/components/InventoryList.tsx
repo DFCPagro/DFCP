@@ -53,19 +53,21 @@ function shortenId(id: string, len = 8) {
 
 function sortGroupKeys(
     groupMap: Map<string, FarmerInventoryItem[]>,
-    key: SortKey
+    key: SortKey,
+    demandMap: DemandMap
 ): string[] {
     const keys = Array.from(groupMap.keys());
+
     if (key === "nameAsc") {
-        keys.sort((a, b) => a.localeCompare(b));
+        keys.sort((a, b) =>
+            getItemNameFromDemand(demandMap, a)
+                .localeCompare(getItemNameFromDemand(demandMap, b))
+        );
         return keys;
     }
 
-    // Precompute group metrics
-    const metrics = new Map<
-        string,
-        { latestUpdatedAt: number; totalAvailableKg: number }
-    >();
+    // --- keep your existing availableDesc / updatedDesc logic unchanged ---
+    const metrics = new Map<string, { latestUpdatedAt: number; totalAvailableKg: number }>();
     for (const k of keys) {
         const rows = groupMap.get(k)!;
         let latest = 0;
@@ -87,13 +89,27 @@ function sortGroupKeys(
         return keys;
     }
 
-    // default: updatedDesc
     keys.sort(
         (a, b) =>
             (metrics.get(b)?.latestUpdatedAt ?? 0) -
             (metrics.get(a)?.latestUpdatedAt ?? 0)
     );
     return keys;
+}
+
+
+// Prefer demandMap.itemDisplayName; fall back to demandMap.type/variety/category if present.
+function getItemNameFromDemand(
+    demandMap: DemandMap,
+    itemId: string
+): string {
+    const d = demandMap.get(itemId);
+    return (
+        d?.itemDisplayName ??
+        // sensible fallbacks if your payload sometimes lacks itemDisplayName
+        [d?.type, d?.variety, d?.category].filter(Boolean).join(" ") ??
+        ""
+    );
 }
 
 /* ---------------------------------- view ---------------------------------- */
@@ -171,20 +187,24 @@ function InventoryListBase(
     const filteredGrouped = useMemo(() => {
         const q = query.trim().toLowerCase();
         const base = q
-            ? items.filter(
-                (it) =>
-                    it.itemId.toLowerCase().includes(q) ||
-                    it.farmerUserId.toLowerCase().includes(q)
-            )
+            ? items.filter((it) => {
+                const farmer = it.farmerName?.toLowerCase() ?? "";
+                const farm = it.farmName?.toLowerCase() ?? "";
+                const itemNm = getItemNameFromDemand(demandMap, it.itemId).toLowerCase();
+
+                return farmer.includes(q) || farm.includes(q) || itemNm.includes(q);
+            })
             : items;
 
         return groupByItemId(base);
-    }, [items, query]);
+    }, [items, query, demandMap]);
+
 
     const sortedGroupKeys = useMemo(
-        () => sortGroupKeys(filteredGrouped, sortKey),
-        [filteredGrouped, sortKey]
+        () => sortGroupKeys(filteredGrouped, sortKey, demandMap),
+        [filteredGrouped, sortKey, demandMap]
     );
+
 
     const totalVisibleRows = useMemo(
         () => Array.from(filteredGrouped.values()).reduce((n, rows) => n + rows.length, 0),
@@ -197,7 +217,7 @@ function InventoryListBase(
             <HStack justify="space-between" flexWrap="wrap" gap="3">
                 <HStack gap="2" flex="1 1 360px">
                     <Input
-                        placeholder="Filter by itemId or farmerId…"
+                        placeholder="search by item name or farmer name…"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         aria-label="Filter inventory"

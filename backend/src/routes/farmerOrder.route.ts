@@ -3,7 +3,6 @@ import { Router } from "express";
 import {
   create,
   updateFarmerStatus,
- 
   getFarmerOrdersUpcoming,
   getFarmerOrdersForShift,
   initContainersForFarmerOrder,
@@ -14,8 +13,6 @@ import {
 // import { listMyOrders, getOrderAndQrs } from "../controllers/ops.controller";
 import { authenticate, authorize } from "../middlewares/auth";
 import { patchFarmerOrderStage } from "../controllers/farmerOrderStages.controller";
-
-
 
 const router = Router();
 
@@ -30,8 +27,18 @@ router.get("/__health", (_req, res) =>
 );
 
 // Summaries
-router.get("/summary", authenticate, authorize("admin", "fManager"), getFarmerOrdersUpcoming);
-router.get("/by-shift", authenticate, authorize("admin", "fManager"), getFarmerOrdersForShift);
+router.get(
+  "/summary",
+  authenticate,
+  authorize("admin", "fManager"),
+  getFarmerOrdersUpcoming
+);
+router.get(
+  "/by-shift",
+  authenticate,
+  authorize("admin", "fManager"),
+  getFarmerOrdersForShift
+);
 
 // Writes
 router.post("/", authenticate, FM, create);
@@ -39,6 +46,7 @@ router.patch("/:id/farmer-status", authenticate, FM, updateFarmerStatus);
 //router.patch("/:id/stage", authenticate, FM, updateStageStatus);
 router.patch(
   "/:id/stage",
+  authenticate,
   authorize("fManager", "admin"),
   patchFarmerOrderStage
 );
@@ -46,10 +54,18 @@ router.patch(
 router.get("/", authenticate, FARMER_READS, listMyOrders);
 router.get("/:id/print", authenticate, FARMER_READS, getFarmerOrderAndQrs);
 
-
 // --- Containers: Farmer Report Flow ---
-router.post("/:id/containers/init", authenticate, FARMER, initContainersForFarmerOrder);
-router.patch("/:id/containers/weights", authenticate, FARMER, updateContainerWeights);
-
+router.post(
+  "/:id/containers/init",
+  authenticate,
+  FARMER,
+  initContainersForFarmerOrder
+);
+router.patch(
+  "/:id/containers/weights",
+  authenticate,
+  FARMER,
+  updateContainerWeights
+);
 
 export default router;

@@ -36,14 +36,10 @@ export async function patchFarmerOrderStage(req: Request, res: Response) {
         .json({ error: "Validation failed", details: err.details });
     }
     if (err?.name === "Forbidden") {
-      return res
-        .status(403)
-        .json({ error: "Forbidden", details: err.details });
+      return res.status(403).json({ error: "Forbidden", details: err.details });
     }
     if (err?.name === "NotFound") {
-      return res
-        .status(404)
-        .json({ error: "Not Found", details: err.details });
+      return res.status(404).json({ error: "Not Found", details: err.details });
     }
     if (err?.name === "ValidationError") {
       return res
