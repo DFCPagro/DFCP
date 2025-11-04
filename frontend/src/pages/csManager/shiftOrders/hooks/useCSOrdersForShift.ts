@@ -1,4 +1,3 @@
-// src/pages/csManager/shiftOrders/hooks/useCSOrdersForShift.ts
 import { useQuery } from "@tanstack/react-query";
 import { getOrdersForShift } from "@/api/orders";
 import type { CSOrdersResponse, OrderStatus } from "@/types/cs.orders";
@@ -7,14 +6,29 @@ type Params = {
   logisticCenterId: string;
   date: string;
   shiftName: string;
-  status?: OrderStatus;   // <- keep this
+  // kept for caller compatibility; not sent to API
+  status?: OrderStatus;
+  // preferred param name; sent to API
+  stageKey?: OrderStatus;
   page?: number;
   limit?: number;
   fields?: string[];
 };
 
 export function useCSOrdersForShift(params: Params) {
-  const { logisticCenterId, date, shiftName, status, page, limit, fields } = params;
+  const {
+    logisticCenterId,
+    date,
+    shiftName,
+    status,
+    stageKey,
+    page,
+    limit,
+    fields,
+  } = params;
+
+  // normalize to a single stage value
+  const stage: OrderStatus | undefined = stageKey ?? status;
 
   return useQuery<CSOrdersResponse>({
     queryKey: [
@@ -22,21 +36,35 @@ export function useCSOrdersForShift(params: Params) {
       logisticCenterId,
       date,
       shiftName,
-      status ?? "",
+      stage ?? "",
       page ?? "",
       limit ?? "",
       JSON.stringify(fields ?? []),
     ],
-    queryFn: () => getOrdersForShift({ logisticCenterId, date, shiftName, status, page, limit, fields }),
+    // send only supported keys to the API
+    queryFn: () =>
+      getOrdersForShift({
+        logisticCenterId,
+        date,
+        shiftName,
+        stageKey: stage,
+        page,
+        limit,
+        fields,
+      }),
     enabled: Boolean(logisticCenterId && date && shiftName),
-
-    // Client-side fallback: if server didn't filter by status, do it here.
+    // client-side fallback if server did not filter
     select: (resp) => {
-      if (!status) return resp;
-      // If items include different statuses, narrow to requested status
-      const needsFilter = resp.items.some(i => i.status !== status);
-      if (!needsFilter) return resp;
-      return { ...resp, items: resp.items.filter(i => i.status === status) };
+      if (!stage) return resp;
+      const getStage = (i: any): OrderStatus | undefined =>
+        (i?.stageKey as OrderStatus | undefined) ??
+        (i?.status as OrderStatus | undefined);
+
+      const needsFilter = resp.items.some((i) => getStage(i) !== stage);
+      return needsFilter
+        ? { ...resp, items: resp.items.filter((i) => getStage(i) === stage) }
+        : resp;
     },
+    staleTime: 30_000,
   });
 }

@@ -1,3 +1,5 @@
+/** @jsxImportSource @emotion/react */
+import { css } from "@emotion/react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -5,18 +7,55 @@ import {
   Heading,
   Stack,
   HStack,
+  VStack,
   Text,
   Separator,
   Spinner,
   Alert,
   Button,
+  Badge,
+  IconButton,
 } from "@chakra-ui/react";
+import { ArrowLeft } from "lucide-react";
 
 import { useShiftQueryParams } from "./hooks/useShiftQueryParams";
 import { useCSOrdersForShift } from "./hooks/useCSOrdersForShift";
 import { OrdersTable } from "./components/ordersTable";
 import { FilterBar } from "./components/filterBar";
 import type { CSOrder, OrderStatus } from "@/types/cs.orders";
+
+const pageCss = css`
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+`;
+
+const headerCss = css`
+  border: 1px solid var(--chakra-colors-border);
+  background:
+    radial-gradient(1200px 240px at 10% -20%, var(--chakra-colors-teal-500) 0%, transparent 60%),
+    radial-gradient(800px 200px at 90% -10%, var(--chakra-colors-purple-500) 0%, transparent 60%),
+    var(--chakra-colors-bg.panel);
+  border-radius: 16px;
+  padding: 16px;
+`;
+
+const stickyFiltersCss = css`
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  background: var(--chakra-colors-bg);
+  border: 1px solid var(--chakra-colors-border);
+  border-radius: 12px;
+  padding: 12px;
+`;
+
+const contentCardCss = css`
+  border: 1px solid var(--chakra-colors-border);
+  background: var(--chakra-colors-bg.panel);
+  border-radius: 16px;
+  padding: 12px;
+`;
 
 export default function CSManagerShiftOrders() {
   const navigate = useNavigate();
@@ -30,27 +69,22 @@ export default function CSManagerShiftOrders() {
   const [problemOnly, setProblemOnly] = useState(false);
 
   // When "problem only" is on, ignore manual status
-  const effectiveStatus: OrderStatus | undefined = problemOnly
-    ? "problem"
-    :   stageKey;
+  const effectiveStatus: OrderStatus | undefined = problemOnly ? "problem" : stageKey;
 
-  // Query — server may or may not respect status filter,
-  // the hook will fallback-filter client-side if needed.
-  const { data, isLoading, error } = useCSOrdersForShift({
+  // Query
+  const { data, isLoading, error, refetch, isFetching } = useCSOrdersForShift({
     logisticCenterId,
     date,
     shiftName,
     stageKey: effectiveStatus,
   });
 
-  // Sort & normalize array
+  // Sort & normalize
   const items: CSOrder[] = useMemo(() => {
     const arr = (data?.items ?? []).slice();
     arr.sort((a, b) => {
-      // Problems always top
       if (a.stageKey === "problem" && b.stageKey !== "problem") return -1;
       if (a.stageKey !== "problem" && b.stageKey === "problem") return 1;
-
       const at = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bt - at;
@@ -60,70 +94,123 @@ export default function CSManagerShiftOrders() {
 
   const meta = data?.meta;
 
-  return (
-    <Box w="full">
-      <Stack gap="5">
-        {/* ---- Header ---- */}
-        <HStack justify="space-between" align="center">
-          <Heading size="lg">
-            Orders — {date} · {shiftName}
-            {meta && (
-              <Text as="span" fontSize="sm" color="fg.muted" ml="2">
-                ({meta.total} total, {meta.problemCount} problem) · TZ:{" "}
-                {meta.tz}
-              </Text>
-            )}
-          </Heading>
-          <Button variant="outline" onClick={() => navigate(-1)}>
-            Back
-          </Button>
+  const statChips = (
+    <HStack gap="2" flexWrap="wrap">
+      <Badge variant="surface" colorPalette="gray">
+        <HStack gap="1">
+          <Text fontWeight="semibold">Total</Text>
+          <Text>{meta?.total ?? 0}</Text>
         </HStack>
+      </Badge>
+      <Badge variant="surface" colorPalette="red">
+        <HStack gap="1">
+          <Text fontWeight="semibold">Problem</Text>
+          <Text>{meta?.problemCount ?? 0}</Text>
+        </HStack>
+      </Badge>
+      {effectiveStatus && effectiveStatus !== "problem" && (
+        <Badge variant="surface" colorPalette="teal">
+          <HStack gap="1">
+            <Text fontWeight="semibold">Filtered</Text>
+            <Text>{items.length}</Text>
+          </HStack>
+        </Badge>
+      )}
+      {meta?.tz && (
+        <Badge variant="surface" colorPalette="purple">
+          <HStack gap="1">
+            <Text fontWeight="semibold">TZ</Text>
+            <Text>{meta.tz}</Text>
+          </HStack>
+        </Badge>
+      )}
+    </HStack>
+  );
+
+  return (
+    <Box w="full" css={pageCss}>
+      <Stack gap="4">
+        {/* Header */}
+        <Box css={headerCss}>
+          <HStack justify="space-between" align="center">
+            <VStack gap="1" align="start">
+              <Heading size="lg">
+                Orders · {date} · {shiftName}
+              </Heading>
+              <Box>{statChips}</Box>
+            </VStack>
+            <HStack gap="2">
+              <IconButton
+                aria-label="Back"
+                variant="outline"
+                onClick={() => navigate(-1)}
+              >
+                <ArrowLeft size={18} />
+              </IconButton>
+              <Button variant="outline" onClick={() => refetch()} loading={!!isFetching}>
+                Refresh
+              </Button>
+            </HStack>
+          </HStack>
+        </Box>
+
+        {/* Filte rs */}
+        <Box css={stickyFiltersCss}>
+          <FilterBar
+            stageKey={stageKey}
+            setStatus={(v) => setStatus(v as OrderStatus | undefined)}
+            problemOnly={problemOnly}
+            setProblemOnly={(v) => {
+              setProblemOnly(v);
+              if (v) setStatus(undefined);
+            }}
+          />
+        </Box>
+
+        {/* Content */}
+        <Box css={contentCardCss}>
+          {/* Loading */}
+          {isLoading && (
+            <HStack gap="3" align="center">
+              <Spinner />
+              <Text>Loading orders…</Text>
+            </HStack>
+          )}
+
+          {/* Error */}
+          {error && (
+            <Alert.Root status="error">
+              <Alert.Indicator />
+              <Alert.Title>Failed to load orders</Alert.Title>
+              <Alert.Description>
+                Failed to load orders for {date} · {shiftName}.
+              </Alert.Description>
+              <HStack mt="2">
+                <Button size="sm" onClick={() => refetch()}>Retry</Button>
+                <Button size="sm" variant="outline" onClick={() => navigate(-1)}>
+                  Back
+                </Button>
+              </HStack>
+            </Alert.Root>
+          )}
+
+          {/* Empty */}
+          {!isLoading && !error && items.length === 0 && (
+            <Alert.Root status="info">
+              <Alert.Indicator />
+              <Alert.Title>No orders found</Alert.Title>
+              <Alert.Description>No orders found for this shift.</Alert.Description>
+              <HStack mt="2">
+                <Button size="sm" onClick={() => refetch()}>Refresh</Button>
+              </HStack>
+            </Alert.Root>
+          )}
+
+          {/* Table */}
+          {!isLoading && !error && items.length > 0 && <OrdersTable items={items} />}
+        </Box>
 
         <Separator />
-
-        {/* ---- Filters ---- */}
-        <FilterBar
-          stageKey={stageKey}
-          setStatus={(v) => setStatus(v as OrderStatus | undefined)}
-          problemOnly={problemOnly}
-          setProblemOnly={(v) => {
-            setProblemOnly(v);
-            if (v) setStatus(undefined);
-          }}
-        />
-
-        {/* ---- States ---- */}
-        {isLoading && (
-          <HStack>
-            <Spinner />
-            <Text>Loading orders…</Text>
-          </HStack>
-        )}
-
-        {error && (
-          <Alert.Root status="error">
-            <Alert.Indicator />
-            <Alert.Title>Failed to load orders</Alert.Title>
-            <Alert.Description>
-              Failed to load orders for {date} · {shiftName}.
-            </Alert.Description>
-          </Alert.Root>
-        )}
-
-        {!isLoading && !error && items.length === 0 && (
-          <Alert.Root status="info">
-            <Alert.Indicator />
-            <Alert.Title>No orders found</Alert.Title>
-            <Alert.Description>
-              No orders found for this shift.
-            </Alert.Description>
-          </Alert.Root>
-        )}
-
-        {/* ---- Table ---- */}
-        {!isLoading && !error && items.length > 0 && (
-          <OrdersTable items={items} />
-        )}
       </Stack>
     </Box>
   );

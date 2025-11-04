@@ -15,7 +15,7 @@ export type AppShellProps = {
 
 export default function AppShell({
   showHeader = true,
-  showFooter = true,
+  showFooter = false,
   maxW = "7xl",
   px = { base: 3, md: 6 },
   py = { base: 4, md: 6 },

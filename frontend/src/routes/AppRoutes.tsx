@@ -86,7 +86,7 @@ export default function AppRoutes() {
         {/* --- Public, no Footer --- */}
         <Route
           element={
-            <AppShell showFooter={false} px={0} py={0} maxW="container.md" />
+            <AppShell px={0} py={0} maxW="container.md" />
           }
         >
           <Route path={PATHS.logisticCenter} element={< LogisticCenter />} />
@@ -95,7 +95,7 @@ export default function AppRoutes() {
         {/* --- Public, immersive (no chrome) --- */}
         <Route
           element={
-            <AppShell showHeader={false} showFooter={false} px={0} py={0} maxW="container.md" />
+            <AppShell showHeader={false} px={0} py={0} maxW="container.md" />
           }
         >
 
@@ -103,7 +103,7 @@ export default function AppRoutes() {
 
         {/* --- Guest-only (login/register), no chrome, narrow --- */}
         <Route element={<GuestGuard />}>
-          <Route element={<AppShell showFooter={false} maxW="md" />}>
+          <Route >
             <Route path={PATHS.login} element={<Login />} />
             <Route path={PATHS.register} element={<Register />} />
           </Route>
@@ -118,14 +118,18 @@ export default function AppRoutes() {
           }
         >
           {/* General protected */}
-          <Route path={PATHS.dashboard} element={<Dashboard />} />
+<Route element={<AppShell showFooter={true} showHeader={false} />}>
+  <Route path={PATHS.market} element={<Market />} />
+</Route>
+
           <Route path={PATHS.jobs} element={<AvailabileJobs />} />
           <Route path={PATHS.jobApplication} element={<JobApplication />} />
-          <Route path={PATHS.market} element={<Market />} />
-          <Route path={PATHS.profile} element={<Profile />} />
-
-          <Route path={PATHS.orders} element={<Orders />} />
-
+<Route element={<AppShell showFooter={true} showHeader={false}/>}>
+  <Route path={PATHS.profile} element={<Profile />} />
+</Route>
+<Route element={<AppShell showFooter={true} showHeader={false} />}>
+  <Route path={PATHS.orders} element={<Orders />} />
+</Route>
           {/* Admin-only */}
           <Route
             path={PATHS.adminDashboard}
@@ -291,7 +295,6 @@ export default function AppRoutes() {
         <Route
           element={
             <AuthGuard>
-              <AppShell showFooter={false} />
             </AuthGuard>
           }
         >
@@ -303,7 +306,7 @@ export default function AppRoutes() {
         <Route
           element={
             <AuthGuard>
-              <AppShell showFooter={true} maxW="5xl" />
+              <AppShell showFooter={false} maxW="5xl" />
             </AuthGuard>
           }
         >

@@ -17,9 +17,39 @@ export type OrderStages =
   | "canceled"
   | "problem";
 
-export type UnitMode = "kg" | "unit" | "mixed";
+/** Alias used across UI and API */
+export type StageKey = OrderStages;
 
-export type PaymentMethod = "card" | "google_pay" | "paypal";
+export const TERMINAL_STAGES: ReadonlyArray<StageKey> = [
+  "problem",
+  "canceled",
+  "received",
+] as const;
+
+/**
+ * Linear map for advancing stage in the CS/ops UI.
+ * Keep in sync with backend transition rules.
+ */
+// src/types/orders.ts
+export const NEXT_STAGE: Readonly<Record<StageKey, StageKey>> = {
+  pending: "confirmed",
+  confirmed: "farmer",
+  farmer: "in-transit",
+  "in-transit": "packing",
+  packing: "ready_for_pickUp",
+  ready_for_pickUp: "out_for_delivery",
+  out_for_delivery: "delivered",
+  delivered: "received",
+  received: "received",
+  canceled: "canceled",
+  problem: "problem",
+} as const;
+
+
+/** Pure helper used by UI handlers */
+export function nextStageOf(s: StageKey): StageKey {
+  return NEXT_STAGE[s] ?? s;
+}
 
 /* --------------------------------- Create --------------------------------- */
 /**
@@ -74,9 +104,6 @@ export type CreateOrderBody = {
   /**
    * EXACT name expected by backend Zod:
    * logisticsCenterId (lowercase 'l').
-   *
-   * This should correspond to the LC that will fulfill this delivery.
-   * In your flow this is known from the selected address.
    */
   logisticsCenterId: string;
 
@@ -159,7 +186,7 @@ export type Order = {
   // Per-order tolerance
   tolerancePct: number;
 
-  stageKey: OrderStages;
+  stageKey: StageKey;
 
   assignedDelivererId?: string;
   customerDeliveryId?: string;
@@ -182,12 +209,39 @@ export type CreateOrderResponse = {
   data: Order;
 };
 
+/* ---------------------------- Stage update DTOs ---------------------------- */
+
+export type UpdateOrderStageBody = {
+  stageKey: StageKey;
+};
+
+/**
+ * Backend may return either the full Order or a small payload.
+ * Support both shapes.
+ */
+export type UpdateOrderStageResponse =
+  | { data: Order }
+  | { data: { orderId: string; stageKey: StageKey; updatedAt?: string } };
+
+/* -------------------------- Lightweight list rows ------------------------- */
+
 export type OrderRowAPI = {
-  id: string;
-  orderId: string;
-  stageKey: OrderStages;
+  id?: string;          // sometimes used by list endpoints
+  orderId?: string;     // sometimes used by list endpoints
+  _id?: string;         // sometimes used by Mongo-backed endpoints
+  stageKey: StageKey;
   deliverySlot?: string | null;
   createdAt: string;
   items: OrderItem[];
-  // you can add consumerName etc.
+  // optional customer display fields can be added here
 };
+
+/* --------------------------------- Misc ----------------------------------- */
+
+export type UnitMode = "kg" | "unit" | "mixed";
+export type PaymentMethod = "card" | "google_pay" | "paypal";
+
+/** Helper to normalize possible id fields from mixed payloads */
+export function getOrderId(x: { _id?: string; id?: string; orderId?: string } | null | undefined) {
+  return x?._id || x?.id || x?.orderId;
+}

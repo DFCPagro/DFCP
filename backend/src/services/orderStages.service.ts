@@ -8,12 +8,8 @@ import {
 } from "../models/shared/stage.types";
 import { buildStageEntry } from "../models/shared/stage.utils";
 
-export type StageAction =
-  | "setCurrent"
-  | "ok"
-  | "done"
-  | "problem"
-  | "cancel";
+export type StageAction = "setCurrent" | "ok" | "done" | "problem" | "cancel";
+
 
 export interface UpdateStageArgs {
   orderId: string;

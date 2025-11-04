@@ -2,27 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Badge, Box, Button, HStack, Table, Text } from "@chakra-ui/react";
 import OrdersDetailsDialog from "./ordersDetailsDialog";
 import OrderTimeline from "@/pages/customer/customerOrders/components/OrderTimeline";
-
-/* ------------------------------ stages ------------------------------ */
-const STAGES = [
-  "pending",
-  "confirmed",
-  "farmer",
-  "intransit",
-  "packing",
-  "ready_for_pickup",
-  "out_for_delivery",
-  "delivered",
-] as const;
-
-type StageKey = (typeof STAGES)[number] | "problem";
-
-const nextStageOf = (stage: StageKey): StageKey => {
-  if (stage === "problem") return "problem"; // blocked until resolved
-  const i = STAGES.indexOf(stage as (typeof STAGES)[number]);
-  if (i < 0) return STAGES[0];
-  return i >= STAGES.length - 1 ? STAGES[STAGES.length - 1] : STAGES[i + 1];
-};
+import { updateOrderStage } from "@/api/orders";
+import { getOrderId, nextStageOf, type StageKey } from "@/types/orders";
 
 /* ------------------------------ utils ------------------------------- */
 function shortId(id?: string, tail = 6) {
@@ -42,7 +23,6 @@ function fmtCreated(ts?: string | number) {
   }
 }
 
-/* ------------------------------ component --------------------------- */
 export function OrdersTable({ items }: { items: any[] }) {
   const [rows, setRows] = useState<any[]>(items);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -56,48 +36,52 @@ export function OrdersTable({ items }: { items: any[] }) {
   useEffect(() => {
     const next: Record<string, boolean> = {};
     for (const o of items ?? []) {
-      const key = o._id || o.id || o.orderId;
+      const key = getOrderId(o);
       if (key && o?.stageKey === "problem") next[key] = true;
     }
     setExpanded((prev) => ({ ...prev, ...next }));
   }, [items]);
 
   const toggleRow = (o: any) => {
-    const key = o._id || o.id || o.orderId;
+    const key = getOrderId(o);
     if (!key) return;
     setExpanded((prev) => {
       const isOpen = !!prev[key];
-      if (!isOpen) return { ...prev, [key]: true }; // open
-      if (o.stageKey === "problem") return prev;    // keep open for problem
+      if (!isOpen) return { ...prev, [key]: true };
+      if (o.stageKey === "problem") return prev;
       const next = { ...prev };
-      delete next[key];                              // close
+      delete next[key];
       return next;
     });
   };
 
-  const advanceStage = async (o: any) => {
-    const id = o._id || o.id || o.orderId;
-    if (!id) return;
-    const next = nextStageOf(o.stageKey as StageKey);
-    if (next === o.stageKey) return; // no-op for problem or delivered
+const advanceStage = async (o: any) => {
+  const id = getOrderId(o);
+  if (!id) return;
 
-    // optimistic local update
-    setRows((prev) =>
-      prev.map((r) => ((r._id || r.id || r.orderId) === id ? { ...r, stageKey: next } : r))
-    );
-    setExpanded((prev) => ({ ...prev, [id]: true }));
+  const current = String(o.stageKey) as StageKey;
+  const next = nextStageOf(current);
+  if (next === current) return; // terminal
 
-    // persist to backend if needed:
-    // await updateOrderStage(id, next);
-  };
+  // optimistic UI to next
+  setRows((prev) => prev.map((r) => (getOrderId(r) === id ? { ...r, stageKey: next } : r)));
+  setExpanded((prev) => ({ ...prev, [id]: true }));
 
-  function makeStatusCellProps(order: any) {
+  try {
+    // tell backend we finished the *current* stage; it will advance to next
+    await updateOrderStage(id, current, "ok");
+  } catch (e) {
+    // rollback
+    setRows((prev) => prev.map((r) => (getOrderId(r) === id ? { ...r, stageKey: current } : r)));
+  }
+};
+
+
+  function makeStatusCellProps() {
     return {
       role: "button" as const,
       tabIndex: 0,
-      onClick: (e: React.MouseEvent) => {
-        e.stopPropagation();
-      },
+      onClick: (e: React.MouseEvent) => e.stopPropagation(),
       onKeyDown: (e: React.KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") e.preventDefault();
       },
@@ -107,13 +91,15 @@ export function OrdersTable({ items }: { items: any[] }) {
     };
   }
 
+  const isTerminal = (s: StageKey) => s === "problem" || s === "delivered";
+
   return (
     <Box borderWidth="1px" borderRadius="md" overflowX="auto">
       <Table.Root size="sm" w="full">
         <Table.Header>
           <Table.Row>
             <Table.ColumnHeader>#</Table.ColumnHeader>
-            <Table.ColumnHeader>Status</Table.ColumnHeader>
+            <Table.ColumnHeader>Status/Stage</Table.ColumnHeader>
             <Table.ColumnHeader>Customer</Table.ColumnHeader>
             <Table.ColumnHeader>Address</Table.ColumnHeader>
             <Table.ColumnHeader>Created</Table.ColumnHeader>
@@ -124,9 +110,9 @@ export function OrdersTable({ items }: { items: any[] }) {
 
         <Table.Body>
           {rows.map((o, idx) => {
-            const key = o._id || o.id || o.orderId || `row-${idx}`;
+            const key = getOrderId(o) || `row-${idx}`;
             const isExpanded = !!expanded[key];
-            const disableNext = o.stageKey === "problem" || o.stageKey === "delivered";
+            const stage: StageKey = o.stageKey;
 
             return (
               <React.Fragment key={key}>
@@ -139,14 +125,14 @@ export function OrdersTable({ items }: { items: any[] }) {
                   <Table.Cell>
                     <HStack>
                       <Text fontWeight="medium">
-                        #{o.orderId || String(o._id).slice(-6)}
+                        #{o.orderId || String(o._id ?? "").slice(-6)}
                       </Text>
                     </HStack>
                   </Table.Cell>
 
-                  <Table.Cell {...makeStatusCellProps(o)}>
-                    <Badge colorPalette={o.stageKey === "problem" ? "red" : "blue"}>
-                      {o.stageKey}
+                  <Table.Cell {...makeStatusCellProps()}>
+                    <Badge colorPalette={stage === "problem" ? "red" : "blue"}>
+                      {stage}
                     </Badge>
                   </Table.Cell>
 
@@ -161,7 +147,7 @@ export function OrdersTable({ items }: { items: any[] }) {
                   <Table.Cell>{fmtCreated(o.createdAt)}</Table.Cell>
 
                   <Table.Cell textAlign="end">
-                    {typeof o.totalPrice === "number" ? o.totalPrice.toFixed(2) : "-"}
+                    {typeof o.totalPrice === "number" ? o.totalPrice.toFixed(2) : "-"}$
                   </Table.Cell>
 
                   <Table.Cell>
@@ -170,7 +156,7 @@ export function OrdersTable({ items }: { items: any[] }) {
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedOrder(o);
-                        setSelectedProblem(o.stageKey === "problem");
+                        setSelectedProblem(stage === "problem");
                         setIsOpen(true);
                       }}
                     >
@@ -183,14 +169,14 @@ export function OrdersTable({ items }: { items: any[] }) {
                   <Table.Row>
                     <Table.Cell colSpan={7}>
                       <HStack justify="space-between" align="center" px={4} py={3}>
-                        <OrderTimeline stageKey={o.stageKey} size="sm" />
+                        <OrderTimeline stageKey={stage} size="sm" />
                         <Button
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             advanceStage(o);
                           }}
-                          disabled={disableNext}
+                          disabled={isTerminal(stage)}
                         >
                           Next Stage
                         </Button>
@@ -205,9 +191,7 @@ export function OrdersTable({ items }: { items: any[] }) {
       </Table.Root>
 
       <OrdersDetailsDialog
-        orderId={
-          (selectedOrder && (selectedOrder._id || selectedOrder.id || selectedOrder.orderId)) || ""
-        }
+        orderId={(selectedOrder && getOrderId(selectedOrder)) || ""}
         order={selectedOrder || undefined}
         open={isOpen}
         isProblem={selectedProblem}

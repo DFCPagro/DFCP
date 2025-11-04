@@ -14,7 +14,7 @@ export default function AuthGuard({ children }: Props) {
       <Navigate
         to={PATHS.login}
         replace
-        state={{ from: location }}
+        state={{ from: { pathname: location.pathname } }} // align with RouteState
       />
     );
   }

@@ -1,4 +1,5 @@
-import { HStack, Select, Switch, Text, createListCollection } from "@chakra-ui/react";
+// src/pages/csManager/shiftOrders/components/filterBar.tsx
+import { HStack, Text, NativeSelect, Switch } from "@chakra-ui/react";
 import type { OrderStatus } from "@/types/cs.orders";
 
 type Props = {
@@ -8,7 +9,7 @@ type Props = {
   setProblemOnly: (v: boolean) => void;
 };
 
-const statuses: OrderStatus[] = [
+const STATUSES: OrderStatus[] = [
   "pending",
   "confirmed",
   "farmer",
@@ -22,58 +23,66 @@ const statuses: OrderStatus[] = [
   "problem",
 ];
 
-type SelectItem = { id: string; label: string };
+const labelize = (k: string) =>
+  k.replace(/[_-]/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
 
-const SELECT_ITEMS: SelectItem[] = [
-  { id: "", label: "All" },
-  ...statuses.map((s) => ({ id: s, label: s })),
-];
-
-const collection = createListCollection<SelectItem>({
-  items: SELECT_ITEMS,
-  itemToString: (item) => item.label,
-});
-
-export function FilterBar({ stageKey, setStatus, problemOnly, setProblemOnly }: Props) {
+export function FilterBar({
+  stageKey,
+  setStatus,
+  problemOnly,
+  setProblemOnly,
+}: Props) {
   return (
-    <HStack gap="4" flexWrap="wrap" position="relative" zIndex="1">
-      <HStack gap="2" opacity={problemOnly ? 0.5 : 1}>
+    <HStack
+      gap="6"
+      alignItems="center"
+      justifyContent="flex-start"
+      flexWrap="wrap"
+      position="relative"
+      zIndex="1"
+    >
+      {/* Status label + dropdown inline */}
+      <HStack gap="2" alignItems="center" opacity={problemOnly ? 0.5 : 1}>
         <Text fontWeight="medium">Status</Text>
-
-        <Select.Root
-          size="sm"
-          collection={collection}
-          value={[stageKey ?? ""]} // Select expects string[] of item ids
-          onValueChange={(e) => {
-            const v = e.value?.[0] ?? "";
-            setStatus(v ? v : undefined);
-          }}
-          disabled={problemOnly} // while "Problem only" is on
-        >
-          <Select.Trigger w="220px">
-            <Select.ValueText placeholder="All" />
-          </Select.Trigger>
-          <Select.Content>
-            {SELECT_ITEMS.map((item) => (
-              <Select.Item key={item.id} item={item}>
-                {item.label}
-              </Select.Item>
+        <NativeSelect.Root size="sm" disabled={problemOnly} w="220px">
+          <NativeSelect.Field
+            value={stageKey ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              setStatus(v ? v : undefined);
+            }}
+          >
+            <option value="">All Statuses</option>
+            {STATUSES.filter((s) => s !== "problem").map((s) => (
+              <option key={s} value={s}>
+                {labelize(s)}
+              </option>
             ))}
-          </Select.Content>
-        </Select.Root>
+          </NativeSelect.Field>
+        </NativeSelect.Root>
       </HStack>
 
-      <HStack gap="2">
+      {/* Problem-only switch inline */}
+      <label htmlFor="problem-only" style={{ display: "flex", alignItems: "center", cursor: "pointer", gap: "8px" }}>
         <Switch.Root
+          id="problem-only"
           checked={problemOnly}
-          onCheckedChange={(e) => setProblemOnly(e.checked)}
+          onCheckedChange={(e) => {
+            const next = !!e.checked;
+            setProblemOnly(next);
+            if (next) setStatus(undefined);
+          }}
           size="sm"
         >
-          <Switch.Control />
-          {/* make the label part of the control so the whole row toggles */}
-          <Switch.Label cursor="pointer">Problem only</Switch.Label>
+          <Switch.HiddenInput />
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
         </Switch.Root>
-      </HStack>
+        <Text>Problem only</Text>
+      </label>
     </HStack>
   );
 }
+
+export default FilterBar;
