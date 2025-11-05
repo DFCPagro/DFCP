@@ -6,7 +6,6 @@ import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
-import PickerTasksManagerPage from "@/pages/opManager/pickerTasksManager";
 
 
 // Lazy pages (unchanged) (no role)
