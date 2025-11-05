@@ -58,13 +58,6 @@ export default function Login() {
 
       toaster.create({ title: "Welcome back!", type: "success" });
 
-      // Role-aware landing (fall back to `from` if provided)
-      const redirectFromState = state?.from?.pathname;
-      if (redirectFromState) {
-        navigate(redirectFromState, { replace: true });
-        return;
-      }
-
       navigate(to, { replace: true });
     },
     onError: (err: any) => {

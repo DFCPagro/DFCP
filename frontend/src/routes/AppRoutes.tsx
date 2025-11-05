@@ -117,19 +117,7 @@ export default function AppRoutes() {
             </AuthGuard>
           }
         >
-          {/* General protected */}
-          <Route element={<AppShell showFooter={true} showHeader={false} />}>
-            <Route path={PATHS.market} element={<Market />} />
-          </Route>
 
-          <Route path={PATHS.jobs} element={<AvailabileJobs />} />
-          <Route path={PATHS.jobApplication} element={<JobApplication />} />
-          <Route element={<AppShell showFooter={true} showHeader={false} />}>
-            <Route path={PATHS.profile} element={<Profile />} />
-          </Route>
-          <Route element={<AppShell showFooter={true} maxW="1 1 auto" showHeader={false} />}>
-            <Route path={PATHS.orders} element={<Orders />} />
-          </Route>
           {/* Admin-only */}
           <Route
             path={PATHS.adminDashboard}
@@ -186,6 +174,7 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
+
           {/* Picker-only */}
           <Route
             path={PATHS.pickerDashboard}
@@ -229,6 +218,7 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
+
           {/* CS Manager-only */}
           <Route
             path={PATHS.csManagerDashboard}
@@ -254,6 +244,7 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
+
           {/*OP manager-only */}
           <Route
             path={PATHS.PickerTasksPage}
@@ -291,7 +282,7 @@ export default function AppRoutes() {
           />
         </Route>
 
-        {/* --- Authenticated, no FOOTER --- */}
+        {/* --- Authenticated, no FOOTER ( customer pages) --- */}
         <Route
           element={
             <AuthGuard>
@@ -300,20 +291,23 @@ export default function AppRoutes() {
 
           }
         >
-
           <Route path={PATHS.checkout} element={<Checkout />
           } />
         </Route>
 
-        {/* --- Authenticated, no FOOTER + wider --- */}
+        {/* --- Authenticated, yes FOOTER ( customer pages) --- */}
         <Route
           element={
             <AuthGuard>
-              <AppShell showFooter={false} maxW="5xl" />
+              <AppShell showFooter={true} />
             </AuthGuard>
           }
         >
+          <Route path={PATHS.jobs} element={<AvailabileJobs />} />
+          <Route path={PATHS.jobApplication} element={<JobApplication />} />
+          <Route path={PATHS.orders} element={<Orders />} />
           <Route path={PATHS.profile} element={<Profile />} />
+          <Route path={PATHS.market} element={<Market />} />
         </Route>
 
         {/* --- Authenticated, no HEADER --- */}
