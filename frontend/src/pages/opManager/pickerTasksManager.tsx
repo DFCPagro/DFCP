@@ -18,7 +18,7 @@ import type { CSOrdersResponse } from "@/types/cs.orders";
 import HeaderActions from "./components/HeaderActions";
 import ShiftStrip from "./components/ShiftStrip";
 import OrdersCard, { type OrderLite } from "./components/OrdersCard";
-//import TasksCard from "./components/TaskCard";
+import TasksCard from "./components/TaskCard";
 
 /* ===================================
  * Types and helpers
@@ -119,10 +119,17 @@ export default function PickerTasksManagerPage() {
 
   // 5️⃣ Picker tasks for selected shift
   const tasksQ = useQuery({
-    enabled: !!selected,
-    queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate]
-     
-  });
+  enabled: !!selected,
+  queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate],
+  queryFn: async () => {
+    // you might already have an API like getPickerTasks; if not, add it.
+    const resp = await generatePickerTasksAPI({
+      shiftName: selected!.shiftName,
+      shiftDate: selected!.shiftDate,
+    });
+    return resp;
+  },
+});
 
   // 6️⃣ Generate picker tasks
   const packMut = useMutation({
@@ -144,8 +151,8 @@ export default function PickerTasksManagerPage() {
     [ordersQ.data, orderItems.length]
   );
 
-  //const taskItems: PickerTask[] = React.useMemo(() => (tasksQ.data?.items ?? []) as PickerTask[], [tasksQ.data]);
-  //const taskTotal = React.useMemo(() => tasksQ.data?.pagination?.total ?? taskItems.length ?? 0, [tasksQ.data, taskItems.length]);
+  const taskItems: PickerTask[] = React.useMemo(() => (tasksQ.data?.items ?? []) as PickerTask[], [tasksQ.data]);
+  const taskTotal = React.useMemo(() => tasksQ.data?.pagination?.total ?? taskItems.length ?? 0, [tasksQ.data, taskItems.length]);
 
   /* ===================================
    * Render
@@ -187,13 +194,13 @@ export default function PickerTasksManagerPage() {
       />
 
       {/* Picker Tasks Table */}
-      {/*<TasksCard
+      <TasksCard
         tasks={taskItems}
         total={taskTotal}
         countsByStatus={tasksQ.data?.countsByStatus}
         isLoading={tasksQ.isLoading}
         errorMsg={tasksQ.isError ? (tasksQ.error as Error)?.message || "Failed to load tasks" : null}
-      />*/}
+      />
     </Stack>
   );
 }

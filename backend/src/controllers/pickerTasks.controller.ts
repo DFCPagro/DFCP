@@ -21,7 +21,7 @@ export async function postGeneratePickerTasks(req: Request, res: Response) {
     if (!mongoose.isValidObjectId(logisticCenterID)) {
       return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
     }
-
+    
     const result = await generatePickerTasksForShift({
       logisticCenterId: logisticCenterID,
       createdByUserId: String(user._id),
