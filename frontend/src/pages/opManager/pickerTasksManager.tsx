@@ -1,3 +1,4 @@
+// src/pages/PickerTasksManagerPage.tsx
 import * as React from "react";
 import { Stack, HStack, Heading } from "@chakra-ui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,9 +8,10 @@ import { fetchCurrentShift } from "@/api/shifts";
 import type { ShiftName as ApiShiftName } from "@/api/shifts";
 
 import {
+  fetchPickerTasksForShift as fetchPickerTasksForShiftAPI,
   generatePickerTasks as generatePickerTasksAPI,
   type PickerTask,
-} from "@/api/pickerTask";
+} from "@/api/pickerTask"; // ✅ plural file + correct function name
 
 import { getOrdersForShift as getOrdersForShiftAPI } from "@/api/orders";
 import type { CSOrdersResponse } from "@/types/cs.orders";
@@ -31,12 +33,7 @@ type CurrentShiftCtx = {
   items: any[];
 };
 
-const SHIFT_SEQUENCE: ShiftName[] = [
-  "morning",
-  "afternoon",
-  "evening",
-  "night",
-];
+const SHIFT_SEQUENCE: ShiftName[] = ["morning", "afternoon", "evening", "night"];
 
 function nextShift(name: ShiftName): ShiftName {
   const i = SHIFT_SEQUENCE.indexOf(name);
@@ -53,8 +50,7 @@ function makeShiftsCurrentPlus5(params: {
   baseShiftDate: string;
 }): Array<{ shiftName: ShiftName; shiftDate: string; label: string }> {
   const { tz = "Asia/Jerusalem", baseShiftName, baseShiftDate } = params;
-  const out: Array<{ shiftName: ShiftName; shiftDate: string; label: string }> =
-    [];
+  const out: Array<{ shiftName: ShiftName; shiftDate: string; label: string }> = [];
   let name = baseShiftName;
   let date = baseShiftDate;
   let dt = DateTime.fromFormat(baseShiftDate, "yyyy-LL-dd", { zone: tz });
@@ -75,13 +71,12 @@ function makeShiftsCurrentPlus5(params: {
 export default function PickerTasksManagerPage() {
   const qc = useQueryClient();
 
-  // 1️⃣ Load current shift
+  // 1) Load current shift
   const currentQ = useQuery({
     queryKey: ["pickerTasks", "currentShiftCtx"],
     queryFn: async (): Promise<CurrentShiftCtx> => {
       const cur = await fetchCurrentShift();
-      if (!isValidShiftName(cur.shift))
-        throw new Error("No active shift right now");
+      if (!isValidShiftName(cur.shift)) throw new Error("No active shift right now");
 
       const tz = "Asia/Jerusalem";
       const shiftDate = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
@@ -99,7 +94,7 @@ export default function PickerTasksManagerPage() {
     shiftDate: string;
   } | null>(null);
 
-  // 2️⃣ Compute 6 shifts (current + 5)
+  // 2) Compute 6 shifts (current + 5)
   const shifts = React.useMemo(() => {
     if (!currentQ.data?.shift) return [];
     const { shiftName, shiftDate, tz } = currentQ.data.shift;
@@ -110,7 +105,7 @@ export default function PickerTasksManagerPage() {
     });
   }, [currentQ.data]);
 
-  // 3️⃣ Auto-select first shift
+  // 3) Auto-select first shift
   React.useEffect(() => {
     if (shifts.length && !selected)
       setSelected({
@@ -119,7 +114,7 @@ export default function PickerTasksManagerPage() {
       });
   }, [shifts, selected]);
 
-  // 4️⃣ Orders for selected shift
+  // 4) Orders for selected shift
   const ordersQ = useQuery({
     enabled: !!selected,
     queryKey: ["orders", "shift", selected?.shiftName, selected?.shiftDate],
@@ -134,21 +129,27 @@ export default function PickerTasksManagerPage() {
     },
   });
 
-  // 5️⃣ Picker tasks for selected shift
+  // 5) Picker tasks LIST for selected shift
   const tasksQ = useQuery({
-  enabled: !!selected,
-  queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate],
-  queryFn: async () => {
-    // you might already have an API like getPickerTasks; if not, add it.
-    const resp = await generatePickerTasksAPI({
-      shiftName: selected!.shiftName,
-      shiftDate: selected!.shiftDate,
-    });
-    return resp;
-  },
-});
+    enabled: !!selected,
+    queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate],
+    queryFn: async () => {
+      const resp = await fetchPickerTasksForShiftAPI({
+        shiftName: selected!.shiftName,
+        shiftDate: selected!.shiftDate,
+        page: 1,
+        limit: 200,
+        // You can pass additional filters here if needed:
+        // status: "ready",
+        // assignedOnly: true,
+        // unassignedOnly: true,
+        // pickerUserId: "<id>",
+      });
+      return resp;
+    },
+  });
 
-  // 6️⃣ Generate picker tasks
+  // 6) Generate picker tasks (then refetch list)
   const packMut = useMutation({
     mutationFn: () =>
       generatePickerTasksAPI({
@@ -157,18 +158,13 @@ export default function PickerTasksManagerPage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: [
-          "pickerTasks",
-          "shift",
-          selected?.shiftName,
-          selected?.shiftDate,
-        ],
+        queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate],
       });
       qc.invalidateQueries({ queryKey: ["pickerTasks", "currentShiftCtx"] });
     },
   });
 
-  // 7️⃣ Derived data
+  // 7) Derived data
   const orderItems: OrderLite[] = React.useMemo(
     () => (ordersQ.data as any)?.items ?? [],
     [ordersQ.data]
@@ -182,8 +178,18 @@ export default function PickerTasksManagerPage() {
     [ordersQ.data, orderItems.length]
   );
 
-  const taskItems: PickerTask[] = React.useMemo(() => (tasksQ.data?.items ?? []) as PickerTask[], [tasksQ.data]);
-  const taskTotal = React.useMemo(() => tasksQ.data?.pagination?.total ?? taskItems.length ?? 0, [tasksQ.data, taskItems.length]);
+  const taskItems: PickerTask[] = React.useMemo(
+    () => tasksQ.data?.items ?? [],
+    [tasksQ.data]
+  );
+  const taskTotal = React.useMemo(
+    () =>
+      tasksQ.data?.pagination?.total ??
+      tasksQ.data?.items?.length ??
+      taskItems.length ??
+      0,
+    [tasksQ.data, taskItems.length]
+  );
 
   /* ===================================
    * Render
@@ -195,25 +201,13 @@ export default function PickerTasksManagerPage() {
         <Heading size="lg">Picker Tasks</Heading>
         <HeaderActions
           onRefresh={() => {
-            qc.invalidateQueries({
-              queryKey: ["pickerTasks", "currentShiftCtx"],
-            });
+            qc.invalidateQueries({ queryKey: ["pickerTasks", "currentShiftCtx"] });
             if (selected) {
               qc.invalidateQueries({
-                queryKey: [
-                  "orders",
-                  "shift",
-                  selected.shiftName,
-                  selected.shiftDate,
-                ],
+                queryKey: ["orders", "shift", selected.shiftName, selected.shiftDate],
               });
               qc.invalidateQueries({
-                queryKey: [
-                  "pickerTasks",
-                  "shift",
-                  selected.shiftName,
-                  selected.shiftDate,
-                ],
+                queryKey: ["pickerTasks", "shift", selected.shiftName, selected.shiftDate],
               });
             }
           }}
@@ -228,8 +222,7 @@ export default function PickerTasksManagerPage() {
         isLoading={currentQ.isLoading}
         errorMsg={
           currentQ.isError
-            ? (currentQ.error as Error)?.message ||
-              "Failed to load current shift"
+            ? (currentQ.error as Error)?.message || "Failed to load current shift"
             : null
         }
       />
@@ -254,8 +247,14 @@ export default function PickerTasksManagerPage() {
         tasks={taskItems}
         total={taskTotal}
         countsByStatus={tasksQ.data?.countsByStatus}
+        // If your TasksCard supports it, you can also pass:
+        // countsByAssignment={tasksQ.data?.countsByAssignment}
         isLoading={tasksQ.isLoading}
-        errorMsg={tasksQ.isError ? (tasksQ.error as Error)?.message || "Failed to load tasks" : null}
+        errorMsg={
+          tasksQ.isError
+            ? (tasksQ.error as Error)?.message || "Failed to load tasks"
+            : null
+        }
       />
     </Stack>
   );

@@ -1,30 +1,42 @@
 // src/controllers/pickerTasks.controller.ts
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import LogisticCenter from '../models/logisticsCenter.model';
+import { Types } from "mongoose";
 import {
   generatePickerTasksForShift,
-  listPickerTasksForCurrentShift,
   listPickerTasksForShift,
 } from "../services/pickerTasks.service";
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/; // yyyy-LL-dd
 
-type Role = "admin" | "opManager" | "picker" | string;
-const hasRole = (u: any, roles: Role[]) => !!u && roles.includes(u.role);
+function parseBool(v: unknown): boolean | undefined {
+  if (v === undefined || v === null) return undefined;
+  const s = String(v).toLowerCase();
+  if (s === "true") return true;
+  if (s === "false") return false;
+  return undefined;
+}
+function parseIntOrUndef(v: unknown): number | undefined {
+  if (v === undefined || v === null) return undefined;
+  const n = parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : undefined;
+}
 
 /** POST /api/picker-tasks/generate */
 export async function postGeneratePickerTasks(req: Request, res: Response) {
   try {
     const user = (req as any).user;
-    const logisticCenterID= user.logisticCenterId
-    const {  shiftName, shiftDate } = req.body || {};
-    if (!mongoose.isValidObjectId(logisticCenterID)) {
+    const lcId = user?.logisticCenterId;
+
+    if (!mongoose.isValidObjectId(lcId)) {
       return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
     }
-    
+
+    const { shiftName, shiftDate } = req.body || {};
+
     const result = await generatePickerTasksForShift({
-      logisticCenterId: logisticCenterID,
-      createdByUserId: String(user._id),
+      logisticCenterId: new Types.ObjectId(lcId),
+      createdByUserId: new Types.ObjectId(String(user._id)),
       shiftName,
       shiftDate,
       stageKey: "packing_ready",
@@ -39,77 +51,48 @@ export async function postGeneratePickerTasks(req: Request, res: Response) {
   }
 }
 
-/** GET /api/picker-tasks/current */
-export async function getPickerTasksForCurrentShift(req: Request, res: Response) {
-  try {
-    const user = (req as any).user;
-    if (!hasRole(user, ["admin", "opManager", "picker"])) {
-      return res.status(403).json({ error: "Forbidden", details: "Insufficient role." });
-    }
-    const logisticCenterId= user.logisticCenterId
-    const {
-  
-      status,
-      mine,
-      page,
-      limit,
-      shiftName,
-      shiftDate,
-    } = (req.query || {}) as Record<string, string>;
-
-    if (!mongoose.isValidObjectId(logisticCenterId)) {
-      return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
-    }
-
-    const data = await listPickerTasksForCurrentShift({
-      logisticCenterId,
-      status,
-      mine: mine === "true",
-      requesterUserId: String(user._id),
-      page: page ? parseInt(page, 10) : undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      shiftName: shiftName as any,
-      shiftDate: shiftDate as any,
-    });
-
-    return res.json({ data });
-  } catch (err: any) {
-    console.error("[getPickerTasksForCurrentShift] error:", err);
-    return res.status(500).json({ error: "ServerError", details: err?.message ?? String(err) });
-  }
-}
-
-/** GET /api/picker-tasks/shift */
+/** GET /api/picker-tasks/shift?shiftName=morning&shiftDate=2025-11-05&assignedOnly=true */
 export async function getPickerTasksForShiftController(req: Request, res: Response) {
   try {
     const user = (req as any).user;
-    // if (!hasRole(user, ["admin", "opManager", "picker"])) {
-    //   return res.status(403).json({ error: "Forbidden", details: "Insufficient role." });
-    // }
-    const logisticCenterId= user.logisticCenterId
-    const {
-      
-      shiftName,
-      shiftDate,
-      status,
-      mine,
-      page,
-      limit,
-    } = (req.query || {}) as Record<string, string>;
+    const lcId = user?.logisticCenterId;
 
-    if (!mongoose.isValidObjectId(logisticCenterId)) {
+    if (!mongoose.isValidObjectId(lcId)) {
       return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
     }
 
+    const {
+      shiftName,
+      shiftDate,
+      status,
+      page,
+      limit,
+      assignedOnly,
+      unassignedOnly,
+      pickerUserId,
+    } = (req.query || {}) as Record<string, string>;
+
+    if (!shiftName) {
+      return res.status(400).json({ error: "BadRequest", details: "shiftName is required" });
+    }
+    if (!shiftDate || !DATE_RE.test(shiftDate)) {
+      return res.status(400).json({ error: "BadRequest", details: "shiftDate must be yyyy-LL-dd" });
+    }
+
+    // Mutually exclusive assignment flags
+    const assignedOnlyBool = parseBool(assignedOnly) === true;
+    const unassignedOnlyBool = !assignedOnlyBool && parseBool(unassignedOnly) === true;
+
     const data = await listPickerTasksForShift({
-      logisticCenterId,
-      shiftName: shiftName as any,
+      logisticCenterId: new Types.ObjectId(lcId),
+      shiftName: shiftName as any,       // your ShiftName union
       shiftDate: shiftDate as string,
       status,
-      mine: mine === "true",
-      requesterUserId: String(user._id),
-      page: page ? parseInt(page, 10) : undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
+      page: parseIntOrUndef(page),
+      limit: parseIntOrUndef(limit),
+      assignedOnly: assignedOnlyBool,    // plain boolean
+      unassignedOnly: unassignedOnlyBool,// plain boolean
+      pickerUserId: pickerUserId || undefined,
     });
 
     return res.json({ data });

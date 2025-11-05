@@ -1,14 +1,11 @@
 // src/services/pickerTasks.service.ts
 import mongoose, { Types } from "mongoose";
 import { DateTime } from "luxon";
+import type { PipelineStage } from "mongoose";
 import PickerTaskModel from "../models/PickerTasks.model";
 import ItemModel from "../models/Item.model";
 import PackageSizeModel from "../models/PackageSize";
 import ItemPackingModel from "../models/ItemPacking";
-import type { PipelineStage } from "mongoose";
-
-// replace your aggregateList with this:
-const STATUS_ORDER = ["ready", "claimed", "in_progress", "open", "problem", "cancelled", "done"];
 
 import {
   computePackingForOrderDoc,
@@ -18,57 +15,52 @@ import {
   type ItemPackingOverride,
 } from "./packing.service";
 
-import {
-  getShiftConfigByKey, // to read tz by lc + shift name
-  getCurrentShift,     // to resolve current shift name
-} from "./shiftConfig.service";
-
-import {
-  listOrdersForShift,
-} from "./order.service";
+import { getShiftConfigByKey, getCurrentShift } from "./shiftConfig.service";
+import { listOrdersForShift } from "./order.service";
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
+const STATUS_ORDER = ["ready", "claimed", "in_progress", "open", "problem", "cancelled", "done"];
 
-function isValidObjectId(id: any): boolean {
-  return mongoose.isValidObjectId(String(id));
+/** Normalize to ObjectId */
+function toOid(v: string | Types.ObjectId): Types.ObjectId {
+  return v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
 }
 
-async function resolveCurrentShiftParams(logisticCenterId: string, maybeName?: string | null, maybeDate?: string | null) {
-  // resolve shift name
-  const name: ShiftName =
-    (maybeName as ShiftName) ||
-    (await getCurrentShift()) as ShiftName;
-
-  // read tz from LC + name
-  const cfg = await getShiftConfigByKey({ logisticCenterId, name });
+async function resolveCurrentShiftParams(
+  logisticCenterId: string | Types.ObjectId,
+  maybeName?: string | null,
+  maybeDate?: string | null
+) {
+  const name: ShiftName = (maybeName as ShiftName) || ((await getCurrentShift()) as ShiftName);
+  const cfg = await getShiftConfigByKey({ logisticCenterId: String(logisticCenterId), name });
   const tz = cfg?.timezone || "Asia/Jerusalem";
-
-  // date as yyyy-LL-dd in LC tz
-  const date = (maybeDate && typeof maybeDate === "string")
-    ? maybeDate
-    : DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
-
+  const date =
+    maybeDate && typeof maybeDate === "string"
+      ? maybeDate
+      : DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
   return { shiftName: name, shiftDate: date, tz };
 }
 
 /** Load ItemPacking overrides for itemIds */
 async function loadPackingOverrides(itemIds: string[]) {
   const overridesById: ItemPackingById = {};
-  const ids = itemIds.filter(isValidObjectId).map((x) => new Types.ObjectId(x));
+  const ids = itemIds.filter((x) => mongoose.isValidObjectId(String(x))).map((x) => new Types.ObjectId(x));
   if (!ids.length) return overridesById;
 
   const ipDocs = await ItemPackingModel.find({ "items.itemId": { $in: ids } })
-    .select([
-      "items.itemId",
-      "items.packing.fragility",
-      "items.packing.allowMixing",
-      "items.packing.requiresVentedBox",
-      "items.packing.minBoxType",
-      "items.packing.maxWeightPerPackageKg",
-      "items.packing.maxKgPerBag",
-      "items.packing.densityKgPerL",
-      "items.packing.unitVolLiters",
-    ].join(" "))
+    .select(
+      [
+        "items.itemId",
+        "items.packing.fragility",
+        "items.packing.allowMixing",
+        "items.packing.requiresVentedBox",
+        "items.packing.minBoxType",
+        "items.packing.maxWeightPerPackageKg",
+        "items.packing.maxKgPerBag",
+        "items.packing.densityKgPerL",
+        "items.packing.unitVolLiters",
+      ].join(" ")
+    )
     .lean();
 
   for (const doc of ipDocs || []) {
@@ -90,14 +82,15 @@ async function loadPackingOverrides(itemIds: string[]) {
   return overridesById;
 }
 
+/** Create picker tasks (one per box) for a shift */
 export async function generatePickerTasksForShift(params: {
-  logisticCenterId: string;
-  createdByUserId: string;
+  logisticCenterId: string | Types.ObjectId;
+  createdByUserId: string | Types.ObjectId;
   shiftName?: ShiftName | null;
   shiftDate?: string | null; // yyyy-LL-dd
-  priority?: number;         // default 0
-  stageKey?: string;         // default "packing_ready"
-  autoSetReady?: boolean;    // default true
+  priority?: number;
+  stageKey?: string; // default "packing_ready"
+  autoSetReady?: boolean; // default true
 }) {
   const {
     logisticCenterId,
@@ -109,12 +102,14 @@ export async function generatePickerTasksForShift(params: {
     autoSetReady = true,
   } = params;
 
-  const { shiftName: sName, shiftDate: sDate, tz } =
-    await resolveCurrentShiftParams(logisticCenterId, shiftName, shiftDate);
-
-  // Use your orders service (pagination there; request a big page)
-  const { items: orders } = await listOrdersForShift({
+  const { shiftName: sName, shiftDate: sDate, tz } = await resolveCurrentShiftParams(
     logisticCenterId,
+    shiftName,
+    shiftDate
+  );
+
+  const { items: orders } = await listOrdersForShift({
+    logisticCenterId: String(logisticCenterId), // their service likely expects string
     date: sDate,
     shiftName: sName,
     page: 1,
@@ -135,7 +130,6 @@ export async function generatePickerTasksForShift(params: {
   });
 
   const candidates = (orders || []).filter((o: any) => {
-    // keep both styles working (stageKey or stages.current.key)
     if (o?.stageKey) return o.stageKey === stageKey;
     const curr = (o?.stages || []).find((s: any) => s?.current);
     const key = curr?.key || o?.stages?.current?.key;
@@ -154,63 +148,48 @@ export async function generatePickerTasksForShift(params: {
     };
   }
 
-  // gather item ids
   const allItemIds = Array.from(
-    new Set(
-      candidates.flatMap((o: any) => (o.items || []).map((l: any) => String(l.itemId)))
-    )
+    new Set(candidates.flatMap((o: any) => (o.items || []).map((l: any) => String(l.itemId))))
   );
 
-  // hydrate items
   const itemDocs = await ItemModel.find({ _id: { $in: allItemIds } })
     .select("_id name category type variety avgWeightPerUnitGr")
     .lean();
-
   const itemsById: Record<string, ItemLite> = Object.fromEntries(
     itemDocs.map((it: any) => [String(it._id), it as ItemLite])
   );
 
-  // package sizes
   const packageSizes = (await PackageSizeModel.find({})
     .select("key innerDimsCm headroomPct usableLiters maxWeightKg vented maxSkusPerBox mixingAllowed")
     .lean()) as unknown as PackageSizeLite[];
 
-  // overrides
   const overridesById = await loadPackingOverrides(allItemIds);
 
-  // compute plans and upsert tasks (one per box)
   const ops: any[] = [];
   const dedupe = new Set<string>();
 
   for (const order of candidates) {
-    const plan = computePackingForOrderDoc(
-      order as any,
-      itemsById,
-      packageSizes,
-      overridesById
-    );
-
+    const plan = computePackingForOrderDoc(order as any, itemsById, packageSizes, overridesById);
     const boxes = (plan?.boxes || []) as Array<any>;
     for (const b of boxes) {
       if (!b?.contents?.length) continue;
-
       const key = `${order._id}:${b.boxNo}`;
       if (dedupe.has(key)) continue;
       dedupe.add(key);
 
       ops.push({
         updateOne: {
-          filter: { orderId: new Types.ObjectId(order._id), boxNo: b.boxNo },
+          filter: { orderId: toOid(order._id), boxNo: b.boxNo },
           update: {
             $setOnInsert: {
-              logisticCenterId: new Types.ObjectId(logisticCenterId),
+              logisticCenterId: toOid(logisticCenterId),
               shiftName: sName,
               shiftDate: sDate,
-              orderId: new Types.ObjectId(order._id),
+              orderId: toOid(order._id),
               boxNo: b.boxNo,
               boxType: String(b.boxType || "Medium"),
               contents: (b.contents || []).map((c: any) => ({
-                itemId: new Types.ObjectId(String(c.itemId)),
+                itemId: toOid(String(c.itemId)),
                 name: c.itemName || itemsById[String(c.itemId)]?.name || String(c.itemId),
                 estWeightKgPiece: c.estWeightKgPiece ?? null,
                 estUnitsPiece: c.estUnitsPiece ?? null,
@@ -219,7 +198,7 @@ export async function generatePickerTasksForShift(params: {
               totalEstKg: Number(b.totalWeightKg || 0),
               totalEstUnits: Number(b.totalUnits || 0),
               totalLiters: Number(b.totalLiters || 0),
-              status: "open", // flipped to 'ready' below if autoSetReady
+              status: "open",
               priority,
               assignedPickerUserId: null,
               progress: {
@@ -229,7 +208,7 @@ export async function generatePickerTasksForShift(params: {
                 startedAt: null,
                 finishedAt: null,
               },
-              createdByUserId: new Types.ObjectId(createdByUserId),
+              createdByUserId: toOid(createdByUserId),
               createdAt: new Date(),
               updatedAt: new Date(),
               historyAuditTrail: [],
@@ -260,18 +239,13 @@ export async function generatePickerTasksForShift(params: {
 
   if (autoSetReady) {
     await PickerTaskModel.updateMany(
-      {
-        logisticCenterId: new Types.ObjectId(logisticCenterId),
-        shiftName: sName,
-        shiftDate: sDate,
-        status: "open",
-      },
+      { logisticCenterId: toOid(logisticCenterId), shiftName: sName, shiftDate: sDate, status: "open" },
       { $set: { status: "ready", updatedAt: new Date() } }
     );
   }
 
   const examples = await PickerTaskModel.find({
-    logisticCenterId: new Types.ObjectId(logisticCenterId),
+    logisticCenterId: toOid(logisticCenterId),
     shiftName: sName,
     shiftDate: sDate,
   })
@@ -291,17 +265,7 @@ export async function generatePickerTasksForShift(params: {
   };
 }
 
-// ---------- listing (pagination + status order) ----------
-const STATUS_SORT: Record<string, number> = {
-  ready: 0,
-  claimed: 1,
-  in_progress: 2,
-  open: 3,
-  problem: 4,
-  cancelled: 5,
-  done: 6,
-};
-
+// ---------- listing (pagination + status order + assignment) ----------
 function pageLimit(page?: number, limit?: number) {
   const p = Math.max(1, Number.isFinite(page as number) ? (page as number) : 1);
   const l = Math.min(500, Math.max(1, Number.isFinite(limit as number) ? (limit as number) : 100));
@@ -309,107 +273,106 @@ function pageLimit(page?: number, limit?: number) {
   return { p, l, skip };
 }
 
-async function aggregateList(q: any, p: number, l: number, skip: number) {
-  const pipeline: PipelineStage[] = [
-    { $match: q },
-    {
-      $addFields: {
-        __status_ord: {
-          // index of status in STATUS_ORDER; -1 -> push to end (use 99)
-          $let: {
-            vars: { ix: { $indexOfArray: [STATUS_ORDER, "$status"] } },
-            in: { $cond: [{ $gte: ["$$ix", 0] }, "$$ix", 99] },
-          },
+type AssignmentFilter = {
+  assignedOnly?: boolean;
+  unassignedOnly?: boolean;
+  pickerUserId?: string | Types.ObjectId;
+};
+
+
+async function aggregateList(
+  q: any,
+  p: number,
+  l: number,
+  skip: number
+): Promise<{
+  items: any[];
+  total: number;
+  countsByStatus: Record<string, number>;
+  countsByAssignment: { assigned: number; unassigned: number };
+}> {
+  const baseMatch: PipelineStage.Match = { $match: q };
+
+  const addStatusOrder: PipelineStage.AddFields = {
+    $addFields: {
+      __status_ord: {
+        $let: {
+          vars: { ix: { $indexOfArray: [STATUS_ORDER, "$status"] } },
+          in: { $cond: [{ $gte: ["$$ix", 0] }, "$$ix", 99] },
         },
       },
+      isAssigned: { $ne: ["$assignedPickerUserId", null] },
     },
-    { $sort: { __status_ord: 1, priority: -1, createdAt: 1, _id: 1 } },
-    { $skip: skip },
-    { $limit: l },
-  ];
+  };
 
-  const [items, total, buckets] = await Promise.all([
-    // cast the pipeline type explicitly to satisfy TS
-    PickerTaskModel.aggregate(pipeline),
+  const sortStage: PipelineStage.Sort = {
+    $sort: { __status_ord: 1, priority: -1, createdAt: 1, _id: 1 },
+  };
+
+  const pageStages: PipelineStage[] = [{ $skip: skip }, { $limit: l }];
+
+  const [items, total, byStatus, byAssignment] = await Promise.all([
+    PickerTaskModel.aggregate([baseMatch, addStatusOrder, sortStage, ...pageStages]),
     PickerTaskModel.countDocuments(q),
+    PickerTaskModel.aggregate([baseMatch, { $group: { _id: "$status", count: { $sum: 1 } } }]),
     PickerTaskModel.aggregate([
-      { $match: q } as PipelineStage,
-      { $group: { _id: "$status", count: { $sum: 1 } } } as PipelineStage,
+      baseMatch,
+      { $group: { _id: { $ne: ["$assignedPickerUserId", null] }, count: { $sum: 1 } } },
     ]),
   ]);
 
-  return {
-    items,
-    total,
-    countsByStatus: Object.fromEntries(buckets.map((x: any) => [x._id, x.count])),
-    page: p,
-    limit: l,
+  const countsByStatus = Object.fromEntries(byStatus.map((x: any) => [x._id, x.count]));
+  const countsByAssignment = {
+    assigned: byAssignment.find((x: any) => x._id === true)?.count ?? 0,
+    unassigned: byAssignment.find((x: any) => x._id === false)?.count ?? 0,
   };
-}
 
-export async function listPickerTasksForCurrentShift(params: {
-  logisticCenterId: string;
-  status?: string;
-  mine?: boolean;
-  requesterUserId?: string;
-  page?: number;
-  limit?: number;
-  shiftName?: ShiftName | null; // optional: allow override
-  shiftDate?: string | null;    // optional: allow override
-}) {
-  const {
-    logisticCenterId, status, mine, requesterUserId, page, limit, shiftName, shiftDate,
-  } = params;
-
-  const { shiftName: sName, shiftDate: sDate, tz } =
-    await resolveCurrentShiftParams(logisticCenterId, shiftName || null, shiftDate || null);
-
-  const q: any = {
-    logisticCenterId: new Types.ObjectId(logisticCenterId),
-    shiftName: sName,
-    shiftDate: sDate,
-  };
-  if (status) q.status = status;
-  if (mine && requesterUserId) q.assignedPickerUserId = new Types.ObjectId(requesterUserId);
-
-  const { p, l, skip } = pageLimit(page, limit);
-  const { items, total, countsByStatus } = await aggregateList(q, p, l, skip);
-
-  return {
-    shift: { logisticCenterId, shiftName: sName, shiftDate: sDate, tz },
-    pagination: { page: p, limit: l, total },
-    countsByStatus,
-    items,
-  };
+  return { items, total, countsByStatus, countsByAssignment };
 }
 
 export async function listPickerTasksForShift(params: {
-  logisticCenterId: string;
+  logisticCenterId: string | Types.ObjectId;
   shiftName: ShiftName;
   shiftDate: string; // yyyy-LL-dd
   status?: string;
-  mine?: boolean;
-  requesterUserId?: string;
   page?: number;
   limit?: number;
-}) {
-  const { logisticCenterId, shiftName, shiftDate, status, mine, requesterUserId, page, limit } = params;
+} & AssignmentFilter) {
+  const {
+    logisticCenterId,
+    shiftName,
+    shiftDate,
+    status,
+    page,
+    limit,
+    assignedOnly,
+    unassignedOnly,
+    pickerUserId,
+  } = params;
 
   const q: any = {
-    logisticCenterId: new Types.ObjectId(logisticCenterId),
+    logisticCenterId: toOid(logisticCenterId),
     shiftName,
     shiftDate,
   };
+
   if (status) q.status = status;
-  if (mine && requesterUserId) q.assignedPickerUserId = new Types.ObjectId(requesterUserId);
+
+  // Apply assignment filters — treat both true as "assignedOnly"
+  if (assignedOnly) q.assignedPickerUserId = { $ne: null };
+  else if (unassignedOnly) q.assignedPickerUserId = null;
+
+  if (pickerUserId) q.assignedPickerUserId = toOid(pickerUserId);
 
   const { p, l, skip } = pageLimit(page, limit);
-  const { items, total, countsByStatus } = await aggregateList(q, p, l, skip);
+  const { items, total, countsByStatus, countsByAssignment } =
+    await aggregateList(q, p, l, skip);
 
   return {
-    shift: { logisticCenterId, shiftName, shiftDate },
+    shift: { logisticCenterId: String(logisticCenterId), shiftName, shiftDate },
     pagination: { page: p, limit: l, total },
     countsByStatus,
+    countsByAssignment,
     items,
   };
 }

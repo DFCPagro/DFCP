@@ -129,6 +129,10 @@ PickerTaskSchema.index({
   priority: -1,
   createdAt: -1,
 });
+// Helpful compound indexes
+PickerTaskSchema.index({ shiftDate: 1, shiftName: 1, status: 1, priority: -1, createdAt: 1 });
+PickerTaskSchema.index({ shiftDate: 1, shiftName: 1, assignedPickerUserId: 1 });
+
 
 // ---------- Methods / Interfaces ----------
 export interface PickerTaskMethods {
