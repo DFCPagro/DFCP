@@ -233,6 +233,12 @@ const workFManager: ReadonlyArray<MenuItem> = [
     label: "View Farmer Orders",
     path: P.fManagerViewFarmerOrders,
   },
+  {
+    type: "link",
+    key: "view-farmer-list",
+    label: "View Farmer List",
+    path: P.fManagerViewFarmerList,
+  },
   WORKER_MARKET_GROUP,
 ] as const;
 

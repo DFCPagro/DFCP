@@ -64,6 +64,7 @@ export const PATHS = {
   fManagerShiftsFarmerOrder: "/fManager/shifts-farmer-order",
   fManagerJobAppReview: "/fManager/jobReview",
   fManagerViewFarmerOrders: "/fManager/view-farmer-orders",
+  fManagerViewFarmerList: "/fManager/view-farmer-List",
   //all worker pages
   workerProfile: "/workerProfile",
 
