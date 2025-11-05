@@ -63,6 +63,9 @@ export default function LocationRouteDialog(props: Props) {
   const [busy, setBusy] = useState(false);
   const [loadingMap, setLoadingMap] = useState(false);
 
+  // map readiness state to avoid painting too early
+  const [mapReady, setMapReady] = useState(false);
+
   const [point, setPoint] = useState<PointValue | undefined>(
     props.mode === "point" && props.initialPoint ? props.initialPoint : undefined,
   );
@@ -101,20 +104,32 @@ export default function LocationRouteDialog(props: Props) {
   const ensureMaps = useCallback(async () => {
     setLoadingMap(true);
     try {
-      await loadGoogleMaps();
+      await loadGoogleMaps(); // idempotent
     } finally {
       setLoadingMap(false);
     }
   }, []);
 
+  // When dialog opens, ensure maps and reset readiness
   useEffect(() => {
     if (!open) return;
     ensureMaps();
+    setMapReady(false);
   }, [open, ensureMaps]);
 
-  // Paint current state whenever open or state changes
+  // keep internal point in sync with incoming initialPoint (important for view mode)
   useEffect(() => {
-    if (!open || !mapRef.current) return;
+  if (props.mode === "point" && "initialPoint" in props) {
+    setPoint(props.initialPoint);
+  } else if (props.mode === "point") {
+    setPoint(undefined);
+  }
+  // no change for route mode
+}, [props]);
+
+  // Paint current state whenever open/mapReady/state changes
+  useEffect(() => {
+    if (!open || !mapRef.current || !mapReady) return;
 
     const paint = async () => {
       if (props.mode === "point") {
@@ -149,11 +164,10 @@ export default function LocationRouteDialog(props: Props) {
       }
     };
 
-    // defer to next frame to ensure container is sized
     const id = requestAnimationFrame(paint);
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, point?.lat, point?.lng, origin?.lat, origin?.lng, destination?.lat, destination?.lng, travelMode]);
+  }, [open, mapReady, point?.lat, point?.lng, origin?.lat, origin?.lng, destination?.lat, destination?.lng, travelMode]);
 
   // Click-to-pick with immediate placement (avoid race with async reverseGeocode)
   const onMapClick = async (pos: LatLng) => {
@@ -321,13 +335,13 @@ export default function LocationRouteDialog(props: Props) {
     if (props.mode === "point" && point) {
       props.onConfirm(point);
     } else if (props.mode === "route" && originRef.current && destinationRef.current) {
-        props.onConfirm({
-          origin: originRef.current,
-          destination: destinationRef.current,
-          travelMode,
-          distanceText,
-          durationText,
-        });
+      props.onConfirm({
+        origin: originRef.current,
+        destination: destinationRef.current,
+        travelMode,
+        distanceText,
+        durationText,
+      });
     }
   };
 
@@ -467,8 +481,9 @@ export default function LocationRouteDialog(props: Props) {
                 <MapCanvas
                   ref={mapRef}
                   initialCenter={center}
-                  onClick={onMapClick}
-                  onMarkerDragEnd={onMarkerDragEnd}
+                  onMapReady={() => setMapReady(true)}                      
+                  onClick={viewMode === "view" ? undefined : onMapClick}
+                  onMarkerDragEnd={viewMode === "view" ? undefined : onMarkerDragEnd}
                   className="chakra-map"
                 />
               </Box>
