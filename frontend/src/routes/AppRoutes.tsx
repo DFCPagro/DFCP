@@ -82,6 +82,7 @@ export default function AppRoutes() {
           <Route path={PATHS.QRExample} element={< QRExample />} />
 
         </Route>
+
         {/* --- Public, no Footer --- */}
         <Route
           element={
@@ -102,7 +103,7 @@ export default function AppRoutes() {
 
         {/* --- Guest-only (login/register), no chrome, narrow --- */}
         <Route element={<GuestGuard />}>
-          <Route >
+          <Route element={<AppShell showFooter={false} maxW="md" />}>
             <Route path={PATHS.login} element={<Login />} />
             <Route path={PATHS.register} element={<Register />} />
           </Route>
@@ -117,18 +118,18 @@ export default function AppRoutes() {
           }
         >
           {/* General protected */}
-<Route element={<AppShell showFooter={true} showHeader={false} />}>
-  <Route path={PATHS.market} element={<Market />} />
-</Route>
+          <Route element={<AppShell showFooter={true} showHeader={false} />}>
+            <Route path={PATHS.market} element={<Market />} />
+          </Route>
 
           <Route path={PATHS.jobs} element={<AvailabileJobs />} />
           <Route path={PATHS.jobApplication} element={<JobApplication />} />
-<Route element={<AppShell showFooter={true} showHeader={false}/>}>
-  <Route path={PATHS.profile} element={<Profile />} />
-</Route>
-<Route element={<AppShell showFooter={true} maxW="1 1 auto" showHeader={false} />}>
-  <Route path={PATHS.orders} element={<Orders />} />
-</Route>
+          <Route element={<AppShell showFooter={true} showHeader={false} />}>
+            <Route path={PATHS.profile} element={<Profile />} />
+          </Route>
+          <Route element={<AppShell showFooter={true} maxW="1 1 auto" showHeader={false} />}>
+            <Route path={PATHS.orders} element={<Orders />} />
+          </Route>
           {/* Admin-only */}
           <Route
             path={PATHS.adminDashboard}
@@ -257,12 +258,12 @@ export default function AppRoutes() {
           <Route
             path={PATHS.PickerTasksPage}
             element={
-              <RoleGuard allow={["opManager","admin"]}>
+              <RoleGuard allow={["opManager", "admin"]}>
                 <PickerTasks />
               </RoleGuard>
             }
           />
-         
+
           {/* F Manager-only */}
           <Route
             path={PATHS.fManagerDashboard}
@@ -294,14 +295,14 @@ export default function AppRoutes() {
         <Route
           element={
             <AuthGuard>
-              <AppShell showFooter={false}  maxW="5xl"/>
+              <AppShell showFooter={false} maxW="5xl" />
             </AuthGuard>
-              
+
           }
         >
 
-          <Route path={PATHS.checkout} element={<Checkout /> 
-        } />
+          <Route path={PATHS.checkout} element={<Checkout />
+          } />
         </Route>
 
         {/* --- Authenticated, no FOOTER + wider --- */}
