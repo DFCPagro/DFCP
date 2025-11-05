@@ -56,7 +56,8 @@ const FManagerDashboard = lazy(() => import("@/pages/fManager/Dashboard"));
 const FManagerItemManagement = lazy(() => import("@/pages/fManager/ItemManager"));
 const FManagerCreateStock = lazy(() => import("@/pages/fManager/CreateStock"));
 const FManagerShiftsFarmerOrder = lazy(() => import("@/pages/fManager/ShiftsFarmerOrder"));
-const FManagerJobAppReview = lazy(() => import("@/pages/JobAppReview"));
+const FManagerViewFarmerOrders = lazy(() => import("@/pages/fManager/ViewFarmerOrders"));
+
 
 
 
@@ -280,6 +281,13 @@ export default function AppRoutes() {
               <FManagerShiftsFarmerOrder />
             </RoleGuard>}
           />
+          <Route
+            path={PATHS.fManagerViewFarmerOrders}
+            element={<RoleGuard allow={["fManager"]}>
+              <FManagerViewFarmerOrders />
+            </RoleGuard>}
+          />
+
         </Route>
 
         {/* --- Authenticated, no FOOTER ( customer pages) --- */}

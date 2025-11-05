@@ -1,238 +1,337 @@
 // src/api/fakes/farmerOrders.fake.ts
-import type {
-  FarmerOrderDTO,
-  FarmerOrderStatus,
-  Shift,
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import {
+  type ShiftFarmerOrderItem,
+  type FarmerOrderStageKey,
+  FARMER_ORDER_STAGES,
+  FARMER_ORDER_STAGE_KEYS,
 } from "@/types/farmerOrders";
 
-/** ------------------------------
- * Config
- * ----------------------------- */
-const LATENCY_MS = 400; // average latency
-const ERROR_RATE = 0.04; // 4% random error to test rollbacks
+// If you have this type exported on FE, use it. Otherwise, adjust the fields you need on the card.
+export type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
-/** ------------------------------
- * Small helpers (module-local only)
- * ----------------------------- */
-const rng = mulberry32(0x5a17cafe); // deterministic seed for reproducible fixtures
+// Keep in sync with your screenshot type
+export type ShiftRollup = {
+  date?: string;
+  shiftName?: ShiftName;
+  count?: number;
+  problemCount?: number;
+  okFO?: number; // farmer orders ok
+  pendingFO?: number;
+  problemFO?: number;
+  okFarmers?: number;
+  pendingFarmers?: number;
+  problemFarmers?: number;
+};
 
-function mulberry32(seed: number) {
-  let t = seed >>> 0;
-  return function () {
-    t += 0x6D2B79F5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/* --------------------------------- Helpers -------------------------------- */
 
-function chance(p: number) {
-  return rng() < p;
-}
-
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(rng() * arr.length)];
-}
-
-function delay(base = LATENCY_MS) {
-  const jitter = Math.floor((rng() - 0.5) * 200); // ±100ms
-  return new Promise((res) => setTimeout(res, Math.max(50, base + jitter)));
-}
-
-function maybeFail() {
-  if (chance(ERROR_RATE)) {
-    throw new Error("Network error (simulated)");
+const OID_CHARS = "abcdef0123456789";
+function newId(seed = 0): string {
+  // Not cryptographically random; deterministic enough for dev fakes.
+  let s = "";
+  for (let i = 0; i < 24; i++) {
+    // simple LCG variation to keep deterministic variety
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    s += OID_CHARS[seed % OID_CHARS.length];
   }
+  return s;
 }
 
-function fmtLocalYYYYMMDD(d: Date) {
-  // format as local "YYYY-MM-DD"
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const day = `${d.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${day}`;
+function hashString(str: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
 }
 
-function addDays(base: Date, days: number) {
-  const d = new Date(base);
-  d.setDate(d.getDate() + days);
-  return d;
+// Build a default stages array using FARMER_ORDER_STAGES and mark one stage current.
+type StageStatus = "pending" | "ok" | "problem" | "current" | "done";
+
+function buildStages(currentKey: FarmerOrderStageKey): {
+  stageKey: FarmerOrderStageKey;
+  stages: Array<{
+    key: FarmerOrderStageKey;
+    label: string;
+    status: StageStatus;
+    expectedAt: Date;
+    startedAt: Date;
+    completedAt: Date;
+    timestamp: Date;
+    note?: string;
+  }>;
+} {
+  const now = new Date();
+
+  const stages = FARMER_ORDER_STAGES.map((s) => {
+    const isCurrent = s.key === currentKey;
+    const isBefore =
+      FARMER_ORDER_STAGE_KEYS.indexOf(s.key as any) <
+      FARMER_ORDER_STAGE_KEYS.indexOf(currentKey as any);
+
+    // Force literal-union typing for status (not a generic string)
+    const status: StageStatus = isCurrent
+      ? "current"
+      : isBefore
+        ? "done"
+        : "pending";
+
+    // The expected type requires Date (non-null). Use sensible placeholders.
+    const expectedAt = now; // or derive per stage if you want
+    const startedAt = isBefore || isCurrent ? now : now; // keep as Date
+    const completedAt = isBefore ? now : now; // keep as Date
+    const timestamp = now;
+
+    return {
+      key: s.key as FarmerOrderStageKey,
+      label: s.label,
+      status,
+      expectedAt,
+      startedAt,
+      completedAt,
+      timestamp,
+      note: isCurrent
+        ? "In progress"
+        : isBefore
+          ? "Auto-completed for fake"
+          : "",
+    };
+  });
+
+  return { stageKey: currentKey, stages };
 }
 
-function makeId() {
-  // short, URL-safe id
-  return (
-    Math.floor(rng() * 36 ** 6)
-      .toString(36)
-      .padStart(6, "0") + Math.floor(rng() * 36 ** 4).toString(36).padStart(4, "0")
+/* ------------------------------- Canonical 12 ------------------------------ */
+
+type SeedInput = {
+  idx: number;
+  date: string;
+  shift: ShiftName;
+};
+
+function makeCanonicalOrder({
+  idx,
+  date,
+  shift,
+}: SeedInput): ShiftFarmerOrderItem {
+  const seed = hashString(`${date}-${shift}-${idx}`);
+  const itemCatalog = [
+    {
+      type: "Tomato",
+      variety: "Cherry",
+      pictureUrl: "/img/items/tomato-cherry.jpg",
+    },
+    {
+      type: "Cucumber",
+      variety: "Persian",
+      pictureUrl: "/img/items/cucumber.jpg",
+    },
+    { type: "Pepper", variety: "Red", pictureUrl: "/img/items/pepper-red.jpg" },
+    { type: "Potato", variety: "Golden", pictureUrl: "/img/items/potato.jpg" },
+    { type: "Onion", variety: "Yellow", pictureUrl: "/img/items/onion.jpg" },
+    { type: "Carrot", variety: "Nantes", pictureUrl: "/img/items/carrot.jpg" },
+    { type: "Apple", variety: "Gala", pictureUrl: "/img/items/apple.jpg" },
+    { type: "Orange", variety: "Navel", pictureUrl: "/img/items/orange.jpg" },
+    {
+      type: "Lettuce",
+      variety: "Romaine",
+      pictureUrl: "/img/items/lettuce.jpg",
+    },
+    {
+      type: "Zucchini",
+      variety: "Dark Green",
+      pictureUrl: "/img/items/zucchini.jpg",
+    },
+    {
+      type: "Eggplant",
+      variety: "Classic",
+      pictureUrl: "/img/items/eggplant.jpg",
+    },
+    {
+      type: "Grapes",
+      variety: "Red Seedless",
+      pictureUrl: "/img/items/grapes.jpg",
+    },
+  ];
+
+  const ic = itemCatalog[idx % itemCatalog.length];
+
+  // Quantities
+  const ordered = 200 + (seed % 400); // 200–599 kg
+  const final = Math.round(ordered * 1.02 * 100) / 100; // +2%
+  const orders = Array.from({ length: 4 }, (_v, i) => ({
+    orderId: newId(seed + i * 13),
+    allocatedQuantityKg:
+      Math.round((ordered / 4 + ((seed >> (i + 1)) % 10)) * 100) / 100,
+  }));
+
+  // Choose a believable current stage a few steps in
+  const stageIdx = Math.min(
+    Math.max(2, (seed % FARMER_ORDER_STAGE_KEYS.length) - 1),
+    FARMER_ORDER_STAGE_KEYS.length - 2
+  );
+  const currentKey = FARMER_ORDER_STAGE_KEYS[stageIdx] as FarmerOrderStageKey;
+  const { stageKey, stages } = buildStages(currentKey);
+
+  return {
+    // Mongo-like identity
+    _id: newId(seed),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+
+    // relations / identity
+    itemId: newId(seed + 1),
+    type: ic.type,
+    variety: ic.variety,
+    pictureUrl: ic.pictureUrl,
+
+    farmerId: newId(seed + 2),
+    farmerName: `Farmer ${String.fromCharCode(65 + (idx % 26))}`,
+    farmName: `Farm ${(idx % 7) + 1}`,
+
+    // logistics
+    shift,
+    pickUpDate: date,
+    logisticCenterId: newId(seed + 3),
+
+    // approval
+    farmerStatus: "ok",
+
+    // demand & quantities
+    sumOrderedQuantityKg: ordered,
+    orderedQuantityKg: ordered, // alias, if FE expects it
+    forcastedQuantityKg: ordered, // keep original spelling from BE; alias on FE if needed
+    forecastedQuantityKg: ordered, // friendly alias (many FE types expose this)
+    finalQuantityKg: final,
+
+    // linked customer orders
+    orders,
+
+    // containers (we keep empty in fake)
+    containers: [],
+    containerSnapshots: [],
+
+    // stages
+    stageKey,
+    stages,
+
+    // QS / inspection
+    farmersQSreport: undefined,
+    inspectionQSreport: undefined,
+    visualInspection: { status: "ok" },
+    inspectionStatus: "passed",
+
+    // audit
+    historyAuditTrail: [
+      {
+        userId: newId(seed + 4),
+        action: "CREATE",
+        note: "Fake seed create",
+        meta: { source: "fake" },
+        timestamp: new Date().toISOString(),
+      },
+      {
+        userId: newId(seed + 5),
+        action: "STAGE_SET_CURRENT",
+        note: `Now at ${stageKey}`,
+        meta: { key: stageKey },
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  } as unknown as ShiftFarmerOrderItem;
+}
+
+// The canonical set of 12 — we materialize for a “reference” day/shift, but
+// they’re generic and reusable across any day/shift selection logic.
+export function getCanonicalFakeFarmerOrders(): ShiftFarmerOrderItem[] {
+  // Reference date/shift only to create deterministic ids; they won’t be displayed from here.
+  const refDate = "2025-01-01";
+  const refShift: ShiftName = "morning";
+  return Array.from({ length: 12 }, (_v, idx) =>
+    makeCanonicalOrder({ idx, date: refDate, shift: refShift })
   );
 }
 
-/** ------------------------------
- * Seed data
- * ----------------------------- */
-const SHIFTS: Shift[] = ["morning", "afternoon", "evening", "night"];
+/* -------------------------- Selection & Rollups --------------------------- */
 
-const ITEMS = [
-  { itemId: "ITM-APL", type: "Apple", variety: "Gala" },
-  { itemId: "ITM-APL2", type: "Apple", variety: "Granny Smith" },
-  { itemId: "ITM-TMT", type: "Tomato", variety: "Cherry" },
-  { itemId: "ITM-CUC", type: "Cucumber", variety: "Slicer" },
-  { itemId: "ITM-ORN", type: "Orange", variety: "Navel" },
-  { itemId: "ITM-BAN", type: "Banana", variety: "Cavendish" },
-];
+/**
+ * Deterministically pick N orders from the canonical 12 for a given (date, shiftName).
+ * N is clamped to [8, 12].
+ */
+export function pickFakeOrders(
+  date: string,
+  shiftName: ShiftName,
+  fakeNum = 12
+): ShiftFarmerOrderItem[] {
+  const N = Math.max(8, Math.min(12, Math.floor(fakeNum)));
+  const base = getCanonicalFakeFarmerOrders();
 
-type InternalOrder = FarmerOrderDTO & {
-  _notes?: { at: string; note: string }[]; // for reject audit (not displayed in dashboard)
-};
-
-const store: {
-  byId: Map<string, InternalOrder>;
-} = {
-  byId: new Map(),
-};
-
-function seedOnce() {
-  if (store.byId.size > 0) return;
-
-  const today = new Date();
-  // Pending: a few orders in the next 1–3 days, varied shifts
-  for (let i = 0; i < 7; i++) {
-    const item = pick(ITEMS);
-    const shift = pick(SHIFTS);
-    const date = fmtLocalYYYYMMDD(addDays(today, 1 + Math.floor(rng() * 3)));
-    const forcastedQuantityKg = Math.max(5, Math.round(rng() * 80)); // 5..80
-    const id = makeId();
-
-    const row: InternalOrder = {
-      id,
-      itemId: item.itemId,
-      type: item.type,
-      variety: item.variety,
-      pictureUrl: null,
-      farmerStatus: "pending",
-      forcastedQuantityKg, // exact spelling as requested
-      finalQuantityKg: null,
-      pickUpDate: date,
-      shift,
-    };
-    store.byId.set(id, row);
-  }
-
-  // Accepted (ok): some groups across the next 1–5 days
-  for (let i = 0; i < 10; i++) {
-    const item = pick(ITEMS);
-    const shift = pick(SHIFTS);
-    const date = fmtLocalYYYYMMDD(addDays(today, 1 + Math.floor(rng() * 5)));
-    const hasFinal = chance(0.6);
-    const base = Math.max(5, Math.round(rng() * 60));
-    const finalQuantityKg = hasFinal ? base : null;
-    const forcastedQuantityKg = hasFinal ? Math.max(4, base + (chance(0.5) ? -3 : 3)) : base;
-
-    const id = makeId();
-    const row: InternalOrder = {
-      id,
-      itemId: item.itemId,
-      type: item.type,
-      variety: item.variety,
-      pictureUrl: null,
-      farmerStatus: "ok",
-      forcastedQuantityKg,
-      finalQuantityKg,
-      pickUpDate: date,
-      shift,
-    };
-    store.byId.set(id, row);
-  }
-}
-
-seedOnce();
-
-/** ------------------------------
- * Public API (mirrors the facade contract)
- * ----------------------------- */
-
-export type ListFarmerOrdersParams = {
-  farmerStatus?: Extract<FarmerOrderStatus, "pending" | "ok">;
-  from?: string; // "YYYY-MM-DD"
-  to?: string;   // "YYYY-MM-DD"
-};
-
-export async function listFarmerOrders(
-  params?: ListFarmerOrdersParams
-): Promise<FarmerOrderDTO[]> {
-  await delay();
-  maybeFail();
-
-  const { farmerStatus, from, to } = params ?? {};
-  const result: FarmerOrderDTO[] = [];
-
-  store.byId.forEach((row) => {
-    if (farmerStatus && row.farmerStatus !== farmerStatus) return;
-
-    if (from && row.pickUpDate < from) return;
-    if (to && row.pickUpDate > to) return;
-
-    result.push({ ...row });
+  // Re-stamp date/shift on clones so they match the requested shift.
+  const stamp = (o: ShiftFarmerOrderItem): ShiftFarmerOrderItem => ({
+    ...o,
+    pickUpDate: date,
+    shift: shiftName,
   });
 
-  // Sort by date asc, then shift order
-  const shiftIndex = new Map<Shift, number>([
-    ["morning", 0],
-    ["afternoon", 1],
-    ["evening", 2],
-    ["night", 3],
-  ]);
+  // Deterministic shuffle by (date+shift)
+  const h = hashString(`${date}|${shiftName}`);
+  const shuffled = base
+    .map((o, i) => ({ o, k: hashString(`${h}-${i}`) }))
+    .sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
+    .map((x) => stamp(x.o));
 
-  result.sort((a, b) => {
-    if (a.pickUpDate !== b.pickUpDate) return a.pickUpDate < b.pickUpDate ? -1 : 1;
-    return (shiftIndex.get(a.shift) ?? 0) - (shiftIndex.get(b.shift) ?? 0);
-  });
-
-  return result;
+  return shuffled.slice(0, N);
 }
 
-export async function acceptFarmerOrder(orderId: string): Promise<void> {
-  if (!orderId) throw new Error("orderId is required");
-  await delay();
-  maybeFail();
-
-  const row = store.byId.get(orderId);
-  if (!row) throw new Error("Order not found");
-  if (row.farmerStatus !== "pending") {
-    // idempotent-ish behavior: if already ok, just return
-    if (row.farmerStatus === "ok") return;
-    throw new Error(`Cannot accept order with status "${row.farmerStatus}"`);
-  }
-
-  row.farmerStatus = "ok";
-  // Keep quantities/dates/shifts as-is; final may still be null (to be set later downstream)
-  store.byId.set(orderId, { ...row });
-}
-
-export async function rejectFarmerOrder(orderId: string, note: string): Promise<void> {
-  if (!orderId) throw new Error("orderId is required");
-  if (!note?.trim()) throw new Error("A non-empty note is required for rejection");
-
-  await delay();
-  maybeFail();
-
-  const row = store.byId.get(orderId);
-  if (!row) throw new Error("Order not found");
-  if (row.farmerStatus !== "pending") {
-    // if already problem, treat as idempotent; otherwise block
-    if (row.farmerStatus === "problem") return;
-    throw new Error(`Cannot reject order with status "${row.farmerStatus}"`);
-  }
-
-  const now = new Date();
-  const at = `${fmtLocalYYYYMMDD(now)} ${now.toTimeString().slice(0, 8)}`;
-  const updated: InternalOrder = {
-    ...row,
-    farmerStatus: "problem",
-    _notes: [...(row._notes ?? []), { at, note: note.trim() }],
+/**
+ * Build a rollup compatible with your ShiftStatsCard-like row.
+ * For now all are "ok" (as per your spec), but fields exist for later.
+ */
+export function buildShiftRollup(
+  date: string,
+  shiftName: ShiftName,
+  orders: ShiftFarmerOrderItem[]
+): ShiftRollup {
+  const count = orders.length;
+  const okFO = count; // all ok for the fake phase
+  return {
+    date,
+    shiftName,
+    count,
+    okFO,
+    pendingFO: 0,
+    problemFO: 0,
+    problemCount: 0,
+    okFarmers: okFO, // simplistic: 1:1
+    pendingFarmers: 0,
+    problemFarmers: 0,
   };
+}
 
-  // In the dashboard we don't show "problem" orders; they stop appearing in "pending"
-  store.byId.set(orderId, updated);
+/* ----------------------------- Convenience API ---------------------------- */
+
+/**
+ * High-level helper you can use immediately in the page or in a hook.
+ * Returns both the orders and the summary for a single (date, shift).
+ */
+export function getFakeByShift(params: {
+  date: string;
+  shiftName: ShiftName;
+  fakeNum?: number;
+}): {
+  date: string;
+  shiftName: ShiftName;
+  orders: ShiftFarmerOrderItem[];
+  rollup: ShiftRollup;
+} {
+  const orders = pickFakeOrders(
+    params.date,
+    params.shiftName,
+    params.fakeNum ?? 12
+  );
+  const rollup = buildShiftRollup(params.date, params.shiftName, orders);
+  return { date: params.date, shiftName: params.shiftName, orders, rollup };
 }

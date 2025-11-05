@@ -3,7 +3,8 @@ import { api } from "./config";
 import {
   FarmerOrdersSummarySchema,
   FarmerOrderDTOSchema,
-  GetFarmerOrderByShiftResponseSchema,
+  // Keep this available for future response validation if desired
+  // GetFarmerOrderByShiftResponseSchema,
 } from "@/types/farmerOrders";
 import type {
   FarmerOrdersSummaryResponse,
@@ -15,13 +16,21 @@ import type {
   ShiftFarmerOrderItem,
   FarmerOrderStatus,
 } from "@/types/farmerOrders";
-import type { ListFarmerOrdersParams } from "./fakes/farmerOrders.fake";
+
+// NEW: fake helpers (no network)
+import { getFakeByShift } from "./fakes/farmerOrders.fake";
 
 /* -------------------------------- Constants ------------------------------- */
 
 const BASE = "/farmer-orders";
 
-export const qkFarmerOrdersByShift = (p: ShiftFarmerOrdersQuery) =>
+/**
+ * React Query key for "by shift" lookups.
+ * - Includes fake controls so caches don't collide.
+ */
+export const qkFarmerOrdersByShift = (
+  p: ShiftFarmerOrdersQuery & { fake?: boolean; fakeNum?: number }
+) =>
   [
     "farmerOrders",
     "byShift",
@@ -29,6 +38,8 @@ export const qkFarmerOrdersByShift = (p: ShiftFarmerOrdersQuery) =>
     p.shiftName,
     p.page ?? "all",
     p.limit ?? "all",
+    p.fake ? "fake" : "real",
+    p.fake ? String(p.fakeNum ?? 12) : "n/a",
   ] as const;
 
 /* ------------------------------- Summary API ------------------------------ */
@@ -36,40 +47,18 @@ export const qkFarmerOrdersByShift = (p: ShiftFarmerOrdersQuery) =>
 /**
  * Fetch dashboard summary for the current user's logistics center.
  * Backend infers LC from the JWT; no params needed.
- *
- * Response shape (per your sample):
- * {
- *   current: { date, shiftName, count, problemCount, okFO, pendingFO, problemFO, okFarmers, pendingFarmers, problemFarmers },
- *   next:    Array<...same as current...>,
- *   tz: "Asia/Jerusalem",
- *   lc: "66e007000000000000000001"
- * }
  */
 export async function getFarmerOrdersSummary(): Promise<FarmerOrdersSummaryResponse> {
   const { data } = await api.get(`${BASE}/summary`);
-  // Support either { data: ... } or bare object:
-  const payload = data?.data ?? data;
+  const payload = (data as any)?.data ?? data;
   return FarmerOrdersSummarySchema.parse(payload);
 }
 
 /* --------------------------- Create Farmer Order -------------------------- */
-/**
- * Create a farmer order.
- * Expected request (exactly as backend expects):
- * {
- *   itemId: string,
- *   farmerId: string,
- *   shift: "morning" | "afternoon" | "evening" | "night",
- *   pickUpDate: "YYYY-MM-DD",
- *   forcastedQuantityKg: number
- * }
- *
- * Backend returns either { data: FarmerOrderDTO } or a bare FarmerOrderDTO.
- */
+
 export async function createFarmerOrder(
   req: CreateFarmerOrderRequest
 ): Promise<FarmerOrderDTO> {
-  // Light runtime guards (dev-friendly messages; Zod still validates the response)
   if (!req?.itemId) throw new Error("itemId is required");
   if (!req?.farmerId) throw new Error("farmerId is required");
   if (!req?.shift) throw new Error("shift is required");
@@ -78,28 +67,78 @@ export async function createFarmerOrder(
     throw new Error("forcastedQuantityKg must be a finite number");
 
   const { data } = await api.post(BASE, req);
-  const payload = data?.data ?? data;
+  const payload = (data as any)?.data ?? data;
   return FarmerOrderDTOSchema.parse(payload);
 }
 
-// ADD: GET /api/farmer-orders/by-shift
+/* ----------------------------- By-Shift lookup ---------------------------- */
+
+/**
+ * GET /api/farmer-orders/by-shift
+ *
+ * Now supports a **fake mode**:
+ *  - If `params.fake === true`, returns a locally generated response with
+ *    `params.fakeNum` orders (clamped to 8–12) using the canonical fake dataset.
+ *  - Otherwise, performs the real API request.
+ *
+ * This keeps the component/hook contract identical regardless of the source.
+ */
 export async function getFarmerOrdersByShift(
-  params: ShiftFarmerOrdersQuery,
+  params: ShiftFarmerOrdersQuery & { fake?: boolean; fakeNum?: number },
   opts?: { signal?: AbortSignal }
 ): Promise<ShiftFarmerOrdersResponse> {
+  // FAKE PATH (no network)
+  if (params.fake) {
+    const { orders } = getFakeByShift({
+      date: params.date,
+      shiftName: params.shiftName as any, // "morning" | "afternoon" | "evening" | "night"
+      fakeNum: params.fakeNum ?? 12,
+    });
+
+    // Pagination (always compute page/limit as numbers)
+    const page = Number(params.page ?? 1);
+    const limit = Number(params.limit ?? orders.length);
+    const start = (page - 1) * limit;
+    const end = start + limit;
+
+    const paged = orders.slice(start, end);
+
+    const fakeResponse: ShiftFarmerOrdersResponse = {
+      meta: {
+        date: params.date,
+        shiftName: params.shiftName as any,
+        page,
+        limit,
+        total: orders.length,
+        pages: Math.max(1, Math.ceil(orders.length / Math.max(1, limit))),
+        problemCount: 0, // all OK in fake mode for now
+        // lc, tz can be added if you want
+      },
+      items: paged as any, // matches your item shape
+    };
+
+    return fakeResponse;
+  }
+
+  // REAL PATH (network)
   const sp = new URLSearchParams();
   sp.set("date", params.date);
   sp.set("shiftName", params.shiftName);
-  if (params.page) sp.set("page", String(params.page));
-  if (params.limit) sp.set("limit", String(params.limit));
+  if (params.page != null) sp.set("page", String(params.page));
+  if (params.limit != null) sp.set("limit", String(params.limit));
+
+  // (Future: when BE adds support, you can uncomment the next two lines)
+  // if (params.fake != null) sp.set("fake", String(params.fake));
+  // if (params.fakeNum != null) sp.set("fakeNum", String(params.fakeNum));
 
   const { data } = await api.get<ShiftFarmerOrdersResponse>(
-    `/farmer-orders/by-shift?${sp.toString()}`,
+    `${BASE}/by-shift?${sp.toString()}`,
     { signal: opts?.signal }
   );
-  // console.log("[getFarmerOrdersByShift] data:", data);
   return data;
 }
+
+/* ------------------------- Stage & Status mutations ----------------------- */
 
 /** Body for advancing a farmer order to a specific stage */
 export type AdvanceFarmerOrderStageBody = {
@@ -112,10 +151,8 @@ export type AdvanceFarmerOrderStageBody = {
 };
 
 /**
+ * PATCH /api/v1/farmer-orders/:id/stage
  * Advance a farmer order to a specific stage.
- * POST /api/v1/farmer-orders/:id/advance-stage
- *
- * Returns the updated order item (server is the source of truth for timestamps/audit).
  */
 export async function advanceFarmerOrderStage(
   orderId: string,
@@ -125,10 +162,12 @@ export async function advanceFarmerOrderStage(
     `${BASE}/${encodeURIComponent(orderId)}/stage`,
     body
   );
-  return (data as any)?.data ?? data;
+  return ((data as any)?.data ?? data) as ShiftFarmerOrderItem;
 }
 
-// PATCH /api/v1/farmer-orders/:id/farmer-status
+/**
+ * PATCH /api/v1/farmer-orders/:id/farmer-status
+ */
 export async function updateFarmerOrderStatus(
   orderId: string,
   status: FarmerOrderStatus,
@@ -141,32 +180,5 @@ export async function updateFarmerOrderStatus(
     `${BASE}/${encodeURIComponent(orderId)}/farmer-status`,
     { status, note }
   );
-  return (data as any)?.data ?? data;
-}
-
-/* ------------------------------ (Optional) AR ----------------------------- */
-
-// export async function acceptFarmerOrder(orderId: string): Promise<void> {
-//   if (!orderId) throw new Error("orderId is required");
-//   await api.patch(`${BASE}/${encodeURIComponent(orderId)}/accept`);
-// }
-
-// export async function rejectFarmerOrder(orderId: string, note: string): Promise<void> {
-//   if (!orderId) throw new Error("orderId is required");
-//   if (!note?.trim()) throw new Error("A non-empty note is required for rejection");
-//   await api.patch(`${BASE}/${encodeURIComponent(orderId)}/reject`, { note });
-// }
-
-/* ------------------------- (Optional) Fake listing ------------------------ */
-
-let fakeApi: null | typeof import("@/api/fakes/farmerOrders.fake") = null;
-
-export async function listFarmerOrders(
-  params?: ListFarmerOrdersParams
-): Promise<FarmerOrderDTO[]> {
-  // Keep fake listing behavior, but make the dynamic import safe:
-  if (!fakeApi) {
-    fakeApi = await import("@/api/fakes/farmerOrders.fake");
-  }
-  return fakeApi.listFarmerOrders(params);
+  return ((data as any)?.data ?? data) as ShiftFarmerOrderItem;
 }

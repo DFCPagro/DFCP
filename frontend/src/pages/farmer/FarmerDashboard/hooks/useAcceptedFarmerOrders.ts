@@ -1,8 +1,9 @@
 // src/pages/FarmerDashboard/hooks/useAcceptedFarmerOrders.ts
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listFarmerOrders } from "@/api/farmerOrders";
-import type { FarmerOrderDTO, Shift } from "@/types/farmerOrders";
+// import { listFarmerOrders } from "@/api/farmerOrders";
+import type { FarmerOrderDTO } from "@/types/farmerOrders";
+import { ShiftEnum as Shift } from "@/types/shifts";
 
 /** Local view models (kept private to the hook) */
 export type AcceptedItemRow = {
@@ -27,8 +28,8 @@ export type AcceptedItemRow = {
 };
 
 export type AcceptedGroup = {
-  key: string;           // `${pickUpDate}::${shift}`
-  pickUpDate: string;    // raw "YYYY-MM-DD" (local)
+  key: string; // `${pickUpDate}::${shift}`
+  pickUpDate: string; // raw "YYYY-MM-DD" (local)
   shift: Shift;
   items: AcceptedItemRow[];
 };
@@ -39,7 +40,7 @@ const keyAccepted = () => ["farmerOrders", { status: "ok" }] as const;
 export function useAcceptedFarmerOrders() {
   const query = useQuery({
     queryKey: keyAccepted(),
-    queryFn: () => listFarmerOrders({ farmerStatus: "ok" }),
+    queryFn: () => null,
     staleTime: 15_000,
   });
 
@@ -81,8 +82,11 @@ export function useAcceptedFarmerOrders() {
 
       // Decide per-order effective quantity
       const hasFinal =
-        typeof o.finalQuantityKg === "number" && Number.isFinite(o.finalQuantityKg);
-      const effective = hasFinal ? (o.finalQuantityKg as number) : o.forcastedQuantityKg;
+        typeof o.finalQuantityKg === "number" &&
+        Number.isFinite(o.finalQuantityKg);
+      const effective = hasFinal
+        ? (o.finalQuantityKg as number)
+        : o.forcastedQuantityKg;
 
       if (!item) {
         item = {
@@ -104,7 +108,8 @@ export function useAcceptedFarmerOrders() {
       if (hasFinal) {
         // When any final exists, we prefer to show "final" in the UI.
         // We set finalQuantityKg to total effective, and keep forecasted sum informational.
-        item.finalQuantityKg = (item.finalQuantityKg ?? 0) + (o.finalQuantityKg as number);
+        item.finalQuantityKg =
+          (item.finalQuantityKg ?? 0) + (o.finalQuantityKg as number);
       } else {
         item.forcastedQuantityKg += o.forcastedQuantityKg;
       }
@@ -116,7 +121,8 @@ export function useAcceptedFarmerOrders() {
     for (const g of groupMap.values()) {
       for (const it of g.items) {
         const hadAnyFinal =
-          typeof it.finalQuantityKg === "number" && Number.isFinite(it.finalQuantityKg);
+          typeof it.finalQuantityKg === "number" &&
+          Number.isFinite(it.finalQuantityKg);
         if (hadAnyFinal) {
           // Promote to total effective for display consistency
           it.finalQuantityKg = it.quantityKg;

@@ -1,4 +1,3 @@
-
 // src/routes/paths.ts
 export const PATHS = {
   home: "/",
@@ -64,7 +63,7 @@ export const PATHS = {
   fManagerItemManagement: "/fManager/item-management",
   fManagerShiftsFarmerOrder: "/fManager/shifts-farmer-order",
   fManagerJobAppReview: "/fManager/jobReview",
-
+  fManagerViewFarmerOrders: "/fManager/view-farmer-orders",
   //all worker pages
   workerProfile: "/workerProfile",
 

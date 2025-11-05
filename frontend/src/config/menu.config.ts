@@ -144,7 +144,12 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     label: "Op Manager",
     children: [
       //{ type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
-      { type: "link", key: "pickerTasks", label: "picker tasks", path: P.PickerTasksPage },
+      {
+        type: "link",
+        key: "pickerTasks",
+        label: "picker tasks",
+        path: P.PickerTasksPage,
+      },
       //{ type: "link", key: "mgr-packages", label: "Packages", path: "#" },
     ],
   },
@@ -221,6 +226,12 @@ const workFManager: ReadonlyArray<MenuItem> = [
     key: "admin-job-review",
     label: "Job Application Review",
     path: P.JobAppReview,
+  },
+  {
+    type: "link",
+    key: "view-farmer-orders",
+    label: "View Farmer Orders",
+    path: P.fManagerViewFarmerOrders,
   },
   WORKER_MARKET_GROUP,
 ] as const;

@@ -43,6 +43,21 @@ import { OrderList } from "./components/OrderList"
 import { ErrorCallout } from "./components/ErrorCallout"
 
 // ---------- helpers ----------
+
+function toYMD(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Returns true when dateStr is strictly before today (i.e., yesterday or older) */
+function isYesterdayOrEarlier(dateStr: string) {
+  const todayYMD = toYMD(new Date());
+  return dateStr < todayYMD;
+}
+
+
 function isValidShift(s: string | null): s is ShiftFarmerOrdersQuery["shiftName"] {
   if (!s) return false
   const allowed: ShiftFarmerOrdersQuery["shiftName"][] = ["morning", "afternoon", "evening", "night"]
@@ -79,26 +94,38 @@ export default function ShiftFarmerOrderPage() {
   const date = sp.get("date")
   const shift = sp.get("shift")
 
+  const useFake = !!date && isYesterdayOrEarlier(date);
+  const fakeNum = 11; // your requested default
+
+
   // Validate required params; keep page stable + informative if missing
   const paramsValid = Boolean(date && isValidShift(shift))
 
-  const queryParams: ShiftFarmerOrdersQuery | null = useMemo(() => {
-    if (!paramsValid) return null
+  const queryParams = useMemo(() => {
+    if (!paramsValid) return null;
     return {
       date: date!, // validated above
       shiftName: shift as ShiftFarmerOrdersQuery["shiftName"],
-      // v1: we intentionally skip page/limit to fetch all (server can ignore)
-    }
-  }, [date, shift, paramsValid])
+      // no paging to get full counts
+      fake: useFake,
+      fakeNum,
+    };
+  }, [date, shift, paramsValid, useFake, fakeNum]);
 
   const { data, isPending, isError, error, refetch, isFetching } =
-    useQuery<ShiftFarmerOrdersResponse>({
+    useQuery({
       enabled: !!queryParams,
-      queryKey: queryParams ? qkFarmerOrdersByShift(queryParams) : ["farmerOrders", "byShift", "invalid"],
-      queryFn: ({ signal }) => getFarmerOrdersByShift(queryParams as ShiftFarmerOrdersQuery, { signal }),
+      queryKey: queryParams
+        ? qkFarmerOrdersByShift(queryParams as ShiftFarmerOrdersQuery & { fake?: boolean; fakeNum?: number })
+        : ["farmerOrders", "byShift", "invalid"],
+      queryFn: ({ signal }) =>
+        getFarmerOrdersByShift(
+          queryParams as ShiftFarmerOrdersQuery & { fake?: boolean; fakeNum?: number },
+          { signal }
+        ),
       staleTime: 30_000,
       refetchOnWindowFocus: true,
-    })
+    });
 
   const items = data?.items ?? []
   const counts = useMemo(() => computeCounts(items), [items])
