@@ -53,7 +53,6 @@ export type CSOrder = {
 // Shift-level query response
 // ----------------------
 export type CSOrdersMeta = {
-  lc: string;
   date: string;
   shiftName: string;
   tz: string;
@@ -73,7 +72,6 @@ export type CSOrdersResponse = {
 // Helpful DTOs for client <-> API
 // ----------------------
 export type GetCSOrdersForShiftParams = {
-  logisticCenterId: string;
   date: string;           // yyyy-mm-dd
   shiftName: string;      // "morning" | "afternoon" | ...
   stageKey?: OrderStatus;   // optional filter; UI sends "problem" if toggle on

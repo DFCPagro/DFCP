@@ -7,7 +7,6 @@ import { fetchCurrentShift } from "@/api/shifts";
 import type { ShiftName as ApiShiftName } from "@/api/shifts";
 
 import {
-  
   generatePickerTasks as generatePickerTasksAPI,
   type PickerTask,
 } from "@/api/pickerTask";
@@ -32,7 +31,12 @@ type CurrentShiftCtx = {
   items: any[];
 };
 
-const SHIFT_SEQUENCE: ShiftName[] = ["morning", "afternoon", "evening", "night"];
+const SHIFT_SEQUENCE: ShiftName[] = [
+  "morning",
+  "afternoon",
+  "evening",
+  "night",
+];
 
 function nextShift(name: ShiftName): ShiftName {
   const i = SHIFT_SEQUENCE.indexOf(name);
@@ -49,7 +53,8 @@ function makeShiftsCurrentPlus5(params: {
   baseShiftDate: string;
 }): Array<{ shiftName: ShiftName; shiftDate: string; label: string }> {
   const { tz = "Asia/Jerusalem", baseShiftName, baseShiftDate } = params;
-  const out: Array<{ shiftName: ShiftName; shiftDate: string; label: string }> = [];
+  const out: Array<{ shiftName: ShiftName; shiftDate: string; label: string }> =
+    [];
   let name = baseShiftName;
   let date = baseShiftDate;
   let dt = DateTime.fromFormat(baseShiftDate, "yyyy-LL-dd", { zone: tz });
@@ -75,7 +80,8 @@ export default function PickerTasksManagerPage() {
     queryKey: ["pickerTasks", "currentShiftCtx"],
     queryFn: async (): Promise<CurrentShiftCtx> => {
       const cur = await fetchCurrentShift();
-      if (!isValidShiftName(cur.shift)) throw new Error("No active shift right now");
+      if (!isValidShiftName(cur.shift))
+        throw new Error("No active shift right now");
 
       const tz = "Asia/Jerusalem";
       const shiftDate = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
@@ -88,18 +94,29 @@ export default function PickerTasksManagerPage() {
     },
   });
 
-  const [selected, setSelected] = React.useState<{ shiftName: ShiftName; shiftDate: string } | null>(null);
+  const [selected, setSelected] = React.useState<{
+    shiftName: ShiftName;
+    shiftDate: string;
+  } | null>(null);
 
   // 2️⃣ Compute 6 shifts (current + 5)
   const shifts = React.useMemo(() => {
     if (!currentQ.data?.shift) return [];
     const { shiftName, shiftDate, tz } = currentQ.data.shift;
-    return makeShiftsCurrentPlus5({ tz, baseShiftName: shiftName, baseShiftDate: shiftDate });
+    return makeShiftsCurrentPlus5({
+      tz,
+      baseShiftName: shiftName,
+      baseShiftDate: shiftDate,
+    });
   }, [currentQ.data]);
 
   // 3️⃣ Auto-select first shift
   React.useEffect(() => {
-    if (shifts.length && !selected) setSelected({ shiftName: shifts[0].shiftName, shiftDate: shifts[0].shiftDate });
+    if (shifts.length && !selected)
+      setSelected({
+        shiftName: shifts[0].shiftName,
+        shiftDate: shifts[0].shiftDate,
+      });
   }, [shifts, selected]);
 
   // 4️⃣ Orders for selected shift
@@ -120,8 +137,12 @@ export default function PickerTasksManagerPage() {
   // 5️⃣ Picker tasks for selected shift
   const tasksQ = useQuery({
     enabled: !!selected,
-    queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate]
-     
+    queryKey: [
+      "pickerTasks",
+      "shift",
+      selected?.shiftName,
+      selected?.shiftDate,
+    ],
   });
 
   // 6️⃣ Generate picker tasks
@@ -132,15 +153,29 @@ export default function PickerTasksManagerPage() {
         shiftDate: selected!.shiftDate,
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate] });
+      qc.invalidateQueries({
+        queryKey: [
+          "pickerTasks",
+          "shift",
+          selected?.shiftName,
+          selected?.shiftDate,
+        ],
+      });
       qc.invalidateQueries({ queryKey: ["pickerTasks", "currentShiftCtx"] });
     },
   });
 
   // 7️⃣ Derived data
-  const orderItems: OrderLite[] = React.useMemo(() => (ordersQ.data as any)?.items ?? [], [ordersQ.data]);
+  const orderItems: OrderLite[] = React.useMemo(
+    () => (ordersQ.data as any)?.items ?? [],
+    [ordersQ.data]
+  );
   const orderTotal = React.useMemo(
-    () => (ordersQ.data as any)?.pagination?.total ?? (ordersQ.data as any)?.items?.length ?? orderItems.length ?? 0,
+    () =>
+      (ordersQ.data as any)?.pagination?.total ??
+      (ordersQ.data as any)?.items?.length ??
+      orderItems.length ??
+      0,
     [ordersQ.data, orderItems.length]
   );
 
@@ -157,10 +192,26 @@ export default function PickerTasksManagerPage() {
         <Heading size="lg">Picker Tasks</Heading>
         <HeaderActions
           onRefresh={() => {
-            qc.invalidateQueries({ queryKey: ["pickerTasks", "currentShiftCtx"] });
+            qc.invalidateQueries({
+              queryKey: ["pickerTasks", "currentShiftCtx"],
+            });
             if (selected) {
-              qc.invalidateQueries({ queryKey: ["orders", "shift", selected.shiftName, selected.shiftDate] });
-              qc.invalidateQueries({ queryKey: ["pickerTasks", "shift", selected.shiftName, selected.shiftDate] });
+              qc.invalidateQueries({
+                queryKey: [
+                  "orders",
+                  "shift",
+                  selected.shiftName,
+                  selected.shiftDate,
+                ],
+              });
+              qc.invalidateQueries({
+                queryKey: [
+                  "pickerTasks",
+                  "shift",
+                  selected.shiftName,
+                  selected.shiftDate,
+                ],
+              });
             }
           }}
         />
@@ -172,7 +223,12 @@ export default function PickerTasksManagerPage() {
         selected={selected}
         onSelect={(s) => setSelected(s)}
         isLoading={currentQ.isLoading}
-        errorMsg={currentQ.isError ? (currentQ.error as Error)?.message || "Failed to load current shift" : null}
+        errorMsg={
+          currentQ.isError
+            ? (currentQ.error as Error)?.message ||
+              "Failed to load current shift"
+            : null
+        }
       />
 
       {/* Orders & Pack Button */}
@@ -180,7 +236,11 @@ export default function PickerTasksManagerPage() {
         orders={orderItems}
         total={orderTotal}
         isLoading={ordersQ.isLoading}
-        errorMsg={ordersQ.isError ? (ordersQ.error as Error)?.message || "Failed to load orders" : null}
+        errorMsg={
+          ordersQ.isError
+            ? (ordersQ.error as Error)?.message || "Failed to load orders"
+            : null
+        }
         onPack={() => packMut.mutate()}
         canPack={!!selected && !ordersQ.isLoading}
         isPacking={packMut.isPending}

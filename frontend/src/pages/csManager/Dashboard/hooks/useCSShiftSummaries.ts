@@ -11,10 +11,10 @@ export type ShiftSummaryRow = {
   counts: { total: number; problem: number };
 };
 
-export function useCSShiftSummaries({ horizonShifts = 6, lcId = "some-lc-id" } = {}) {
+export function useCSShiftSummaries({ horizonShifts = 6 } = {}) {
   const q = useQuery({
-    queryKey: ["csShiftSummaryByLC", lcId, horizonShifts],
-    queryFn: () => getOrdersSummaryFromLC(lcId, horizonShifts),
+    queryKey: ["csShiftSummaryByLC",  horizonShifts],
+    queryFn: () => getOrdersSummaryFromLC( horizonShifts),
   });
 
   const rows: ShiftSummaryRow[] = useMemo(

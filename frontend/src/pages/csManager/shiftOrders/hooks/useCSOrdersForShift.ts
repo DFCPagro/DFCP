@@ -3,7 +3,7 @@ import { getOrdersForShift } from "@/api/orders";
 import type { CSOrdersResponse, OrderStatus } from "@/types/cs.orders";
 
 type Params = {
-  logisticCenterId: string;
+  
   date: string;
   shiftName: string;
   // kept for caller compatibility; not sent to API
@@ -17,7 +17,7 @@ type Params = {
 
 export function useCSOrdersForShift(params: Params) {
   const {
-    logisticCenterId,
+    
     date,
     shiftName,
     status,
@@ -33,7 +33,7 @@ export function useCSOrdersForShift(params: Params) {
   return useQuery<CSOrdersResponse>({
     queryKey: [
       "csOrdersByShift",
-      logisticCenterId,
+     
       date,
       shiftName,
       stage ?? "",
@@ -44,7 +44,7 @@ export function useCSOrdersForShift(params: Params) {
     // send only supported keys to the API
     queryFn: () =>
       getOrdersForShift({
-        logisticCenterId,
+      
         date,
         shiftName,
         stageKey: stage,
@@ -52,7 +52,7 @@ export function useCSOrdersForShift(params: Params) {
         limit,
         fields,
       }),
-    enabled: Boolean(logisticCenterId && date && shiftName),
+    enabled: Boolean(date && shiftName),
     // client-side fallback if server did not filter
     select: (resp) => {
       if (!stage) return resp;

@@ -152,14 +152,14 @@ type LCSummaryResponse = {
   current: LCWindow | null;
   next: LCWindow[];
   tz: string;
-  lc: string;
+ 
 };
 
-export async function getOrdersSummaryFromLC(lcId: string, count = 6) {
+export async function getOrdersSummaryFromLC( count = 6) {
   const { data } = await api.get<{ data: LCSummaryResponse }>(
     "/orders/summary",
     {
-      params: { lc: lcId, count },
+      params: {  count },
     }
   );
 
@@ -185,7 +185,7 @@ export async function confirmOrderByCustomerToken(
 }
 
 type GetOrdersForShiftParams = {
-  logisticCenterId: string;
+ 
   date: string; // yyyy-mm-dd
   shiftName: string;
   stageKey?: OrderStatus;

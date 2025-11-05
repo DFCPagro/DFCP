@@ -3,7 +3,7 @@ import { getOrdersForShift } from "@/api/orders";
 import type { CSOrdersResponse } from "@/types/cs.orders";
 
 export function useCSOrdersForShift({
-  logisticCenterId,
+ 
   date,
   shiftName,
 }: {
@@ -12,8 +12,8 @@ export function useCSOrdersForShift({
   shiftName: string;
 }) {
   return useQuery<CSOrdersResponse>({
-    queryKey: ["csOrdersByShift", logisticCenterId, date, shiftName],
-    queryFn: () => getOrdersForShift({ logisticCenterId, date, shiftName }),
-    enabled: !!(logisticCenterId && date && shiftName),
+    queryKey: ["csOrdersByShift", date, shiftName],
+    queryFn: () => getOrdersForShift({ date, shiftName }),
+    enabled: !!( date && shiftName),
   });
 }

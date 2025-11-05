@@ -24,7 +24,7 @@ const STAFF_ROLES: Role[] = [
 
 const COURIER_ROLES: Role[] = ["deliverer", "industrialDeliverer"] as any;
 const CUSTOMER_ROLE: Role = "customer" as any;
-const LCid = "66e007000000000000000001";
+
 // -------------------- utils --------------------
 function ensureOwnerOrStaff(req: Request, orderCustomerId: Types.ObjectId) {
   // @ts-ignore
@@ -144,7 +144,8 @@ export async function getMyOrders(req: Request, res: Response) {
 export async function getOrdersSummary(req: Request, res: Response) {
   try {
     //const logisticCenterId = String(req.query.lc || req.query.logisticCenterId || "");
-    const logisticCenterId = "66e007000000000000000001";
+    const user= (req as any).user;
+    const logisticCenterId = user.logisticCenterId;
     if (!logisticCenterId)
       throw new ApiError(400, "Missing query param ?lc=<logisticCenterId>");
 
@@ -220,6 +221,8 @@ export async function getOrdersForShift(req: Request, res: Response) {
   }
 }
 
+
+//what is dis?
 export async function checkOrderPickerFulfillment(
   req: Request,
   res: Response,
