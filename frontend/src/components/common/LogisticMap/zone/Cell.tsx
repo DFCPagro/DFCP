@@ -6,6 +6,20 @@ import { useUIStore } from "@/store/useUIStore";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { MapMode } from "@/types/map";
 
+/** Defensive numeric coercion (handles numbers/strings; tolerates old {$numberDecimal} just in case) */
+function toNum(x: any, fallback = 0): number {
+  if (x == null) return fallback;
+  if (typeof x === "object" && "$numberDecimal" in x) {
+    const n = Number((x as any).$numberDecimal);
+    return Number.isFinite(n) ? n : fallback;
+  }
+  const n = Number(x);
+  return Number.isFinite(n) ? n : fallback;
+}
+function toInt(x: any, fallback = 0): number {
+  const n = toNum(x, fallback);
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
+}
 function pct(a: number, b: number) {
   if (b <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round((a / b) * 100)));
@@ -15,17 +29,12 @@ function pct(a: number, b: number) {
 const CRIT_FILL = 0.1; // ≤10% full → red (near empty)
 const WARN_FILL = 0.3; // ≤30% full → yellow (low)
 
-/** New color logic:
- *  - Green = free slot (no container)
- *  - Red   = near empty (fill ≤ 10%)
- *  - Yellow= low (10% < fill ≤ 30%)
- *  - Blue/Teal = healthy/full (> 30%)
- */
+/** Slot color logic (free, near-empty, low, healthy/full) */
 function slotColor(fillFrac: number, isFree: boolean) {
-  if (isFree) return { bg: "rgba(34,197,94,0.28)", border: "lime.500" };        // 🟩 free
-  if (fillFrac <= CRIT_FILL) return { bg: "rgba(239,68,68,0.32)", border: "red.500" };      // 🟥 near empty
-  if (fillFrac <= WARN_FILL) return { bg: "rgba(234,179,8,0.32)", border: "yellow.500" };   // 🟨 low
-  return { bg: "rgba(45,212,191,0.26)", border: "teal.400" };                                  // 🟦 healthy/full
+  if (isFree) return { bg: "rgba(34,197,94,0.28)", border: "lime.500" }; // 🟩 free
+  if (fillFrac <= CRIT_FILL) return { bg: "rgba(239,68,68,0.32)", border: "red.500" }; // 🟥 near empty
+  if (fillFrac <= WARN_FILL) return { bg: "rgba(234,179,8,0.32)", border: "yellow.500" }; // 🟨 low
+  return { bg: "rgba(45,212,191,0.26)", border: "teal.400" }; // 🟦 healthy/full
 }
 
 /** Animations for target/highlight effect */
@@ -71,13 +80,17 @@ export default function Cell({
     );
   }
 
-  const occupied = shelf ? shelf.occupiedSlots : 0;
-  const maxSlots = shelf ? shelf.maxSlots : 3;
-  // This is now "% filled" overall (shelf current / shelf capacity)
-  const capacityPct = shelf ? pct(shelf.currentWeightKg, shelf.maxWeightKg) : 0;
-  const busy = shelf ? shelf.busyScore : 0;
-  const avoid = shelf ? shelf.isTemporarilyAvoid : false;
+  // ---- Derived, normalized values (primitives only) ----
+  const occupied   = shelf ? toInt(shelf.occupiedSlots, 0) : 0;
+  const maxSlots   = shelf ? toInt(shelf.maxSlots, 3) : 3;
+  const currentKg  = shelf ? toNum(shelf.currentWeightKg, 0) : 0;
+  const capacityKg = shelf ? toNum(shelf.maxWeightKg, 0) : 0;
+  const capacityPct = capacityKg > 0 ? pct(currentKg, capacityKg) : 0;
+  const busy       = shelf ? toInt(shelf.busyScore, 0) : 0;
+  const liveTasks  = shelf ? toInt(shelf.liveActiveTasks, 0) : 0;
+  const avoid      = !!(shelf && (shelf as any).isTemporarilyAvoid);
 
+  // ---- Tooltip text ----
   const hint =
     variant === "picker"
       ? shelf
@@ -86,16 +99,16 @@ export default function Cell({
       : shelf
         ? `${shelf.shelfId}
 ${occupied}/${maxSlots} slots • ${capacityPct}% filled
-busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
+busy ${busy}/100 • tasks ${liveTasks}`
         : "Empty location";
 
+  // ---- Glows / styles ----
   const glowManager =
     busy >= 80
       ? "inset 0 0 0 2px rgba(255, 59, 59, .6)"
       : busy >= 50
         ? "inset 0 0 0 2px rgba(163, 230, 53, .55)"
         : undefined;
-
   const glow = variant === "manager" && !highlight ? glowManager : undefined;
 
   const handleClick = () => {
@@ -112,9 +125,7 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
   // Targeted styles (activated by highlight)
   const isTarget = !!highlight;
   const shelfFrameColor = isTarget ? "brand.500" : "gameShelfFrame";
-  const shelfOutline = isTarget
-    ? "inset 0 0 0 2px token(colors.brand.500)"
-    : glow;
+  const shelfOutline = isTarget ? "inset 0 0 0 2px token(colors.brand.500)" : glow;
 
   return (
     <Tooltip content={hint}>
@@ -134,9 +145,7 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
         outline="none"
         onClick={handleClick}
         _hover={{
-          boxShadow: shelf
-            ? "inset 0 0 0 2px token(colors.lime.500)"
-            : undefined,
+          boxShadow: shelf ? "inset 0 0 0 2px token(colors.lime.500)" : undefined,
         }}
         css={shelfOutline ? { boxShadow: shelfOutline } : undefined}
         position="relative"
@@ -223,7 +232,7 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
           />
         )}
 
-        {/* Status dots (manager only; hide when targeted to reduce noise) */}
+        {/* Status dot (manager only; hide when targeted to reduce noise) */}
         {shelf && showStatusDots && !isTarget && (
           <Box
             position="absolute"
@@ -274,13 +283,18 @@ busy ${busy}/100 • tasks ${shelf.liveActiveTasks}`
             const s = shelf?.slots?.[i];
             const isFree = !s || !s.containerOpsId;
 
-            const capacity =
-              s?.capacityKg ??
-              (shelf ? shelf.maxWeightKg / Math.max(1, shelf.maxSlots) : 1);
+            // Normalize slot capacity/current (fallback: share of shelf capacity)
+            const slotCap =
+              s?.capacityKg != null
+                ? toNum(s.capacityKg, 0)
+                : shelf
+                  ? toNum(shelf.maxWeightKg, 0) / Math.max(1, toInt(shelf.maxSlots, 1))
+                  : 0;
 
-            const current = s?.currentWeightKg ?? 0;
-            // Use FILL (current / capacity)
-            const fillFrac = Math.max(0, Math.min(1, current / Math.max(1, capacity)));
+            const slotCur = s?.currentWeightKg != null ? toNum(s.currentWeightKg, 0) : 0;
+
+            // FILL = current / capacity (guard divide-by-zero)
+            const fillFrac = Math.max(0, Math.min(1, slotCap > 0 ? slotCur / slotCap : 0));
 
             // In picker mode: reduce color noise unless cell is highlighted
             const colors =

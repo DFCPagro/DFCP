@@ -1,10 +1,9 @@
 // FILE: src/controllers/shelf.controller.ts
 import { Request, Response, NextFunction } from "express";
-import {ShelfService} from "../services/shelf.service";
+import { ShelfService } from "../services/shelf.service";
 import { CrowdService } from "../services/shelfCrowd.service";
 import { isObjId } from "@/utils/validations/mongose";
 import ApiError from "@/utils/ApiError";
-
 
 const VALID_TYPES = ["warehouse", "picker", "delivery"] as const;
 
@@ -19,12 +18,10 @@ export async function list(req: Request, res: Response, next: NextFunction) {
       zone?: string;
       type?: string;
     };
-
     if (!centerId || !isObjId(centerId)) {
       return res.status(400).json({ ok: false, message: "Invalid or missing centerId" });
     }
 
-    // (optional) harden type to a known set
     const allowed = new Set(["picker", "warehouse", "staging", "sorting", "out"]);
     const typeFilter = type && allowed.has(type.toLowerCase()) ? type.toLowerCase() : undefined;
 
@@ -34,18 +31,11 @@ export async function list(req: Request, res: Response, next: NextFunction) {
       type: typeFilter,
     });
 
-    res.json({ ok: true, data });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
 }
-
-/**
- * Keep controllers skinny:
- * - extract params/body
- * - call a service
- * - send uniform response shape
- */
 
 export async function getShelf(req: Request, res: Response, next: NextFunction) {
   try {
@@ -54,7 +44,7 @@ export async function getShelf(req: Request, res: Response, next: NextFunction) 
       return res.status(400).json({ ok: false, message: "Invalid shelf id" });
     }
     const data = await ShelfService.getShelfWithCrowdScore(id);
-    res.json({ ok: true, data });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -67,9 +57,12 @@ export async function placeContainer(req: Request, res: Response, next: NextFunc
     // @ts-ignore
     const userId = req.user?._id;
 
-    if (!isObjId(shelfMongoId)) return res.status(400).json({ ok: false, message: "Invalid shelfMongoId" });
-    if (!slotId || typeof slotId !== "string") return res.status(400).json({ ok: false, message: "Invalid slotId" });
-    if (!isObjId(containerOpsId)) return res.status(400).json({ ok: false, message: "Invalid containerOpsId" });
+    if (!isObjId(shelfMongoId))
+      return res.status(400).json({ ok: false, message: "Invalid shelfMongoId" });
+    if (!slotId || typeof slotId !== "string")
+      return res.status(400).json({ ok: false, message: "Invalid slotId" });
+    if (!isObjId(containerOpsId))
+      return res.status(400).json({ ok: false, message: "Invalid containerOpsId" });
     if (typeof weightKg !== "number" || Number.isNaN(weightKg) || weightKg < 0) {
       return res.status(400).json({ ok: false, message: "Invalid weightKg" });
     }
@@ -82,7 +75,7 @@ export async function placeContainer(req: Request, res: Response, next: NextFunc
       userId,
     });
 
-    res.status(200).json({ ok: true, data });
+    return res.status(200).json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -95,14 +88,16 @@ export async function consumeFromSlot(req: Request, res: Response, next: NextFun
     // @ts-ignore
     const userId = req.user?._id;
 
-    if (!isObjId(shelfMongoId)) return res.status(400).json({ ok: false, message: "Invalid shelf id" });
-    if (!slotId || typeof slotId !== "string") return res.status(400).json({ ok: false, message: "Invalid slotId" });
+    if (!isObjId(shelfMongoId))
+      return res.status(400).json({ ok: false, message: "Invalid shelf id" });
+    if (!slotId || typeof slotId !== "string")
+      return res.status(400).json({ ok: false, message: "Invalid slotId" });
     if (typeof amountKg !== "number" || !Number.isFinite(amountKg) || amountKg <= 0) {
       return res.status(400).json({ ok: false, message: "amountKg must be a positive number" });
     }
 
     const data = await ShelfService.consumeFromSlot({ shelfMongoId, slotId, amountKg, userId });
-    res.json({ ok: true, data });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -126,8 +121,14 @@ export async function moveContainer(req: Request, res: Response, next: NextFunct
       return res.status(400).json({ ok: false, message: "Invalid slot ids" });
     }
 
-    const data = await ShelfService.moveContainer({ fromShelfId, fromSlotId, toShelfId, toSlotId, userId });
-    res.json({ ok: true, data });
+    const data = await ShelfService.moveContainer({
+      fromShelfId,
+      fromSlotId,
+      toShelfId,
+      toSlotId,
+      userId,
+    });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -139,7 +140,7 @@ export async function crowdInfo(req: Request, res: Response, next: NextFunction)
     if (!isObjId(shelfId)) return res.status(400).json({ ok: false, message: "Invalid shelf id" });
 
     const data = await CrowdService.computeShelfCrowd(shelfId);
-    res.json({ ok: true, data });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -158,7 +159,7 @@ export async function markTaskStart(req: Request, res: Response, next: NextFunct
     }
 
     const data = await ShelfService.markShelfTaskStart({ shelfId, userId, kind });
-    res.json({ ok: true, data });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -177,7 +178,7 @@ export async function markTaskEnd(req: Request, res: Response, next: NextFunctio
     }
 
     const data = await ShelfService.markShelfTaskEnd({ shelfId, userId, kind });
-    res.json({ ok: true, data });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -188,7 +189,7 @@ export async function getNonCrowded(req: Request, res: Response, next: NextFunct
     const { limit } = req.query as { limit?: string };
     const n = limit ? Number(limit) : 10;
     const data = await CrowdService.getNonCrowded(Number.isFinite(n) ? n : 10);
-    res.json({ ok: true, data });
+    return res.json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -198,7 +199,13 @@ export async function refillFromWarehouse(req: Request, res: Response, next: Nex
   try {
     // @ts-ignore
     const user = req.user;
-    const { pickerShelfId, pickerSlotId, warehouseShelfId, warehouseSlotId, targetFillKg } = req.body as {
+    const {
+      pickerShelfId,
+      pickerSlotId,
+      warehouseShelfId,
+      warehouseSlotId,
+      targetFillKg,
+    } = req.body as {
       pickerShelfId: string;
       pickerSlotId: string;
       warehouseShelfId: string;
@@ -226,7 +233,7 @@ export async function refillFromWarehouse(req: Request, res: Response, next: Nex
       userId: user._id,
     });
 
-    res.json({ ok: true, data: out });
+    return res.json({ ok: true, data: out });
   } catch (err) {
     next(err);
   }
@@ -235,18 +242,23 @@ export async function refillFromWarehouse(req: Request, res: Response, next: Nex
 export async function emptySlot(req: Request, res: Response, next: NextFunction) {
   try {
     const { id: shelfMongoId } = req.params;
-    const { slotId, toArea = "warehouse" } = req.body as { slotId: string; toArea?: "warehouse" | "out" };
+    const { slotId, toArea = "warehouse" } = req.body as {
+      slotId: string;
+      toArea?: "warehouse" | "out";
+    };
     // @ts-ignore
     const userId = req.user?._id;
 
-    if (!isObjId(shelfMongoId)) return res.status(400).json({ ok: false, message: "Invalid shelf id" });
-    if (!slotId || typeof slotId !== "string") return res.status(400).json({ ok: false, message: "Invalid slotId" });
+    if (!isObjId(shelfMongoId))
+      return res.status(400).json({ ok: false, message: "Invalid shelf id" });
+    if (!slotId || typeof slotId !== "string")
+      return res.status(400).json({ ok: false, message: "Invalid slotId" });
     if (!["warehouse", "out"].includes(toArea)) {
       return res.status(400).json({ ok: false, message: "Invalid toArea (warehouse|out)" });
     }
 
     const data = await ShelfService.emptySlot({ shelfMongoId, slotId, toArea, userId });
-    res.status(200).json({ ok: true, data });
+    return res.status(200).json({ ok: true, data });
   } catch (err) {
     next(err);
   }
@@ -267,7 +279,6 @@ export async function getBestLocationForFO(req: Request, res: Response, next: Ne
       throw new ApiError(400, `Invalid type: '${type}'. Must be one of ${VALID_TYPES.join(", ")}`);
     }
 
-    // Pass through any optional filters you support
     const {
       minKg,
       zone,
@@ -277,12 +288,12 @@ export async function getBestLocationForFO(req: Request, res: Response, next: Ne
       preferTypes,
       originRow,
       originCol,
-      demand, // if you added it
+      demand,
     } = req.body ?? {};
 
     const result = await ShelfService.findBestLocationForFO({
       foId,
-      type: typeNorm as any, // narrowed above
+      type: typeNorm as any,
       minKg,
       zone,
       centerId,
@@ -294,9 +305,8 @@ export async function getBestLocationForFO(req: Request, res: Response, next: Ne
       demand,
     });
 
-    res.status(200).json(result);
+    return res.status(200).json({ ok: true, data: result });
   } catch (err) {
     next(err);
   }
 }
-

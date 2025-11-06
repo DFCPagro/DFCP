@@ -1,0 +1,884 @@
+openapi: 3.0.3
+info:
+  title: Shelves & Crowd APIs
+  version: "1.0.0"
+
+tags:
+  - name: Shelves
+    description: Shelf management routes (require authentication)
+  - name: Crowd
+    description: Live, in-memory crowding info (require authentication)
+
+paths:
+  /shelves:
+    get:
+      tags: [Shelves]
+      summary: List shelves by logistics center (optionally zone/type)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: centerId
+          required: true
+          description: Logistics center ObjectId
+          schema:
+            type: string
+        - in: query
+          name: zone
+          required: false
+          description: Zone (e.g., "A")
+          schema:
+            type: string
+        - in: query
+          name: type
+          required: false
+          description: Shelf area/type filter
+          schema:
+            type: string
+            enum: [picker, warehouse, staging, sorting, out]
+      responses:
+        "200":
+          description: Shelves list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Shelf"
+        "400":
+          description: Invalid or missing centerId
+
+  /shelves/{id}:
+    get:
+      tags: [Shelves]
+      summary: Get a shelf with live crowd score
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Shelf Mongo ObjectId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Shelf with crowd breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    required: [shelf, crowd]
+                    properties:
+                      shelf:
+                        $ref: "#/components/schemas/Shelf"
+                      crowd:
+                        $ref: "#/components/schemas/CrowdInfo"
+        "400":
+          description: Invalid shelf id
+        "404":
+          description: Shelf not found
+
+  /shelves/{shelfMongoId}/place-container:
+    post:
+      tags: [Shelves]
+      summary: Place a container into a specific slot
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: shelfMongoId
+          required: true
+          description: Shelf Mongo ObjectId
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceContainerInput"
+            example:
+              slotId: "A-03"
+              containerOpsId: "66f1f2e6d1d5c90c7d7e2f11"
+              weightKg: 12.5
+      responses:
+        "200":
+          description: Container placed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    required: [shelf, containerOps]
+                    properties:
+                      shelf:
+                        $ref: "#/components/schemas/Shelf"
+                      containerOps:
+                        type: object
+                        description: ContainerOps document (trimmed)
+                        additionalProperties: true
+        "400":
+          description: Validation error (ids/slot/weight)
+        "404":
+          description: Shelf or ContainerOps not found
+
+  /shelves/{id}/slots/{slotId}/consume:
+    post:
+      tags: [Shelves]
+      summary: Consume weight (kg) from a slot
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Shelf Mongo ObjectId
+          schema:
+            type: string
+        - in: path
+          name: slotId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountKg]
+              properties:
+                amountKg:
+                  type: number
+                  minimum: 0.0000001
+            example:
+              amountKg: 3.75
+      responses:
+        "200":
+          description: Consumption result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    required: [shelf, slotId, remainingKg]
+                    properties:
+                      shelf:
+                        $ref: "#/components/schemas/Shelf"
+                      slotId:
+                        type: string
+                      remainingKg:
+                        type: number
+        "400":
+          description: Validation error / not enough weight / slot empty
+        "404":
+          description: Shelf or slot not found
+
+  /shelves/move-container:
+    post:
+      tags: [Shelves]
+      summary: Move container from a source slot to a target slot
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveContainerInput"
+            example:
+              fromShelfId: "66f1f2e6d1d5c90c7d7e2f11"
+              fromSlotId: "A-03"
+              toShelfId: "66f1f2e6d1d5c90c7d7e2f22"
+              toSlotId: "B-01"
+      responses:
+        "200":
+          description: Move result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    required: [from, to, movedKg]
+                    properties:
+                      from:
+                        $ref: "#/components/schemas/Shelf"
+                      to:
+                        $ref: "#/components/schemas/Shelf"
+                      movedKg:
+                        type: number
+        "400":
+          description: Validation error / capacity / LC mismatch
+        "404":
+          description: Source/Target shelf or slot not found
+
+  /shelves/{id}/crowd:
+    get:
+      tags: [Crowd]
+      summary: Get live crowd info for a shelf
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Shelf Mongo ObjectId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Crowd info
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/CrowdInfo"
+        "400":
+          description: Invalid shelf id
+        "404":
+          description: Shelf not found
+
+  /shelves/{id}/tasks/start:
+    post:
+      tags: [Crowd]
+      summary: Mark task start on a shelf (pick|sort|audit)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Shelf Mongo ObjectId
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskKindInput"
+            example:
+              kind: "pick"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkFlag"
+        "400":
+          description: Invalid shelf id or kind
+
+  /shelves/{id}/tasks/end:
+    post:
+      tags: [Crowd]
+      summary: Mark task end on a shelf (pick|sort|audit)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Shelf Mongo ObjectId
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskKindInput"
+            example:
+              kind: "sort"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OkFlag"
+        "400":
+          description: Invalid shelf id or kind
+
+  /shelves/non-crowded:
+    get:
+      tags: [Crowd]
+      summary: Get non-crowded shelves (sorted by score asc)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 10
+      responses:
+        "200":
+          description: Non-crowded shelves
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [_id, shelfId, type, occupiedSlots, crowd]
+                      properties:
+                        _id:
+                          type: string
+                        shelfId:
+                          type: string
+                        zone:
+                          type: string
+                          nullable: true
+                        type:
+                          $ref: "#/components/schemas/ShelfType"
+                        occupiedSlots:
+                          type: integer
+                        crowd:
+                          type: object
+                          required: [score, crowded]
+                          properties:
+                            score:
+                              type: number
+                            crowded:
+                              type: boolean
+
+  /shelves/refill:
+    post:
+      tags: [Shelves]
+      summary: Refill a picker slot from a warehouse slot up to a target level (kg)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefillInput"
+            example:
+              pickerShelfId: "66f1f2e6d1d5c90c7d7e2aaa"
+              pickerSlotId: "P-01"
+              warehouseShelfId: "66f1f2e6d1d5c90c7d7e2bbb"
+              warehouseSlotId: "W-07"
+              targetFillKg: 20
+      responses:
+        "200":
+          description: Refill result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/RefillResult"
+        "400":
+          description: Validation error / capacity exceeded
+        "404":
+          description: Shelves/slots not found
+
+  /shelves/{id}/empty-slot:
+    post:
+      tags: [Shelves]
+      summary: Empty a slot (remove container, zero weight)
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          description: Shelf Mongo ObjectId
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmptySlotInput"
+            example:
+              slotId: "A-03"
+              toArea: "warehouse"
+      responses:
+        "200":
+          description: Emptied
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    required: [shelf, slotId]
+                    properties:
+                      shelf:
+                        $ref: "#/components/schemas/Shelf"
+                      slotId:
+                        type: string
+        "400":
+          description: Validation error
+        "404":
+          description: Shelf/slot not found
+
+  /shelves/best-location-for-fo:
+    post:
+      tags: [Shelves]
+      summary: Compute best shelf/slot for a given FO
+      description: Returns a best suggestion and ranked candidates with scoring metadata.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BestLocationInput"
+            example:
+              foId: "FO-12345"
+              type: "picker"
+              minKg: 5
+              zone: "A"
+              centerId: "66e007000000000000000001"
+              excludeTemporarilyAvoid: true
+              maxBusyScore: 50
+              preferTypes: [picker, delivery, warehouse]
+              originRow: 10
+              originCol: 3
+              demand:
+                qtyKg: 8
+      responses:
+        "200":
+          description: Best location (or none)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, data]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: "#/components/schemas/BestLocationResult"
+        "400":
+          description: Validation error (foId/type/demand)
+        "404":
+          description: FO/shelves not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ----- Core domain -----
+    ShelfType:
+      type: string
+      enum: [warehouse, picker, delivery]
+
+    AllowedOccupant:
+      type: string
+      enum: [any, container, package]
+
+    ShelfSlot:
+      type: object
+      required: [slotId, capacityKg]
+      properties:
+        slotId:
+          type: string
+        capacityKg:
+          type: number
+          minimum: 0
+        maxPackages:
+          type: integer
+          minimum: 0
+          default: 0
+        currentWeightKg:
+          type: number
+          minimum: 0
+          default: 0
+        currentPackages:
+          type: integer
+          minimum: 0
+          default: 0
+        containerOpsId:
+          type: string
+          nullable: true
+        packages:
+          type: array
+          items:
+            type: string
+        delivererId:
+          type: string
+          nullable: true
+        allowedOccupant:
+          $ref: "#/components/schemas/AllowedOccupant"
+        occupiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        emptiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        liveActiveTasks:
+          type: integer
+          minimum: 0
+          default: 0
+        lastTaskPingAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Shelf:
+      type: object
+      required: [logisticCenterId, shelfId, type, maxSlots, maxWeightKg]
+      properties:
+        _id:
+          type: string
+        logisticCenterId:
+          type: string
+        shelfId:
+          type: string
+        type:
+          $ref: "#/components/schemas/ShelfType"
+        zone:
+          type: string
+          nullable: true
+        aisle:
+          type: string
+          nullable: true
+        row:
+          type: integer
+          nullable: true
+        col:
+          type: integer
+          nullable: true
+        canvasX:
+          type: integer
+          nullable: true
+        canvasY:
+          type: integer
+          nullable: true
+        maxSlots:
+          type: integer
+          minimum: 1
+        maxWeightKg:
+          type: number
+          minimum: 0
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShelfSlot"
+        currentWeightKg:
+          type: number
+          minimum: 0
+          default: 0
+        occupiedSlots:
+          type: integer
+          minimum: 0
+          default: 0
+        liveActiveTasks:
+          type: integer
+          minimum: 0
+          default: 0
+        lastTaskPingAt:
+          type: string
+          format: date-time
+          nullable: true
+        busyScore:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 0
+        isTemporarilyAvoid:
+          type: boolean
+          default: false
+        isDeliveryShelf:
+          type: boolean
+          default: false
+        assignedDelivererId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ----- Crowd -----
+    CrowdInfo:
+      type: object
+      required: [crowded, score, breakdown, threshold]
+      properties:
+        crowded:
+          type: boolean
+        score:
+          type: number
+        breakdown:
+          type: object
+          required: [pick, sort, audit, liveContainers]
+          properties:
+            pick:
+              type: integer
+            sort:
+              type: integer
+            audit:
+              type: integer
+            liveContainers:
+              type: integer
+        threshold:
+          type: number
+
+    # ----- Common OK envelope (used by tasks start/end) -----
+    OkFlag:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+
+    # ----- Request/Result Schemas -----
+    PlaceContainerInput:
+      type: object
+      required: [slotId, containerOpsId, weightKg]
+      properties:
+        slotId:
+          type: string
+        containerOpsId:
+          type: string
+        weightKg:
+          type: number
+          minimum: 0
+
+    MoveContainerInput:
+      type: object
+      required: [fromShelfId, fromSlotId, toShelfId, toSlotId]
+      properties:
+        fromShelfId:
+          type: string
+        fromSlotId:
+          type: string
+        toShelfId:
+          type: string
+        toSlotId:
+          type: string
+
+    TaskKindInput:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [pick, sort, audit]
+
+    EmptySlotInput:
+      type: object
+      required: [slotId]
+      properties:
+        slotId:
+          type: string
+        toArea:
+          type: string
+          enum: [warehouse, out]
+          default: warehouse
+
+    RefillInput:
+      type: object
+      required:
+        [pickerShelfId, pickerSlotId, warehouseShelfId, warehouseSlotId, targetFillKg]
+      properties:
+        pickerShelfId:
+          type: string
+        pickerSlotId:
+          type: string
+        warehouseShelfId:
+          type: string
+        warehouseSlotId:
+          type: string
+        targetFillKg:
+          type: number
+          minimum: 0.0000001
+
+    RefillResult:
+      type: object
+      required:
+        [movedKg, pickerShelfId, pickerSlotId, warehouseShelfId, warehouseSlotId, pickerSlotWeightAfter, warehouseSlotWeightAfter]
+      properties:
+        movedKg:
+          type: number
+        pickerShelfId:
+          type: string
+        pickerSlotId:
+          type: string
+        warehouseShelfId:
+          type: string
+        warehouseSlotId:
+          type: string
+        pickerSlotWeightAfter:
+          type: number
+        warehouseSlotWeightAfter:
+          type: number
+
+    # Best Location (FO)
+    DemandInput:
+      type: object
+      properties:
+        qtyKg:
+          type: number
+          minimum: 0.0000001
+        qtyUnits:
+          type: number
+          minimum: 1
+
+    BestLocationInput:
+      type: object
+      required: [foId, type]
+      properties:
+        foId:
+          type: string
+        type:
+          $ref: "#/components/schemas/ShelfType"
+        minKg:
+          type: number
+          minimum: 0
+        zone:
+          type: string
+        centerId:
+          type: string
+        excludeTemporarilyAvoid:
+          type: boolean
+          default: true
+        maxBusyScore:
+          type: number
+        preferTypes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShelfType"
+        originRow:
+          type: integer
+        originCol:
+          type: integer
+        demand:
+          $ref: "#/components/schemas/DemandInput"
+
+    BestLocationResult:
+      type: object
+      properties:
+        foId:
+          type: string
+        best:
+          type: object
+          nullable: true
+          properties:
+            shelfId:
+              type: string
+              description: Shelf ObjectId
+            shelfCode:
+              type: string
+              nullable: true
+            zone:
+              type: string
+              nullable: true
+            type:
+              $ref: "#/components/schemas/ShelfType"
+            slotId:
+              type: string
+            weightKg:
+              type: number
+            busyScore:
+              type: number
+            liveActiveTasks:
+              type: number
+            row:
+              type: integer
+              nullable: true
+            col:
+              type: integer
+              nullable: true
+            distance:
+              type: integer
+              nullable: true
+            score:
+              type: number
+        candidates:
+          type: array
+          items:
+            type: object
+            properties:
+              shelfId: { type: string }
+              shelfCode: { type: string, nullable: true }
+              zone: { type: string, nullable: true }
+              type: { $ref: "#/components/schemas/ShelfType" }
+              slotId: { type: string }
+              weightKg: { type: number }
+              busyScore: { type: number }
+              liveActiveTasks: { type: number }
+              row: { type: integer, nullable: true }
+              col: { type: integer, nullable: true }
+              distance: { type: integer, nullable: true }
+              score: { type: number }
+        meta:
+          type: object
+          additionalProperties: true

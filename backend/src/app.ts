@@ -14,6 +14,7 @@ import routes from "./routes";
 import notFound from "./middlewares/notFound";
 import { errorConverter, errorHandler } from "./middlewares/error";
 import { CORS_ORIGIN, NODE_ENV, API_PREFIX } from "./config/env";
+import { jsonSafe } from "./middlewares/jsonSafe";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(compression());
+app.use(jsonSafe());
 
 // CORS
 const corsOrigin = CORS_ORIGIN || "*";

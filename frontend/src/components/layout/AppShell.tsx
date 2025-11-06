@@ -8,6 +8,7 @@ import { Outlet } from "react-router-dom";
 export type AppShellProps = {
   showHeader?: boolean;
   showFooter?: boolean;
+  addSurroundingGap?: boolean;
   maxW?: string | number;
   px?: any;
   py?: any;
@@ -16,19 +17,23 @@ export type AppShellProps = {
 export default function AppShell({
   showHeader = true,
   showFooter = false,
+  addSurroundingGap = false,
   maxW = "7xl",
   px = { base: 3, md: 6 },
   py = { base: 4, md: 6 },
 }: AppShellProps) {
   const bg = useColorModeValue("white", "gray.950");
 
+  // Choose which wrapper to use for <main>
+  const Main = addSurroundingGap ? Box : Container;
+
   return (
     <Box minH="100dvh" bg={bg} display="flex" flexDir="column">
       {showHeader && <NavBar />}
 
-      <Container as="main" maxW={maxW} px={px} py={py} flex="1 1 auto">
+      <Main as="main" maxW={maxW} px={px} py={py} flex="1 1 auto">
         <Outlet />
-      </Container>
+      </Main>
 
       {showFooter && <Footer />}
     </Box>

@@ -8,6 +8,7 @@ import {
   Model,
 } from "mongoose";
 import toJSON from "../utils/toJSON";
+import { decToNumber } from "../utils/decimalGetter";
 
 export const SHELF_TYPES = ["warehouse", "picker", "delivery"] as const;
 export type ShelfType = (typeof SHELF_TYPES)[number];
@@ -16,13 +17,14 @@ const ShelfSlotSchema = new Schema(
   {
     slotId: { type: String, required: true },
 
-    capacityKg: { type: Schema.Types.Decimal128, required: true, min: 0 },
+    capacityKg: { type: Schema.Types.Decimal128, required: true, min: 0, get: decToNumber },
     maxPackages: { type: Number, default: 0, min: 0 },
 
     currentWeightKg: {
       type: Schema.Types.Decimal128,
       default: () => Types.Decimal128.fromString("0"),
       min: 0,
+      get: decToNumber,
     },
     currentPackages: { type: Number, default: 0, min: 0 },
 
@@ -40,7 +42,11 @@ const ShelfSlotSchema = new Schema(
     liveActiveTasks: { type: Number, default: 0, min: 0 },
     lastTaskPingAt: { type: Date, default: null },
   },
-  { _id: false }
+  {
+    _id: false,
+    toJSON: { getters: true }, // IMPORTANT: run getters inside subdocument
+    toObject: { getters: true },
+  }
 );
 
 const ShelfSchema = new Schema(
@@ -58,7 +64,7 @@ const ShelfSchema = new Schema(
     canvasY: { type: Number, default: null },
 
     maxSlots: { type: Number, required: true, min: 1 },
-    maxWeightKg: { type: Schema.Types.Decimal128, required: true, min: 0 },
+    maxWeightKg: { type: Schema.Types.Decimal128, required: true, min: 0, get: decToNumber },
 
     slots: { type: [ShelfSlotSchema], default: [] },
 
@@ -66,6 +72,7 @@ const ShelfSchema = new Schema(
       type: Schema.Types.Decimal128,
       default: () => Types.Decimal128.fromString("0"),
       min: 0,
+      get: decToNumber,
     },
     occupiedSlots: { type: Number, default: 0, min: 0 },
 
@@ -78,7 +85,11 @@ const ShelfSchema = new Schema(
     isDeliveryShelf: { type: Boolean, default: false, index: true },
     assignedDelivererId: { type: Types.ObjectId, ref: "Deliverer", default: null, index: true },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { getters: true }, // run getters for root too
+    toObject: { getters: true },
+  }
 );
 
 // Indexes
@@ -106,7 +117,7 @@ ShelfSchema.pre("save", function (next) {
     let occupied = 0;
     let totalWeight = 0;
     for (const s of doc.slots) {
-      const w = s.currentWeightKg ? parseFloat(s.currentWeightKg.toString()) : 0;
+      const w = s.currentWeightKg ? parseFloat((s.currentWeightKg as any as Types.Decimal128).toString()) : 0;
       totalWeight += w;
       const pkgCount = Array.isArray((s as any).packages) ? (s as any).packages.length : 0;
       if (s.currentPackages !== pkgCount) (s as any).currentPackages = pkgCount;
@@ -295,8 +306,6 @@ ShelfSchema.statics.moveStagedPackage = async function ({
   packageWeightKg = 0,
   toDelivererId,
 }: MoveArgs) {
-  const dec = Types.Decimal128.fromString(String(packageWeightKg));
-
   await this.updateOne(
     { shelfId, logisticCenterId },
     {
@@ -313,7 +322,7 @@ ShelfSchema.statics.moveStagedPackage = async function ({
   return this.updateOne(
     { shelfId, logisticCenterId },
     {
-      $inc: { "slots.$[s].currentWeightKg": dec, "slots.$[s].currentPackages": 1 },
+      $inc: { "slots.$[s].currentWeightKg": Types.Decimal128.fromString(String(packageWeightKg)), "slots.$[s].currentPackages": 1 },
       $addToSet: { "slots.$[s].packages": toOid(packageId) },
       $set: {
         updatedAt: new Date(),
@@ -347,8 +356,9 @@ ShelfSchema.statics.findLeastCrowded = function ({
       occupiedSlots: 1,
       currentWeightKg: 1,
     })
+    // IMPORTANT: getters make Decimal128 -> number even for lean
     .limit(limit)
-    .lean();
+    .lean({ getters: true });
 };
 
 // delivery shelves by deliverer
@@ -363,7 +373,8 @@ ShelfSchema.statics.findDeliveryShelvesForDeliverer = function ({
     logisticCenterId,
     isDeliveryShelf: true,
     assignedDelivererId: delivererId,
-  }).lean();
+  })
+    .lean({ getters: true });
 };
 
 export type Shelf = InferSchemaType<typeof ShelfSchema>;
