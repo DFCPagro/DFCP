@@ -1,151 +1,118 @@
-import * as React from "react";
-import { Stack, HStack, Heading } from "@chakra-ui/react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { DateTime } from "luxon";
+import * as React from "react"
+import { Stack, HStack, Heading, Text, Box, SimpleGrid, Spinner, Icon } from "@chakra-ui/react"
+import { useQuery } from "@tanstack/react-query"
+import { DateTime } from "luxon"
+import { AlertTriangle } from "lucide-react"
 
-import { fetchCurrentShift } from "@/api/shifts";
-import type { ShiftName as ApiShiftName } from "@/api/shifts";
+import { fetchCurrentShift } from "@/api/shifts"
+import type { ShiftName as ApiShiftName } from "@/api/shifts"
 
 import {
   fetchPickerTasksForShift,
+  fetchShiftPickerTasksSummary,
   type ShiftName,
   type PickerTask,
-  type PickerTaskListResponse,
-} from "@/api/pickerTask";
+} from "@/api/pickerTask"
 
-import ShiftStrip from "./components/ShiftStrip";
-import TasksCard from "./components/TaskCard";
-
-type ShiftChip = { shiftName: ShiftName; shiftDate: string; label: string };
-const SHIFT_SEQUENCE: ShiftName[] = ["morning", "afternoon", "evening", "night"];
+import PickerTasksTable from "./components/pickerTasksTable"
+import TaskDetailsModal from "./components/taskDetailsModal"
 
 function isValidShiftName(s: ApiShiftName): s is ShiftName {
-  return s !== "none";
-}
-function nextShift(name: ShiftName): ShiftName {
-  const i = SHIFT_SEQUENCE.indexOf(name);
-  return SHIFT_SEQUENCE[(i + 1) % SHIFT_SEQUENCE.length];
-}
-function makeShiftsCurrentPlus5(params: {
-  tz?: string;
-  baseShiftName: ShiftName;
-  baseShiftDate: string; // yyyy-LL-dd
-}): ShiftChip[] {
-  const { tz = "Asia/Jerusalem", baseShiftName, baseShiftDate } = params;
-  const out: ShiftChip[] = [];
-  let name = baseShiftName;
-  let date = baseShiftDate;
-  let dt = DateTime.fromFormat(baseShiftDate, "yyyy-LL-dd", { zone: tz });
-
-  for (let i = 0; i < 6; i++) {
-    out.push({ shiftName: name, shiftDate: date, label: `${date} • ${name}` });
-    const n = nextShift(name);
-    if (name === "night" && n === "morning") dt = dt.plus({ days: 1 });
-    name = n;
-    date = dt.toFormat("yyyy-LL-dd");
-  }
-  return out;
+  return s !== "none"
 }
 
-export default function PickerTasksManagerPage() {
-  const qc = useQueryClient();
+const ErrorBanner = ({ children }: { children: React.ReactNode }) => (
+  <Box role="alert" borderWidth="1px" borderRadius="md" p={3} bg="red.50" borderColor="red.200">
+    <HStack align="start" gap={2}>
+      <Icon as={AlertTriangle} boxSize={4} color="red.500" />
+      <Text>{children}</Text>
+    </HStack>
+  </Box>
+)
 
-  // 1) Load current shift context
+export default function PickerTasksPage() {
+  const [selectedTask, setSelectedTask] = React.useState<PickerTask | null>(null)
+  const [open, setOpen] = React.useState(false)
+
   const currentQ = useQuery({
     queryKey: ["pickerTasks", "currentShiftCtx"],
     queryFn: async () => {
-      const cur = await fetchCurrentShift();
-      if (!isValidShiftName(cur.shift)) throw new Error("No active shift right now");
-      const tz = "Asia/Jerusalem";
-      const shiftDate = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
-      return { shiftName: cur.shift as ShiftName, shiftDate, tz };
+      const cur = await fetchCurrentShift()
+      if (!isValidShiftName(cur.shift)) throw new Error("No active shift right now")
+      const tz = "Asia/Jerusalem"
+      const shiftDate = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd")
+      return { shiftName: cur.shift as ShiftName, shiftDate, tz }
     },
-  });
+  })
 
-  // 2) Build “current + 5” list
-  const shifts = React.useMemo<ShiftChip[]>(() => {
-    if (!currentQ.data) return [];
-    const { shiftName, shiftDate, tz } = currentQ.data;
-    return makeShiftsCurrentPlus5({ tz, baseShiftName: shiftName, baseShiftDate: shiftDate });
-  }, [currentQ.data]);
-
-  // 3) Selected shift (auto-pick first)
-  const [selected, setSelected] = React.useState<ShiftChip | null>(null);
-  React.useEffect(() => {
-    if (!selected && shifts.length) setSelected(shifts[0]);
-  }, [shifts, selected]);
-
-  // 4) Picker tasks for selected shift
   const tasksQ = useQuery({
-    enabled: !!selected,
-    queryKey: ["pickerTasks", "shift", selected?.shiftName, selected?.shiftDate],
-    queryFn: async (): Promise<PickerTaskListResponse> => {
-      // NOTE: GET endpoint ensures tasks exist for this shift automatically.
-      return fetchPickerTasksForShift({
-        shiftName: selected!.shiftName,
-        shiftDate: selected!.shiftDate,
-        // ensure?: true // default true on server; no need to pass
-        page: 1,
-        limit: 200,
-      });
+    enabled: !!currentQ.data,
+    queryKey: ["pickerTasks", "shift", currentQ.data?.shiftName, currentQ.data?.shiftDate],
+    queryFn: async () => {
+      const { shiftName, shiftDate } = currentQ.data!
+      const res= await fetchPickerTasksForShift({ shiftName, shiftDate, page: 1, limit: 500 })
+      console.log("picker tasks for shift", res)
+      return res
     },
-  });
+  })
 
-  // 5) Optional: prefetch the next shift to make tabbing feel instant
-  React.useEffect(() => {
-    if (!selected || !shifts.length) return;
-    const ix = shifts.findIndex(
-      (s) => s.shiftName === selected.shiftName && s.shiftDate === selected.shiftDate
-    );
-    const next = shifts[ix + 1];
-    if (next) {
-      qc.prefetchQuery({
-        queryKey: ["pickerTasks", "shift", next.shiftName, next.shiftDate],
-        queryFn: () =>
-          fetchPickerTasksForShift({
-            shiftName: next.shiftName,
-            shiftDate: next.shiftDate,
-            page: 1,
-            limit: 200,
-          }),
-      });
-    }
-  }, [selected, shifts, qc]);
+  const summaryQ = useQuery({
+    enabled: !!currentQ.data,
+    queryKey: ["pickerTasks", "shiftSummary", currentQ.data?.shiftName, currentQ.data?.shiftDate],
+    queryFn: async () => {
+      const { shiftName, shiftDate } = currentQ.data!
+      const res = await fetchShiftPickerTasksSummary({ shiftName, shiftDate })
+      console.log("shift summary", res)
+      return res
+    },
+  })
 
-  // 6) Derived for the card
-  const taskItems: PickerTask[] = tasksQ.data?.items ?? [];
-  const taskTotal =
-    tasksQ.data?.pagination?.total ?? tasksQ.data?.items?.length ?? taskItems.length ?? 0;
+  const isLoading = currentQ.isLoading || tasksQ.isLoading || summaryQ.isLoading
+  const shiftTitle = currentQ.data ? `${currentQ.data.shiftDate} • ${currentQ.data.shiftName}` : "Current Shift"
+
+  const onView = (t: PickerTask) => {
+    setSelectedTask(t)
+    setOpen(true)
+  }
 
   return (
     <Stack gap={6}>
-      <HStack justify="space-between">
-        <Heading size="lg">Picker Tasks</Heading>
+      <HStack justifyContent="space-between">
+        <Heading size="lg">Picker Tasks — {shiftTitle}</Heading>
       </HStack>
 
-      {/* Shift selector row */}
-      <ShiftStrip
-        shifts={shifts}
-        selected={selected}
-        onSelect={(s: ShiftChip) => setSelected(s)}
-        isLoading={currentQ.isLoading}
-        errorMsg={
-          currentQ.isError ? (currentQ.error as Error)?.message || "Failed to load shift" : null
-        }
-      />
+      {isLoading && (
+        <HStack>
+          <Spinner />
+          <Text>Loading current shift…</Text>
+        </HStack>
+      )}
 
-      {/* Tasks table for selected shift */}
-      <TasksCard
-        tasks={taskItems}
-        total={taskTotal}
-        countsByStatus={tasksQ.data?.countsByStatus}
-        isLoading={tasksQ.isLoading || currentQ.isLoading || !selected}
-        errorMsg={
-          tasksQ.isError
-            ? (tasksQ.error as Error)?.message || "Failed to load tasks"
-            : null
-        }
-      />
+      {currentQ.isError && <ErrorBanner>{(currentQ.error as Error)?.message || "Failed to load current shift"}</ErrorBanner>}
+      {!isLoading && (tasksQ.isError || summaryQ.isError) && (
+        <ErrorBanner>{((tasksQ.error || summaryQ.error) as Error)?.message || "Failed to load data"}</ErrorBanner>
+      )}
+
+      {summaryQ.data && (
+        <SimpleGrid columns={[1, 5]} gap={4}>
+          {Object.entries({
+            "Total Tasks": summaryQ.data.totalTasks ?? 0,
+            Ready: summaryQ.data.counts?.ready ?? 0,
+            "In Progress": summaryQ.data.counts?.in_progress ?? 0,
+            Open: summaryQ.data.counts?.open ?? 0,
+            Problem: summaryQ.data.counts?.problem ?? 0,
+          }).map(([label, val]) => (
+            <Box key={label} p={3} borderWidth="1px" borderRadius="md">
+              <Text fontSize="sm" color="gray.500">{label}</Text>
+              <Heading size="md">{val}</Heading>
+            </Box>
+          ))}
+        </SimpleGrid>
+      )}
+
+      {tasksQ.data && <PickerTasksTable data={tasksQ.data} onView={onView} />}
+
+      <TaskDetailsModal task={selectedTask} open={open} onClose={() => setOpen(false)} />
     </Stack>
-  );
+  )
 }

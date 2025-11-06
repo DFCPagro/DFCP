@@ -8,7 +8,7 @@ import {
   Table,
 } from "@chakra-ui/react"
 
-// --- Types ---
+/** Canonical shape the table renders */
 export interface AuditEvent {
   action: string
   note?: string
@@ -19,19 +19,33 @@ export interface AuditEvent {
         name?: string
         role?: string
       }
-  at : string | Date
+  at: string | Date
   timestamp?: string | Date
   meta?: Record<string, any>
 }
 
-// --- Helpers for rendering ---
+/** Props are generic so you can pass any raw item type */
+type AuditSectionProps<T = any> = {
+  /** Raw items (any shape). If undefined/null => empty state. */
+  items?: T[] | null
+  /** Map raw item -> AuditEvent (if omitted, items are assumed to already match AuditEvent) */
+  map?: (item: T) => AuditEvent
+  /** Title shown in the header */
+  title?: string
+  /** Start expanded? */
+  initialExpanded?: boolean
+  /** Max height when collapsed (CSS size) */
+  collapsedHeight?: string
+  /** Max height when expanded (CSS size) */
+  expandedHeight?: string
+  /** Empty message override */
+  emptyText?: string
+}
+
+/* ---------- helpers for rendering ---------- */
 function renderBy(by: AuditEvent["by"]) {
   if (!by) return "system"
-
-  if (typeof by === "string") {
-    return by || "system"
-  }
-
+  if (typeof by === "string") return by || "system"
   if (by.name && by.role) return `${by.name} (${by.role})`
   if (by.name) return by.name
   if (by.role) return by.role
@@ -44,7 +58,7 @@ function renderWhen(at: AuditEvent["at"]) {
   return dt.toLocaleString()
 }
 
-// --- Row renderer so we don't duplicate code ---
+/* ---------- row ---------- */
 function AuditRow({ ev }: { ev: AuditEvent }) {
   return (
     <Table.Row>
@@ -52,12 +66,7 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
         {ev.action || "—"}
       </Table.Cell>
 
-      <Table.Cell
-        fontSize="sm"
-        color="fg.muted"
-        whiteSpace="pre-wrap"
-        maxW="320px"
-      >
+      <Table.Cell fontSize="sm" color="fg.muted" whiteSpace="pre-wrap" maxW="320px">
         {ev.note || ""}
       </Table.Cell>
 
@@ -65,22 +74,33 @@ function AuditRow({ ev }: { ev: AuditEvent }) {
         {renderBy(ev.by)}
       </Table.Cell>
 
-      <Table.Cell
-        fontSize="xs"
-        color="fg.muted"
-        whiteSpace="nowrap"
-        textAlign="right"
-      >
+      <Table.Cell fontSize="xs" color="fg.muted" whiteSpace="nowrap" textAlign="right">
         {renderWhen(ev.timestamp || ev.at)}
       </Table.Cell>
     </Table.Row>
   )
 }
 
-export default function OrderAuditSection({ audit }: { audit: AuditEvent[] }) {
+/* ---------- generic section ---------- */
+export default function AuditSection<T = any>({
+  items,
+  map,
+  title = "Audit",
+  initialExpanded = false,
+  collapsedHeight = "140px",
+  expandedHeight = "260px",
+  emptyText = "No audit entries.",
+}: AuditSectionProps<T>) {
+  // normalize items -> AuditEvent[]
+  const audit: AuditEvent[] = useMemo(() => {
+    const src = Array.isArray(items) ? items : []
+    if (map) return src.map(map)
+    // assume already AuditEvent shaped
+    return src as unknown as AuditEvent[]
+  }, [items, map])
+
   // newest first
   const sorted = useMemo(() => {
-    if (!Array.isArray(audit)) return []
     return [...audit].sort((a, b) => {
       const ta = a?.at ? new Date(a.at).getTime() : 0
       const tb = b?.at ? new Date(b.at).getTime() : 0
@@ -88,25 +108,21 @@ export default function OrderAuditSection({ audit }: { audit: AuditEvent[] }) {
     })
   }, [audit])
 
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(initialExpanded)
 
-  // slice so we can show "latest row" always + optionally the rest
+  // slice so we always show the latest row + toggle the rest
   const latestEvent = sorted[0]
   const restEvents = sorted.slice(1)
 
   return (
     <Box borderWidth="1px" borderRadius="md" p="4">
       <Stack gap="3">
-        {/* Header row: title + toggle */}
+        {/* Header */}
         <HStack justifyContent="space-between" alignItems="flex-start">
-          <Text fontWeight="semibold">Audit</Text>
+          <Text fontWeight="semibold">{title}</Text>
 
           {restEvents.length > 0 && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setExpanded((v) => !v)}
-            >
+            <Button variant="ghost" size="xs" onClick={() => setExpanded((v) => !v)}>
               {expanded ? "Hide full history" : "Show full history"}
             </Button>
           )}
@@ -116,41 +132,21 @@ export default function OrderAuditSection({ audit }: { audit: AuditEvent[] }) {
         <Box
           borderWidth="1px"
           borderRadius="md"
-          maxH={expanded ? "260px" : "140px"}
+          maxH={expanded ? expandedHeight : collapsedHeight}
           overflowY="auto"
         >
           <Table.Root size="sm" width="full">
-            <Table.Header
-              position="sticky"
-              top={0}
-              bg="bg.panel"
-              zIndex={1}
-            >
+            <Table.Header position="sticky" top={0} bg="bg.panel" zIndex={1}>
               <Table.Row>
-                <Table.ColumnHeader
-                  fontSize="xs"
-                  textTransform="none"
-                  fontWeight="semibold"
-                >
+                <Table.ColumnHeader fontSize="xs" textTransform="none" fontWeight="semibold">
                   Action
                 </Table.ColumnHeader>
-
-                <Table.ColumnHeader
-                  fontSize="xs"
-                  textTransform="none"
-                  fontWeight="semibold"
-                >
+                <Table.ColumnHeader fontSize="xs" textTransform="none" fontWeight="semibold">
                   Note
                 </Table.ColumnHeader>
-
-                <Table.ColumnHeader
-                  fontSize="xs"
-                  textTransform="none"
-                  fontWeight="semibold"
-                >
+                <Table.ColumnHeader fontSize="xs" textTransform="none" fontWeight="semibold">
                   By
                 </Table.ColumnHeader>
-
                 <Table.ColumnHeader
                   fontSize="xs"
                   textTransform="none"
@@ -165,26 +161,13 @@ export default function OrderAuditSection({ audit }: { audit: AuditEvent[] }) {
             <Table.Body>
               {latestEvent ? (
                 <>
-                  {/* always show most recent */}
                   <AuditRow ev={latestEvent} />
-
-                  {/* older rows:
-                     - if not expanded, hide them
-                     - if expanded, render all
-                   */}
-                  {expanded &&
-                    restEvents.map((ev, i) => <AuditRow key={i} ev={ev} />)}
+                  {expanded && restEvents.map((ev, i) => <AuditRow key={i} ev={ev} />)}
                 </>
               ) : (
                 <Table.Row>
-                  <Table.Cell
-                    colSpan={4}
-                    fontSize="sm"
-                    color="fg.muted"
-                    textAlign="center"
-                    py="6"
-                  >
-                    No audit entries.
+                  <Table.Cell colSpan={4} fontSize="sm" color="fg.muted" textAlign="center" py="6">
+                    {emptyText}
                   </Table.Cell>
                 </Table.Row>
               )}

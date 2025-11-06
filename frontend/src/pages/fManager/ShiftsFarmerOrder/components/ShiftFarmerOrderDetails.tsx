@@ -26,7 +26,7 @@ import {
     type FarmerOrderStage,
     type FarmerOrderStageKey,
 } from "@/types/farmerOrders";
-import OrderAuditSection from "@/components/common/OrderAuditSection";
+import OrderAuditSection from "@/components/common/AuditSection";
 import { FarmerOrderTimeline } from "./FarmerOrderTimeline";
 
 /* --------------------------------- Props --------------------------------- */

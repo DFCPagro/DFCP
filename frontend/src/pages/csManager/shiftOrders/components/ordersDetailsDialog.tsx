@@ -15,7 +15,7 @@ import {
   Badge,
 } from "@chakra-ui/react";
 import PackOrderSection from "./PackOrderSection.tsx";
-import OrderAuditSection from "../../../../components/common/OrderAuditSection.tsx";
+import OrderAuditSection from "../../../../components/common/AuditSection.tsx";
 
 /* ----------------------------- helpers ----------------------------- */
 /* helpers */

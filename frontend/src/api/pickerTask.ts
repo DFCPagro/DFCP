@@ -6,6 +6,15 @@ import { api } from "@/api/config";
 
 export type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
+export type AuditEntry = {
+  action: string
+  note?: string
+  by?: { id?: string; name?: string; role?: string } | string
+  at?: string
+  timestamp?: string
+  meta?: Record<string, any> | null
+}
+
 export type PickerTaskStatus =
   | "open"
   | "ready"
@@ -55,13 +64,17 @@ export type PlanSummary = {
   totalBoxes: number;
   byItem: PlanSummaryItem[];
   warnings: string[];
+  totalKg?: number;
+  totalLiters?: number;
 };
+
 
 /** Full plan stored on the task */
 export type PickerTaskPlan = {
   boxes: PlanBox[];
-  summary?: PlanSummary;
+  summary: PlanSummary; // was summary?: PlanSummary
 };
+
 
 export type PickerTaskProgress = {
   currentBoxIndex?: number; // new (we set it in the service)
@@ -99,6 +112,8 @@ export type PickerTask = {
   createdAt: string;
   updatedAt: string;
   notes?: string;
+
+   historyAuditTrail?: AuditEntry[] 
 };
 
 export type PickerTaskCountsByStatus = Partial<Record<PickerTaskStatus, number>>;
