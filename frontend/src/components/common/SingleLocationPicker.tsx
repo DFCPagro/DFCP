@@ -11,9 +11,21 @@ type Props = {
   onConfirm: (v: MapPickerValue) => void;
   initial?: { lat: number; lng: number; address?: string };
   countries?: string;
+
+  // NEW (optional): override label/title for the single point marker
+  pointMarkerLabel?: string;   // e.g. "H"
+  pointMarkerTitle?: string;   // e.g. "Home"
 };
 
-export default function MapPickerDialog({ open, onClose, onConfirm, initial, countries }: Props) {
+export default function MapPickerDialog({
+  open,
+  onClose,
+  onConfirm,
+  initial,
+  countries,
+  pointMarkerLabel,
+  pointMarkerTitle,
+}: Props) {
   return (
     <RouteLocationDialog
       open={open}
@@ -27,6 +39,8 @@ export default function MapPickerDialog({ open, onClose, onConfirm, initial, cou
           : undefined
       }
       onConfirm={onConfirm}
+      markerLabels={{ point: pointMarkerLabel }}     // NEW
+      markerTitles={{ point: pointMarkerTitle }}     // NEW
     />
   );
 }

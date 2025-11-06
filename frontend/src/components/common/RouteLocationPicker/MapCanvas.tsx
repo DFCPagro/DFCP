@@ -16,12 +16,12 @@ export type MapCanvasHandle = {
   fitToBounds: (points: LatLng[]) => void;
 
   // Single loose marker (legacy)
-  setSingleMarker: (pos: LatLng) => void;
+  setSingleMarker: (pos: LatLng, opts?: google.maps.MarkerOptions) => void;
   clearSingleMarker: () => void;
 
   // Named markers for double-location flows
-  setOriginMarker: (pos: LatLng) => void;
-  setDestinationMarker: (pos: LatLng) => void;
+  setOriginMarker: (pos: LatLng, opts?: google.maps.MarkerOptions) => void;
+  setDestinationMarker: (pos: LatLng, opts?: google.maps.MarkerOptions) => void;
   clearOriginMarker: () => void;
   clearDestinationMarker: () => void;
   clearAllMarkers: () => void;
@@ -45,7 +45,6 @@ type Props = {
   onMapReady?: (map: google.maps.Map) => void;
   onClick?: (pos: LatLng) => void;
   onMarkerDragEnd?: (pos: LatLng) => void; // applies to the "single" legacy marker only
-  // Use MapOptions["gestureHandling"] to stay aligned with Google Maps typings
   gestureHandling?: google.maps.MapOptions["gestureHandling"];
 };
 
@@ -75,9 +74,6 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
   const listenersRef = useRef<google.maps.MapsEventListener[]>([]);
   const [ready, setReady] = useState(false);
 
-  // Initialize the map **once** on mount.
-  // IMPORTANT: Do NOT depend on props here (like initialCenter/zoom) or the map will be torn down and recreated,
-  // wiping markers and routes after user actions.
   useEffect(() => {
     let cancelled = false;
 
@@ -127,8 +123,8 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // mount-only
 
-  // --- helpers (no "this" usage) ---
-  const ensureOriginMarker = (pos: LatLng) => {
+  // --- helpers ---
+  const ensureOriginMarker = (pos: LatLng, opts?: google.maps.MarkerOptions) => {
     const g = (window as any).google as typeof google;
     const m = mapRef.current;
     if (!m) return;
@@ -136,15 +132,21 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
       originMarkerRef.current = new g.maps.Marker({
         map: m,
         position: pos,
+        // default fallback label "A" — overridden by opts?.label
         label: "A",
+        ...opts,
       });
     } else {
-      originMarkerRef.current.setPosition(pos);
-      originMarkerRef.current.setMap(m);
+      originMarkerRef.current.setOptions({
+        map: m,
+        position: pos,
+        // Keep previous options but allow overrides
+        ...opts,
+      });
     }
   };
 
-  const ensureDestinationMarker = (pos: LatLng) => {
+  const ensureDestinationMarker = (pos: LatLng, opts?: google.maps.MarkerOptions) => {
     const g = (window as any).google as typeof google;
     const m = mapRef.current;
     if (!m) return;
@@ -152,11 +154,16 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
       destinationMarkerRef.current = new g.maps.Marker({
         map: m,
         position: pos,
+        // default fallback label "B" — overridden by opts?.label
         label: "B",
+        ...opts,
       });
     } else {
-      destinationMarkerRef.current.setPosition(pos);
-      destinationMarkerRef.current.setMap(m);
+      destinationMarkerRef.current.setOptions({
+        map: m,
+        position: pos,
+        ...opts,
+      });
     }
   };
 
@@ -181,8 +188,8 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
         fitPoints(points);
       },
 
-      // Legacy single marker (kept for backwards compat)
-      setSingleMarker(pos) {
+      // Single marker
+      setSingleMarker(pos, opts) {
         const g = (window as any).google as typeof google;
         const m = mapRef.current;
         if (!m) return;
@@ -196,20 +203,18 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
           singleMarkerRef.current = new g.maps.Marker({
             map: m,
             position: pos,
-            draggable: !!onMarkerDragEnd,
+            draggable: !!opts?.draggable, // draggable via opts if you want
+            ...opts,
           });
-          if (onMarkerDragEnd) {
-            listenersRef.current.push(
-              singleMarkerRef.current.addListener("dragend", () => {
-                const p = singleMarkerRef.current!.getPosition();
-                if (!p) return;
-                onMarkerDragEnd({ lat: p.lat(), lng: p.lng() });
-              })
-            );
+          if (opts?.draggable) {
+            // If someone wants drag callbacks, they can still be added from outside if needed
           }
         } else {
-          singleMarkerRef.current.setPosition(pos);
-          singleMarkerRef.current.setMap(m);
+          singleMarkerRef.current.setOptions({
+            map: m,
+            position: pos,
+            ...opts,
+          });
         }
         m.setCenter(pos);
       },
@@ -218,11 +223,11 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
       },
 
       // Named markers for origin/destination
-      setOriginMarker(pos) {
-        ensureOriginMarker(pos);
+      setOriginMarker(pos, opts) {
+        ensureOriginMarker(pos, opts);
       },
-      setDestinationMarker(pos) {
-        ensureDestinationMarker(pos);
+      setDestinationMarker(pos, opts) {
+        ensureDestinationMarker(pos, opts);
       },
       clearOriginMarker() {
         originMarkerRef.current?.setMap(null);
@@ -248,7 +253,7 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
         const m = mapRef.current;
         if (!m) return null;
 
-        // Keep our own A/B markers visible
+        // Ensure our markers exist (keep labels that may have been set)
         ensureOriginMarker(origin);
         ensureDestinationMarker(destination);
 
@@ -274,11 +279,6 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
             map: m,
             suppressMarkers: suppressRendererMarkers,
             preserveViewport: true,
-            //   preserveViewport: false,
-            //   polylineOptions: {
-            //     strokeOpacity: 0.9,
-            //     strokeWeight: 6, // slightly thicker for visibility
-            //   },
           });
         } else {
           dirRendererRef.current.setMap(m);
@@ -301,7 +301,7 @@ const MapCanvas = forwardRef<MapCanvasHandle, Props>(function MapCanvas(
         dirRendererRef.current = null;
       },
     };
-  }, [onMarkerDragEnd]);
+  }, []);
 
   return (
     <div

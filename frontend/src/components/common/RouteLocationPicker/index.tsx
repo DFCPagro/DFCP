@@ -24,12 +24,35 @@ export type PointValue = { address: string; lat: number; lng: number };
 export type Mode = "point" | "route";
 export type ViewMode = "edit" | "view";
 
+type MarkerLabels = {
+  /** Label for "point" (single marker mode). */
+  point?: string;            // e.g. "H"
+  /** Label for route origin. */
+  origin?: string;           // e.g. "H"
+  /** Label for route destination. */
+  destination?: string;      // e.g. "LG"
+};
+
+type MarkerTitles = {
+  /** Title/tooltip for "point" marker. */
+  point?: string;            // e.g. "Home"
+  /** Title/tooltip for origin marker. */
+  origin?: string;           // e.g. "Home"
+  /** Title/tooltip for destination marker. */
+  destination?: string;      // e.g. "Logistics"
+};
+
 type BaseProps = {
   open: boolean;
   onClose: () => void;
   viewMode?: ViewMode;
   countries?: string;
   size?: "sm" | "md" | "lg";
+
+  /** NEW: override marker text labels (fallback stays A/B if omitted). */
+  markerLabels?: MarkerLabels;
+  /** NEW: override marker titles (tooltips). */
+  markerTitles?: MarkerTitles;
 };
 
 type PointOnlyProps = BaseProps & {
@@ -56,20 +79,22 @@ type Props = PointOnlyProps | RouteProps;
 
 const DEFAULT_CENTER: LatLng = { lat: 31.771959, lng: 35.217018 };
 
+// helpers to read the desired label/title or fallback
+const getOriginLabel = (labels?: MarkerLabels) => labels?.origin ?? "A";
+const getDestinationLabel = (labels?: MarkerLabels) => labels?.destination ?? "B";
+const getPointLabel = (labels?: MarkerLabels) => labels?.point; // no label by default in point mode
+
 export default function LocationRouteDialog(props: Props) {
-  const { open, onClose, countries, size = "lg" } = props;
+  const { open, onClose, countries, size = "lg", markerLabels, markerTitles } = props;
   const viewMode = props.viewMode ?? "edit";
 
   const [busy, setBusy] = useState(false);
   const [loadingMap, setLoadingMap] = useState(false);
-
-  // map readiness state to avoid painting too early
   const [mapReady, setMapReady] = useState(false);
 
   const [point, setPoint] = useState<PointValue | undefined>(
     props.mode === "point" && props.initialPoint ? props.initialPoint : undefined,
   );
-
   const [origin, setOrigin] = useState<PointValue | undefined>(
     props.mode === "route" && props.initialOrigin ? props.initialOrigin : undefined,
   );
@@ -82,7 +107,7 @@ export default function LocationRouteDialog(props: Props) {
   const [distanceText, setDistanceText] = useState<string | undefined>(undefined);
   const [durationText, setDurationText] = useState<string | undefined>(undefined);
 
-  // Refs that mirror latest origin/destination to avoid stale closure during async geocoding
+  // Refs (avoid stale closures)
   const originRef = useRef<PointValue | undefined>(origin);
   const destinationRef = useRef<PointValue | undefined>(destination);
   useEffect(() => { originRef.current = origin; }, [origin]);
@@ -104,30 +129,28 @@ export default function LocationRouteDialog(props: Props) {
   const ensureMaps = useCallback(async () => {
     setLoadingMap(true);
     try {
-      await loadGoogleMaps(); // idempotent
+      await loadGoogleMaps();
     } finally {
       setLoadingMap(false);
     }
   }, []);
 
-  // When dialog opens, ensure maps and reset readiness
   useEffect(() => {
     if (!open) return;
     ensureMaps();
     setMapReady(false);
   }, [open, ensureMaps]);
 
-  // keep internal point in sync with incoming initialPoint (important for view mode)
+  // keep internal point in sync
   useEffect(() => {
-  if (props.mode === "point" && "initialPoint" in props) {
-    setPoint(props.initialPoint);
-  } else if (props.mode === "point") {
-    setPoint(undefined);
-  }
-  // no change for route mode
-}, [props]);
+    if (props.mode === "point" && "initialPoint" in props) {
+      setPoint(props.initialPoint);
+    } else if (props.mode === "point") {
+      setPoint(undefined);
+    }
+  }, [props]);
 
-  // Paint current state whenever open/mapReady/state changes
+  // Paint current state
   useEffect(() => {
     if (!open || !mapRef.current || !mapReady) return;
 
@@ -136,7 +159,12 @@ export default function LocationRouteDialog(props: Props) {
         mapRef.current.clearRoute();
         mapRef.current.clearAllMarkers();
         if (point) {
-          mapRef.current.setSingleMarker(point);
+          mapRef.current.setSingleMarker(point, {
+            label: getPointLabel(markerLabels)
+              ? { text: getPointLabel(markerLabels)! }
+              : undefined,
+            title: markerTitles?.point ?? point.address ?? "Location",
+          });
           mapRef.current.setCenter(point);
         } else {
           mapRef.current.setCenter(center);
@@ -146,18 +174,25 @@ export default function LocationRouteDialog(props: Props) {
 
       // route mode
       mapRef.current.clearRoute();
-
-      // Show both markers if we have them (always visible)
       mapRef.current.clearAllMarkers();
-      if (origin) mapRef.current.setOriginMarker(origin);
-      if (destination) mapRef.current.setDestinationMarker(destination);
+
+      if (origin) {
+        mapRef.current.setOriginMarker(origin, {
+          label: { text: getOriginLabel(markerLabels) },
+          title: markerTitles?.origin ?? origin.address ?? "Origin",
+        });
+      }
+      if (destination) {
+        mapRef.current.setDestinationMarker(destination, {
+          label: { text: getDestinationLabel(markerLabels) },
+          title: markerTitles?.destination ?? destination.address ?? "Destination",
+        });
+      }
 
       if (origin && destination) {
-        // Fit to endpoints immediately for snappy UX
         mapRef.current.fitToBounds([origin, destination]);
         await renderRoute(origin, destination, travelMode);
       } else if (origin || destination) {
-        // If only one exists, center on it
         mapRef.current.setCenter(origin ?? destination!);
       } else {
         mapRef.current.setCenter(center);
@@ -167,21 +202,35 @@ export default function LocationRouteDialog(props: Props) {
     const id = requestAnimationFrame(paint);
     return () => cancelAnimationFrame(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mapReady, point?.lat, point?.lng, origin?.lat, origin?.lng, destination?.lat, destination?.lng, travelMode]);
+  }, [
+    open,
+    mapReady,
+    point?.lat,
+    point?.lng,
+    origin?.lat,
+    origin?.lng,
+    destination?.lat,
+    destination?.lng,
+    travelMode,
+    markerLabels,
+    markerTitles,
+  ]);
 
-  // Click-to-pick with immediate placement (avoid race with async reverseGeocode)
+  // Map click handler
   const onMapClick = async (pos: LatLng) => {
     if (viewMode === "view") return;
 
-    // Read latest values from refs to avoid stale closure
     const curOrigin = originRef.current;
-    const curDestination = destinationRef.current;
 
     if (props.mode === "point") {
-      // Immediately set marker, then resolve address
       const provisional: PointValue = { address: "", ...pos };
       setPoint(provisional);
-      mapRef.current?.setSingleMarker(provisional);
+      mapRef.current?.setSingleMarker(provisional, {
+        label: getPointLabel(markerLabels)
+          ? { text: getPointLabel(markerLabels)! }
+          : undefined,
+        title: markerTitles?.point ?? "Location",
+      });
       mapRef.current?.setCenter(provisional);
 
       setBusy(true);
@@ -197,9 +246,12 @@ export default function LocationRouteDialog(props: Props) {
     // ROUTE MODE
     if (!curOrigin) {
       const provisional: PointValue = { address: "", ...pos };
-      originRef.current = provisional; // keep ref in sync immediately
+      originRef.current = provisional;
       setOrigin(provisional);
-      mapRef.current?.setOriginMarker(provisional);
+      mapRef.current?.setOriginMarker(provisional, {
+        label: { text: getOriginLabel(markerLabels) },
+        title: markerTitles?.origin ?? "Origin",
+      });
 
       setBusy(true);
       try {
@@ -212,11 +264,13 @@ export default function LocationRouteDialog(props: Props) {
       return;
     }
 
-    // If we already have origin, set/replace destination
     const provisionalDest: PointValue = { address: "", ...pos };
     destinationRef.current = provisionalDest;
     setDestination(provisionalDest);
-    mapRef.current?.setDestinationMarker(provisionalDest);
+    mapRef.current?.setDestinationMarker(provisionalDest, {
+      label: { text: getDestinationLabel(markerLabels) },
+      title: markerTitles?.destination ?? "Destination",
+    });
     mapRef.current?.fitToBounds([curOrigin, provisionalDest]);
 
     setBusy(true);
@@ -233,7 +287,6 @@ export default function LocationRouteDialog(props: Props) {
 
   const onMarkerDragEnd = async (pos: LatLng) => {
     if (viewMode === "view") return;
-
     setBusy(true);
     try {
       const addr = (await reverseGeocode(pos.lat, pos.lng)) || "";
@@ -241,7 +294,6 @@ export default function LocationRouteDialog(props: Props) {
         const next = { address: addr, ...pos };
         setPoint(next);
       }
-      // Note: the named markers are not draggable in this implementation.
     } finally {
       setBusy(false);
     }
@@ -257,12 +309,20 @@ export default function LocationRouteDialog(props: Props) {
       const next = { address: p.address, lat, lng };
       if (kind === "point") {
         setPoint(next);
-        mapRef.current?.setSingleMarker(next);
+        mapRef.current?.setSingleMarker(next, {
+          label: getPointLabel(markerLabels)
+            ? { text: getPointLabel(markerLabels)! }
+            : undefined,
+          title: markerTitles?.point ?? next.address ?? "Location",
+        });
         mapRef.current?.setCenter(next);
       } else if (kind === "origin") {
         originRef.current = next;
         setOrigin(next);
-        mapRef.current?.setOriginMarker(next);
+        mapRef.current?.setOriginMarker(next, {
+          label: { text: getOriginLabel(markerLabels) },
+          title: markerTitles?.origin ?? next.address ?? "Origin",
+        });
         if (destinationRef.current) {
           mapRef.current?.fitToBounds([next, destinationRef.current]);
           await renderRoute(next, destinationRef.current, travelMode);
@@ -272,7 +332,10 @@ export default function LocationRouteDialog(props: Props) {
       } else {
         destinationRef.current = next;
         setDestination(next);
-        mapRef.current?.setDestinationMarker(next);
+        mapRef.current?.setDestinationMarker(next, {
+          label: { text: getDestinationLabel(markerLabels) },
+          title: markerTitles?.destination ?? next.address ?? "Destination",
+        });
         if (originRef.current) {
           mapRef.current?.fitToBounds([originRef.current, next]);
           await renderRoute(originRef.current, next, travelMode);
@@ -289,7 +352,7 @@ export default function LocationRouteDialog(props: Props) {
         origin: { lat: o.lat, lng: o.lng },
         destination: { lat: d.lat, lng: d.lng },
         travelMode: (window as any).google?.maps.TravelMode[tm] ?? google.maps.TravelMode.DRIVING,
-        suppressRendererMarkers: true, // keep our A/B markers visible
+        suppressRendererMarkers: true, // keep our markers visible
       });
       if (res?.routes[0]?.legs?.[0]) {
         const leg = res.routes[0].legs[0];
@@ -316,9 +379,15 @@ export default function LocationRouteDialog(props: Props) {
     setOrigin(nextOrigin);
     setDestination(nextDestination);
 
-    // Update markers immediately for visual feedback
-    mapRef.current?.setOriginMarker(nextOrigin);
-    mapRef.current?.setDestinationMarker(nextDestination);
+    // re-apply custom labels/titles on swap
+    mapRef.current?.setOriginMarker(nextOrigin, {
+      label: { text: getOriginLabel(markerLabels) },
+      title: markerTitles?.origin ?? nextOrigin.address ?? "Origin",
+    });
+    mapRef.current?.setDestinationMarker(nextDestination, {
+      label: { text: getDestinationLabel(markerLabels) },
+      title: markerTitles?.destination ?? nextDestination.address ?? "Destination",
+    });
 
     mapRef.current?.fitToBounds([nextOrigin, nextDestination]);
     await renderRoute(nextOrigin, nextDestination, travelMode);
@@ -481,7 +550,7 @@ export default function LocationRouteDialog(props: Props) {
                 <MapCanvas
                   ref={mapRef}
                   initialCenter={center}
-                  onMapReady={() => setMapReady(true)}                      
+                  onMapReady={() => setMapReady(true)}
                   onClick={viewMode === "view" ? undefined : onMapClick}
                   onMarkerDragEnd={viewMode === "view" ? undefined : onMarkerDragEnd}
                   className="chakra-map"
