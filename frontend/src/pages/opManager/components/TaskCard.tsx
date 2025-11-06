@@ -1,3 +1,5 @@
+// frontend/src/pages/opManager/components/TaskCard.tsx
+
 import * as React from "react";
 import { Card, HStack, Heading, Spinner, Alert, Text, Badge, Box, Table } from "@chakra-ui/react";
 import type { PickerTask } from "@/api/pickerTask";

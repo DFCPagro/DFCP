@@ -1,10 +1,9 @@
-// src/controllers/pickerTasks.controller.ts
 import { Request, Response } from "express";
-import mongoose from "mongoose";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import {
   generatePickerTasksForShift,
   listPickerTasksForShift,
+  ensureAndListPickerTasksForShift,
 } from "../services/pickerTasks.service";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/; // yyyy-LL-dd
@@ -22,7 +21,7 @@ function parseIntOrUndef(v: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** POST /api/picker-tasks/generate */
+/** POST /api/pickerTasks/generate */
 export async function postGeneratePickerTasks(req: Request, res: Response) {
   try {
     const user = (req as any).user;
@@ -32,16 +31,16 @@ export async function postGeneratePickerTasks(req: Request, res: Response) {
       return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
     }
 
-    const { shiftName, shiftDate } = req.body || {};
+    const { shiftName, shiftDate, priority, stageKey, autoSetReady } = req.body || {};
 
     const result = await generatePickerTasksForShift({
       logisticCenterId: new Types.ObjectId(lcId),
       createdByUserId: new Types.ObjectId(String(user._id)),
       shiftName,
       shiftDate,
-      stageKey: "packing_ready",
-      priority: 0,
-      autoSetReady: true,
+      priority,
+      stageKey,
+      autoSetReady,
     });
 
     return res.json({ data: result });
@@ -51,12 +50,12 @@ export async function postGeneratePickerTasks(req: Request, res: Response) {
   }
 }
 
-/** GET /api/picker-tasks/shift?shiftName=morning&shiftDate=2025-11-05&assignedOnly=true */
+/** GET /api/pickerTasks/shift?shiftName=morning&shiftDate=2025-11-05&assignedOnly=true */
 export async function getPickerTasksForShiftController(req: Request, res: Response) {
   try {
     const user = (req as any).user;
     const lcId = user?.logisticCenterId;
-
+    console.log("i come here")
     if (!mongoose.isValidObjectId(lcId)) {
       return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
     }
@@ -70,6 +69,7 @@ export async function getPickerTasksForShiftController(req: Request, res: Respon
       assignedOnly,
       unassignedOnly,
       pickerUserId,
+      ensure = "true", // allow opt-out with ensure=false
     } = (req.query || {}) as Record<string, string>;
 
     if (!shiftName) {
@@ -79,19 +79,35 @@ export async function getPickerTasksForShiftController(req: Request, res: Respon
       return res.status(400).json({ error: "BadRequest", details: "shiftDate must be yyyy-LL-dd" });
     }
 
-    // Mutually exclusive assignment flags
     const assignedOnlyBool = parseBool(assignedOnly) === true;
     const unassignedOnlyBool = !assignedOnlyBool && parseBool(unassignedOnly) === true;
 
+    if (parseBool(ensure) !== false) {
+      const result = await ensureAndListPickerTasksForShift({
+        logisticCenterId: new Types.ObjectId(lcId),
+        createdByUserId: new Types.ObjectId(String(user._id)),
+        shiftName: shiftName as any,
+        shiftDate: shiftDate as string,
+        status,
+        page: parseIntOrUndef(page),
+        limit: parseIntOrUndef(limit),
+        assignedOnly: assignedOnlyBool,
+        unassignedOnly: unassignedOnlyBool,
+        pickerUserId: pickerUserId || undefined,
+      });
+      console.log("res: ", result)
+      return res.json(result); // { ensure, data }
+    }
+
     const data = await listPickerTasksForShift({
       logisticCenterId: new Types.ObjectId(lcId),
-      shiftName: shiftName as any,       // your ShiftName union
+      shiftName: shiftName as any,
       shiftDate: shiftDate as string,
       status,
       page: parseIntOrUndef(page),
       limit: parseIntOrUndef(limit),
-      assignedOnly: assignedOnlyBool,    // plain boolean
-      unassignedOnly: unassignedOnlyBool,// plain boolean
+      assignedOnly: assignedOnlyBool,
+      unassignedOnly: unassignedOnlyBool,
       pickerUserId: pickerUserId || undefined,
     });
 

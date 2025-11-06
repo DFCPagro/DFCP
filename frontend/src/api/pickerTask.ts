@@ -1,4 +1,3 @@
-// src/api/pickerTasks.ts
 import { api } from "@/api/config";
 
 /* =========================
@@ -77,64 +76,69 @@ export interface PickerTaskListResponse {
 
 /** Body for POST /pickerTasks/generate */
 export interface GeneratePickerTasksBody {
-  shiftName?: ShiftName | null; // optional override
-  shiftDate?: string | null; // yyyy-LL-dd, optional override
+  shiftName?: ShiftName | null;
+  shiftDate?: string | null; // yyyy-LL-dd
   priority?: number; // default 0
   stageKey?: string; // default "packing_ready"
   autoSetReady?: boolean; // default true
 }
 
-export interface GeneratePickerTasksResult {
+/** Exact backend shape returned by POST /generate (matches service) */
+export type GeneratePickerTasksResult = {
   createdCount: number;
   alreadyExisted: number;
   shiftName: ShiftName;
   shiftDate: string;
   tz: string;
   ordersProcessed: number;
-  examples: PickerTask[];
-}
+  examples: PickerTask[]; // recent few for preview
+};
 
 /* =========================
  * Helpers
  * ========================= */
 
-function ensureData<T>(res: { data?: any }, errMsg: string): T {
-  // Controllers reply with { data: ... }
-  if (!res?.data) throw new Error(errMsg);
-  const payload = res.data.data ?? res.data;
-  if (payload == null) throw new Error(errMsg);
-  return payload as T;
+function ensureData<T>(axiosRes: any, errMsg: string): T {
+  // Axios response: { data: <payload> }
+  // Controller may return either:
+  //  - { data: <T> }
+  //  - { ensure: <summary>, data: <T> }
+  const root = axiosRes?.data;
+  if (!root) throw new Error(errMsg);
+
+  // If the controller wrapped it as { data: <T> }
+  if (root.data) return root.data as T;
+
+  // If the controller returned { ensure, data }
+  if (root.ensure && root.data) return root.data as T;
+
+  // Otherwise treat whole root as T (fallback)
+  return root as T;
 }
 
 /* =========================
  * API Calls
  * ========================= */
 
-/**
- * Generate picker tasks for a shift.
- * Server takes logisticCenterId from the authenticated user.
- */
+/** POST /api/pickerTasks/generate */
 export async function generatePickerTasks(
   body: GeneratePickerTasksBody = {}
 ): Promise<GeneratePickerTasksResult> {
-  const res = await api.post<{ data: GeneratePickerTasksResult }>(
-    "/pickerTasks/generate",
-    body
-  );
+  const res = await api.post("/pickerTasks/generate", body);
+  // Here controller replies with { data: GeneratePickerTasksResult }
   return ensureData<GeneratePickerTasksResult>(res, "Failed to generate picker tasks");
 }
 
 /**
- * List picker tasks for a specific shift (explicit name + date).
- * The server reads logisticCenterId from the authenticated user.
- *
+ * GET /api/pickerTasks/shift
  * Supported filters:
  * - status?: PickerTaskStatus | string
  * - page?: number
  * - limit?: number
- * - assignedOnly?: boolean  (mutually exclusive with unassignedOnly; if both true, assignedOnly wins)
+ * - assignedOnly?: boolean
  * - unassignedOnly?: boolean
- * - pickerUserId?: string   (overrides assignedOnly/unassignedOnly and returns tasks assigned to that user)
+ * - pickerUserId?: string
+ * - ensure?: boolean (default true on the server; pass false to skip ensuring)
  */
 export async function fetchPickerTasksForShift(params: {
   shiftName: ShiftName;
@@ -145,9 +149,9 @@ export async function fetchPickerTasksForShift(params: {
   assignedOnly?: boolean;
   unassignedOnly?: boolean;
   pickerUserId?: string;
+  ensure?: boolean;
 }): Promise<PickerTaskListResponse> {
-  const res = await api.get<{ data: PickerTaskListResponse }>("/pickerTasks/shift", {
-    params,
-  });
+  const res = await api.get("/pickerTasks/shift", { params });
+  // Controller returns either { ensure, data } or { data }
   return ensureData<PickerTaskListResponse>(res, "Failed to load picker tasks for shift");
 }
