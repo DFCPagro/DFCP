@@ -56,7 +56,6 @@ const FManagerDashboard = lazy(() => import("@/pages/fManager/Dashboard"));
 const FManagerItemManagement = lazy(() => import("@/pages/fManager/ItemManager"));
 const FManagerCreateStock = lazy(() => import("@/pages/fManager/CreateStock"));
 const FManagerShiftsFarmerOrder = lazy(() => import("@/pages/fManager/ShiftsFarmerOrder"));
-const FManagerJobAppReview = lazy(() => import("@/pages/JobAppReview"));
 
 
 

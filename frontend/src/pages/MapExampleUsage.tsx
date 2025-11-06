@@ -9,7 +9,11 @@ import RouteLocationDialog, {
 import MapPickerDialog from "@/components/common/SingleLocationPicker";
 
 export default function MapUsageExamples() {
-  // Editable pickers (your existing demos)
+  // Demo coordinates
+  const HOME = { lat: 32.1100, lng: 34.8000 }; // example home
+  const BIZ  = { lat: 32.0853, lng: 34.7818 }; // Tel Aviv LC (example)
+
+  // Editable pickers
   const [openPoint, setOpenPoint] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState<PointValue | null>(null);
 
@@ -41,11 +45,14 @@ export default function MapUsageExamples() {
           </Box>
         )}
 
+        {/* You can also pass pins to the single-location wrapper (if you updated it to forward the props) */}
         <MapPickerDialog
           open={openPoint}
           onClose={() => setOpenPoint(false)}
           onConfirm={(v) => { setSelectedPoint(v); setOpenPoint(false); }}
           countries="US"
+          homeMarker={{ pos: HOME, label: "Home" }}
+          businessMarker={{ pos: BIZ, label: "Logistics Center" }}
         />
       </Box>
 
@@ -70,6 +77,9 @@ export default function MapUsageExamples() {
           onClose={() => setOpenRoute(false)}
           mode="route"
           initialTravelMode="DRIVING"
+          // add the pins here:
+          homeMarker={{ pos: HOME, label: "Home" }}
+          businessMarker={{ pos: BIZ, label: "Logistics Center" }}
           onConfirm={(v) => { setSelectedRoute(v); setOpenRoute(false); }}
         />
       </Box>
@@ -86,11 +96,10 @@ export default function MapUsageExamples() {
           mode="point"
           viewMode="view"
           countries="IL"
-          initialPoint={{
-            lat: 32.0853,
-            lng: 34.7818,
-            address: "Tel Aviv-Yafo, Israel",
-          }}
+          initialPoint={{ lat: BIZ.lat, lng: BIZ.lng, address: "Tel Aviv-Yafo, Israel" }}
+          // overlay pins in view mode too:
+          homeMarker={{ pos: HOME, label: "Home" }}
+          businessMarker={{ pos: BIZ, label: "Logistics Center" }}
         />
       </Box>
 
@@ -106,8 +115,11 @@ export default function MapUsageExamples() {
           mode="route"
           viewMode="view"
           initialTravelMode="DRIVING"
-          initialOrigin={{ lat: 32.0853, lng: 34.7818, address: "Tel Aviv-Yafo, Israel" }}
-          initialDestination={{ lat: 31.7683, lng: 35.2137, address: "Jerusalem, Israel" }}
+          initialOrigin={{ lat: HOME.lat, lng: HOME.lng, address: "My Home" }}
+          initialDestination={{ lat: BIZ.lat, lng: BIZ.lng, address: "Logistics Center" }}
+          // add pins
+          homeMarker={{ pos: HOME, label: "Home" }}
+          businessMarker={{ pos: BIZ, label: "Logistics Center" }}
         />
       </Box>
     </Flex>
