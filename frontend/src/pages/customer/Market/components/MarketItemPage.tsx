@@ -24,7 +24,7 @@ export type MarketItemPageProps = {
 /* ------------------------------ helpers ------------------------------ */
 function getImageUrl(it: MarketItem) {
   const anyIt = it as any;
-  return anyIt.imageUrl ?? anyIt.img ?? anyIt.photo ?? anyIt.picture ?? undefined;
+  return anyIt.imageUrl ?? anyIt.imageUrl ?? anyIt.photo ?? anyIt.picture ?? undefined;
 }
 
 function avgWeightPerUnitKg(it: MarketItem): number {
@@ -103,7 +103,7 @@ function RightPurchasePanel({
   const name = (item as any).displayName ?? (item as any).name ?? "Item";
   const farmName = (item as any).farmName ?? "";
   const farmerName = (item as any).farmerName ?? (item as any).farmer ?? "";
-
+const imageUrl=(item as any).imageUrl??"";
   const perKg = avgWeightPerUnitKg(item);
   const perG = weightPerUnitG(item);
   const price = priceOf(item, unit);
@@ -142,6 +142,16 @@ function RightPurchasePanel({
     <Stack w="100%" gap="4" align="stretch">
       <HStack justify="space-between" align="center">
         <Stack gap="1" minW={0}>
+          <Image
+  src={imageUrl}
+  alt={name || "item image"}
+  h="100%"
+  w="100%"
+  objectFit="contain"
+  loading="lazy"
+  referrerPolicy="no-referrer"   // omit Referer
+  onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/images/placeholder.png"; }}
+/>
           <Text fontSize="xl" fontWeight="bold" lineClamp={2}>{name}</Text>
           <Text fontSize="sm" color="fg.muted">
             {farmName ? `from ${farmName}${farmerName ? ` by ${farmerName}` : ""}` : farmerName ? `by ${farmerName}` : ""}
@@ -160,7 +170,6 @@ function RightPurchasePanel({
 
         <Button
           size="xs"
-          variant="outline"
           onClick={() => !locked && onUnitChange(!unit)}
           aria-pressed={unit}
           disabled={locked}
@@ -421,7 +430,9 @@ function CompactItemCard({
   onAddToCart?: (p: { item: MarketItem; qty: number }) => void; // qty in UNITS
   onOpenItem?: (item: MarketItem) => void;
 }) {
-  const img = getImageUrl(it);
+  const imageUrl = getImageUrl(it);
+  console.log(imageUrl,"sssssssssssssssssssssssssssss");
+  console.log(it,"..........................");
   const name = (it as any).displayName ?? (it as any).name ?? "Item";
   const price = priceOf(it, unit);
   const farmerName = (it as any).farmerName;
@@ -438,30 +449,50 @@ function CompactItemCard({
   );
 
   return (
-    <Stack borderWidth="1px" borderRadius="lg" overflow="hidden" minW="180px" maxW="180px" gap="2" p="2" bg="bg">
-      <Stack gap="2" role="button" tabIndex={0} onClick={open} onKeyDown={onKeyDown} cursor="pointer">
-        <Box bg="bg.muted" rounded="md" overflow="hidden">
-          {img ? <Image src={img} alt={name} w="100%" h="120px" objectFit="cover" /> : <Box h="120px" />}
-        </Box>
-        <Text fontWeight="semibold" fontSize="sm" lineClamp={2}>{name}</Text>
-        {farmerName ? <Text fontSize="xs" color="fg.muted" lineClamp={1}>{farmerName}</Text> : null}
-        <Text fontSize="xs">${price.toFixed(2)}/{unit ? "unit" : "kg"}</Text>
-      </Stack>
+   <Stack borderWidth="1px" borderRadius="lg" overflow="hidden" minW="180px" maxW="180px" gap="2" p="2" bg="bg">
+  <Stack gap="2" role="button" tabIndex={0} onClick={open} onKeyDown={onKeyDown} cursor="pointer">
+    <Box
+  bg="bg.muted"
+  rounded="md"
+  overflow="hidden"
+  h="120px"
+  display="flex"
+  alignItems="center"
+  justifyContent="center"
+>
+ <Image
+  src={imageUrl}
+  alt={name || "item image"}
+  h="100%"
+  w="100%"
+  objectFit="contain"
+  loading="lazy"
+  referrerPolicy="no-referrer"   // omit Referer
+  onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/images/placeholder.png"; }}
+/>
 
-      <Button
-        size="xs"
-        variant="outline"
-        onClick={() => {
-          const { unit: eff } = effectiveUnitForItem(it as any, unit);
-          const qUnits = qtyToUnits(it as any, eff, 1); // normalize to UNITS
-          onAddToCart?.({ item: it, qty: qUnits });
-        }}
-        disabled={price <= 0}
-      >
-        Add
-      </Button>
-    </Stack>
-  );
+</Box>
+
+
+    <Text fontWeight="semibold" fontSize="sm" lineClamp={2}>{name}</Text>
+    {farmerName ? <Text fontSize="xs" color="fg.muted" lineClamp={1}>{farmerName}</Text> : null}
+    <Text fontSize="xs">${price.toFixed(2)}/{unit ? "unit" : "kg"}</Text>
+  </Stack>
+
+  <Button
+    size="xs"
+    variant="outline"
+    onClick={() => {
+      const { unit: eff } = effectiveUnitForItem(it as any, unit);
+      const qUnits = qtyToUnits(it as any, eff, 1);
+      onAddToCart?.({ item: it, qty: qUnits });
+    }}
+    disabled={price <= 0}
+  >
+    Add
+  </Button>
+</Stack>
+ );
 }
 
 export const MarketItemPage = memo(MarketItemPageBase);

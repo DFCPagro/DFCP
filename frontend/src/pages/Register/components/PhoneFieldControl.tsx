@@ -7,6 +7,7 @@ import {
   Select,
   HStack,
   Portal,
+  Flex,
   createListCollection,
   Box,
   Text,
@@ -99,13 +100,15 @@ export default function PhoneFieldControl({
   };
 
   return (
-    <Field.Root invalid={isInvalid} required={required}>
-      <Field.Label>
-        Phone number
-        {required && <Field.RequiredIndicator />}
+<Flex gap={4} w="100%" >
+  <Field.Root invalid={isInvalid} required={required}>
+    {/* one line: label + select + input */}
+    <HStack align="center" gap="3" flexWrap="nowrap">
+      <Field.Label fontSize="lg" mb="0" whiteSpace="nowrap">
+        Phone number {required && <Field.RequiredIndicator />}
       </Field.Label>
 
-      <HStack align="start" gap="2">
+      <HStack align="center" gap="2" flex="1" minW={0}>
         {/* Country dial-code select */}
         <Select.Root
           collection={COUNTRY_COLLECTION}
@@ -154,25 +157,30 @@ export default function PhoneFieldControl({
           value={value.national}
           onChange={(e) => handleNationalChange(e.target.value)}
           autoComplete="tel-national"
+          flex="1"
+          minW={0}
         />
       </HStack>
+    </HStack>
 
-      {isInvalid ? (
-        <Field.ErrorText>{composedError}</Field.ErrorText>
-      ) : (
-        <Field.HelperText>
-          {helperText}{" "}
-          {value.e164 ? (
-            <Box as="span" color="fg.subtle">
-              ({value.e164})
-            </Box>
-          ) : null}
-        </Field.HelperText>
-      )}
+    {isInvalid ? (
+      <Field.ErrorText>{composedError}</Field.ErrorText>
+    ) : (
+      <Field.HelperText>
+        {helperText}{" "}
+        {value.e164 ? (
+          <Box as="span" color="fg.subtle">
+            ({value.e164})
+          </Box>
+        ) : null}
+      </Field.HelperText>
+    )}
 
-      {/* Hidden full E.164 for native forms if needed */}
-      <input type="hidden" name="phoneE164" value={value.e164} />
-    </Field.Root>
+    {/* Hidden full E.164 for native forms if needed */}
+    <input type="hidden" name="phoneE164" value={value.e164} />
+  </Field.Root>
+</Flex>
+
   );
 }
 

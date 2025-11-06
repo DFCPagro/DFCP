@@ -18,7 +18,7 @@ import { useLocation } from "react-router-dom";
 import { useUnitPref } from "@/hooks/useUnitPref";
 import { toaster } from "@/components/ui/toaster";
 import type { CartLine } from "@/utils/market/marketCart.shared";
-
+import { Sparkles } from 'lucide-react';
 /* -------------------------------------------------------------------------- */
 /*                                   Props                                    */
 /* -------------------------------------------------------------------------- */
@@ -463,6 +463,9 @@ function CartDrawerBase({
                   <HStack justify="space-between">
                     <Text fontWeight="medium">Subtotal</Text>
                     <Text fontWeight="semibold">{formatMoneyUSD(subtotal)}</Text>
+                  </HStack>
+                          <HStack >
+                    <Sparkles/><Text fontWeight="medium"> Free Delivery For Purchases Above 100$</Text>
                   </HStack>
                 </Stack>
               </Stack>

@@ -12,11 +12,14 @@ import {
   VStack,
   Field,
   Input,
+  AbsoluteCenter,
 } from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster";
 import type { FormEvent } from "react";
 import { PATHS } from "@/routes/paths";
 import { getDefaultLanding } from "@/config/nav.defaults";
+//import loginLogo from "@/public/images/loginLogo.png";
+//import backgroundImgUrl from "@/public/images/loginBackground.png";
 
 type LoginForm = { email: string; password: string };
 type RouteState = { from?: { pathname?: string } } | null;
@@ -76,44 +79,74 @@ export default function Login() {
   };
 
   return (
-    <Box maxW="sm" mx="auto" mt={16} p={6} borderWidth="1px" borderRadius="lg">
-      <VStack as="form" gap={4} onSubmit={submit}>
-        <Heading size="md">Login</Heading>
+    <Box>
+      <Box
+        position="absolute"
+        inset={0}
+        maxH="100vh"
+        maxW="100vw"
+        pointerEvents="none"
+        bgImage="url(/images/Entry.png)"
+        bgSize="cover"
+        bgPos="center"
+        bgRepeat="no-repeat"
+      />
+ <AbsoluteCenter>
+          <Box maxW="m" mx="auto" mt={20} p={10} width="70vh" borderWidth="1px" borderRadius="3xl" bg="white">
 
-        <Field.Root>
-          <Field.Label>Email</Field.Label>
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-        </Field.Root>
+    <center><img  src="/images/loginLogo.png" alt="DFCP logo" /></center>
+      <VStack as="form" gap={{ base: 10, md: 4 }}  onSubmit={submit} >
+        <Heading size="4xl">Login</Heading>
 
-        <Field.Root>
-          <Field.Label>Password</Field.Label>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </Field.Root>
+         <Field.Root orientation="horizontal" alignItems="center" gap={4}>
+  <Field.Label
+    w={{ base: "32", md: "40" }}   // fixed label width
+    textAlign="right" fontSize="xl"
+  >
+    Email
+  </Field.Label>
 
-        <Button type="submit" loading={isPending} width="full">
+  <Input
+    flex="1"
+    type="email"
+    value={email}
+    onChange={(e) => setEmail(e.target.value)}
+    autoComplete="email"
+    required
+    size="xl"
+  />
+</Field.Root>
+
+
+        <Field.Root orientation="horizontal" alignItems="center" gap={4}>
+    <Field.Label w={{ base: "32", md: "40" }} textAlign="right" fontSize="xl">
+      Password
+    </Field.Label>
+    <Input
+      flex="1"
+      type="password"
+      value={password}
+      onChange={(e) => setPassword(e.target.value)}
+      autoComplete="current-password"
+      required
+      size="xl"
+    />
+  </Field.Root>
+        <Button type="submit" loading={isPending} width="500" size="2xl" borderRadius="4xl">
           Sign in
         </Button>
 
-        <Text fontSize="sm">
+        <Text fontSize="lg">
           No account?{" "}
           <CLink asChild color="blue.400">
             <RouterLink to={PATHS.register}>Register</RouterLink>
           </CLink>
         </Text>
       </VStack>
+</Box>
+</AbsoluteCenter>
     </Box>
+
   );
 }
 
