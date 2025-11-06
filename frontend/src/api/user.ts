@@ -1,7 +1,8 @@
 import { api } from "./config";
 import { z } from "zod";
 import { AddressListSchema, type Address } from "@/types/address";
-
+import { ContactInfoSchema } from "@/types/user";
+import type { ContactInfo } from "@/types/user";
 
 /* ---------- Zod helpers (null/undefined → safe types) ---------- */
 
@@ -26,8 +27,8 @@ const zOptionalString = z.preprocess(
 /* -------- Contact -------- */
 export const ContactSchema = z.object({
   name: zOptionalString,
-  email: zEmailString,        // <- tolerant to null → ""
-  phone: zRequiredString,     // <- tolerant to null → ""
+  email: zEmailString, // <- tolerant to null → ""
+  phone: zRequiredString, // <- tolerant to null → ""
   birthday: zOptionalString,
 });
 export type Contact = z.infer<typeof ContactSchema>;
@@ -85,13 +86,8 @@ export async function updateUserAddress(
   return AddressListSchema.parse(data?.data ?? data);
 }
 
-export const ContactInfo = z.object({
-  name: zOptionalString,
-  email: zEmailString,        // <- tolerant to null → ""
-  phone: zRequiredString, });
-
-export async function getContactInfoById(id: string): Promise<Contact> {
+export async function getContactInfoById(id: string): Promise<ContactInfo> {
   const { data } = await api.get(`/users/contact-info/${id}`);
   const res = data?.data ?? data;
-  return ContactInfo.parse(res);
+  return ContactInfoSchema.parse(res);
 }

@@ -254,6 +254,7 @@ export type ContactInfo = {
   email: string;
   phone: string | null;
   role: Role | string;
+  logisticCenterId: Types.ObjectId;
   // added only for farmer role
   farmName?: string | "Freshy Fresh";
   farmLogo?: string | "none";
@@ -281,6 +282,7 @@ export async function getContactInfoByIdService(
     email: user.email,
     phone: user.phone ?? null,
     role: user.role,
+    logisticCenterId: user.logisticCenterId,
   };
 
   if (String(user.role) === "farmer") {
