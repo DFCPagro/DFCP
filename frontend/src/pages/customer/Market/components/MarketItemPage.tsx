@@ -1,10 +1,9 @@
-// src/pages/.../MarketItemPage.tsx
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   Box, HStack, Icon, IconButton, Separator, Stack, Text,
-  Avatar, Image, Badge, Button, Spinner
+  Avatar, Image, Badge, Button, Spinner, Flex, Dialog, Portal
 } from "@chakra-ui/react";
-import { FiX, FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { FiX, FiChevronLeft, FiChevronRight, FiRefreshCw, FiLock } from "react-icons/fi";
 import type { MarketItem } from "@/types/market";
 import { getMarketItemPage, type MarketItemPageData } from "@/api/market";
 import { qtyToUnits } from "@/utils/market/marketUnits";
@@ -86,6 +85,36 @@ function weightPerUnitG(it: any): number {
   return Math.round(kg * 1000);
 }
 
+/* --------------------------- reusable: Unit toggle --------------------------- */
+function UnitToggleButton({
+  value,
+  onChange,
+  locked,
+}: {
+  value: boolean;              // true = Units, false = Kg
+  onChange: (next: boolean) => void;
+  locked?: boolean;
+}) {
+  const label = value ? "Units" : "Kg";
+  const aria = locked ? "Mode fixed for this item" : `Current: ${label}. Switch`;
+  return (
+    <Button
+      size="xs"
+      variant="outline"
+      onClick={() => !locked && onChange(!value)}
+      disabled={!!locked}
+      aria-label={aria}
+      title={aria}
+      px="2"
+    >
+      <HStack gap="1">
+        <Icon as={locked ? FiLock : FiRefreshCw} />
+        <Text as="span" fontSize="xs">{label}</Text>
+      </HStack>
+    </Button>
+  );
+}
+
 /* --------------------------- right purchase --------------------------- */
 function RightPurchasePanel({
   item,
@@ -103,7 +132,7 @@ function RightPurchasePanel({
   const name = (item as any).displayName ?? (item as any).name ?? "Item";
   const farmName = (item as any).farmName ?? "";
   const farmerName = (item as any).farmerName ?? (item as any).farmer ?? "";
-const imageUrl=(item as any).imageUrl??"";
+  const imageUrl = (item as any).imageUrl ?? "";
   const perKg = avgWeightPerUnitKg(item);
   const perG = weightPerUnitG(item);
   const price = priceOf(item, unit);
@@ -131,27 +160,27 @@ const imageUrl=(item as any).imageUrl??"";
   const dec = useCallback(() => setQty((q) => clampQty(q - STEP)), [maxQty, minQty]);
 
   // Always send UNITS to cart
- const handleAdd = useCallback(() => {
-  const qEff = clampQty(qty);                    // current number in the visible mode
-  const qtyUnits = qtyToUnits(item as any, unit, qEff); // normalize to UNITS
-  if (qtyUnits > 0) onAddToCart?.({ item, qty: qtyUnits });
-}, [clampQty, qty, item, unit, onAddToCart]);
-  
+  const handleAdd = useCallback(() => {
+    const qEff = clampQty(qty);
+    const qtyUnits = qtyToUnits(item as any, unit, qEff);
+    if (qtyUnits > 0) onAddToCart?.({ item, qty: qtyUnits });
+  }, [clampQty, qty, item, unit, onAddToCart]);
 
   return (
-    <Stack w="100%" gap="4" align="stretch">
+    <Stack w="100%" gap="4" align="stretch" pl="5" pt="5" borderLeft="2px solid" borderLeftColor="gray.200">
       <HStack justify="space-between" align="center">
-        <Stack gap="1" minW={0}>
+        <Stack gap="1" minW={0} pr="2">
           <Image
-  src={imageUrl}
-  alt={name || "item image"}
-  h="100%"
-  w="100%"
-  objectFit="contain"
-  loading="lazy"
-  referrerPolicy="no-referrer"   // omit Referer
-  onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/images/placeholder.png"; }}
-/>
+            src={imageUrl}
+            alt={name || "item image"}
+            h="100%"
+            w="100%"
+            borderTopRadius="8px"
+            objectFit="contain"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/images/placeholder.png"; }}
+          />
           <Text fontSize="xl" fontWeight="bold" lineClamp={2}>{name}</Text>
           <Text fontSize="sm" color="fg.muted">
             {farmName ? `from ${farmName}${farmerName ? ` by ${farmerName}` : ""}` : farmerName ? `by ${farmerName}` : ""}
@@ -159,28 +188,23 @@ const imageUrl=(item as any).imageUrl??"";
           <Text fontSize="sm" fontWeight="medium">
             {priceLabel}<Text as="span" color="fg.muted">{altHint}</Text>
           </Text>
-          <Text fontSize="xs" color="fg.muted">{availLabel}</Text>
-
-          {unit ? (
-            perG ? <Text fontSize="xs" color="fg.muted">~{perG} g per unit</Text> : null
-          ) : (
-            perKg ? <Text fontSize="xs" color="fg.muted">~{perKg} kg per unit</Text> : null
-          )}
+          <Flex gap="2" align="center">
+            <Text fontSize="xs" color="fg.muted">{availLabel}</Text>
+            {unit ? (
+              perG ? <Text fontSize="xs" color="fg.muted">~{perG} g per unit</Text> : null
+            ) : (
+              perKg ? <Text fontSize="xs" color="fg.muted">~{perKg} kg per unit</Text> : null
+            )}
+          </Flex>
         </Stack>
-
-        <Button
-          size="xs"
-          onClick={() => !locked && onUnitChange(!unit)}
-          aria-pressed={unit}
-          disabled={locked}
-          title={locked ? "Mode fixed for this item" : "Toggle units/kg"}
-        >
-          {unit ? "Units" : "Kg"}
-        </Button>
       </HStack>
 
       <HStack justify="space-between" align="center">
-        <Text fontSize="sm" color="fg.muted">Quantity {unit ? "(units)" : "(kg)"}</Text>
+        <HStack gap="2" align="center">
+          <Text fontSize="sm" color="fg.muted">Quantity {unit ? "(units)" : "(kg)"}</Text>
+          <UnitToggleButton value={unit} onChange={onUnitChange} locked={locked} />
+        </HStack>
+
         <HStack>
           <Button size="sm" variant="outline" onClick={inc} disabled={qty >= maxQty}>+</Button>
           <Box minW="56px" textAlign="center" fontWeight="semibold" aria-live="polite">
@@ -191,18 +215,18 @@ const imageUrl=(item as any).imageUrl??"";
       </HStack>
 
       <Button
-  size="md"
-  colorPalette="teal"
-  onClick={handleAdd}
-  disabled={!onAddToCart || available <= 0 || price <= 0}
->
+        size="md"
+        colorPalette="teal"
+        onClick={handleAdd}
+        disabled={!onAddToCart || available <= 0 || price <= 0}
+      >
         Add to cart
       </Button>
     </Stack>
   );
 }
 
-/* ------------------------------ main page ----------------------------- */
+/* ------------------------------ main page in a Dialog (outside scroll) ----------------------------- */
 function MarketItemPageBase({
   item,
   unit,
@@ -300,121 +324,132 @@ function MarketItemPageBase({
       setActiveItem(next);
       onOpenItem?.(next);
       requestAnimationFrame(() => {
-        rowRef.current?.closest("[data-item-page-root]")?.scrollTo?.({ top: 0, behavior: "smooth" });
+        rowRef.current?.scrollTo?.({ left: 0, behavior: "smooth" });
       });
     },
     [onOpenItem]
   );
 
   return (
-    <Box
-      data-item-page-root
-      position="relative"
-      w={{ base: "92vw", md: "72vw" }}
-      maxW="900px"
-      bg="bg"
-      borderRadius="xl"
-      borderWidth="1px"
-      boxShadow="xl"
-      p={{ base: 4, md: 6 }}
-      mx="auto"
-      alignSelf="center"
-      maxH="85vh"
-      overflowY="auto"
+    <Dialog.Root
+      open
+      scrollBehavior="outside"
+      onOpenChange={(e) => {
+        if (!e.open) onClose();
+      }}
     >
-      <IconButton aria-label="Close" onClick={onClose} variant="ghost" size="sm" position="absolute" top="2" right="2">
-        <Icon as={FiX} />
-      </IconButton>
+      <Portal>
+        <Dialog.Positioner>
+          <Dialog.Content
+            maxW="900px"
+            w={{ base: "92vw", md: "72vw" }}
+            rounded="xl"
+            shadow="xl"
+            p={{ base: 4, md: 6 }}
+          >
+            <Dialog.CloseTrigger asChild>
+              <IconButton aria-label="Close" variant="ghost" size="sm" position="absolute" top="2" right="2" h="8" w="8">
+                <Icon as={FiX} />
+              </IconButton>
+            </Dialog.CloseTrigger>
 
-      <Stack gap={{ base: 4, md: 6 }}>
-        <Stack direction={{ base: "column", md: "row" }} align={{ base: "stretch", md: "flex-start" }} gap={{ base: 4, md: 6 }}>
-          <Stack flex={{ base: "1", md: "0 0 55%" }} gap="4" minW="0">
-            <Stack gap="1">
-              <HStack wrap="wrap" gap="4" align="center">
-                {logoSrc ? (
-                  <Avatar.Root size="2xl" shape="full" shadow="md" boxSize="120px" flexShrink={0}>
-                    <Avatar.Image src={logoSrc} alt={farmName || "logo"} />
-                    <Avatar.Fallback name={farmName || "Farmer"} />
-                  </Avatar.Root>
-                ) : null}
-                <Stack gap="0" minW="0">
-                  <Text fontSize="2xl" fontWeight="bold" lineHeight="1.25" pb="1px">
-                    {farmName || itemName}
-                  </Text>
-                  <Text fontSize="md" color="fg.muted" lineHeight="1.4">
-                    by {farmerName || "Farmer"}
-                  </Text>
+            {/* Keep header minimal. Move logo and names to the LEFT column below. */}
+       
+
+            <Dialog.Body>
+              <Stack gap={{ base: 4, md: 6 }}>
+                <Stack direction={{ base: "column", md: "row" }} align={{ base: "stretch", md: "flex-start" }} gap={{ base: 4, md: 6 }}>
+                  {/* LEFT SIDE: Logo + Farm/Farmer names */}
+                  <Stack flex={{ base: "1", md: "0 0 55%" }} gap="4" minW="0">
+                    <HStack wrap="wrap" gap="4" align="center">
+                      {logoSrc ? (
+                        <Avatar.Root size="2xl" shape="full" boxSize={{ base: "96px", md: "128px" }} shadow="md">
+                          <Avatar.Image src={logoSrc} alt={farmName || "logo"} />
+                          <Avatar.Fallback name={farmName || "Farmer"} />
+                        </Avatar.Root>
+                      ) : null}
+                      <Stack gap="0" minW={0}>
+                        <Text fontSize="2xl" fontWeight="bold" lineHeight="1.25" pb="1px">
+                          {farmName || itemName}
+                        </Text>
+                        <Text fontSize="md" color="fg.muted" lineHeight="1.4">
+                          by {farmerName || "Farmer"}
+                        </Text>
+                      </Stack>
+                    </HStack>
+
+                    <Stack gap="2">
+                      <Text fontWeight="semibold">Farmer bio</Text>
+                      {loading ? (
+                        <Spinner size="sm" />
+                      ) : farmerBio ? (
+                        <Text color="fg.muted" lineHeight="tall">{farmerBio}</Text>
+                      ) : (
+                        <Text color="fg.muted" fontStyle="italic">
+                          Learn more about our farmer’s practices and story.
+                        </Text>
+                      )}
+                      {err ? <Text color="red.500" fontSize="sm">Couldn’t load extra info: {err}</Text> : null}
+                    </Stack>
+
+                    <Stack gap="2">
+                      <Text fontWeight="semibold">Item benefits</Text>
+                      <HStack wrap="wrap" gap="2">
+                        {benefitList.map((b, i) => (
+                          <Badge key={`${b}-${i}`} variant="subtle" rounded="lg" px="2" py="1">
+                            {b}
+                          </Badge>
+                        ))}
+                      </HStack>
+                      {typeof calories === "number" && (
+                        <Text fontSize="xs" color="fg.muted">{calories} kcal / 100g</Text>
+                      )}
+                    </Stack>
+
+                    <Stack gap="2">
+                      <Text fontWeight="semibold">Recepies Suggestion</Text>
+                    </Stack>
+                  </Stack>
+
+                  {/* RIGHT SIDE: Purchase panel */}
+                  <Box flex={{ base: "1", md: "0 0 45%" }}>
+                    <RightPurchasePanel item={activeItem} unit={unit} onUnitChange={onUnitChange} onAddToCart={onAddToCart} />
+                  </Box>
                 </Stack>
-              </HStack>
-            </Stack>
 
-            <Stack gap="2">
-              <Text fontWeight="semibold">Farmer bio</Text>
-              {loading ? (
-                <Spinner size="sm" />
-              ) : farmerBio ? (
-                <Text color="fg.muted" lineHeight="tall">{farmerBio}</Text>
-              ) : (
-                <Text color="fg.muted" fontStyle="italic">
-                  Learn more about our farmer’s practices and story.
-                </Text>
-              )}
-              {err ? <Text color="red.500" fontSize="sm">Couldn’t load extra info: {err}</Text> : null}
-            </Stack>
+                <Separator />
 
-            <Stack gap="2">
-              <Text fontWeight="semibold">Item benefits</Text>
-              <HStack wrap="wrap" gap="2">
-                {benefitList.map((b, i) => (
-                  <Badge key={`${b}-${i}`} variant="subtle" rounded="lg" px="2" py="1">
-                    {b}
-                  </Badge>
-                ))}
-              </HStack>
-              {typeof calories === "number" && (
-                <Text fontSize="xs" color="fg.muted">{calories} kcal / 100g</Text>
-              )}
-            </Stack>
+                <Stack gap="3">
+                  <HStack justify="space-between" align="center">
+                    <Text fontWeight="semibold">More from this farmer</Text>
+                    <HStack gap="1">
+                      <IconButton aria-label="Scroll left" size="xs" variant="ghost" onClick={() => scrollBy(-280)}>
+                        <Icon as={FiChevronLeft} />
+                      </IconButton>
+                      <IconButton aria-label="Scroll right" size="xs" variant="ghost" onClick={() => scrollBy(280)}>
+                        <Icon as={FiChevronRight} />
+                      </IconButton>
+                    </HStack>
+                  </HStack>
 
-            <Stack gap="2">
-              <Text fontWeight="semibold">Recepies Suggestion</Text>
-            </Stack>
-          </Stack>
-
-          <Box flex={{ base: "1", md: "0 0 45%" }}>
-            <RightPurchasePanel item={activeItem} unit={unit} onUnitChange={onUnitChange} onAddToCart={onAddToCart} />
-          </Box>
-        </Stack>
-
-        <Separator />
-
-        <Stack gap="3">
-          <HStack justify="space-between" align="center">
-            <Text fontWeight="semibold">More from this farmer</Text>
-            <HStack gap="1">
-              <IconButton aria-label="Scroll left" size="xs" variant="ghost" onClick={() => scrollBy(-280)}>
-                <Icon as={FiChevronLeft} />
-              </IconButton>
-              <IconButton aria-label="Scroll right" size="xs" variant="ghost" onClick={() => scrollBy(280)}>
-                <Icon as={FiChevronRight} />
-              </IconButton>
-            </HStack>
-          </HStack>
-
-          <HStack ref={rowRef} gap="3" overflowX="auto" py="2" pe="1" css={{ scrollSnapType: "x proximity" }}>
-            {related.length ? (
-              related.map((rel) => (
-                <Box key={(rel as any).stockId ?? (rel as any).itemId} scrollSnapAlign="start">
-                  <CompactItemCard it={rel} unit={unit} onAddToCart={onAddToCart} onOpenItem={handleOpenItem} />
-                </Box>
-              ))
-            ) : (
-              <Text color="fg.muted" fontSize="sm">No other items from this farmer right now.</Text>
-            )}
-          </HStack>
-        </Stack>
-      </Stack>
-    </Box>
+                  <HStack ref={rowRef} gap="3" overflowX="auto" py="2" pe="1" css={{ scrollSnapType: "x proximity" }}>
+                    {related.length ? (
+                      related.map((rel) => (
+                        <Box key={(rel as any).stockId ?? (rel as any).itemId} scrollSnapAlign="start">
+                          <CompactItemCard it={rel} unit={unit} onAddToCart={onAddToCart} onOpenItem={handleOpenItem} />
+                        </Box>
+                      ))
+                    ) : (
+                      <Text color="fg.muted" fontSize="sm">No other items from this farmer right now.</Text>
+                    )}
+                  </HStack>
+                </Stack>
+              </Stack>
+            </Dialog.Body>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Portal>
+    </Dialog.Root>
   );
 }
 
@@ -431,8 +466,8 @@ function CompactItemCard({
   onOpenItem?: (item: MarketItem) => void;
 }) {
   const imageUrl = getImageUrl(it);
-  console.log(imageUrl,"sssssssssssssssssssssssssssss");
-  console.log(it,"..........................");
+  console.log(imageUrl, "sssssssssssssssssssssssssssss");
+  console.log(it, "..........................");
   const name = (it as any).displayName ?? (it as any).name ?? "Item";
   const price = priceOf(it, unit);
   const farmerName = (it as any).farmerName;
@@ -449,50 +484,49 @@ function CompactItemCard({
   );
 
   return (
-   <Stack borderWidth="1px" borderRadius="lg" overflow="hidden" minW="180px" maxW="180px" gap="2" p="2" bg="bg">
-  <Stack gap="2" role="button" tabIndex={0} onClick={open} onKeyDown={onKeyDown} cursor="pointer">
-    <Box
-  bg="bg.muted"
-  rounded="md"
-  overflow="hidden"
-  h="120px"
-  display="flex"
-  alignItems="center"
-  justifyContent="center"
->
- <Image
-  src={imageUrl}
-  alt={name || "item image"}
-  h="100%"
-  w="100%"
-  objectFit="contain"
-  loading="lazy"
-  referrerPolicy="no-referrer"   // omit Referer
-  onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/images/placeholder.png"; }}
-/>
+    <Stack borderWidth="1px" borderRadius="lg" overflow="hidden" minW="180px" maxW="180px" gap="2" p="2" bg="bg" >
+      <Stack gap="2" role="button" tabIndex={0} onClick={open} onKeyDown={onKeyDown} cursor="pointer">
+        <Box
+          bg="bg.muted"
+          rounded="md"
+          overflow="hidden"
+          h="120px"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+        >
+          <Image
+            src={imageUrl}
+            alt={name || "item image"}
+            h="100%"
+            w="100%"
+            objectFit="contain"
+            loading="lazy"
+            borderRadius="8px"
+            referrerPolicy="no-referrer"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/images/placeholder.png"; }}
+          />
+        </Box>
 
-</Box>
+        <Text fontWeight="semibold" fontSize="sm" lineClamp={2}>{name}</Text>
+        {farmerName ? <Text fontSize="xs" color="fg.muted" lineClamp={1}>{farmerName}</Text> : null}
+        <Text fontSize="xs">${price.toFixed(2)}/{unit ? "unit" : "kg"}</Text>
+      </Stack>
 
-
-    <Text fontWeight="semibold" fontSize="sm" lineClamp={2}>{name}</Text>
-    {farmerName ? <Text fontSize="xs" color="fg.muted" lineClamp={1}>{farmerName}</Text> : null}
-    <Text fontSize="xs">${price.toFixed(2)}/{unit ? "unit" : "kg"}</Text>
-  </Stack>
-
-  <Button
-    size="xs"
-    variant="outline"
-    onClick={() => {
-      const { unit: eff } = effectiveUnitForItem(it as any, unit);
-      const qUnits = qtyToUnits(it as any, eff, 1);
-      onAddToCart?.({ item: it, qty: qUnits });
-    }}
-    disabled={price <= 0}
-  >
-    Add
-  </Button>
-</Stack>
- );
+      <Button
+        size="xs"
+        variant="outline"
+        onClick={() => {
+          const { unit: eff } = effectiveUnitForItem(it as any, unit);
+          const qUnits = qtyToUnits(it as any, eff, 1);
+          onAddToCart?.({ item: it, qty: qUnits });
+        }}
+        disabled={price <= 0}
+      >
+        Add
+      </Button>
+    </Stack>
+  );
 }
 
 export const MarketItemPage = memo(MarketItemPageBase);

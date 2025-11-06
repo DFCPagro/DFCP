@@ -2,7 +2,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Box, Stack, Heading } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
-
+import { CartFAB } from "@/pages/customer/Market/components/CartFAB";
 import { useCheckoutState } from "./hooks/useCheckoutState";
 import PreflightGuard from "./components/PreflightGuard";
 import CheckoutSummary from "./components/CheckoutSummary";
@@ -50,7 +50,9 @@ export default function CheckoutPage() {
   return (
     <Box px={{ base: 3, md: 6 }} py={{ base: 4, md: 6 }}>
       <Stack gap={5}>
-        <Heading size="lg">Checkout</Heading>
+        <Heading size="lg">Checkout
+          <CartFAB   onClick={() => navigate("/market")} />          
+        </Heading>
 
         <PreflightGuard
           preflight={preflight}

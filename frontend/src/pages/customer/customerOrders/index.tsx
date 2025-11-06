@@ -244,7 +244,7 @@ export default function OrdersIndex() {
                 {orders?.length ?? 0}
               </Badge>
               <Box flex="1" />
-              <CartFAB onClick={() => nav("/cart")} />
+              <CartFAB onClick={() => nav("/market")} />
             </HStack>
 
             <Separator my={4} />

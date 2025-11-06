@@ -18,23 +18,18 @@ import {
   Input,
   Flex,
   IconButton,
-  Grid as CGrid
-
+  Grid as CGrid,
+  Image,
+  HStack,
 } from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster";
 import AddressAutocomplete from "@/components/common/AddressAutocomplete";
 import MapPickerDialog from "@/components/common/SingleLocationPicker";
 import { reverseGeocode } from "@/utils/googleMaps";
-import { LocateFixed, Eye, EyeOff, Grid, MoveLeft } from "lucide-react";
+import { LocateFixed, Eye, EyeOff, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
-import PhoneFieldControl, {
-  type PhoneValue,
-} from "./components/PhoneFieldControl";
-import {
-  isAtLeast16,
-  isValidEmail,
-  isValidName,
-} from "@/validations/registration.validation";
+import PhoneFieldControl, { type PhoneValue } from "./components/PhoneFieldControl";
+import { isAtLeast16, isValidEmail, isValidName } from "@/validations/registration.validation";
 
 type FormWithoutAddress = Omit<RegisterPayload, "address">;
 
@@ -295,280 +290,340 @@ export default function Register() {
     mutate(payload);
   };
 
+  // ---- Simple 3-image carousel for the right column (no auto-advance) ----
+  const images = [
+    { src: "/images/reg1.png", alt: "Register step 1" },
+    { src: "/images/reg2.png", alt: "Register step 2" },
+    { src: "/images/reg3.png", alt: "Register step 3" },
+  ] as const;
+
+  const [active, setActive] = useState(0);
+
+  const prev = () => setActive((i) => (i === 0 ? images.length - 1 : i - 1));
+  const next = () => setActive((i) => (i + 1) % images.length);
+
   return (
-    <CGrid templateColumns="repeat(2, 1fr)" bg="#1C2E09">
-      
-    <Box mx="auto" mt={10} p={5} borderWidth="1px" borderRadius="2xl" w="90%" bg="white">
-      <VStack as="form"  gap={2} onSubmit={submit} w="100%">
-        <Heading size="2xl">Register</Heading>
+    <CGrid templateColumns="repeat(2, 1fr)" bg="#4a6f1eff">
+      <Box mx="auto" mt={10} p={5} borderWidth="1px" borderRadius="2xl" w="90%" bg="white">
+        <VStack as="form" gap={2} onSubmit={submit} w="100%">
+          <Heading size="2xl">Register</Heading>
 
-        <Field.Root invalid={!!errors.name} required>
-        <Flex align="center" gap={1} w="100%">
-  <Field.Label mb="0" fontSize="lg">
-    Name <Field.RequiredIndicator />
-  </Field.Label>
-  <Input
-    value={form.name}
-    onChange={(e) => handleChange("name", e.target.value)}
-    onBlur={() => handleBlur("name")}
-    required
-    placeholder="Full name"
-    autoComplete="name"
-    aria-invalid={!!errors.name}
-    width="auto"
-    flex="1"
-  />
-</Flex>
-          {errors.name ? (
-            <Field.ErrorText>{errors.name}</Field.ErrorText>
-          ) : (
-            <Field.HelperText>Letters and spaces only.</Field.HelperText>
-          )}
-        </Field.Root>
+          <Field.Root invalid={!!errors.name} required>
+            <Flex align="center" gap={1} w="100%">
+              <Field.Label mb="0" fontSize="lg">
+                Name <Field.RequiredIndicator />
+              </Field.Label>
+              <Input
+                value={form.name}
+                onChange={(e) => handleChange("name", e.target.value)}
+                onBlur={() => handleBlur("name")}
+                required
+                placeholder="Full name"
+                autoComplete="name"
+                aria-invalid={!!errors.name}
+                width="auto"
+                flex="1"
+              />
+            </Flex>
+            {errors.name ? (
+              <Field.ErrorText>{errors.name}</Field.ErrorText>
+            ) : (
+              <Field.HelperText>Letters and spaces only.</Field.HelperText>
+            )}
+          </Field.Root>
 
-        <Field.Root invalid={!!errors.email} required>
-             <Flex align="center" gap={3} w="100%">
-          <Field.Label fontSize="lg">
-            Email <Field.RequiredIndicator />
-          </Field.Label>
-          <Input
-            type="email"
-            value={form.email}
-            onChange={(e) => handleChange("email", e.target.value)}
-            onBlur={() => handleBlur("email")}
+          <Field.Root invalid={!!errors.email} required>
+            <Flex align="center" gap={3} w="100%">
+              <Field.Label fontSize="lg">
+                Email <Field.RequiredIndicator />
+              </Field.Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => handleChange("email", e.target.value)}
+                onBlur={() => handleBlur("email")}
+                required
+                placeholder="you@example.com"
+                autoComplete="email"
+                inputMode="email"
+                width="100%"
+                flex="1"
+                aria-invalid={!!errors.email}
+              />
+            </Flex>
+            {errors.email ? (
+              <Field.ErrorText>{errors.email}</Field.ErrorText>
+            ) : (
+              <Field.HelperText>
+                We’ll send a confirmation email.
+              </Field.HelperText>
+            )}
+          </Field.Root>
+
+          <Field.Root invalid={!!errors.password} required>
+            <Flex align="center" gap={3} w="100%">
+              <Field.Label fontSize="lg">
+                Password <Field.RequiredIndicator />
+              </Field.Label>
+              <Box position="relative" w="100%">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
+                  onChange={(e) => handleChange("password", e.target.value)}
+                  onBlur={() => handleBlur("password")}
+                  required
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
+                  pr="10"
+                  w="100%"
+                  flex="1"
+                />
+                <IconButton
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => setShowPassword((v) => !v)}
+                  position="absolute"
+                  top="50%"
+                  right="2"
+                  transform="translateY(-50%)"
+                >
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </IconButton>
+              </Box>
+            </Flex>
+            {errors.password ? (
+              <Field.ErrorText>{errors.password}</Field.ErrorText>
+            ) : (
+              <Field.HelperText>
+                Use a strong password you don’t reuse elsewhere.
+              </Field.HelperText>
+            )}
+          </Field.Root>
+
+          <Field.Root invalid={!!errors.confirmPassword} required>
+            <Flex align="center" gap={3} w="100%">
+              <Field.Label fontSize="lg" mb="0" whiteSpace="nowrap">
+                Confirm password <Field.RequiredIndicator />
+              </Field.Label>
+              <Box position="relative" w="100%">
+                <Input
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => handleConfirmChange(e.target.value)}
+                  onBlur={() => handleBlur("confirmPassword")}
+                  required
+                  placeholder="Re-enter your password"
+                  autoComplete="new-password"
+                  pr="10"
+                  width="100%"
+                  flex={1}
+                />
+                <IconButton
+                  aria-label={showConfirm ? "Hide password" : "Show password"}
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  position="absolute"
+                  top="50%"
+                  right="2"
+                  transform="translateY(-50%)"
+                >
+                  {showConfirm ? <EyeOff size={14} /> : <Eye size={14} />}
+                </IconButton>
+              </Box>
+            </Flex>
+            {errors.confirmPassword ? (
+              <Field.ErrorText>{errors.confirmPassword}</Field.ErrorText>
+            ) : (
+              <Field.HelperText>Must match the password above.</Field.HelperText>
+            )}
+          </Field.Root>
+
+          <PhoneFieldControl
+            value={phoneState}
+            onChange={handlePhoneChange}
             required
-            placeholder="you@example.com"
-            autoComplete="email"
-            inputMode="email"
-            width="100%"
-            flex="1"
-            aria-invalid={!!errors.email}
+            invalid={!!errors.phone}
+            errorText={errors.phone}
+            helperText="We’ll use this for account security."
           />
+
+          <Field.Root invalid={!!errors.birthday} required>
+            <Flex gap={3} w="100%">
+              <Field.Label fontSize="lg">
+                Birthday <Field.RequiredIndicator />
+              </Field.Label>
+              <Input
+                type="date"
+                value={form.birthday ?? ""}
+                onChange={(e) => handleChange("birthday", e.target.value)}
+                onBlur={() => handleBlur("birthday")}
+                required
+                max={new Date().toISOString().slice(0, 10)}
+                flex={1}
+                w="100%"
+              />
+            </Flex>
+            {errors.birthday ? (
+              <Field.ErrorText>{errors.birthday}</Field.ErrorText>
+            ) : (
+              <Field.HelperText>
+                You must be at least 16 years old.
+              </Field.HelperText>
+            )}
+          </Field.Root>
+
+          <Field.Root invalid={!!errors.address} required>
+            <Flex gap={3} w="100%">
+              <Field.Label fontSize="lg">
+                Address <Field.RequiredIndicator />
+              </Field.Label>
+              <AddressAutocomplete
+                value={addressText}
+                onChange={(v) => {
+                  setAddressText(v);
+                  clearErrorIfValid(
+                    "address",
+                    !!v.trim() && latitude != null && longitude != null
+                  );
+                }}
+                onPlaceSelected={({ address, lat, lng }) => {
+                  setAddressText(address);
+                  if (lat != null) setLatitude(lat);
+                  if (lng != null) setLongitude(lng);
+                  clearErrorIfValid(
+                    "address",
+                    !!address && lat != null && lng != null
+                  );
+                }}
+                countries={countries}
+                placeholder="Search and pick an address"
+                flex={1}
+              />
+            </Flex>
+            {errors.address && (
+              <Field.ErrorText>{errors.address}</Field.ErrorText>
+            )}
+          </Field.Root>
+
+          <Flex gap={3} align="center" w="full">
+            <Button variant="subtle" onClick={() => setPickerOpen(true)}>
+              Pick on map
+            </Button>
+            <Tooltip content="Use my current location" openDelay={0}>
+              <IconButton
+                size="xs"
+                variant="ghost"
+                onClick={useMyLocation}
+                aria-label="Use my location"
+              >
+                <LocateFixed size={14} />
+              </IconButton>
+            </Tooltip>
+            {latitude != null && longitude != null && (
+              <Text fontSize="xs" color="gray.500" ml="auto">
+                ({latitude.toFixed(4)}, {longitude.toFixed(4)})
+              </Text>
+            )}
           </Flex>
-          {errors.email ? (
-            <Field.ErrorText>{errors.email}</Field.ErrorText>
-          ) : (
-            <Field.HelperText>
-              We’ll send a confirmation email.
-            </Field.HelperText>
-          )}
-        </Field.Root>
 
-        <Field.Root invalid={!!errors.password} required>
-         <Flex align="center" gap={3} w="100%">
-          <Field.Label fontSize="lg">
-
-            Password <Field.RequiredIndicator />
-          </Field.Label>
-          <Box position="relative" w="100%">
-            <Input
-              type={showPassword ? "text" : "password"}
-              value={form.password}
-              onChange={(e) => handleChange("password", e.target.value)}
-              onBlur={() => handleBlur("password")}
-              required
-              placeholder="At least 8 characters"
-              autoComplete="new-password"
-              pr="10"
-              w="100%"
-              flex="1"
-            />
-            <IconButton
-              aria-label={showPassword ? "Hide password" : "Show password"}
-              size="xs"
-              variant="ghost"
-              onClick={() => setShowPassword((v) => !v)}
-              position="absolute"
-              top="50%"
-              right="2"
-              transform="translateY(-50%)"
-            >
-              {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-            </IconButton>
-          
-          </Box>
-          </Flex>
-          {errors.password ? (
-            <Field.ErrorText>{errors.password}</Field.ErrorText>
-          ) : (
-            <Field.HelperText>
-              Use a strong password you don’t reuse elsewhere.
-            </Field.HelperText>
-          )}
-        </Field.Root>
-
-        <Field.Root invalid={!!errors.confirmPassword} required>
-                       <Flex align="center" gap={3} w="100%">
-          <Field.Label fontSize="lg" mb="0" whiteSpace="nowrap">
-            Confirm password <Field.RequiredIndicator />
-          </Field.Label>
-          <Box position="relative" w="100%">
-            <Input
-              type={showConfirm ? "text" : "password"}
-              value={confirmPassword}
-              onChange={(e) => handleConfirmChange(e.target.value)}
-              onBlur={() => handleBlur("confirmPassword")}
-              required
-              placeholder="Re-enter your password"
-              autoComplete="new-password"
-              pr="10"
-              width="100%"
-              flex={1}
-            />
-            <IconButton
-              aria-label={showConfirm ? "Hide password" : "Show password"}
-              size="xs"
-              variant="ghost"
-              onClick={() => setShowConfirm((v) => !v)}
-              position="absolute"
-              top="50%"
-              right="2"
-              transform="translateY(-50%)"
-            >
-              {showConfirm ? <EyeOff size={14} /> : <Eye size={14} />}
-            </IconButton>
-          </Box>
-          </Flex>
-          {errors.confirmPassword ? (
-            <Field.ErrorText>{errors.confirmPassword}</Field.ErrorText>
-          ) : (
-            <Field.HelperText>Must match the password above.</Field.HelperText>
-          )}
-        </Field.Root>
-        <PhoneFieldControl
-          value={phoneState}
-          onChange={handlePhoneChange}
-          required
-          invalid={!!errors.phone}
-          errorText={errors.phone}
-          helperText="We’ll use this for account security."
-        />
-
-        <Field.Root invalid={!!errors.birthday} required>
-          <Flex gap={3} w="100%">
-          <Field.Label fontSize="lg">
-            Birthday <Field.RequiredIndicator />
-          </Field.Label>
-          <Input
-            type="date"
-            value={form.birthday ?? ""}
-            onChange={(e) => handleChange("birthday", e.target.value)}
-            onBlur={() => handleBlur("birthday")}
-            required
-            max={new Date().toISOString().slice(0, 10)}
-            flex={1}
-            w="100%"
-          />
-          </Flex>
-          {errors.birthday ? (
-            <Field.ErrorText>{errors.birthday}</Field.ErrorText>
-          ) : (
-            <Field.HelperText>
-              You must be at least 16 years old.
-            </Field.HelperText>
-          )}
-        </Field.Root>
-
-        <Field.Root invalid={!!errors.address} required>
-          <Flex gap={3} w="100%">
-          <Field.Label fontSize="lg">
-            Address <Field.RequiredIndicator />
-          </Field.Label>
-          <AddressAutocomplete
-            value={addressText}
-            onChange={(v) => {
-              setAddressText(v);
-              clearErrorIfValid(
-                "address",
-                !!v.trim() && latitude != null && longitude != null
-              );
-            }}
-            onPlaceSelected={({ address, lat, lng }) => {
-              setAddressText(address);
-              if (lat != null) setLatitude(lat);
-              if (lng != null) setLongitude(lng);
-              clearErrorIfValid(
-                "address",
-                !!address && lat != null && lng != null
-              );
-            }}
-            countries={countries}
-            placeholder="Search and pick an address"
-            flex={1}
-          />
-          </Flex>
-          {errors.address && (
-            <Field.ErrorText>{errors.address}</Field.ErrorText>
-          )}
-        </Field.Root>
-
-        <Flex gap={3} align="center" w="full">
-          <Button variant="subtle" onClick={() => setPickerOpen(true)}>
-            Pick on map
+          <Button
+            type="submit"
+            loading={isPending}
+            width="full"
+            disabled={!isFormValid || isPending}
+          >
+            Create account
           </Button>
-          <Tooltip content="Use my current location" openDelay={0}>
-            <IconButton
-              size="xs"
-              variant="ghost"
-              onClick={useMyLocation}
-              aria-label="Use my location"
-            >
-              <LocateFixed size={14} />
-            </IconButton>
-          </Tooltip>
-          {latitude != null && longitude != null && (
-            <Text fontSize="xs" color="gray.500" ml="auto">
-              ({latitude.toFixed(4)}, {longitude.toFixed(4)})
-            </Text>
-          )}
-        </Flex>
 
-        <Button
-          type="submit"
-          loading={isPending}
-          width="full"
-          disabled={!isFormValid || isPending}
-        >
-          Create account
-        </Button>
+          <Text fontSize="sm">
+            Already have an account?{" "}
+            <CLink asChild color="blue.400">
+              <RouterLink to="/login">Login</RouterLink>
+            </CLink>
+          </Text>
+        </VStack>
 
-        <Text fontSize="sm">
-          Already have an account?{" "}
-          <CLink asChild color="blue.400">
-            <RouterLink to="/login">Login</RouterLink>
-          </CLink>
-        </Text>
-      </VStack>
+        <MapPickerDialog
+          key={pickerOpen ? "open" : "closed"}
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          onConfirm={(v) => {
+            setAddressText(v.address);
+            setLatitude(v.lat);
+            setLongitude(v.lng);
+            setPickerOpen(false);
+            clearErrorIfValid(
+              "address",
+              !!v.address && v.lat != null && v.lng != null
+            );
+          }}
+          initial={
+            latitude != null && longitude != null
+              ? { lat: latitude, lng: longitude, address: addressText }
+              : undefined
+          }
+          countries="IL"
+        />
+      </Box>
 
-      <MapPickerDialog
-        key={pickerOpen ? "open" : "closed"}
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onConfirm={(v) => {
-          setAddressText(v.address);
-          setLatitude(v.lat);
-          setLongitude(v.lng);
-          setPickerOpen(false);
-          clearErrorIfValid(
-            "address",
-            !!v.address && v.lat != null && v.lng != null
-          );
-        }}
-          initial={latitude != null && longitude != null ? { lat: latitude, lng: longitude, address: addressText } : undefined}
-  countries="IL"
-      />
-    </Box>
-    <Box 
-    w="full"
-  minH="100vh"      // pick the height you need
-  p={0}
-  bgImage="url(/images/reg.png)"
-  bgSize="contain"
-  bgPos="center"
-  bgRepeat="no-repeat"
->
-      
-    </Box>
+      {/* Right column: 3-image carousel */}
+      <Box w="full" minH="100vh" position="relative" display="flex" alignItems="center" justifyContent="center" p="6">
+        <Box position="relative" minH="100vh" maxW="720px" aspectRatio="16 / 9" overflow="hidden" borderRadius="2xl" bg="black">
+          <Image
+            key={images[active].src}
+            src={images[active].src}
+            alt={images[active].alt}
+minH="100vh"
+            objectFit="contain"
+            loading="lazy"
+          />
+
+          {/* Controls */}
+          <IconButton
+            aria-label="Previous image"
+            onClick={prev}
+            variant="ghost"
+            position="absolute"
+            top="50%"
+            left="2"
+            transform="translateY(-50%)"
+            size="sm"
+          >
+            <ChevronLeft size={18} />
+          </IconButton>
+          <IconButton
+            aria-label="Next image"
+            onClick={next}
+            variant="ghost"
+            position="absolute"
+            top="50%"
+            right="2"
+            transform="translateY(-50%)"
+            size="sm"
+          >
+            <ChevronRight size={18} />
+          </IconButton>
+
+          {/* Dots */}
+          <HStack position="absolute" bottom="3" left="50%" transform="translateX(-50%)" gap="2">
+            {images.map((_, i) => (
+              <Box
+                key={i}
+                w="2"
+                h="2"
+                borderRadius="full"
+                bg={i === active ? "white" : "whiteAlpha.600"}
+                cursor="pointer"
+                onClick={() => setActive(i)}
+                border="1px solid"
+                borderColor="blackAlpha.700"
+              />
+            ))}
+          </HStack>
+        </Box>
+      </Box>
     </CGrid>
   );
 }

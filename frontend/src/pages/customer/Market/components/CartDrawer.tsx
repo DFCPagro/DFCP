@@ -23,7 +23,7 @@ import { toaster } from "@/components/ui/toaster";
 import type { CartLine } from "@/utils/market/marketCart.shared";
 import { Sparkles } from 'lucide-react';
 import { FiShoppingCart } from "react-icons/fi";
-
+import { Spacer } from "@chakra-ui/react";
 /* -------------------------------------------------------------------------- */
 /*                                   Props                                    */
 /* -------------------------------------------------------------------------- */
@@ -253,9 +253,11 @@ function CartDrawerBase({
             <Drawer.Header>
               <HStack justify="space-between" width="full">
                 <Stack gap="0">
-           <Text fontWeight="semibold" flex="1">Your Cart </Text>
-                  <FiShoppingCart  />
+                  <Flex gap="2">
+           <Text fontWeight="semibold" flex="1">Your Cart</Text>  
 
+<FiShoppingCart size={24} />
+</Flex>
                   <Text fontSize="xs" color="fg.muted">{unit ? "Units mode" : "Kg mode"}</Text>
                 </Stack>
                 <IconButton aria-label="Close cart" variant="ghost" onClick={onClose}>
@@ -481,10 +483,12 @@ function CartDrawerBase({
             <Drawer.Footer>
               <HStack width="full" justify="space-between">
                 <Button variant="outline" colorPalette="red" onClick={handleClear} disabled={items.length === 0}>
+                  <FiTrash2 style={{ marginRight: 8 }} />
                   Clear
                 </Button>
                 <Button onClick={handleCheckout} disabled={items.length === 0}>
                   Checkout
+                  <FiShoppingCart style={{ marginLeft: 8 }} />
                 </Button>
               </HStack>
             </Drawer.Footer>
