@@ -72,7 +72,8 @@ export default function HeaderMenu({ items, containerRef, registerItem }: Props)
                 data-overflow-item=""
                 flex="0 0 auto"
                 minW={0}
-                maxW="240px"       // prevent ultra-wide labels from breaking layout
+                maxW="240px"  
+                     // prevent ultra-wide labels from breaking layout
               >
                 <StyledButton
                   visual={active ? "solid" : "ghost"}

@@ -562,7 +562,7 @@ export default function Register() {
     w="full"
   minH="100vh"      // pick the height you need
   p={0}
-  bgImage="url(/images/reg.jpeg)"
+  bgImage="url(/images/reg.png)"
   bgSize="contain"
   bgPos="center"
   bgRepeat="no-repeat"

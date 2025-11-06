@@ -12,6 +12,9 @@ import {
   Drawer,
   Dialog,
   Portal,
+  Flex,
+  GridItem,
+  Grid,
 } from "@chakra-ui/react";
 import { FiTrash2, FiX } from "react-icons/fi";
 import { useLocation } from "react-router-dom";
@@ -19,6 +22,8 @@ import { useUnitPref } from "@/hooks/useUnitPref";
 import { toaster } from "@/components/ui/toaster";
 import type { CartLine } from "@/utils/market/marketCart.shared";
 import { Sparkles } from 'lucide-react';
+import { FiShoppingCart } from "react-icons/fi";
+
 /* -------------------------------------------------------------------------- */
 /*                                   Props                                    */
 /* -------------------------------------------------------------------------- */
@@ -248,7 +253,9 @@ function CartDrawerBase({
             <Drawer.Header>
               <HStack justify="space-between" width="full">
                 <Stack gap="0">
-                  <Text fontWeight="semibold">Your Cart</Text>
+           <Text fontWeight="semibold" flex="1">Your Cart </Text>
+                  <FiShoppingCart  />
+
                   <Text fontSize="xs" color="fg.muted">{unit ? "Units mode" : "Kg mode"}</Text>
                 </Stack>
                 <IconButton aria-label="Close cart" variant="ghost" onClick={onClose}>

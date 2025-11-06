@@ -104,8 +104,8 @@ export default function AppRoutes() {
         </Route>
 
         {/* --- Guest-only (login/register), no chrome, narrow --- */}
-        <Route element={<GuestGuard />}>
-          <Route element={<AppShell showFooter={false} maxW="md" />}>
+        <Route element={<GuestGuard />} >
+          <Route element={<AppShell showFooter={false} maxW="100hw" />}>
             <Route path={PATHS.login} element={<Login />} />
             <Route path={PATHS.register} element={<Register />} />
           </Route>
