@@ -1,0 +1,238 @@
+name: dfcp-picker-tasks
+version: 1.0.0
+updated: 2025-11-06
+timezone: Asia/Jerusalem
+
+overview:
+  goal: >
+    Manage picker tasks per order (one task per order) for a logistics shift.
+    Generate missing tasks, list/filter them, summarize shift status, and let
+    pickers claim the next ready task atomically.
+  highlights:
+    - One task per order; full packing plan stored in task.plan
+    - Mongoose timestamps enabled; we do NOT set createdAt/updatedAt manually
+    - Unique index prevents duplicates per (lc, shiftName, shiftDate, orderId)
+    - Atomic claim endpoint to avoid race conditions between pickers
+
+model:
+  name: PickerTask
+  timestamps: true
+  unique_index:
+    keys: [logisticCenterId, shiftName, shiftDate, orderId]
+    name: uniq_task_per_shift_order
+  fields:
+    logisticCenterId: ObjectId
+    shiftName: [morning, afternoon, evening, night]
+    shiftDate: string # yyyy-LL-dd
+    orderId: ObjectId
+    plan:
+      boxes[]:
+        boxNo: number
+        boxType: string # PackageSize.key (Small|Medium|Large)
+        vented: boolean?
+        estFillLiters: number
+        estWeightKg: number
+        fillPct: number
+        contents[]:
+          itemId: ObjectId
+          itemName: string?
+          pieceType: [bag, bundle]
+          mode: [kg, unit]
+          qtyKg: number?
+          units: number?
+          liters: number
+          estWeightKgPiece: number
+      summary:
+        totalBoxes: number
+        byItem[]:
+          itemId: ObjectId
+          itemName: string?
+          bags: number
+          bundles: number
+          totalKg: number?
+          totalUnits: number?
+        warnings[]: string
+    totalEstKg: number
+    totalLiters: number
+    totalEstUnits: number
+    status: [open, ready, claimed, in_progress, problem, cancelled, done]
+    priority: number
+    assignedPickerUserId: ObjectId?
+    progress:
+      currentBoxIndex: number
+      currentStepIndex: number
+      placedKg: number
+      placedUnits: number
+      startedAt: date?
+      finishedAt: date?
+    createdByUserId: ObjectId
+    historyAuditTrail[]:
+      action: string
+      note: string
+      by:
+        id: ObjectId
+        name: string?
+        role: string?
+      at: date
+      meta: any
+    notes: string?
+  indexes:
+    - keys: { shiftDate: 1, shiftName: 1, status: 1, priority: -1, createdAt: 1 }
+      purpose: list/sort by shift
+    - keys: { shiftDate: 1, shiftName: 1, assignedPickerUserId: 1 }
+      purpose: assignment filters
+    - keys: { logisticCenterId: 1, shiftName: 1, shiftDate: 1, orderId: 1 }
+      unique: true
+      name: uniq_task_per_shift_order
+    - keys: { logisticCenterId: 1, shiftName: 1, shiftDate: 1 }
+      purpose: fast-by-shift
+
+backend:
+  services:
+    file: src/services/pickerTasks.service.ts
+    functions:
+      - name: generatePickerTasksForShift
+        purpose: >
+          Generate missing picker tasks (one per order) for a specific shift;
+          stores full PackingPlan under task.plan; optional open->ready flip.
+        params:
+          logisticCenterId: ObjectId
+          createdByUserId: ObjectId
+          shiftName: ShiftName?
+          shiftDate: string? # yyyy-LL-dd
+          priority: number=0
+          stageKey: string? # not used
+          autoSetReady: boolean=true
+        notes:
+          - Do not set createdAt/updatedAt manually; rely on timestamps: true
+          - Upsert filter uses lc+shiftName+shiftDate+orderId
+          - If re-run should refresh plan, move plan/rollups to $set
+      - name: listPickerTasksForShift
+        purpose: List tasks for a shift with pagination, counts by status/assignment.
+        params:
+          logisticCenterId: ObjectId
+          shiftName: ShiftName
+          shiftDate: string
+          status: string?
+          page: number?
+          limit: number?
+          assignedOnly: boolean?
+          unassignedOnly: boolean?
+          pickerUserId: ObjectId?
+      - name: ensureAndListPickerTasksForShift
+        purpose: Generate missing tasks then return the list (combines the two above).
+      - name: getShiftPickerTasksSummary
+        purpose: Ensure tasks, then aggregate counts for statuses open|ready|in_progress|problem.
+        returns:
+          shift: { logisticCenterId, shiftName, shiftDate }
+          totalTasks: number
+          counts: { open, ready, in_progress, problem }
+          ensure: { createdCount, alreadyExisted }
+      - name: claimFirstReadyTaskForCurrentShift
+        purpose: >
+          Atomically claim the highest-priority READY task for current shift
+          (based on LC timezone). Assigns picker, flips status to claimed,
+          sets progress.startedAt, and pushes an audit entry.
+        params:
+          logisticCenterId: ObjectId
+          pickerUserId: ObjectId
+        sorting: { priority: desc, createdAt: asc, _id: asc }
+        concurrency: findOneAndUpdate with status=ready AND assignedPickerUserId=null
+
+  controllers:
+    file: src/controllers/pickerTasks.controller.ts
+    endpoints:
+      - method: POST
+        path: /api/v1/pickerTasks/generate
+        handler: postGeneratePickerTasks
+        auth: authenticate + authorize(admin, opManager)
+        body: { shiftName?, shiftDate?, priority?, stageKey?, autoSetReady? }
+        returns: { data: GeneratePickerTasksResult }
+      - method: GET
+        path: /api/v1/pickerTasks/shift
+        handler: getPickerTasksForShiftController
+        auth: authenticate + authorize(admin, opManager, picker)
+        query:
+          shiftName: ShiftName
+          shiftDate: yyyy-LL-dd
+          status?: string
+          page?: number
+          limit?: number
+          assignedOnly?: boolean
+          unassignedOnly?: boolean
+          pickerUserId?: string
+          ensure?: boolean # defaults true; set false to skip generation
+        returns: { ensure?, data: PickerTaskListResponse }
+      - method: GET
+        path: /api/v1/pickerTasks/shift/summary
+        handler: getShiftPickerTasksSummaryController
+        auth: authenticate + authorize(admin, opManager, picker)
+        query: { shiftName: ShiftName, shiftDate: yyyy-LL-dd }
+        returns: { data: ShiftPickerTaskSummary }
+      - method: POST
+        path: /api/v1/pickerTasks/shift/claim-first
+        handler: postClaimFirstReadyTaskForCurrentShift
+        auth: authenticate + authorize(picker)
+        body: none
+        returns: { data: { shift, claimed, task|null } }
+
+  routes:
+    file: src/routes/pickerTasks.routes.ts
+    definitions:
+      - POST /pickerTasks/generate -> postGeneratePickerTasks (admin, opManager)
+      - GET  /pickerTasks/shift -> getPickerTasksForShiftController (admin, opManager, picker)
+      - GET  /pickerTasks/shift/summary -> getShiftPickerTasksSummaryController (admin, opManager, picker)
+      - POST /pickerTasks/shift/claim-first -> postClaimFirstReadyTaskForCurrentShift (picker)
+
+frontend:
+  file: src/api/pickerTask.ts
+  types:
+    ShiftName: [morning, afternoon, evening, night]
+    PickerTaskStatus: [open, ready, claimed, in_progress, problem, cancelled, done]
+    PickerTask:
+      fields:
+        _id: string
+        logisticCenterId: string
+        shiftName: ShiftName
+        shiftDate: string
+        orderId: string
+        plan: PickerTaskPlan
+        totalEstKg: number
+        totalEstUnits: number
+        totalLiters: number
+        status: PickerTaskStatus
+        priority: number
+        assignedPickerUserId: string|null
+        isAssigned?: boolean
+        progress: PickerTaskProgress
+        createdByUserId: string
+        createdAt: string
+        updatedAt: string
+        notes?: string
+  api_functions:
+    - name: generatePickerTasks
+      method: POST
+      url: /pickerTasks/generate
+      body: { shiftName?, shiftDate?, priority?, stageKey?, autoSetReady? }
+      returns: GeneratePickerTasksResult
+    - name: fetchPickerTasksForShift
+      method: GET
+      url: /pickerTasks/shift
+      params: { shiftName, shiftDate, status?, page?, limit?, assignedOnly?, unassignedOnly?, pickerUserId?, ensure? }
+      returns: PickerTaskListResponse
+    - name: fetchShiftPickerTasksSummary
+      method: GET
+      url: /pickerTasks/shift/summary
+      params: { shiftName, shiftDate }
+      returns: ShiftPickerTaskSummary
+    - name: claimFirstReadyTaskForCurrentShift
+      method: POST
+      url: /pickerTasks/shift/claim-first
+      returns: { shift, claimed, task }
+
+gotchas:
+  - Do not write createdAt/updatedAt in service updates; rely on Mongoose timestamps.
+  - Ensure unique index exists to prevent duplicate tasks per order/shift.
+  - If generation should refresh existing plans, use $set (not just $setOnInsert).
+  - Claim endpoint must filter on { status: ready, assignedPickerUserId: null } to be atomic.
+  - Use LC timezone when resolving current shift date for claim/summary.
