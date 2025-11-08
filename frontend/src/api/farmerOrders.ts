@@ -232,4 +232,100 @@ export async function acceptMyFarmerOrder(orderId: string) {
 }
 export async function rejectMyFarmerOrder(orderId: string, note: string) {
   return updateFarmerOrderStatus(orderId, "problem", note);
+/* ------------------ Print payload & container operations ------------------ */
+/**
+ * The following types and functions support the "Farmer Order Report" screen:
+ *  - Get a printable payload (order + QRs)
+ *  - Initialize N container QRs
+ *  - Patch container weights
+ *
+ * NOTE:
+ *  - These types are exported with the exact names used by the UI:
+ *    ShiftName, ContainerQR, Container, FarmerOrder, PrintPayload
+ *  - Endpoints are based on the same BASE used above (no leading /api here).
+ */
+
+export type ShiftName = "morning" | "afternoon" | "evening" | "night";
+
+export type ContainerQR = {
+  token: string;
+  sig: string;
+  scope: string;
+  subjectType: string;
+  subjectId: string; // containerId
+};
+
+export type Container = {
+  containerId: string;
+  weightKg: number;
+};
+
+export type FarmerOrder = {
+  _id: string;
+  itemId: string;
+  type: string;
+  variety?: string;
+  pictureUrl?: string;
+  pickUpDate: string;
+  shift: ShiftName;
+  farmerName: string;
+  farmName: string;
+  farmerId: string;
+  logisticCenterId?: string;
+  sumOrderedQuantityKg?: number;
+  forcastedQuantityKg?: number;
+  forecastedQuantityKg?: number;
+  containers?: Container[];
+  farmerStatus?: "pending" | "ok" | "problem";
+  pickupAddress?: string;
+};
+
+export type PrintPayload = {
+  farmerOrder: FarmerOrder;
+  farmerOrderQR: { token: string; sig: string; scope: string };
+  containerQrs: ContainerQR[];
+};
+
+/**
+ * GET /farmer-orders/:id/print
+ * Prepared API call – wire this when mockMode=false
+ */
+export async function getFarmerOrderPrintPayload(
+  farmerOrderId: string
+): Promise<PrintPayload> {
+  const { data } = await api.get<{ data: PrintPayload }>(
+    `${BASE}/${encodeURIComponent(farmerOrderId)}/print`
+  );
+  // Align with caller expectations: unwrap `{ data }`
+  return (data as any)?.data ?? data;
+}
+
+/**
+ * POST /farmer-orders/:id/containers/init
+ * Initialize N new containers; backend returns the created IDs.
+ */
+export async function initContainers(
+  farmerOrderId: string,
+  count: number
+): Promise<{ ok: boolean; added: number; containerIds: string[] }> {
+  const { data } = await api.post(
+    `${BASE}/${encodeURIComponent(farmerOrderId)}/containers/init`,
+    { count }
+  );
+  return (data as any)?.data ?? data;
+}
+
+/**
+ * PATCH /farmer-orders/:id/containers/weights
+ * Upsert weights for a list of containers.
+ */
+export async function patchContainerWeights(
+  farmerOrderId: string,
+  weights: Array<{ containerId: string; weightKg: number }>
+): Promise<{ ok: boolean; updated: number }> {
+  const { data } = await api.patch(
+    `${BASE}/${encodeURIComponent(farmerOrderId)}/containers/weights`,
+    { weights }
+  );
+  return (data as any)?.data ?? data;
 }

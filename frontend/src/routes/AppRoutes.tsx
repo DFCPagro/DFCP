@@ -54,6 +54,7 @@ const FManagerCreateStock = lazy(() => import("@/pages/fManager/CreateStock"));
 const FManagerShiftsFarmerOrder = lazy(() => import("@/pages/fManager/ShiftsFarmerOrder"));
 const FManagerViewFarmerOrders = lazy(() => import("@/pages/fManager/ViewFarmerOrders"));
 const FManagerViewFarmerList = lazy(() => import("@/pages/fManager/FarmerList"));
+const FarmerOrderReport = lazy(() => import("@/pages/FarmerOrderReport"));
 
 // Misc / Example
 const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
@@ -67,8 +68,11 @@ export default function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path={PATHS.home} element={<Home />} />
           <Route path={PATHS.notFound} element={<NotFound />} />
-          <Route path={PATHS.MapExample} element={<MapPickerExamplePage />} />
-          <Route path={PATHS.QRExample} element={<QRExample />} />
+
+          <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
+          <Route path={PATHS.QRExample} element={< QRExample />} />
+          <Route path={PATHS.FarmerOrderReport} element={< FarmerOrderReport farmerOrderId="66f2aa000000000000000008" />} />
+
         </Route>
 
         {/* --- Public, no Footer --- */}

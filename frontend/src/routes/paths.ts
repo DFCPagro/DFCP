@@ -1,4 +1,4 @@
-import Farmer from '../../../backend/src/models/farmer.model';
+import Farmer from "../../../backend/src/models/farmer.model";
 // src/routes/paths.ts
 export const PATHS = {
   home: "/",
@@ -25,6 +25,7 @@ export const PATHS = {
   FarmerDashboard: "/farmer/FarmDashboard",
   FarmerCropManagement: "/farmer/FarmCropManagement",
   FarmerOrdersForShift: "/farmer/farmerOrdersForShift",
+  FarmerOrderReport: "/farmer/farmer-order-report",
 
   // item manager
   ItemsManagment: "/admin/items",
