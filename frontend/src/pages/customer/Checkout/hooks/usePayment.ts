@@ -257,12 +257,12 @@ export function usePayment(deps: UsePaymentDeps) {
       setSubmitting(true);
 
       const result = await createOrder(body);
-
-      toaster.create({
-        title: "Order placed",
-        description: "Your order was submitted successfully.",
-        type: "success",
-      });
+alert("Your order was submitted successfully.");
+      // toaster.create({
+      //   title: "Order placed",
+      //   description: "Your order was submitted successfully.",
+      //   type: "success",
+      // });
 
       console.log("Order created", result);
 

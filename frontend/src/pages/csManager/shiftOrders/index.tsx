@@ -74,7 +74,6 @@ export default function CSManagerShiftOrders() {
 
   // Query
   const { data, isLoading, error, refetch, isFetching } = useCSOrdersForShift({
-    logisticCenterId,
     date,
     shiftName,
     stageKey: effectiveStatus,

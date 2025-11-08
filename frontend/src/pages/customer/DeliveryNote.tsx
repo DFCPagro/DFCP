@@ -29,7 +29,8 @@ export const ORDER_STATUSES = [
   "packing",
   "ready_for_pickUp",
   "out_for_delivery",
-  "recived",
+  "delivered",
+  "received",
   "canceled",
   "problem",
 ] as const;
@@ -43,7 +44,8 @@ const STATUS_LABEL: Record<UIStatus, string> = {
   packing: "Packing",
   ready_for_pickUp: "Ready for pick-up",
   out_for_delivery: "Out for delivery",
-  recived: "Received",
+  delivered: "Delivered",
+  received: "Received",
   canceled: "Canceled",
   problem: "Problem",
 };
@@ -55,7 +57,8 @@ const STATUS_EMOJI: Record<UIStatus, string> = {
   packing: "📦",
   ready_for_pickUp: "✅",
   out_for_delivery: "🛵",
-  recived: "🏠",
+  delivered: "📬",
+  received: "🏠",
   canceled: "⛔",
   problem: "⚠️",
 };
@@ -70,7 +73,7 @@ function normalizeStatus(s: string): UIStatus {
     case "delivered":
     case "received":
     case "recieved":
-      return "recived";
+      return "received";
     case "delivering":
     case "lc_to_customer":
       return "in-transit";
@@ -183,7 +186,7 @@ export default function DeliveryNotePage() {
     () => (order ? normalizeStatus((order as any).stageKey) : "pending"),
     [order]
   );
-
+const isInvoice = new Set(["received", "delivered"]).has(ui);
   const currency = useMemo(
     () => pickCurrency((order as any)?.items ?? []) ?? "$",
     [order]
@@ -230,13 +233,19 @@ export default function DeliveryNotePage() {
       </HStack>
 
       <Box borderWidth="1px" borderRadius="md" p={4}>
-        <HStack justify="space-between" mb={2}>
-          <Text>Order: {(order as any).orderId ?? order.id}</Text>
-          <HStack>
-            <Text as="span" fontSize="xl">{STATUS_EMOJI[ui]}</Text>
-            <Text>{STATUS_LABEL[ui]}</Text>
-          </HStack>
-        </HStack>
+     <HStack justify="space-between" mb={2}>
+<Text
+  fontSize={isInvoice ? "xl" : "md"}
+  fontWeight={isInvoice ? "bold" : "semibold"}
+>   
+  {isInvoice ? "Invoice" : "Order"}: {(order as any).orderId ?? order.id}
+</Text>
+
+  <HStack>
+    <Text as="span" fontSize="xl">{STATUS_EMOJI[ui]}</Text>
+    <Text>{STATUS_LABEL[ui]}</Text>
+  </HStack>
+</HStack>
 
         <VStack align="start" gap={1} mb={2}>
           <Text color="gray.600">Created: {fmtDateShort(order.createdAt)}</Text>
