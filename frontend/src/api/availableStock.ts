@@ -2,25 +2,17 @@
 import { z } from "zod";
 import { api } from "./config";
 
-/* -------------------------------------------------------------------------- */
-/* Types aligned to backend (robust to minor drift)                           */
-/* -------------------------------------------------------------------------- */
+/* ----------------------------- Schemas & types ----------------------------- */
 
-// Only morning/afternoon/evening
 export const ShiftSchema = z.enum(["morning", "afternoon", "evening", "night"]);
 export type Shift = z.infer<typeof ShiftSchema>;
 
 export const InitAvailableStockInputSchema = z.object({
-  LCid: z.string().min(1, "LCid is required"),
-  // backend accepts full ISO; we accept YYYY-MM-DD or ISO and send whatever you pass
   date: z.string().min(1, "date is required"),
   shift: ShiftSchema,
 });
-export type InitAvailableStockInput = z.infer<
-  typeof InitAvailableStockInputSchema
->;
+export type InitAvailableStockInput = z.infer<typeof InitAvailableStockInputSchema>;
 
-/** Embedded estimates object (kept permissive) */
 export const EstimatesSchema = z.object({
   avgWeightPerUnitKg: z.number().optional(),
   sdKg: z.number().optional(),
@@ -30,7 +22,6 @@ export const EstimatesSchema = z.object({
   shrinkagePct: z.number().optional(),
 });
 
-/** Items inside the AvailableMarketStock document */
 export const AvailableMarketStockItemSchema = z.object({
   itemId: z.string().optional(),
   displayName: z.string().optional(),
@@ -40,7 +31,8 @@ export const AvailableMarketStockItemSchema = z.object({
   currentAvailableQuantityKg: z.number().optional(),
   originalCommittedQuantityKg: z.number().optional(),
   farmerOrderId: z.string().optional(),
-  farmerID: z.string().optional(),
+  farmerID: z.string().optional(), // tolerate both
+  farmerId: z.string().optional(),
   farmerName: z.string().optional(),
   farmName: z.string().optional(),
   farmLogo: z.string().nullable().optional(),
@@ -49,81 +41,125 @@ export const AvailableMarketStockItemSchema = z.object({
   status: z.enum(["active", "soldout", "removed"]).optional(),
 });
 
-/** Strict, normalized AMS type we want to expose to the app */
 export const AvailableMarketStockSchema = z.object({
   id: z.string(),
-  LCid: z.string(),
   availableDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD"),
   availableShift: ShiftSchema,
   items: z.array(AvailableMarketStockItemSchema).default([]),
 });
 export type AvailableMarketStock = z.infer<typeof AvailableMarketStockSchema>;
 
-/** Raw response shape from BE (permissive: id/_id, date string in any format) */
-const RawAvailableMarketStockSchema = z.object({
-  _id: z.string().optional(),
-  id: z.string().optional(),
-  LCid: z.string(),
-  availableDate: z.string(), // may be 'YYYY-MM-DD' or ISO datetime
-  availableShift: ShiftSchema,
-  items: z.array(AvailableMarketStockItemSchema).optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-  createdById: z.string().optional(),
-});
+/* ------------------------------ Helper utils ------------------------------- */
 
-/** Normalize BE drift: id→_id and date→YYYY-MM-DD */
-function normalizeAms(
-  raw: z.infer<typeof RawAvailableMarketStockSchema>
-): AvailableMarketStock {
-  const id = raw._id ?? raw.id;
+function extractDoc(payload: any) {
+  // Handle common wrappers
+  const maybe =
+    payload?.data?.doc ??
+    payload?.data ??
+    payload?.doc ??
+    payload?.result ??
+    payload;
+
+  return maybe;
+}
+
+/** Permissive raw schema—allow unknown props and missing strict fields */
+const RawAvailableMarketStockSchema = z
+  .object({
+    _id: z.string().optional(),
+    id: z.string().optional(),
+
+    // Accept multiple possible keys for date/shift; we’ll normalize later
+    availableDate: z.string().optional(),
+    date: z.string().optional(),
+    pickUpDate: z.string().optional(),
+    available_date: z.string().optional(),
+
+    availableShift: ShiftSchema.optional(),
+    shift: ShiftSchema.optional(),
+    available_shift: ShiftSchema.optional(),
+
+    items: z.array(AvailableMarketStockItemSchema).optional(),
+    stockItems: z.array(AvailableMarketStockItemSchema).optional(),
+
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+    createdById: z.string().optional(),
+  })
+  .passthrough();
+
+function toYYYYMMDD(s: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (Number.isNaN(+d)) throw new Error(`Unparseable date: ${s}`);
+  return d.toISOString().slice(0, 10);
+}
+
+
+/** Normalize BE drift: id→_id, date/shift key variants → strict keys */
+function normalizeAms(raw: z.infer<typeof RawAvailableMarketStockSchema>): AvailableMarketStock {
+  // --- robust id coercion ---
+  let id: string | undefined;
+  if (typeof raw._id === "string") {
+    id = raw._id;
+  } else if (raw._id && typeof raw._id === "object") {
+    // Handle ObjectId or Extended JSON { $oid: "..." }
+    if (typeof (raw._id as any).$oid === "string") {
+      id = (raw._id as any).$oid;
+    } else if (typeof (raw._id as any).toString === "function") {
+      const s = (raw._id as any).toString();
+      if (s && s !== "[object Object]") id = s;
+    }
+  } else if (typeof raw.id === "string") {
+    id = raw.id;
+  }
+
   if (!id) {
     throw new Error("Missing id/_id in AvailableMarketStock response");
   }
 
-  // Coerce availableDate to YYYY-MM-DD safely
-  const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(raw.availableDate)
-    ? raw.availableDate
-    : new Date(raw.availableDate).toISOString().slice(0, 10);
+  // --- date coercion ---
+  const dateRaw =
+    raw.availableDate ?? raw.date ?? raw.pickUpDate ?? raw.available_date;
+  if (!dateRaw) throw new Error("Missing availableDate/date in response");
+
+  const shiftRaw =
+    raw.availableShift ?? raw.shift ?? raw.available_shift;
+  if (!shiftRaw) throw new Error("Missing availableShift/shift in response");
+
+  const items = raw.items ?? raw.stockItems ?? [];
 
   const normalized = {
     id,
-    LCid: raw.LCid,
-    availableDate: dateStr,
-    availableShift: raw.availableShift,
-    items: raw.items ?? [],
+    availableDate: toYYYYMMDD(dateRaw),
+    availableShift: shiftRaw,
+    items,
   };
 
-  // Final strict validation to catch anything else
   return AvailableMarketStockSchema.parse(normalized);
 }
 
-/* -------------------------------------------------------------------------- */
-/* API                                                                        */
-/* -------------------------------------------------------------------------- */
+
+/* ----------------------------------- API ----------------------------------- */
 
 /**
  * Initialize (or find) Available Market Stock document
  * NOTE: Based on your log, the live endpoint is `/market/available-stock/init`
  * If your gateway exposes `/api/available-stock/init`, flip the path below.
  */
+
 export async function initAvailableStock(
   input: InitAvailableStockInput
 ): Promise<AvailableMarketStock> {
   const payload = InitAvailableStockInputSchema.parse(input);
 
-  // Your console output showed this path working:
+  // Your server log shows the v1 path; keep this unless your gateway differs.
   const { data } = await api.post("/market/available-stock/init", payload);
 
-  const body = data?.data ?? data;
-
-  // First parse as a *raw* response (permissive)...
+  const body = extractDoc(data);
   const raw = RawAvailableMarketStockSchema.parse(body);
-
-  // ...then normalize to the strict app shape
   return normalizeAms(raw);
 }
-
 /* -------------------------------------------------------------------------- */
 /* TODOs                                                                      */
 /* -------------------------------------------------------------------------- */

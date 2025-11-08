@@ -15,10 +15,10 @@ export type AsyncStatus = "idle" | "loading" | "success" | "error";
 function makeKey(
   date?: IsoDateString,
   shift?: ShiftEnum,
-  LCid?: string
+ 
 ): string | null {
-  if (!date || !shift || !LCid) return null;
-  return `${LCid}::${date}::${shift}`;
+  if (!date || !shift ) return null;
+  return `${date}::${shift}`;
 }
 
 /* -----------------------------------------------------------------------------
@@ -26,13 +26,13 @@ function makeKey(
  * ---------------------------------------------------------------------------*/
 
 export function useCreateStockInit(params: {
-  LCid?: string; // ✅ required by backend (explicit)
+  
   date?: IsoDateString;
   shift?: ShiftEnum;
   /** If true (default), call init automatically when LCid+date+shift are present */
   auto?: boolean;
 }) {
-  const { LCid, date, shift, auto = true } = params;
+  const { date, shift, auto = true } = params;
 
   const [status, setStatus] = useState<AsyncStatus>("idle");
   const [data, setData] = useState<InitResult | null>(null);
@@ -43,7 +43,7 @@ export function useCreateStockInit(params: {
   const inFlightRef = useRef<boolean>(false);
   const mountedRef = useRef<boolean>(true);
 
-  const key = useMemo(() => makeKey(date, shift, LCid), [LCid, date, shift]);
+  const key = useMemo(() => makeKey(date, shift), [ date, shift]);
 
   // Hard reset: clear everything (e.g., when changing selection)
   const reset = useCallback(() => {
@@ -57,16 +57,16 @@ export function useCreateStockInit(params: {
   const init = useCallback(
     async (payload: InitPayload & { LCid?: string }) => {
       const { date: pDate, shift: pShift } = payload;
-      const pLCid = payload.LCid ?? LCid;
+      
 
       // Validate required inputs
-      if (!pLCid || !pDate || !pShift) {
-        setError("Missing LCid, date, or shift");
+      if (!pDate || !pShift) {
+        setError("Missing  date, or shift");
         setStatus("error");
         return null;
       }
 
-      const reqKey = makeKey(pDate, pShift, pLCid);
+      const reqKey = makeKey(pDate, pShift);
       if (!reqKey) {
         setError("Invalid request key");
         setStatus("error");
@@ -91,7 +91,7 @@ export function useCreateStockInit(params: {
       try {
         // ✅ Real API call aligned to YAML: { LCid, date, shift }
         const amsDoc = await initAvailableStock({
-          LCid: pLCid,
+         
           date: pDate,
           shift: pShift as any, // api Shift matches [morning|afternoon|evening]
         });
@@ -120,7 +120,7 @@ export function useCreateStockInit(params: {
         inFlightRef.current = false;
       }
     },
-    [LCid, data]
+    [ data]
   );
 
   // Mount/unmount guard
@@ -134,16 +134,16 @@ export function useCreateStockInit(params: {
   // Auto-run when params provide LCid+date+shift and auto=true
   useEffect(() => {
     if (!auto) return;
-    if (!LCid || !date || !shift) return;
+    if ( !date || !shift) return;
 
-    const reqKey = makeKey(date, shift, LCid);
+    const reqKey = makeKey(date, shift);
     if (!reqKey) return;
 
     // Avoid redundant calls if we already have data for the current key
     if (data && lastKeyRef.current === reqKey) return;
 
-    void init({ LCid, date, shift });
-  }, [auto, LCid, date, shift, init, data]);
+    void init({  date, shift });
+  }, [auto,  date, shift, init, data]);
 
   return {
     status, // "idle" | "loading" | "success" | "error"
@@ -169,7 +169,7 @@ export type UseManagerSummaryResult = {
 
   /** Time zone / LC echoed by the backend (optional for UI). */
   tz: string | null;
-  lc: string | null;
+ 
 
   /** React Query state */
   isLoading: boolean;
@@ -198,7 +198,6 @@ export function useManagerSummary(): UseManagerSummaryResult {
     data,
     missingShifts,
     tz: data?.tz ?? null,
-    lc: data?.lc ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isError: !!query.error,

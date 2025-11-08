@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 
 import ApiError from "../utils/ApiError";
+import LogisticCenter from '../models/logisticsCenter.model';
 
 import {
   AvailableMarketStockModel,
@@ -132,22 +133,55 @@ async function respondAfterAdjustFO({
 
 export async function initDoc(req: Request, res: Response) {
   try {
-    const userId = (req as any).user?._id;
-    const { LCid, date, shift } = req.body;
-    const createdById = userId;
+    const user = (req as any).user;
+    const LCid = user.logisticCenterId; // keep as you had when it worked
+    const { date, shift } = req.body;
+    const createdById = user._id;
+
+    console.log(
+      "initDoc called by user", user._id,
+      "for LCid", LCid,
+      "date", date,
+      "shift", shift
+    );
 
     if (!LCid || !date || !shift) {
       return res.status(400).json({ error: "LCid, date, and shift are required" });
     }
 
     const doc = await findOrCreateAvailableMarketStock({ LCid, date, shift, createdById });
-    return res.json(doc);
+    console.log("findOrCreateAvailableMarketStock result:", doc);
+
+    // --- normalize for the FE ---
+    const obj = typeof (doc as any)?.toObject === "function"
+      ? (doc as any).toObject({ virtuals: true })
+      : doc;
+
+    const id =
+      (obj?._id?.toString?.() as string) ??
+      (typeof obj?._id === "string" ? obj._id : undefined) ??
+      (typeof obj?.id === "string" ? obj.id : undefined);
+
+    if (!id) {
+      return res.status(500).json({ error: "Failed to serialize AMS id" });
+    }
+
+    const availableDate = new Date(obj.availableDate).toISOString().slice(0, 10);
+    const payload = {
+      id,
+      availableDate,
+      availableShift: obj.availableShift,
+      items: Array.isArray(obj.items) ? obj.items : [],
+    };
+
+    return res.json(payload); // << send clean DTO (id as string, date normalized)
   } catch (err: any) {
     return res
       .status(500)
-      .json({ error: err.message || "Failed to init available market stock" });
+      .json({ error: err?.message || "Failed to init available market stock" });
   }
 }
+
 
 export async function getDoc(req: Request, res: Response) {
   try {

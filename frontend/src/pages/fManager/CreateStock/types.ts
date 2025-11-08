@@ -5,6 +5,8 @@
 
 import type { ShiftEnum, IsoDateString } from "@/types/shifts";
 
+/** Shared async state for the Create Stock flow */
+export type AsyncStatus = "idle" | "loading" | "success" | "error";
 /* -----------------------------------------------------------------------------
  * Init (available-stock/init)
  * ---------------------------------------------------------------------------*/

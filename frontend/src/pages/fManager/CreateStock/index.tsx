@@ -7,7 +7,6 @@ import {
   Heading,
   Separator,
   Text,
-  Button,
 } from "@chakra-ui/react";
 import { useSearchParams } from "react-router-dom";
 import { toaster } from "@/components/ui/toaster";
@@ -39,20 +38,19 @@ function useClearParams() {
 /* ----------------------------------- page ----------------------------------- */
 
 export default function CreateStockPage() {
-  const [search, setSearch] = useSearchParams();
+  const [search] = useSearchParams();
 
   // Parse query params safely
   const dateParam = (search.get("date") || "") as IsoDateString;
   const shiftParam = search.get("shift");
   const shift = isValidShift(shiftParam) ? (shiftParam as ShiftEnum) : undefined;
 
-  const { missingShifts, isLoading, lc } = useManagerSummary();
+  const { missingShifts, isLoading } = useManagerSummary();
 
   const hasParams = Boolean(dateParam && shift);
 
-  // Init hook — auto-runs when LCid + date + shift exist
+  // Init hook — auto-runs when date + shift exist
   const init = useCreateStockInit({
-    LCid: lc ?? undefined,
     date: hasParams ? dateParam : undefined,
     shift,
     auto: true,
@@ -61,7 +59,7 @@ export default function CreateStockPage() {
   // Clear params handler
   const clearParams = useClearParams();
 
-  // If params are present but invalid, bounce back to picker.
+  // If params are partially present/invalid, bounce back to picker.
   useEffect(() => {
     if (!dateParam && !shift) return; // both missing → fine, picker will show
     if (dateParam && shift) return;   // both present and valid → fine
@@ -74,83 +72,48 @@ export default function CreateStockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateParam, shift]);
 
-  const lcMissing = !lc;
-
   return (
     <Box w="full">
       <Stack gap="4">
         <Heading size="lg">Create Stock</Heading>
 
         {!hasParams ? (
-          <>
-            {/* Picker card (Dashboard parity) */}
-            <CreateStockCard
-              title="Create Stock"
-              rows={missingShifts}
-              loading={isLoading}
-            />
-
-            <Separator />
-
-            {lcMissing ? (
-              <Text fontSize="sm" color="fg.muted">
-                Your logistic center isn’t available yet. Ensure your account has an assigned LC
-                or refresh the page after it loads.
-              </Text>
-            ) : (
-              <Text fontSize="sm" color="fg.muted">
-                Select a date and shift to initialize stock. You’ll see your farmer inventory next.
-              </Text>
-            )}
-          </>
+          // Picker card (Dashboard parity)
+          <CreateStockCard
+            title="Create Stock"
+            rows={missingShifts}
+            loading={isLoading}
+          />
         ) : (
           <>
-            {/* LC guard */}
-            {lcMissing ? (
+            {/* Init status/context */}
+            <InitContextBanner
+              status={init.status}
+              data={init.data}
+              error={init.error}
+              onRetry={() => {
+                if (!shift) return;
+                void init.init?.({ date: dateParam, shift });
+              }}
+            />
+
+            {/* Inventory (after success) */}
+            {init.status === "success" && init.data?.amsId ? (
               <>
-                <Text color="red.500" fontSize="sm">
-                  Missing Logistic Center (LC). Please ensure your profile/role has an assigned LC.
-                </Text>
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  onClick={clearParams}
-                >
-                  Back to picker
-                </Button>
-              </>
-            ) : (
-              <>
-                {/* Init status/context */}
-                <InitContextBanner
-                  status={init.status}
-                  data={init.data}
-                  error={init.error}
-                  onRetry={() => {
-                    if (!shift || !lc) return;
-                    void init.init({ LCid: lc, date: dateParam, shift });
-                  }}
+                <Separator />
+                <InventoryList
+                  shift={shift}
+                  pickUpDate={dateParam}
                 />
-
-                {/* Inventory (after success) */}
-                {init.status === "success" && init.data?.amsId ? (
-                  <>
-                    <Separator />
-                    <InventoryList
-                      shift={shift}
-                      pickUpDate={dateParam}
-                    />
-                  </>
-                ) : null}
-
-                {/* Error hint */}
-                {init.status === "error" ? (
-                  <Text fontSize="sm" color="fg.muted">
-                    Fix the error above or change the selection to try again.
-                  </Text>
-                ) : null}
               </>
-            )}
+            ) : null}
+
+            {/* Error hint */}
+            {init.status === "error" ? (
+              <Text fontSize="sm" color="fg.muted">
+                Fix the error above or change the selection to try again.
+              </Text>
+            ) : null}
           </>
         )}
       </Stack>
