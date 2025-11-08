@@ -9,7 +9,7 @@ import ShiftConfig from "../models/shiftConfig.model";
 import QRModel from "../models/QRModel.model";
 
 import { DateTime } from "luxon";
-import { getCurrentShift, getNextAvailableShifts } from "./shiftConfig.service";
+import { getCurrentShift, getNextAvailableShifts,getShiftConfigByKey  } from "./shiftConfig.service";
 
 import {
   addItemToAvailableMarketStock,
@@ -35,6 +35,8 @@ import {
 } from "./farmerOrderStages.service";
 
 import type { AuthUser } from "./farmerOrderStages.service"; // ⬅ reuse same AuthUser
+import { log } from "node:console";
+
 
 /* =============================
  * Constants / helpers
@@ -56,7 +58,7 @@ const isYMD = (s: unknown) =>
   typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const nonEmpty = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
-type UserCtx = { userId: Types.ObjectId; role: string };
+type UserCtx = { userId: Types.ObjectId; role: string , LogisticCenterId?: Types.ObjectId};
 
 /* =============================
  * CREATE FarmerOrder (txn + FO QR)
@@ -77,6 +79,26 @@ export interface CreateFarmerOrderPayload {
 
   forcastedQuantityKg?: number;
   sumOrderedQuantityKg?: number;
+}
+
+async function computePickUpTimeISO(args: {
+  logisticCenterId: string;       // string OID
+  shift: "morning" | "afternoon" | "evening" | "night";
+  pickUpDate: string;             // "yyyy-LL-dd" in LC tz
+}): Promise<Date> {
+  const { logisticCenterId, shift, pickUpDate } = args;
+
+  // load the specific shift config (gives us timezone + generalStartMin)
+  const cfg = await getShiftConfigByKey({ logisticCenterId, name: shift }); 
+  const tz = cfg.timezone || "Asia/Jerusalem";
+
+  const startMin = cfg.generalStartMin ?? 0;
+  const pickupMin = startMin + 90; // 1h 30m after shift start
+
+  const base = DateTime.fromFormat(pickUpDate, "yyyy-LL-dd", { zone: tz }).startOf("day");
+  const dt = base.plus({ minutes: pickupMin });
+
+  return dt.toJSDate(); // Mongo will store as UTC Date
 }
 
 export async function createFarmerOrderService(
@@ -124,7 +146,12 @@ export async function createFarmerOrderService(
     e.details = errors;
     throw e;
   }
-
+  // compute pickup time = shift start + 90 min (in LC timezone on pickUpDate)
+const pickUpTime: Date = await computePickUpTimeISO({
+  logisticCenterId: user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID,
+  shift: payload.shift as "morning" | "afternoon" | "evening" | "night",
+  pickUpDate: payload.pickUpDate!, // "YYYY-MM-DD"
+});
   // Transaction
   const session = await mongoose.startSession();
   try {
@@ -148,7 +175,8 @@ export async function createFarmerOrderService(
 
         shift: payload.shift,
         pickUpDate: payload.pickUpDate,
-        logisticCenterId: toOID(STATIC_LC_ID),
+        pickUpTime: pickUpTime,
+        logisticCenterId: toOID(user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID),
 
         // legacy
         farmerStatus: "pending",
@@ -451,6 +479,16 @@ interface UpdateFarmerStatusArgs {
   user: AuthUser;
 }
 
+/* =============================
+ * Update farmerStatus (legacy) + stage transitions + AMS linking
+ * ============================= */
+interface UpdateFarmerStatusArgs {
+  orderId: string;
+  status: FarmerApprovalStatus;
+  note?: string;
+  user: AuthUser;
+}
+
 export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
   const { orderId, status, note, user } = args;
 
@@ -469,32 +507,41 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
     throw e;
   }
 
-  // Authorization
-  const isOwnerFarmer =
-    user.role === "farmer" && String(order.farmerId) === String(user.id);
-  const isManagerOrAdmin = user.role === "fManager" || user.role === "admin";
+  /* -------------------------------
+   * Authorization
+   * ------------------------------- */
+  const role = String(user.role).toLowerCase();
+  const isFarmer = role === "farmer";
+  const isManagerOrAdmin = role === "fmanager" || role === "admin";
+  //console.log("farmerId:", order.farmerId, " user.id:", user.id);
+  // check farmer owns the order
+  const isOwnerFarmer = isFarmer && String(order.farmerId) === String(user.id);
+
   if (!isOwnerFarmer && !isManagerOrAdmin) {
     const e: any = new Error("Forbidden");
     e.name = "Forbidden";
-    e.details = ["Not allowed to update this farmer order status"];
+    e.details = [
+      `Not allowed to update farmer order`,
+      { role: user.role, userId: user.id, orderFarmerId: order.farmerId },
+    ];
     throw e;
   }
 
+  /* -------------------------------
+   * Update metadata
+   * ------------------------------- */
   order.updatedBy = toOID(user.id);
   order.updatedAt = new Date();
+  order.farmerStatus = status; // legacy snapshot
 
-  // keep legacy snapshot for backwards compatibility
-  order.farmerStatus = status;
-
+  /* -------------------------------
+   * Handle status transitions
+   * ------------------------------- */
   if (status === "ok") {
-    // farmer approved => pipeline moves forward + AMS upsert
-    order.markStageOk("farmerAck", order.updatedBy as any, {
-      note: note ?? "",
-    });
-
+    order.markStageOk("farmerAck", order.updatedBy as any, { note: note ?? "" });
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
       newStatus: "ok",
-      byRole: user.role,
+      byRole: role,
     });
 
     const itemDoc: any = await Item.findById(order.itemId).lean();
@@ -520,9 +567,7 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
 
     let farmLogo: string | undefined;
     try {
-      const farmerDoc = await Farmer.findById(order.farmerId, {
-        farmLogo: 1,
-      }).lean();
+      const farmerDoc = await Farmer.findById(order.farmerId, { farmLogo: 1 }).lean();
       farmLogo = farmerDoc?.farmLogo ?? (order as any)?.farmLogo ?? undefined;
     } catch {
       farmLogo = (order as any)?.farmLogo ?? undefined;
@@ -589,19 +634,15 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
         0,
     });
 
-    // advance pipeline stages
+    // advance pipeline
     order.markStageDone("farmerAck", order.updatedBy as any, {
       note: "Farmer approved; moved to QS",
     });
     order.setStageCurrent("farmerQSrep", order.updatedBy as any, {
       note: "Quality check in progress",
     });
-
-    // make sure stageKey now reflects farmerQSrep
     order.stageKey = "farmerQSrep";
   } else if (status === "problem") {
-    // put pipeline into halted/problem state
-    // demote any 'current' to pending
     for (const s of (order.stages as any[]) ?? []) {
       if (s?.status === "current") {
         s.status = "pending";
@@ -609,12 +650,10 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       }
     }
 
-    // mark farmerAck as done w/ halt note
     order.markStageDone("farmerAck", order.updatedBy as any, {
       note: note ?? "HALT: farmer reported problem",
     });
 
-    // ensure farmerAck stage exists and flag it as "problem"
     const st = ensureFOStageEntry(order, "farmerAck");
     const now = new Date();
     st.status = "problem";
@@ -623,28 +662,24 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
     if (note) st.note = note;
 
     order.stageKey = "farmerAck";
-
-    order.addAudit(
-      order.updatedBy as any,
-      "PIPELINE_HALT",
-      note ?? "Farmer reported problem",
-      { byRole: user.role }
-    );
+    order.addAudit(order.updatedBy as any, "PIPELINE_HALT", note ?? "Farmer reported problem", {
+      byRole: role,
+    });
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
       newStatus: "problem",
-      byRole: user.role,
+      byRole: role,
     });
   } else {
-    // fallback -> pending
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
       newStatus: "pending",
-      byRole: user.role,
+      byRole: role,
     });
   }
 
   await order.save();
   return order.toJSON();
 }
+
 
 /* =============================
  * Link customer order to FO
@@ -882,15 +917,19 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
   return { current, next, tz, lc: logisticCenterId };
 }
 
-export async function listFarmerOrdersForShift(params: {
-  logisticCenterId: string;
-  date: string; // yyyy-LL-dd in LC timezone
-  shiftName: ShiftName;
-  farmerStatus?: "pending" | "ok" | "problem"; // legacy filter
-  page?: number;
-  limit?: number;
-  fields?: string[];
-}) {
+
+type BaseParams = {
+  logisticCenterId: string
+  date: string
+  shiftName: ShiftName
+  farmerStatus?: "pending" | "ok" | "problem"
+  page?: number
+  limit?: number
+  fields?: string[]
+  farmerId?: string
+}
+
+export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerView?: boolean }) {
   const {
     logisticCenterId,
     date,
@@ -899,51 +938,101 @@ export async function listFarmerOrdersForShift(params: {
     page = 1,
     limit = 50,
     fields,
-  } = params;
+    farmerId,
+    forFarmerView = false,
+  } = params
 
-  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
-    .lean()
-    .exec();
-  if (!cfg)
-    throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
-  const tz = cfg.timezone || "Asia/Jerusalem";
+  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 }).lean().exec()
+  if (!cfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`)
+  const tz = cfg.timezone || "Asia/Jerusalem"
 
   const q: any = {
     logisticCenterId: new Types.ObjectId(logisticCenterId),
     shift: shiftName,
     pickUpDate: date,
-  };
-  if (farmerStatus) q.farmerStatus = farmerStatus; // legacy filter stays
+  }
+  if (farmerStatus) q.farmerStatus = farmerStatus
+  if (farmerId && Types.ObjectId.isValid(farmerId)) q.farmerId = new Types.ObjectId(farmerId)
+
+  // For farmers, we restrict to the exact fields you listed (+ a few essentials for the page)
+  const farmerProjection: Record<string, 1> = {
+    _id: 1,
+    itemId: 1,
+    type: 1,
+    variety: 1,
+    pictureUrl: 1,
+
+    farmerName: 1,
+    farmName: 1,
+
+    shift: 1,
+    pickUpDate: 1,
+    pickUpTime: 1,
+    logisticCenterId: 1,
+
+    farmerStatus: 1,
+    sumOrderedQuantityKg: 1,
+    forcastedQuantityKg: 1,
+    finalQuantityKg: 1,
+
+    containers: 1,
+    containerSnapshots: 1,
+
+    stageKey: 1,
+
+    farmersQSreport: 1,
+    inspectionQSreport: 1,
+    visualInspection: 1,
+    inspectionStatus: 1,
+
+    createdAt: 1,
+    updatedAt: 1,
+  }
 
   const projection =
-    Array.isArray(fields) && fields.length
+    forFarmerView
+      ? farmerProjection
+      : Array.isArray(fields) && fields.length
       ? fields.reduce((acc, f) => ((acc[f] = 1), acc), {} as Record<string, 1>)
-      : undefined;
+      : undefined
 
-  const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+  const skip = (Math.max(1, page) - 1) * Math.max(1, limit)
 
-  // pull items for page + all docs for problemCount
-  const [items, total, allForWindow] = await Promise.all([
-    FarmerOrder.find(q, projection)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean()
-      .exec(),
+  const [docs, total, allForWindow] = await Promise.all([
+    FarmerOrder.find(q, projection).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
     FarmerOrder.countDocuments(q),
-    FarmerOrder.find(q, {
-      _id: 1,
-      stageKey: 1,
-      stages: 1,
-    })
-      .lean()
-      .exec(),
-  ]);
+    FarmerOrder.find(q, { _id: 1, stageKey: 1, stages: 1 }).lean().exec(),
+  ])
 
-  // NEW problemCount definition:
-  const problemCount = allForWindow.filter((fo) =>
-    isFarmerOrderProblem(fo)
-  ).length;
+  const problemCount = allForWindow.filter((fo) => isFarmerOrderProblem(fo)).length
+
+  // Map into a clean payload for the farmer view (frontend expects `imageUrl`)
+  const items = forFarmerView
+    ? docs.map((d) => ({
+        id: String(d._id),
+        itemId: String(d.itemId),
+        type: d.type || "",
+        variety: d.variety || "",
+        imageUrl: d.pictureUrl || "", // normalize
+        farmerName: d.farmerName,
+        farmName: d.farmName,
+        shift: d.shift,
+        pickUpDate: d.pickUpDate,
+        pickUpTime: d.pickUpTime || null,
+        logisticCenterId: String(d.logisticCenterId),
+        farmerStatus: d.farmerStatus,
+        orderedQuantityKg: d.sumOrderedQuantityKg ?? 0,
+        forcastedQuantityKg: d.forcastedQuantityKg ?? 0,
+        finalQuantityKg: d.finalQuantityKg ?? null,
+        containers: d.containers || [],
+        containerSnapshots: d.containerSnapshots || [],
+        stageKey: d.stageKey ?? null,
+        farmersQSreport: d.farmersQSreport,
+        inspectionQSreport: d.inspectionQSreport,
+        visualInspection: d.visualInspection,
+        inspectionStatus: d.inspectionStatus,
+      }))
+    : docs
 
   return {
     meta: {
@@ -956,24 +1045,30 @@ export async function listFarmerOrdersForShift(params: {
       total,
       problemCount,
       pages: Math.ceil(total / Math.max(1, limit)),
+      scopedToFarmer: Boolean(farmerId),
+      forFarmerView,
     },
     items,
-  };
+  }
 }
 
 /* =============================
  * LIST my FOs (farmer or admin/fManager)
  * ============================= */
+// src/services/farmerOrder.service.ts
+
 export async function listMyFarmerOrdersService(
   user: UserCtx,
   opts?: {
     limit?: number;
     offset?: number;
     filters?: {
+      farmerStatus?: "pending" | "ok" | "problem";
       itemId?: string;
-      pickUpDate?: string;
       shift?: string;
-      farmerId?: string; // allowed for admin/fManager
+      from?: string; // YYYY-MM-DD inclusive
+      to?: string;   // YYYY-MM-DD inclusive
+      fields?: string[]; // projection
     };
   }
 ) {
@@ -981,22 +1076,73 @@ export async function listMyFarmerOrdersService(
   const offset = Math.max(opts?.offset ?? 0, 0);
 
   const q: any = {};
+
+  // --- Role scoping ---
   if (["admin", "fManager"].includes(user.role)) {
-    if (opts?.filters?.farmerId)
-      q.farmerId = new Types.ObjectId(opts.filters.farmerId);
+    if (!user.LogisticCenterId) {
+      q._id = null; // defensive: should be validated by controller
+    } else {
+      q.logisticCenterId = user.LogisticCenterId; // <- note the capital 'L' matches your UserCtx
+    }
   } else if (user.role === "farmer") {
     q.farmerId = user.userId;
   } else {
     q._id = null; // deny
   }
 
-  if (opts?.filters?.itemId) q.itemId = new Types.ObjectId(opts.filters.itemId);
-  if (opts?.filters?.pickUpDate) q.pickUpDate = String(opts.filters.pickUpDate);
+  // --- Filters ---
+  if (opts?.filters?.farmerStatus) q.farmerStatus = opts.filters.farmerStatus;
+  if (opts?.filters?.itemId) q.itemId = toOID(opts.filters.itemId);
   if (opts?.filters?.shift) q.shift = String(opts.filters.shift);
 
-  return FarmerOrder.find(q)
-    .sort({ createdAt: -1 })
-    .skip(offset)
-    .limit(limit)
-    .lean();
+  if (opts?.filters?.from || opts?.filters?.to) {
+    q.pickUpDate = {};
+    if (opts.filters.from) q.pickUpDate.$gte = String(opts.filters.from);
+    if (opts.filters.to) q.pickUpDate.$lte = String(opts.filters.to);
+  }
+
+  // --- Projection (always keep _id, and ensure fields needed for sorting) ---
+  let projection: Record<string, 1> | undefined;
+  if (Array.isArray(opts?.filters?.fields) && opts.filters!.fields.length) {
+    // Always include pickUpDate + shift for sorting when client customizes projection
+    const base = new Set<string>(["_id", "pickUpDate", "shift"]);
+    for (const f of opts.filters!.fields) base.add(f);
+    projection = Array.from(base).reduce(
+      (acc, f) => ((acc[f] = 1), acc),
+      {} as Record<string, 1>
+    );
+  }
+
+  // --- Shift order mapping using your local SHIFTS constant ---
+  const branches = (SHIFTS as readonly string[]).map((name, idx) => ({
+    case: { $eq: ["$shift", name] },
+    then: idx,
+  }));
+
+  const pipeline: any[] = [
+    { $match: q },
+    ...(projection ? [{ $project: projection }] : []),
+    {
+      $addFields: {
+        __shiftOrd: {
+          $switch: {
+            branches,
+            default: (SHIFTS as readonly string[]).length + 1,
+          },
+        },
+      },
+    },
+    { $sort: { pickUpDate: 1, __shiftOrd: 1, _id: 1 } },
+    { $skip: offset },
+    { $limit: limit },
+  ];
+
+  const docs = await FarmerOrder.aggregate(pipeline).allowDiskUse(true);
+
+  // --- Normalize id/_id for FE callers ---
+  return docs.map((d: any) => {
+    const id = String(d._id);
+    const { __shiftOrd, _id, ...rest } = d;
+    return { id, _id: id, ...rest };
+  });
 }

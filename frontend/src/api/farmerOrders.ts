@@ -16,7 +16,7 @@ import type {
   ShiftFarmerOrderItem,
   FarmerOrderStatus,
 } from "@/types/farmerOrders";
-
+import type {FarmerViewByShiftResponse} from "@/pages/farmer/farmerOrder.type";
 // NEW: fake helpers (no network)
 import { getFakeByShift } from "./fakes/farmerOrders.fake";
 
@@ -83,60 +83,53 @@ export async function createFarmerOrder(
  *
  * This keeps the component/hook contract identical regardless of the source.
  */
-export async function getFarmerOrdersByShift(
+export async function getMyFarmerOrdersByShift(
   params: ShiftFarmerOrdersQuery & { fake?: boolean; fakeNum?: number },
   opts?: { signal?: AbortSignal }
-): Promise<ShiftFarmerOrdersResponse> {
-  // FAKE PATH (no network)
+): Promise<FarmerViewByShiftResponse> {
+  // Optional: keep your fake path if you want parity
   if (params.fake) {
     const { orders } = getFakeByShift({
       date: params.date,
-      shiftName: params.shiftName as any, // "morning" | "afternoon" | "evening" | "night"
+      shiftName: params.shiftName as any,
       fakeNum: params.fakeNum ?? 12,
     });
-
-    // Pagination (always compute page/limit as numbers)
     const page = Number(params.page ?? 1);
     const limit = Number(params.limit ?? orders.length);
     const start = (page - 1) * limit;
     const end = start + limit;
 
-    const paged = orders.slice(start, end);
-
-    const fakeResponse: ShiftFarmerOrdersResponse = {
+    return {
       meta: {
+        lc: "fake",
         date: params.date,
         shiftName: params.shiftName as any,
+        tz: "Asia/Jerusalem",
         page,
         limit,
         total: orders.length,
         pages: Math.max(1, Math.ceil(orders.length / Math.max(1, limit))),
-        problemCount: 0, // all OK in fake mode for now
-        // lc, tz can be added if you want
+        problemCount: 0,
+        scopedToFarmer: true,
+        forFarmerView: true,
       },
-      items: paged as any, // matches your item shape
+      items: orders.slice(start, end) as any,
     };
-
-    return fakeResponse;
   }
 
-  // REAL PATH (network)
   const sp = new URLSearchParams();
   sp.set("date", params.date);
   sp.set("shiftName", params.shiftName);
   if (params.page != null) sp.set("page", String(params.page));
   if (params.limit != null) sp.set("limit", String(params.limit));
 
-  // (Future: when BE adds support, you can uncomment the next two lines)
-  // if (params.fake != null) sp.set("fake", String(params.fake));
-  // if (params.fakeNum != null) sp.set("fakeNum", String(params.fakeNum));
-
-  const { data } = await api.get<ShiftFarmerOrdersResponse>(
+  const { data } = await api.get<FarmerViewByShiftResponse>(
     `${BASE}/by-shift?${sp.toString()}`,
     { signal: opts?.signal }
   );
   return data;
 }
+
 
 /* ------------------------- Stage & Status mutations ----------------------- */
 
@@ -181,4 +174,62 @@ export async function updateFarmerOrderStatus(
     { status, note }
   );
   return ((data as any)?.data ?? data) as ShiftFarmerOrderItem;
+}
+
+//*---------------FARMER----------------*/
+
+// --- Query keys for dashboard lists ---
+export const qkMyOrdersPending = (p?: { from?: string; to?: string }) =>
+  ["farmerOrders", { status: "pending", from: p?.from, to: p?.to }] as const;
+
+export const qkMyOrdersAccepted = () =>
+  ["farmerOrders", { status: "ok" }] as const;
+
+// --- Slim projection for cards ---
+export const FARMER_ORDER_CARD_FIELDS = [
+  "pickUpDate",
+  "shift",
+  "farmerStatus",
+  "type",
+  "variety",
+  "forcastedQuantityKg",
+  "finalQuantityKg",
+] as const;
+
+// --- Query-string helper + unwrap (if you don't already have it) ---
+const toQuery = (params: Record<string, any>) => {
+  const usp = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v == null) return;
+    if (Array.isArray(v)) v.forEach((x) => usp.append(k, String(x)));
+    else usp.set(k, String(v));
+  });
+  const s = usp.toString();
+  return s ? `?${s}` : "";
+};
+const unwrap = <T,>(p: any): T => (p?.data ?? p) as T;
+
+// --- List my orders (role-aware on BE) ---
+export type ListMyOrdersParams = {
+  farmerStatus?: "pending" | "ok" | "problem";
+  from?: string;
+  to?: string;
+  fields?: string[];
+  limit?: number;
+  offset?: number;
+  window?: "future" | "past" | "all";
+};
+
+export async function listMyOrders(params: ListMyOrdersParams = {}) {
+  const q = toQuery(params);
+  const { data } = await api.get(`${BASE}${q}`);
+  return unwrap<FarmerOrderDTO[]>(data);
+}
+
+// --- Accept / Reject convenience (reusing your mutation) ---
+export async function acceptMyFarmerOrder(orderId: string) {
+  return updateFarmerOrderStatus(orderId, "ok");
+}
+export async function rejectMyFarmerOrder(orderId: string, note: string) {
+  return updateFarmerOrderStatus(orderId, "problem", note);
 }

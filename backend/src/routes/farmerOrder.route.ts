@@ -36,13 +36,13 @@ router.get(
 router.get(
   "/by-shift",
   authenticate,
-  authorize("admin", "fManager"),
+  authorize("admin", "fManager","farmer"),
   getFarmerOrdersForShift
 );
 
 // Writes
 router.post("/", authenticate, FM, create);
-router.patch("/:id/farmer-status", authenticate, FM, updateFarmerStatus);
+router.patch("/:id/farmer-status", authenticate, FARMER, updateFarmerStatus);
 //router.patch("/:id/stage", authenticate, FM, updateStageStatus);
 router.patch(
   "/:id/stage",

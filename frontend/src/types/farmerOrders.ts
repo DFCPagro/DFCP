@@ -247,6 +247,7 @@ export const FarmerOrderDTOSchema = z.object({
   // Scheduling
   shift: ShiftEnum,
   pickUpDate: IsoDateString,
+  pickUpTime: z.string().min(1).optional(),
 
   // LC and statuses
   logisticCenterId: z.string().min(1),

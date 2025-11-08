@@ -131,6 +131,7 @@ const FarmerOrderSchema = new Schema(
     // planning / logistics
     shift: { type: String, enum: SHIFTS, required: true },
     pickUpDate: { type: String, required: true }, // "YYYY-MM-DD"
+    pickUpTime: { type: Date, required: false }, 
     logisticCenterId: {
       type: Schema.Types.ObjectId,
       ref: "LogisticCenter",

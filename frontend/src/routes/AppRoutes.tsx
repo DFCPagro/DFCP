@@ -7,8 +7,7 @@ import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
 
-
-// Lazy pages (unchanged) (no role)
+// Lazy imports...
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
@@ -17,27 +16,26 @@ const JobApplication = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 
-//unknown
 const DriverSchedule = lazy(() => import("@/pages/DriverSchedule"));
 
-//customer pages
+// Customer pages
 const Checkout = lazy(() => import("@/pages/customer/Checkout"));
 const Profile = lazy(() => import("@/pages/customer/Profile"));
 const Orders = lazy(() => import("@/pages/customer/customerOrders"));
 const DeliveryNote = lazy(() => import("@/pages/customer/DeliveryNote"));
 const Market = lazy(() => import("@/pages/customer/Market"));
 
-
-//farmer pages
+// Farmer pages
 const FarmerDashboard = lazy(() => import("@/pages/farmer/FarmerDashboard"));
 const FarmerCropManagement = lazy(() => import("@/pages/farmer/FarmerCropManagement"));
+const FarmerOrderForShift = lazy(() => import("@/pages/farmer/farmerOrdersForShift"));
 
-//picker pages
+// Picker pages
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
 const PickTaskPage = lazy(() => import("@/pages/picker/pick-task"));
 const PickerSchedule = lazy(() => import("@/pages/picker/picker-Schedule"));
 
-//admin pages (added to respected manager list later)
+// Admin / Manager pages
 const WorkerProfile = lazy(() => import("@/pages/workerProfile"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
@@ -46,12 +44,10 @@ const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const LogisticCenter = lazy(() => import("@/pages/LogisticCenter"));
 const PickerTasks = lazy(() => import("@/pages/opManager/pickerTasksManager"));
 
-//csManager pages
 const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
 const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"));
 const CSManagerDashboard = lazy(() => import("@/pages/csManager/Dashboard"));
 
-//fManager pages
 const FManagerDashboard = lazy(() => import("@/pages/fManager/Dashboard"));
 const FManagerItemManagement = lazy(() => import("@/pages/fManager/ItemManager"));
 const FManagerCreateStock = lazy(() => import("@/pages/fManager/CreateStock"));
@@ -59,16 +55,7 @@ const FManagerShiftsFarmerOrder = lazy(() => import("@/pages/fManager/ShiftsFarm
 const FManagerViewFarmerOrders = lazy(() => import("@/pages/fManager/ViewFarmerOrders"));
 const FManagerViewFarmerList = lazy(() => import("@/pages/fManager/FarmerList"));
 
-
-
-
-
-
-
-
-
-
-//delete this route later, its just an example for using map picker
+// Misc / Example
 const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
 const QRExample = lazy(() => import("@/pages/QRExample"));
 
@@ -80,32 +67,28 @@ export default function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path={PATHS.home} element={<Home />} />
           <Route path={PATHS.notFound} element={<NotFound />} />
-          <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
-          <Route path={PATHS.QRExample} element={< QRExample />} />
-
+          <Route path={PATHS.MapExample} element={<MapPickerExamplePage />} />
+          <Route path={PATHS.QRExample} element={<QRExample />} />
         </Route>
 
         {/* --- Public, no Footer --- */}
-        <Route
-          element={
-            <AppShell px={0} py={0} maxW="container.md" />
-          }
-        >
-          <Route path={PATHS.logisticCenter} element={< LogisticCenter />} />
+        <Route element={<AppShell px={0} py={0} maxW="container.md" />}>
+          <Route path={PATHS.logisticCenter} element={<LogisticCenter />} />
         </Route>
 
-        {/* --- Public, immersive (no chrome) --- */}
-        <Route
-          element={
-            <AppShell showHeader={false} px={0} py={0} maxW="container.md" />
-          }
-        >
-
-        </Route>
-
-        {/* --- Guest-only (login/register), no chrome, narrow --- */}
-        <Route element={<GuestGuard />} >
-          <Route element={<AppShell  px={0} py={0} addSurroundingGap={true} showFooter={false} maxW="100hw" />}>
+        {/* --- Guest-only --- */}
+        <Route element={<GuestGuard />}>
+          <Route
+            element={
+              <AppShell
+                px={0}
+                py={0}
+                addSurroundingGap={true}
+                showFooter={false}
+                maxW="100hw"
+              />
+            }
+          >
             <Route path={PATHS.login} element={<Login />} />
             <Route path={PATHS.register} element={<Register />} />
           </Route>
@@ -119,8 +102,7 @@ export default function AppRoutes() {
             </AuthGuard>
           }
         >
-
-          {/* Admin-only */}
+          {/* --- Admin-only --- */}
           <Route
             path={PATHS.adminDashboard}
             element={
@@ -145,9 +127,12 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
-          <Route path={PATHS.ItemsManagment} element={<FManagerItemManagement />} />
+          <Route
+            path={PATHS.ItemsManagment}
+            element={<FManagerItemManagement />}
+          />
 
-          {/* Package sizes (admin + dManager) */}
+          {/* Package sizes */}
           <Route
             path={PATHS.PackageSizes}
             element={
@@ -157,15 +142,23 @@ export default function AppRoutes() {
             }
           />
 
-
-          {/*---Worker ontly routes---*/}
-          <Route path={PATHS.workerProfile} element={<RoleGuard allow={["farmer", "picker", "deliverer", "tManager", "industrialDeliverer"]
-
-          } >
-            <WorkerProfile />
-          </RoleGuard>
-          }></Route>
-
+          {/* Worker routes */}
+          <Route
+            path={PATHS.workerProfile}
+            element={
+              <RoleGuard
+                allow={[
+                  "farmer",
+                  "picker",
+                  "deliverer",
+                  "tManager",
+                  "industrialDeliverer",
+                ]}
+              >
+                <WorkerProfile />
+              </RoleGuard>
+            }
+          />
 
           {/* Driver-only */}
           <Route
@@ -213,6 +206,14 @@ export default function AppRoutes() {
             }
           />
           <Route
+            path="/farmer/farmerOrderForShift/:date/:shift"
+            element={
+              <RoleGuard allow={["farmer"]}>
+                <FarmerOrderForShift />
+              </RoleGuard>
+            }
+          />
+          <Route
             path={PATHS.FarmerCropManagement}
             element={
               <RoleGuard allow={["farmer"]}>
@@ -247,7 +248,7 @@ export default function AppRoutes() {
             }
           />
 
-          {/*OP manager-only */}
+          {/* OP Manager-only */}
           <Route
             path={PATHS.PickerTasksPage}
             element={
@@ -260,57 +261,66 @@ export default function AppRoutes() {
           {/* F Manager-only */}
           <Route
             path={PATHS.fManagerDashboard}
-            element={<RoleGuard allow={["fManager"]}>
-              <FManagerDashboard />
-            </RoleGuard>}
+            element={
+              <RoleGuard allow={["fManager"]}>
+                <FManagerDashboard />
+              </RoleGuard>
+            }
           />
           <Route
             path={PATHS.fManagerItemManagement}
-            element={<RoleGuard allow={["fManager"]}>
-              <FManagerItemManagement />
-            </RoleGuard>}
+            element={
+              <RoleGuard allow={["fManager"]}>
+                <FManagerItemManagement />
+              </RoleGuard>
+            }
           />
           <Route
             path={PATHS.fManagerCreateStock}
-            element={<RoleGuard allow={["fManager"]}>
-              <FManagerCreateStock />
-            </RoleGuard>}
+            element={
+              <RoleGuard allow={["fManager"]}>
+                <FManagerCreateStock />
+              </RoleGuard>
+            }
           />
           <Route
             path={PATHS.fManagerShiftsFarmerOrder}
-            element={<RoleGuard allow={["fManager"]}>
-              <FManagerShiftsFarmerOrder />
-            </RoleGuard>}
+            element={
+              <RoleGuard allow={["fManager"]}>
+                <FManagerShiftsFarmerOrder />
+              </RoleGuard>
+            }
           />
           <Route
             path={PATHS.fManagerViewFarmerOrders}
-            element={<RoleGuard allow={["fManager"]}>
-              <FManagerViewFarmerOrders />
-            </RoleGuard>}
+            element={
+              <RoleGuard allow={["fManager"]}>
+                <FManagerViewFarmerOrders />
+              </RoleGuard>
+            }
           />
           <Route
             path={PATHS.fManagerViewFarmerList}
-            element={<RoleGuard allow={["fManager"]}>
-              <FManagerViewFarmerList />
-            </RoleGuard>}
+            element={
+              <RoleGuard allow={["fManager"]}>
+                <FManagerViewFarmerList />
+              </RoleGuard>
+            }
           />
-
         </Route>
 
-        {/* --- Authenticated, no FOOTER ( customer pages) --- */}
+        {/* --- Authenticated, no FOOTER (customer checkout) --- */}
         <Route
           element={
             <AuthGuard>
               <AppShell showFooter={false} maxW="5xl" />
             </AuthGuard>
-
           }
         >
-          <Route path={PATHS.checkout} element={<Checkout />
-          } />
+          <Route path={PATHS.checkout} element={<Checkout />} />
         </Route>
 
-        {/* --- Authenticated, yes FOOTER ( customer pages) --- */}
+        {/* --- Authenticated, yes FOOTER (customer pages) --- */}
         <Route
           element={
             <AuthGuard>

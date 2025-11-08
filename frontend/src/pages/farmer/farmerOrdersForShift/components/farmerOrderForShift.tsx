@@ -1,4 +1,3 @@
-// src/pages/farmer/components/AcceptedGroupCard.tsx
 import {
   Box,
   Button,
@@ -9,7 +8,7 @@ import {
 } from "@chakra-ui/react"
 import { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
-import type { AcceptedGroup } from "../hooks/useAcceptedFarmerOrders"
+import type { AcceptedGroup } from "../../FarmerDashboard/hooks/useAcceptedFarmerOrders"
 import { formatDMY } from "@/utils/date"
 
 export type AcceptedGroupCardProps = {
@@ -34,24 +33,24 @@ export default function AcceptedGroupCard({
     [group.pickUpDate, group.shift],
   )
 
-  // Show pickup time below shift date if available
+  // shows "14:00–16:00", or "14:30", or "Pickup time • TBD"
   const pickupTimeLabel = useMemo(() => {
-    const g: any = group
-    if (g.pickUpTime) return g.pickUpTime
-    if (g.pickUpWindow?.from && g.pickUpWindow?.to)
-      return `${g.pickUpWindow.from}–${g.pickUpWindow.to}`
+    const anyGroup = group as any
+    if (anyGroup.pickUpTime) return anyGroup.pickUpTime as string
+    if (anyGroup.pickUpWindow?.from && anyGroup.pickUpWindow?.to) {
+      return `${anyGroup.pickUpWindow.from}–${anyGroup.pickUpWindow.to}`
+    }
+    if (anyGroup.pickUpSlotLabel) return anyGroup.pickUpSlotLabel as string
     return "Pickup time • TBD"
   }, [group])
 
   const handleView = () => {
     if (onView) return onView(group)
-
     const dateISO =
       typeof group.pickUpDate === "string"
         ? group.pickUpDate
         : new Date(group.pickUpDate).toISOString().slice(0, 10)
 
-    // ✅ Navigate to farmerOrderForShift page
     navigate(`/farmer/farmerOrderForShift/${dateISO}/${group.shift}`, {
       state: { group },
     })
@@ -74,15 +73,9 @@ export default function AcceptedGroupCard({
         <HStack justifyContent="space-between" alignItems="center">
           <Stack gap={0}>
             <Text fontWeight="semibold">{dateLabel}</Text>
-            <Text fontSize="sm" color="fg.muted">
-              {pickupTimeLabel}
-            </Text>
+            <Text fontSize="sm" color="fg.muted">{pickupTimeLabel}</Text>
           </Stack>
-          <Button
-            size={compact ? "sm" : "xs"}
-            variant="outline"
-            onClick={handleView}
-          >
+          <Button size={compact ? "sm" : "xs"} variant="outline" onClick={handleView}>
             View
           </Button>
         </HStack>
@@ -99,8 +92,7 @@ export default function AcceptedGroupCard({
         <Stack gap="2" maxHeight="260px" overflowY="auto" pr="1">
           {group.items.map((it, idx) => {
             const hasFinal =
-              it.finalQuantityKg != null &&
-              Number.isFinite(it.finalQuantityKg as number)
+              it.finalQuantityKg != null && Number.isFinite(it.finalQuantityKg as number)
             const qtyLabel = hasFinal
               ? `final: ${it.finalQuantityKg}`
               : `forcasted: ${it.forcastedQuantityKg}`
@@ -112,7 +104,7 @@ export default function AcceptedGroupCard({
                 alignItems="center"
                 p="2"
                 rounded="md"
-                bg={isEven ? "green.50" : "transparent"}
+                bg={isEven ? "green.50" : "transparent"} // light green alternating background
                 _dark={{ bg: isEven ? "green.900" : "transparent" }}
               >
                 <Text>

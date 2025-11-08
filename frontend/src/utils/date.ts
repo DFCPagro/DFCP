@@ -58,3 +58,22 @@ export function derivePercent(
   const pct = Math.round((elapsed / total) * 100);
   return Math.max(0, Math.min(100, pct));
 }
+
+/** Format a Date or ISO string into HH:mm (24h) */
+export function formatTimeHM(date?: string | Date): string {
+  if (!date) return "";
+
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return ""; // invalid date guard
+
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
+/** Capitalize the shift label ("morning" → "Morning") */
+export function formatShiftLabel(shift?: string): string {
+  if (!shift) return "";
+  return shift.charAt(0).toUpperCase() + shift.slice(1);
+}

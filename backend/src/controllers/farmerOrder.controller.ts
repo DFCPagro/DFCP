@@ -1,7 +1,8 @@
 // src/controllers/farmerOrder.controller.ts
 import { Request, Response } from "express";
 import { Types } from "mongoose";
-
+import { DateTime } from "luxon";
+import ShiftConfig from "../models/shiftConfig.model";
 import {
   createFarmerOrderService,
   updateFarmerStatusService,
@@ -14,6 +15,28 @@ import {
 } from "../services/farmerOrder.service";
 
 import type { AuthUser } from "../services/farmerOrderStages.service";
+// helpers (put near top of the controller file)
+const asString = (v: unknown): string | undefined =>
+  typeof v === "string" ? v : undefined;
+
+const fromEnum = <T extends readonly string[]>(
+  v: unknown,
+  allowed: T
+): T[number] | undefined => {
+  if (typeof v !== "string") return undefined;
+  return (allowed as readonly string[]).includes(v) ? (v as T[number]) : undefined;
+};
+
+// enums for narrowing
+const FARMER_STATUSES = ["pending", "ok", "problem"] as const;
+type FarmerStatus = typeof FARMER_STATUSES[number];
+
+const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
+type ShiftName = typeof SHIFTS[number];
+
+const WINDOWS = ["future", "past", "all"] as const;
+type WindowOpt = typeof WINDOWS[number];
+
 
 /** POST /api/farmer-orders */
 export async function create(req: Request, res: Response) {
@@ -203,25 +226,28 @@ export async function getFarmerOrdersUpcoming(req: Request, res: Response) {
  * GET /api/farmer-orders/shift?logisticCenterId=&date=&shiftName=&farmerStatus=&page=&limit=
  * Paginated list for shift dashboard.
  */
+
 export async function getFarmerOrdersForShift(req: Request, res: Response) {
   try {
+    const user = (req as any).user || {}
+    const role = user.role as string | undefined
+    const userId = (user.id || user._id) as string | undefined
+
     const logisticCenterId =
-      (req.query.logisticCenterId as string) ||
-      (req as any).user?.logisticCenterId ||
-      "";
+       user?.logisticCenterId || ""
     if (!logisticCenterId)
-      return res.status(400).json({ message: "logisticCenterId is required" });
+      return res.status(400).json({ message: "logisticCenterId is required" })
 
-    const date = String(req.query.date || "");
-    const shiftName = String(req.query.shiftName || "");
+    const date = String(req.query.date || "")
+    const shiftName = String(req.query.shiftName || "")
     if (!date || !shiftName)
-      return res
-        .status(400)
-        .json({ message: "date and shiftName are required" });
+      return res.status(400).json({ message: "date and shiftName are required" })
 
-    const farmerStatus = req.query.farmerStatus as any;
-    const page = parseInt(String(req.query.page ?? "1"), 10) || 1;
-    const limit = parseInt(String(req.query.limit ?? "50"), 10) || 50;
+    const farmerStatus = req.query.farmerStatus as any
+    const page = parseInt(String(req.query.page ?? "1"), 10) || 1
+    const limit = parseInt(String(req.query.limit ?? "50"), 10) || 50
+
+    const isFarmer = role === "farmer"
 
     const data = await listFarmerOrdersForShift({
       logisticCenterId,
@@ -230,47 +256,92 @@ export async function getFarmerOrdersForShift(req: Request, res: Response) {
       farmerStatus,
       page,
       limit,
-    });
-    return res.json(data);
-  } catch (err: any) {
-    console.error("getFarmerOrdersForShift error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+      farmerId: isFarmer ? userId : undefined,
+      forFarmerView: isFarmer, // <- switches projection + mapping + normalization
+    })
+
+    return res.json(data)
+  } catch (err) {
+    console.error("getFarmerOrdersForShift error:", err)
+    return res.status(500).json({ error: "Internal server error" })
   }
 }
-
 /**
  * GET /api/farmer-orders (my list)
  * farmer sees their own orders, manager/admin can also filter
  */
 export async function listMyOrders(req: Request, res: Response) {
   try {
-    const user = (req as any).user as { id: string; role: string } | undefined;
+    const user = (req as any).user as
+      | { id: string; role: string; logisticCenterId?: string }
+      | undefined;
     if (!user?.id) return res.status(401).json({ error: "Unauthorized" });
+
+    const isMgr = ["admin", "fManager"].includes(String(user.role));
 
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-    const filters = {
-      itemId: req.query.itemId ? String(req.query.itemId) : undefined,
-      pickUpDate: req.query.pickUpDate
-        ? String(req.query.pickUpDate)
-        : undefined,
-      shift: req.query.shift ? String(req.query.shift) : undefined,
-      farmerId: req.query.farmerId ? String(req.query.farmerId) : undefined,
-    };
+    // role-aware LC selection
+    const lcFromQuery = asString(req.query.lc);
+    const effectiveLC = isMgr ? (lcFromQuery || user.logisticCenterId) : user.logisticCenterId;
+    if (isMgr && !effectiveLC) {
+      return res.status(400).json({ error: "logisticCenterId (lc) is required for manager/admin" });
+    }
+
+    // window / dates
+    const window = fromEnum(req.query.window, WINDOWS) ?? "future";
+    const fromQ = asString(req.query.from);
+    const toQ = asString(req.query.to);
+
+    // load tz from LC (if available)
+    let tz = "Asia/Jerusalem";
+    if (effectiveLC) {
+      const cfg = await ShiftConfig.findOne({ logisticCenterId: effectiveLC }, { timezone: 1 })
+        .lean()
+        .exec();
+      tz = cfg?.timezone || tz;
+    }
+    const todayLocal = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
+
+    let from = fromQ;
+    let to = toQ;
+    if (!from && !to) {
+      if (window === "future") from = todayLocal;
+      else if (window === "past")
+        to = DateTime.fromISO(todayLocal).minus({ days: 1 }).toFormat("yyyy-LL-dd");
+      // "all" => leave undefined
+    }
+
+    // other filters — NARROWED ✅
+    const farmerStatus: FarmerStatus | undefined = fromEnum(req.query.farmerStatus, FARMER_STATUSES);
+    const shift: ShiftName | undefined = fromEnum(req.query.shift, SHIFTS);
+    const itemId = asString(req.query.itemId);
+
+    // fields[]=...
+    const fieldsParam = req.query.fields;
+    const fields = Array.isArray(fieldsParam)
+      ? (fieldsParam.map(asString).filter(Boolean) as string[])
+      : fieldsParam
+      ? [String(fieldsParam)]
+      : undefined;
 
     const data = await listMyFarmerOrdersService(
       {
         userId: new Types.ObjectId(String(user.id)),
-        role: String(user.role || ""),
-      },
-      { limit, offset, filters }
+        role: String(user.role),
+        // if your service expects ObjectId here, convert before passing:
+        // logisticCenterId: effectiveLC ? new Types.ObjectId(effectiveLC) : undefined,
+        // (your current service uses user.LogisticCenterId: Types.ObjectId | undefined)
+      } as any, // keep your existing UserCtx shape if different
+      {
+        limit,
+        offset,
+        filters: { farmerStatus, itemId, shift, from, to, fields },
+      }
     );
 
-    return res.json({
-      data,
-      paging: { limit, offset, count: data.length },
-    });
+    return res.json({ data, paging: { limit, offset, count: data.length } });
   } catch (err: any) {
     console.error("listMyOrders error:", err);
     return res
@@ -278,6 +349,7 @@ export async function listMyOrders(req: Request, res: Response) {
       .json({ error: err?.message || "Internal server error" });
   }
 }
+
 
 /**
  * GET /api/farmer-orders/:id/print

@@ -200,3 +200,22 @@ export async function replaceItem(id: string, payload: ItemFormValues): Promise<
 export async function deleteItem(id: string): Promise<void> {
   await api.delete<void>(`/items/${id}`);
 }
+
+
+
+const ItemCatalogEntrySchema = z.object({
+  _id: z.string(),
+  category: z.string(),
+  type: z.string(),
+  variety: z.string().optional(),
+  imageUrl: z.string().url().optional(),
+});
+export const ItemCatalogResponseSchema = z.object({
+  data: z.array(ItemCatalogEntrySchema),
+});
+export type ItemCatalogEntry = z.infer<typeof ItemCatalogEntrySchema>;
+
+export async function getItemsCatalog(): Promise<ItemCatalogEntry[]> {
+  const { data } = await api.get("/items/public"); // 👈 adjust path if different
+  return ItemCatalogResponseSchema.parse(data).data;
+}
