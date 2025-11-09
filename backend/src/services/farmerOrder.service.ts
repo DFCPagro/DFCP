@@ -35,7 +35,7 @@ import {
 } from "./farmerOrderStages.service";
 
 import type { AuthUser } from "./farmerOrderStages.service"; // ⬅ reuse same AuthUser
-import { log } from "node:console";
+
 
 
 /* =============================
@@ -100,6 +100,58 @@ async function computePickUpTimeISO(args: {
 
   return dt.toJSDate(); // Mongo will store as UTC Date
 }
+
+
+const EXCLUDED_FARMER_IDS = [
+  "66f2aa00000000000000002a",
+  "66f2aa000000000000000008",
+] as const;
+
+/**
+ * Auto-OK all farmer orders in LC+date+shift via updateFarmerStatusService,
+ * excluding specific farmerIds. Acts *as the farmer* (role: "farmer") for each order.
+ */
+async function autoOkOrdersForShiftViaService(opts: {
+  lcId: Types.ObjectId ;
+  date: string; // "YYYY-MM-DD"
+  shift: "morning" | "afternoon" | "evening" | "night";
+  excludedFarmerIds: readonly string[];
+}) {
+  const { lcId, date, shift, excludedFarmerIds } = opts;
+
+  const excludedOids = excludedFarmerIds.map((id) => toOID(id));
+
+  const orders = await FarmerOrder.find(
+    {
+      logisticCenterId: toOID(lcId),
+      pickUpDate: date,
+      shift,
+      farmerId: { $nin: excludedOids },
+    },
+    { _id: 1, farmerId: 1 }
+  ).lean();
+
+  for (const o of orders) {
+    // Act *as that farmer* for this order
+    const actingUser = {
+      id: String(o.farmerId),
+      role: "farmer",
+    } as any; // minimal AuthUser shape needed by your service
+
+    try {
+      await updateFarmerStatusService({
+        orderId: String(o._id),
+        status: "ok",
+        note: "Auto OK (bulk after create)",
+        user: actingUser,
+      });
+    } catch (err) {
+      // Optional: log and continue
+       console.error("Auto OK failed for order", o._id, err);
+    }
+  }
+}
+
 
 export async function createFarmerOrderService(
   payload: CreateFarmerOrderPayload,
@@ -220,6 +272,14 @@ const pickUpTime: Date = await computePickUpTimeISO({
         // )}&sig=${encodeURIComponent(foQR.sig)}`,
       };
     });
+    ///auto ok for most of the farmers except segev and lehavim
+     await autoOkOrdersForShiftViaService({
+      lcId:  toOID(user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID),
+      date: payload.pickUpDate!,
+      shift: payload.shift as "morning" | "afternoon" | "evening" | "night",
+      excludedFarmerIds: EXCLUDED_FARMER_IDS,
+    });
+
 
     return json; // committed
   } finally {
