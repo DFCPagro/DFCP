@@ -1,6 +1,6 @@
 // src/pages/CreateStock/index.tsx
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Stack,
@@ -15,6 +15,11 @@ import { InitContextBanner } from "./components/InitContextBanner";
 import { InventoryList } from "./components/InventoryList";
 import { useCreateStockInit, useManagerSummary } from "./hooks/useCreateStockInit";
 import { ShiftEnum, IsoDateString } from "@/types/shifts";
+
+/* --- NEW: FAB + Dialog + types --- */
+import SubmittedOrdersFab from "./components/SubmittedOrdersFab";
+import SubmittedOrdersDialog, { type DemandStats } from "./components/SubmittedOrdersDialog";
+import type { SubmittedContext } from "./shared/submittedOrders.shared";
 
 /* ---------------------------------- helpers --------------------------------- */
 
@@ -72,6 +77,32 @@ export default function CreateStockPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateParam, shift]);
 
+  /* ---------------------- NEW: FAB/Dialog state & context ---------------------- */
+
+  // Controls the middle-page summary dialog
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
+  // Build SubmittedOrders storage context (guards cross-shift contamination)
+  const submittedCtx = useMemo(() => {
+    if (!hasParams) return undefined;
+    return { date: dateParam, shift: shift as any } as any; // logisticCenterId not required for now
+  }, [hasParams, dateParam, shift]);
+
+
+  // Live demand stats provider for the dialog (v1: safe no-op)
+  // If you have a demand map accessible here, return real numbers.
+  const getDemandStats = useMemo(
+    () =>
+    ((itemId: string, type?: string | null, variety?: string | null): DemandStats | undefined => {
+      // Example later:
+      // const key = `${itemId}__${type ?? ""}__${variety ?? ""}`;
+      // const d = demandMap.get(key);
+      // return d ? { demandKg: d.demandKg, committedKg: d.committedKg, remainingKg: d.remainingKg } : undefined;
+      return undefined;
+    }),
+    []
+  );
+
   return (
     <Box w="full">
       <Stack gap="4">
@@ -105,6 +136,25 @@ export default function CreateStockPage() {
                   shift={shift}
                   pickUpDate={dateParam}
                 />
+
+                {/* NEW: Submitted Orders FAB + Dialog */}
+                {submittedCtx ? (
+                  <>
+                    <SubmittedOrdersFab
+                      context={submittedCtx}
+                      onOpen={() => setSummaryOpen(true)}
+                      hideWhenEmpty={false}
+                    />
+                    {summaryOpen && (
+                      <SubmittedOrdersDialog
+                        open
+                        onOpenChange={setSummaryOpen}
+                        context={submittedCtx}
+                        confirmNavigateTo="/dashboard"
+                      />
+                    )}
+                  </>
+                ) : null}
               </>
             ) : null}
 

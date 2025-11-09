@@ -257,7 +257,7 @@ export type ContactInfo = {
   logisticCenterId: Types.ObjectId;
   // added only for farmer role
   farmName?: string | "Freshy Fresh";
-  farmLogo?: string | "none";
+  farmLogo?: string;
 };
 
 /**
@@ -289,10 +289,10 @@ export async function getContactInfoByIdService(
     // Only for farmers, enrich with farmName from Farmer collection
     const farmer = await Farmer.findOne(
       { user: userId },
-      { farmName: 1 }
+      { farmName: 1, farmLogo: 1 }
     ).lean();
     base.farmName = farmer?.farmName ?? "freshy fresh";
-    base.farmLogo = farmer?.farmLogo ?? "none";
+    base.farmLogo = farmer?.farmLogo ?? undefined;
   }
 
   return base;

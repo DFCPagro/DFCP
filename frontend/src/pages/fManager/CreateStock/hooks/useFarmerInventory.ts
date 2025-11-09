@@ -35,7 +35,7 @@ export function useFarmerInventory(opts?: { auto?: boolean }) {
     try {
       // console.log("Fetching farmer inventory...");
       const resp = await getFarmerInventory();
-      console.log("Fetched farmer inventory:", resp);
+      // console.log("Fetched farmer inventory:", resp);
       const rows = resp.data ?? [];
 
       if (!mountedRef.current) return;

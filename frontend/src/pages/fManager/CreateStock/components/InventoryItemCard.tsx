@@ -17,6 +17,10 @@ import type { FarmerInventoryItem, DemandStatisticsItem } from "@/types/farmerIn
 import type { IsoDateString, ShiftEnum as Shift } from "@/types/shifts"
 import { useCreateFarmerOrder } from "../hooks/useCreateFarmerOrder"
 import { FiCheck } from "react-icons/fi"
+import { formatDMY } from "@/utils/date";
+import { useSubmittedOrders } from "../hooks/useSubmittedOrders";
+import type { SubmittedLine } from "../shared/submittedOrders.shared";
+
 
 export type InventoryItemCardProps = {
     itemId: string
@@ -49,6 +53,8 @@ const LAST_NAMES = [
     "Ridge",
     "Farms",
 ] as const;
+
+
 
 type FirstName = typeof FIRST_NAMES[number];
 type LastName = typeof LAST_NAMES[number];
@@ -127,6 +133,18 @@ function InventoryItemCardBase({
     // Local per-row ephemeral success flag (to flash a tiny check)
     const [successByRow, setSuccessByRow] = useState<Record<string, number>>({}) // value = timestamp
 
+    // Build submitted-orders context from page props + first row's LC
+    const lcId = (rows[0] as any)?.logisticCenterId ?? (rows[0] as any)?.lcId ?? "";
+    const submittedCtx = useMemo(
+        () => ({
+            date: pickUpDate ?? "",
+            shift: (shift as any) ?? "",
+            logisticCenterId: String(lcId),
+        }),
+        [pickUpDate, shift, lcId]
+    );
+    const { isSubmitted, add } = useSubmittedOrders(submittedCtx);
+
     const { create, isSubmitting } = useCreateFarmerOrder()
     const onChangeQty = (rowKey: string, v: string) => {
         setQtyByRow((s) => ({ ...s, [rowKey]: v }))
@@ -134,61 +152,87 @@ function InventoryItemCardBase({
 
     const canCreate = Boolean(shift && pickUpDate)
 
-    const onSubmitRow = async (row: FarmerInventoryItem,) => {
-        const rowKey = getRowKey(row)
-        const raw = qtyByRow[rowKey]
-        const parsed = typeof raw === "string" ? parseFloat(raw) : NaN
-        const FarmerNameFake = getFarmName(row);
+    const onSubmitRow = async (row: FarmerInventoryItem) => {
+        const rowKey = getRowKey(row);
+        const raw = qtyByRow[rowKey];
+        const parsed = typeof raw === "string" ? parseFloat(raw) : NaN;
+        const farmerNameResolved = (row as any).farmerName ?? getFarmName(row);
+        const farmNameResolved = (row as any).farmName;
 
-        if (!canCreate) {
-            // eslint-disable-next-line no-console
-            console.warn("[CreateFarmerOrder] Missing shift or pickUpDate from page context.")
-            return
+        if (!canCreate || !submittedCtx.logisticCenterId) {
+            console.warn("[CreateFarmerOrder] Missing shift/pickUpDate/logisticCenterId from page context.");
+            return;
         }
         if (!Number.isFinite(parsed) || parsed <= 0) {
-            // eslint-disable-next-line no-console
-            console.warn("[CreateFarmerOrder] Invalid forcastedQuantityKg value:", raw)
-            return
+            console.warn("[CreateFarmerOrder] Invalid forcastedQuantityKg value:", raw);
+            return;
         }
 
-        // Build request matching backend contract
+        // Confirmation prompt
+        const itemLabel =
+            (demand?.itemDisplayName || itemId) +
+            (demand?.variety ? ` / ${demand?.variety}` : "");
+        const confirmMsg =
+            `From: ${farmNameResolved || "Unknown farm"}\n` +
+            `Item: ${itemLabel}\n` +
+            `Amount: ${parsed} kg\n\n` +
+            `Submit this order?`;
+        const ok = window.confirm(confirmMsg);
+        if (!ok) return;
+
+        // Server request
         const req = {
             itemId,
-            type: demand.type,
-            variety: demand.variety,
-            pictureUrl: demand.imageUrl,
-            farmName: (row as any).farmName,
-            farmerName: (row as any).farmerName ?? FarmerNameFake,
-            farmerId: (row as any).farmerUserId, // you confirmed this maps to backend farmerId
-            shift: shift!, // safe due to canCreate check
-            pickUpDate: pickUpDate!, // safe due to canCreate check
+            type: demand?.type,
+            variety: demand?.variety,
+            pictureUrl: demand?.imageUrl,
+            farmName: farmNameResolved,
+            farmerName: farmerNameResolved,
+            farmerId: (row as any).farmerUserId, // maps to backend farmerId
+            shift: shift!,        // safe due to canCreate
+            pickUpDate: pickUpDate!, // safe due to canCreate
             forcastedQuantityKg: parsed,
-        }
+        };
 
         try {
-            await create(req)
-            // Optionally clear the input for that row
-            setQtyByRow((s) => ({ ...s, [rowKey]: "" }))
-            // Flash a success indicator for this row
-            setSuccessByRow((s) => ({ ...s, [rowKey]: Date.now() }))
+            await create(req);
+
+            // Persist to submitted-orders store (allows duplicates per your spec)
+            const line: SubmittedLine = {
+                key: rowKey,
+                itemId,
+                type: demand?.type ?? undefined,
+                variety: demand?.variety ?? undefined,
+                imageUrl: demand?.imageUrl ?? undefined,
+                farmerId: (row as any).farmerUserId,
+                farmerName: farmerNameResolved,
+                farmName: farmNameResolved,
+                qtyKg: parsed,
+                groupDemandKg: demand.averageDemandQuantityKg,
+                submittedAt: new Date().toISOString(),
+            };
+            add(line);
+
+            // Clear the input and show success flash
+            setQtyByRow((s) => ({ ...s, [rowKey]: "" }));
+            setSuccessByRow((s) => ({ ...s, [rowKey]: Date.now() }));
         } catch (err) {
-            // eslint-disable-next-line no-console
-            console.error("[CreateFarmerOrder] Failed:", err)
+            console.error("[CreateFarmerOrder] Failed:", err);
         }
-    }
+    };
+
 
     // Aggregate optional quick stats (not required, but helps in header)
     const groupMeta = useMemo(() => {
         let totalAvail = 0
-        let latest = 0
+        let latest = ""
         for (const r of rows) {
             totalAvail += Number((r as any).currentAvailableAmountKg ?? 0)
-            const t = new Date((r as any).updatedAt ?? (r as any).createdAt).getTime()
-            if (t > latest) latest = t
+            latest = formatDMY((r as any).updatedAt ?? "-")
         }
         return {
             totalAvailableKg: totalAvail,
-            latestUpdatedISO: latest ? new Date(latest).toLocaleString() : undefined,
+            latestUpdatedISO: latest,
         }
     }, [rows])
 
@@ -246,15 +290,11 @@ function InventoryItemCardBase({
 
 
                     <Stack gap="0" align="end" minW="200px">
-                        <Text fontSize="xs" color="fg.muted">
-                            total available (all farmers)
+                        <Text fontSize="s" color="fg">
+                            total available
                         </Text>
-                        <Text fontWeight="medium">{fmtKg(groupMeta.totalAvailableKg)}</Text>
-                        {groupMeta.latestUpdatedISO ? (
-                            <Text fontSize="xs" color="fg.muted">
-                                latest update: {groupMeta.latestUpdatedISO}
-                            </Text>
-                        ) : null}
+                        <Text fontSize="md" >{fmtKg(groupMeta.totalAvailableKg)}</Text>
+
                     </Stack>
                 </HStack>
 
@@ -320,7 +360,7 @@ function InventoryItemCardBase({
                                         </HStack>
                                     </Table.Cell>
 
-                                    <Table.Cell>{formatDateTime((row as any).updatedAt ?? (row as any).createdAt)}</Table.Cell>
+                                    <Table.Cell>{formatDMY((row as any).updatedAt ?? (row as any).createdAt)}</Table.Cell>
 
                                     <Table.Cell textAlign="end">{fmtKg((row as any).agreementAmountKg)}</Table.Cell>
 
@@ -331,26 +371,45 @@ function InventoryItemCardBase({
                                     </Table.Cell>
 
                                     <Table.Cell>
-                                        <HStack gap="2" align="center">
-                                            <Input
-                                                type="number"
-                                                inputMode="decimal"
-                                                placeholder="kg"
-                                                value={value}
-                                                onChange={(e) => onChangeQty(rowKey, e.target.value)}
-                                                aria-label="request quantity in kg"
-                                                aria-invalid={value !== "" && invalidQty}
-                                            />
-                                            <Button
-                                                onClick={() => onSubmitRow(row)}
-                                                size="sm"
-                                                colorPalette="green"
-                                                disabled={!canCreate || pending || invalidQty}
-                                            >
-                                                {pending ? "Submitting…" : "Submit"}
-                                            </Button>
-                                            {justSucceeded ? <Icon as={FiCheck} color="green.500" aria-label="Created" /> : null}
-                                        </HStack>
+                                        {(() => {
+                                            const alreadySubmitted = isSubmitted(rowKey);
+
+                                            return (
+                                                <HStack gap="2" align="center">
+                                                    <Input
+                                                        type="number"
+                                                        inputMode="decimal"
+                                                        placeholder="kg"
+                                                        value={value}
+                                                        onChange={(e) => onChangeQty(rowKey, e.target.value)}
+                                                        aria-label="request quantity in kg"
+                                                        aria-invalid={value !== "" && invalidQty}
+                                                        disabled={alreadySubmitted}         // lock input after submission
+                                                        readOnly={alreadySubmitted}
+                                                    />
+
+                                                    {alreadySubmitted ? (
+                                                        <Button size="sm" disabled variant="subtle">
+                                                            Submitted
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            onClick={() => onSubmitRow(row)}
+                                                            size="sm"
+                                                            colorPalette="green"
+                                                            disabled={!canCreate || pending || invalidQty}
+                                                        >
+                                                            {pending ? "Submitting…" : "Submit"}
+                                                        </Button>
+                                                    )}
+
+                                                    {justSucceeded ? (
+                                                        <Icon as={FiCheck} color="green.500" aria-label="Created" />
+                                                    ) : null}
+                                                </HStack>
+                                            );
+                                        })()}
+
                                     </Table.Cell>
                                 </Table.Row>
                             )

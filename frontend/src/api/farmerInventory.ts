@@ -16,7 +16,7 @@ import type { DemandStatisticsResponse } from "@/types/farmerInventory";
 
 export async function getFarmerInventory(): Promise<FarmerInventoryResponse> {
   const { data } = await api.get("/farmer-inventory/farmer/inventory");
-  // console.log("API response data:", data);
+  console.log("API response data:", data);
 
   // Normalize different BE payload shapes to { data: [...] }
   // Supports:
