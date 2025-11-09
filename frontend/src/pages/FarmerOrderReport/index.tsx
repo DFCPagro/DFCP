@@ -11,7 +11,6 @@ import {
   Fieldset,
   FormatNumber,
   HStack,
-  Hide,
   Image,
   Input,
   Portal,
@@ -24,28 +23,26 @@ import {
   Tag,
   Text,
   Tabs,
-  Tooltip,
   VStack,
   NumberInput,
+  SegmentGroup,
+  Kbd,
+  SimpleGrid,
+  Wrap,
+  WrapItem,
 } from "@chakra-ui/react"
 import { QRCodeCanvas } from "qrcode.react"
+import { LuShoppingCart, LuCopy, LuCheck } from "react-icons/lu"
+import { Tooltip } from "@/components/ui/tooltip"
 
-import type {
-  Container,
-  ContainerQR,
-  FarmerOrder,
-  PrintPayload,
-} from "@/api/farmerOrders"
+import type { Container as FoContainer, ContainerQR, FarmerOrder, PrintPayload } from "@/api/farmerOrders"
 
 /**
- * Farmer order report (static/mock for now).
- * v3-compliant UI with a clearer flow:
- * 1) No containers initially → farmer creates N containers (QRs).
- * 2) Weigh-in per container (quick inline editor).
- * 3) Preview / print compact QR cards.
+ * Farmer order report – Chakra UI v3
+ * Super robust against overflow & layout breakage.
  */
 
-const mockMode = true // flip to false when wiring axios API
+const mockMode = true
 
 type QualityMetricConfig = {
   key: string
@@ -63,6 +60,8 @@ type Props = {
   assignedDeliverer?: string | null
 }
 
+type QrCardSize = "sm" | "md" | "lg" | "xl"
+
 export default function FarmerOrderReport({
   farmerOrderId,
   qualityA,
@@ -73,22 +72,21 @@ export default function FarmerOrderReport({
   const [payload, setPayload] = useState<PrintPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Flow state
+  // Flow
   const [openInit, setOpenInit] = useState(false)
   const [initCount, setInitCount] = useState<number | string>(0)
   const [openPreview, setOpenPreview] = useState(false)
 
-  // Filters / view
-  const [qrFilter, setQrFilter] = useState<"pending" | "weighed" | "all">(
-    "pending",
-  )
+  // Views
+  const [qrFilter, setQrFilter] = useState<"pending" | "weighed" | "all">("pending")
   const [boardTab, setBoardTab] = useState<"cards" | "table">("cards")
+  const [qrCardSize, setQrCardSize] = useState<QrCardSize>("md")
 
-  // Draft weights before PATCH
+  // Draft weights
   const [weightsDraft, setWeightsDraft] = useState<Record<string, number>>({})
   const [savingWeights, setSavingWeights] = useState(false)
 
-  // Grade A config (static defaults)
+  // Grade A config
   const qualityConfig: QualityMetricConfig[] = useMemo(
     () =>
       qualityA && qualityA.length
@@ -133,7 +131,7 @@ export default function FarmerOrderReport({
     }
 
     const cQrs: ContainerQR[] = []
-    const foContainers: Container[] = []
+    const foContainers: FoContainer[] = []
     for (let i = 1; i <= containers; i++) {
       const cid = `${id}_${i}`
       foContainers.push({ containerId: cid, weightKg: 0 })
@@ -169,8 +167,7 @@ export default function FarmerOrderReport({
   }, [payload])
 
   const totalWeighedKg = useMemo(() => {
-    const fo = payload?.farmerOrder
-    const base = (fo?.containers ?? []).reduce(
+    const base = (payload?.farmerOrder?.containers ?? []).reduce(
       (sum, c) => sum + (Number(c.weightKg) || 0),
       0,
     )
@@ -225,17 +222,16 @@ export default function FarmerOrderReport({
     return (fo?.variety ? `${fo?.type ?? ""} ${fo?.variety}`.trim() : fo?.type) || "Unknown Item"
   }, [payload?.farmerOrder])
 
-  // -------- Load / re-fetch --------
+  // -------- Load --------
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       if (mockMode) {
         await delay(150)
-        // Start with NO containers to force the proper flow
         setPayload(mockPayload(farmerOrderId, 0))
       } else {
-        // TODO: wire axios API
+        // TODO: wire API
         setPayload(mockPayload(farmerOrderId, 0))
       }
       setWeightsDraft({})
@@ -251,26 +247,27 @@ export default function FarmerOrderReport({
   }, [load])
 
   // -------- Actions --------
-  const openPrintPopup = useCallback((qrs: ContainerQR[], title: string, sizePx = 160, cols = 3) => {
-    const w = window.open("", "_blank", "noopener,noreferrer,width=1200,height=800")
-    if (!w) return
+  const openPrintPopup = useCallback(
+    (qrs: ContainerQR[], title: string, sizePx = 180, cols = 4) => {
+      const w = window.open("", "_blank", "noopener,noreferrer,width=1200,height=800")
+      if (!w) return
 
-    const cards = qrs
-      .map(
-        (q) => `
+      const cards = qrs
+        .map(
+          (q) => `
           <div class="card">
             <div class="id">${q.subjectId}</div>
             <div class="qr" id="qr-${q.subjectId}"></div>
             <div class="token">${q.token}</div>
           </div>`,
+        )
+        .join("")
+
+      const tokensJson = JSON.stringify(
+        qrs.map((q) => ({ id: q.subjectId, token: q.token })),
       )
-      .join("")
 
-    const tokensJson = JSON.stringify(
-      qrs.map((q) => ({ id: q.subjectId, token: q.token })),
-    )
-
-    w.document.write(`
+      w.document.write(`
       <html>
         <head>
           <meta charset="utf-8" />
@@ -282,16 +279,11 @@ export default function FarmerOrderReport({
             .toolbar{position:sticky;top:0;background:#fff;padding:8px 0;margin-bottom:8px;border-bottom:1px solid #eee;display:flex;gap:8px}
             .btn{padding:8px 12px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;cursor:pointer}
             .grid{display:grid;grid-template-columns:repeat(${cols}, minmax(0, 1fr));gap:12px}
-            .card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 14px;border:1px solid #e5e7eb;border-radius:12px}
+            .card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;break-inside:avoid}
             .id{font-weight:600;font-size:12px}
-            .token{font-size:11px;color:#6b7280;word-break:break-all;text-align:center}
+            .token{font-family: ui-monospace, SFMono-Regular, Menlo, monospace;font-size:11px;color:#374151;word-break:break-all;text-align:center}
             canvas{width:var(--size);height:var(--size)}
-            @media print {
-              .toolbar{display:none}
-              body{padding:0}
-              .grid{gap:8px}
-              .card{page-break-inside:avoid}
-            }
+            @media print { .toolbar{display:none} body{padding:0} .grid{gap:8px} .card{page-break-inside:avoid;break-inside:avoid} }
           </style>
         </head>
         <body>
@@ -302,7 +294,6 @@ export default function FarmerOrderReport({
           <h2 style="margin:8px 0 16px">${title}</h2>
           <div class="grid">${cards}</div>
           <script>
-            // Render simple placeholder canvas (token text). Real QR is printed from the app.
             const data = ${tokensJson};
             function render(canvas, text){
               const size = Number(getComputedStyle(document.documentElement).getPropertyValue('--size').replace('px','')) || ${sizePx};
@@ -323,9 +314,11 @@ export default function FarmerOrderReport({
         </body>
       </html>
     `)
-    w.document.close()
-    w.focus()
-  }, [])
+      w.document.close()
+      w.focus()
+    },
+    [],
+  )
 
   const onInitContainers = useCallback(async () => {
     const count = Number(initCount)
@@ -338,7 +331,7 @@ export default function FarmerOrderReport({
         setPayload((prev) => {
           const base = prev ?? mockPayload(farmerOrderId, 0)
           const start = (base.farmerOrder.containers?.length ?? 0) + 1
-          const newContainers: Container[] = []
+          const newContainers: FoContainer[] = []
           const newQrs: ContainerQR[] = []
           for (let i = 0; i < count; i++) {
             const seq = start + i
@@ -367,7 +360,7 @@ export default function FarmerOrderReport({
       setOpenInit(false)
       setQrFilter("pending")
       setBoardTab("cards")
-      setOpenPreview(true) // show preview right away
+      setOpenPreview(true)
     } catch (e: any) {
       setError(e?.message || "Failed to initialize containers")
     } finally {
@@ -409,7 +402,7 @@ export default function FarmerOrderReport({
         setSavingWeights(false)
       }
     },
-    [farmerOrderId],
+    [],
   )
 
   const saveWeights = useCallback(() => putWeights(weightsDraft), [putWeights, weightsDraft])
@@ -445,31 +438,39 @@ export default function FarmerOrderReport({
     return null
   }, [orderedKg, totalWeighedKg, minAllowedTotal])
 
+  // Card sizing map
+  const sizeCfg = useMemo(
+    () =>
+      ({
+        sm: { qr: 112, minCard: "220px", previewMin: "180px" },
+        md: { qr: 140, minCard: "260px", previewMin: "220px" },
+        lg: { qr: 168, minCard: "300px", previewMin: "260px" },
+        xl: { qr: 208, minCard: "360px", previewMin: "320px" },
+      } as const),
+    [],
+  )
+
   // -------- Render --------
   return (
-    <Stack gap="6" p="4">
+    <Stack gap="6" p={{ base: "3", md: "4" }} w="full" minW="0">
       {/* Header / Summary */}
-      <Card.Root variant="outline">
+      <Card.Root variant="outline" overflow="hidden">
         <Card.Body gap="4">
-          <HStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap">
-            <VStack alignItems="flex-start" gap="2">
+          <HStack justifyContent="space-between" alignItems="flex-start" wrap="wrap" minW="0">
+            <VStack alignItems="flex-start" gap="2" minW="200px" flex="1" minWidth={0}>
               <Text fontSize="xl" fontWeight="semibold">
                 Farmer Order Report
               </Text>
-              <HStack gap="3" flexWrap="wrap">
+              <HStack gap="2" wrap="wrap">
                 <Badge>{payload?.farmerOrder?._id ?? farmerOrderId}</Badge>
-                <Tag.Root>
-                  <Tag.Label>Shift: {payload?.farmerOrder?.shift ?? "-"}</Tag.Label>
-                </Tag.Root>
-                <Tag.Root>
-                  <Tag.Label>Date: {payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label>
-                </Tag.Root>
+                <Tag.Root><Tag.Label>Shift: {payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
+                <Tag.Root><Tag.Label>Date: {payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
               </HStack>
-              <Text color="fg.muted">Pickup: {pickup}</Text>
-              <Text color="fg.muted">Deliverer: {assignedName}</Text>
+              <Text color="fg.muted" lineClamp={1} minW="0">Pickup: {pickup}</Text>
+              <Text color="fg.muted" lineClamp={1} minW="0">Deliverer: {assignedName}</Text>
             </VStack>
 
-            <HStack gap="5" alignItems="center">
+            <HStack gap="4" alignItems="center" minW="260px" flexShrink={0}>
               {payload?.farmerOrder?.pictureUrl ? (
                 <Image
                   src={payload.farmerOrder.pictureUrl}
@@ -481,10 +482,10 @@ export default function FarmerOrderReport({
                 />
               ) : null}
 
-              <VStack alignItems="flex-end" minW="260px" gap="3">
+              <VStack alignItems="flex-end" minW="240px" gap="3">
                 <Stat.Root>
                   <Stat.Label>Item</Stat.Label>
-                  <Stat.ValueText>{itemName}</Stat.ValueText>
+                  <Stat.ValueText lineClamp={1} maxW="260px">{itemName}</Stat.ValueText>
                 </Stat.Root>
                 <Stat.Root>
                   <Stat.Label>Ordered amount</Stat.Label>
@@ -502,7 +503,7 @@ export default function FarmerOrderReport({
           <Separator />
 
           {/* Actions */}
-          <HStack gap="3" flexWrap="wrap">
+          <HStack gap="3" wrap="wrap">
             <Button onClick={() => setOpenInit(true)} disabled={loading}>
               Create containers
             </Button>
@@ -528,7 +529,7 @@ export default function FarmerOrderReport({
           </Show>
 
           <Show when={loading}>
-            <Progress.Root defaultValue={60} width="full">
+            <Progress.Root value={60} width="full" aria-label="Loading">
               <Progress.Track>
                 <Progress.Range />
               </Progress.Track>
@@ -538,20 +539,20 @@ export default function FarmerOrderReport({
       </Card.Root>
 
       {/* Step indicator */}
-      <Card.Root variant="subtle">
+      <Card.Root variant="subtle" overflow="hidden">
         <Card.Body>
-          <HStack gap="3" flexWrap="wrap">
-            <StepPill active>{`1. Create containers`}</StepPill>
-            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>{`2. Weigh-in`}</StepPill>
-            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>{`3. Print labels`}</StepPill>
+          <HStack gap="3" wrap="wrap">
+            <StepPill active>1. Create containers</StepPill>
+            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>2. Weigh-in</StepPill>
+            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>3. Print labels</StepPill>
           </HStack>
         </Card.Body>
       </Card.Root>
 
       {/* Quality – Grade A */}
-      <Card.Root variant="outline">
+      <Card.Root variant="outline" overflow="hidden">
         <Card.Body gap="4">
-          <HStack justifyContent="space-between" alignItems="center" flexWrap="wrap">
+          <HStack justifyContent="space-between" alignItems="center" wrap="wrap">
             <Text fontSize="lg" fontWeight="semibold">
               Quality Standard – Grade A
             </Text>
@@ -573,13 +574,13 @@ export default function FarmerOrderReport({
                   const outOfRange = Number(v) < lower || Number(v) > upper
                   const deviation = Math.min(100, Math.abs(((Number(v) - t) / (t || 1)) * 100))
                   return (
-                    <Card.Root key={m.key} variant={outOfRange ? "subtle" : "elevated"}>
+                    <Card.Root key={m.key} variant={outOfRange ? "subtle" : "elevated"} overflow="hidden">
                       <Card.Body gap="3">
                         <Field.Root invalid={outOfRange}>
                           <Field.Label>{m.label}</Field.Label>
-                          <HStack>
+                          <HStack align="center" gap="2" wrap="wrap">
                             <InlineNumber
-                              value={String(v ?? "")}
+                              value={Number(v ?? 0)}
                               onValue={(num) =>
                                 setQualityValues((prev) => ({
                                   ...prev,
@@ -593,7 +594,7 @@ export default function FarmerOrderReport({
                             Target: {formatNum(t)} {m.unit ?? ""} (±{tolerancePct}%)
                           </Field.HelperText>
 
-                          <Progress.Root defaultValue={deviation} width="full">
+                          <Progress.Root value={deviation} width="full">
                             <Progress.Track>
                               <Progress.Range />
                             </Progress.Track>
@@ -630,13 +631,13 @@ export default function FarmerOrderReport({
       </Card.Root>
 
       {/* Containers – board */}
-      <Card.Root variant="outline">
-        <Card.Body gap="4">
-          <HStack justifyContent="space-between" alignItems="center" flexWrap="wrap">
+      <Card.Root variant="outline" overflow="hidden">
+        <Card.Body gap="4" minW="0">
+          <HStack justifyContent="space-between" alignItems="center" wrap="wrap">
             <Text fontSize="lg" fontWeight="semibold">
               Containers – Weigh-in
             </Text>
-            <HStack gap="3" flexWrap="wrap">
+            <HStack gap="3" wrap="wrap">
               <Tag.Root>
                 <Tag.Label>
                   Weighed total: <FormatNumber value={totalWeighedKg} maximumFractionDigits={2} /> kg
@@ -647,6 +648,7 @@ export default function FarmerOrderReport({
                   Min allowed: <FormatNumber value={minAllowedTotal} maximumFractionDigits={2} /> kg
                 </Tag.Label>
               </Tag.Root>
+
               <Tooltip content={Object.keys(weightsDraft).length ? "Save all edited weights" : ""}>
                 <Button
                   onClick={saveWeights}
@@ -660,104 +662,203 @@ export default function FarmerOrderReport({
             </HStack>
           </HStack>
 
-          <HStack gap="2" flexWrap="wrap" alignItems="center">
-            <Segmented
+          <HStack gap="3" wrap="wrap" alignItems="center">
+            {/* Filter */}
+            <SegmentGroup.Root
+              size="sm"
               value={qrFilter}
-              onChange={setQrFilter}
-              items={[
-                { value: "pending", label: "Pending" },
-                { value: "weighed", label: "Weighed" },
-                { value: "all", label: "All" },
-              ]}
-            />
+              onValueChange={(e) => setQrFilter((e.value as any) ?? "pending")}
+            >
+              <SegmentGroup.Indicator />
+              <SegmentGroup.Items items={["pending", "weighed", "all"]} />
+            </SegmentGroup.Root>
+
+            {/* Size */}
+            <SegmentGroup.Root
+              size="sm"
+              value={qrCardSize}
+              onValueChange={(e) => setQrCardSize((e.value as any) ?? "md")}
+            >
+              <SegmentGroup.Indicator />
+              <SegmentGroup.Items items={["sm", "md", "lg", "xl"]} />
+            </SegmentGroup.Root>
+
             <Box flex="1" />
+
             <HStack gap="2" minW={{ base: "full", md: "420px" }} w={{ base: "full", md: "auto" }}>
-              <Input
-                readOnly
-                value={payload?.farmerOrderQR?.token ?? ""}
-                placeholder="Farmer Order QR token"
-              />
+              <Input readOnly value={payload?.farmerOrderQR?.token ?? ""} placeholder="Farmer Order QR token" />
               <Button onClick={() => setOpenPreview(true)} variant="subtle">
                 Show QRs
               </Button>
             </HStack>
           </HStack>
 
-          {/* Empty state if no containers */}
+          {/* Empty state */}
           <Show when={(payload?.containerQrs?.length ?? 0) === 0}>
-            <EmptyState
-              title="No containers yet"
-              description="Start by creating the number of containers to generate QR labels."
-              actions={
-                <Button onClick={() => setOpenInit(true)} colorPalette="primary">
-                  Create containers
-                </Button>
-              }
-            />
+            <EmptyState.Root>
+              <EmptyState.Content>
+                <EmptyState.Indicator>
+                  <LuShoppingCart />
+                </EmptyState.Indicator>
+                <VStack textAlign="center">
+                  <EmptyState.Title>No containers yet</EmptyState.Title>
+                  <EmptyState.Description>
+                    Start by creating the number of containers to generate QR labels.
+                  </EmptyState.Description>
+                </VStack>
+                <Box>
+                  <Button onClick={() => setOpenInit(true)} colorPalette="primary">
+                    Create containers
+                  </Button>
+                </Box>
+              </EmptyState.Content>
+            </EmptyState.Root>
           </Show>
 
           {/* Board view */}
           <Show when={(payload?.containerQrs?.length ?? 0) > 0}>
-            <Tabs.Root value={boardTab} onValueChange={(e) => setBoardTab(e.value as any)} fitted>
+            <Tabs.Root value={boardTab} onValueChange={(e) => setBoardTab(e.value as any)}>
               <Tabs.List>
                 <Tabs.Trigger value="cards">Card view</Tabs.Trigger>
                 <Tabs.Trigger value="table">Table view</Tabs.Trigger>
               </Tabs.List>
             </Tabs.Root>
 
+            {/* Cards */}
             <Show when={boardTab === "cards"}>
-              <SimpleGridAuto cols={{ base: 1, sm: 2, md: 3, lg: 4 }} gap="4">
-                {filteredQrs.map((q) => {
-                  const draft = weightsDraft[q.subjectId]
-                  const final =
-                    draft ??
-                    (payload?.farmerOrder?.containers ?? []).find((c) => c.containerId === q.subjectId)?.weightKg ??
-                    0
-                  const done = final > 0
-                  return (
-                    <Card.Root
-                      key={q.subjectId}
-                      variant={done ? "elevated" : "subtle"}
-                      _hover={{ shadow: "md" }}
-                    >
-                      <Card.Body gap="3" alignItems="center">
-                        <Text fontWeight="medium">{q.subjectId}</Text>
-                        <QRCodeCanvas value={q.token} size={128} />
-                        <Text color="fg.muted" fontSize="xs" textAlign="center">
-                          {q.token}
-                        </Text>
+              {(() => {
+                const cfg = sizeCfg[qrCardSize]
+                const qrPx = cfg.qr
 
-                        <HStack w="full" justifyContent="space-between" alignItems="center">
-                          <Tag.Root colorPalette={done ? "green" : undefined}>
-                            <Tag.Label>{done ? "weight set" : "set weight"}</Tag.Label>
-                          </Tag.Root>
+                return (
+                  <SimpleGrid minChildWidth={cfg.minCard} gap="4">
+                    {filteredQrs.map((q) => {
+                      const draft = weightsDraft[q.subjectId]
+                      const serverWeight =
+                        (payload?.farmerOrder?.containers ?? []).find((c) => c.containerId === q.subjectId)?.weightKg ?? 0
+                      const final = draft ?? serverWeight ?? 0
+                      const hasServerWeight = (serverWeight || 0) > 0
+                      const done = final > 0
+                      const edited = draft !== undefined && draft !== serverWeight
 
-                          <HStack gap="2" alignItems="center">
-                            <InlineWeightEditor
-                              value={final}
-                              onChange={(kg) =>
-                                setWeightsDraft((prev) => ({
-                                  ...prev,
-                                  [q.subjectId]: kg,
-                                }))
-                              }
-                            />
-                            <Text color="fg.muted">kg</Text>
-                          </HStack>
-                        </HStack>
-                      </Card.Body>
-                    </Card.Root>
-                  )
-                })}
-              </SimpleGridAuto>
+                      return (
+                        <Card.Root
+                          key={q.subjectId}
+                          variant="elevated"
+                          _hover={{ shadow: "md" }}
+                          borderRadius="xl"
+                          h="full"
+                          role="group"
+                          overflow="hidden"
+                          minW="0"
+                        >
+                          <Card.Body
+                            gap="3"
+                            alignItems="stretch"
+                            display="grid"
+                            gridTemplateRows="auto auto auto auto"
+                            minW="0"
+                          >
+                            {/* Header: id + status */}
+                            <HStack justifyContent="space-between" alignItems="center" minH="28px" minW="0">
+                              <Text fontWeight="semibold" fontSize="sm" title={q.subjectId} lineClamp={1} minW="0">
+                                {q.subjectId}
+                              </Text>
+                              <HStack gap="2" flexShrink={0}>
+                                {edited ? (
+                                  <Tag.Root colorPalette="yellow" variant="subtle" title="Edited locally; not saved">
+                                    <Tag.Label>edited</Tag.Label>
+                                  </Tag.Root>
+                                ) : null}
+                                <Tag.Root colorPalette={done ? "green" : hasServerWeight ? "blue" : "gray"} variant="subtle">
+                                  <Tag.Label>{done ? "set" : hasServerWeight ? "saved" : "pending"}</Tag.Label>
+                                </Tag.Root>
+                              </HStack>
+                            </HStack>
+
+                            {/* QR */}
+                            <Box display="grid" placeItems="center" py="2" bg="bg.subtle" borderRadius="lg">
+                              <QRCodeCanvas value={q.token} size={qrPx} />
+                            </Box>
+
+                            {/* Token */}
+                            <MonoToken token={q.token} />
+
+                            {/* Controls */}
+                            <Stack
+                              direction={{ base: "column", sm: "row" }}
+                              align={{ base: "stretch", sm: "center" }}
+                              justify="space-between"
+                              gap="2"
+                              minW="0"
+                            >
+                              <HStack gap="2" align="center" wrap="wrap" minW="0">
+                                <InlineWeightEditor
+                                  value={final}
+                                  onChange={(kg) =>
+                                    setWeightsDraft((prev) => ({
+                                      ...prev,
+                                      [q.subjectId]: kg,
+                                    }))
+                                  }
+                                />
+                                <Text color="fg.muted" flexShrink={0}>kg</Text>
+
+                                {/* quick bumps */}
+                                <HStack gap="1" wrap="wrap">
+                                  {([0.5, 1, 5] as const).map((b) => (
+                                    <Button
+                                      key={b}
+                                      size="xs"
+                                      variant="outline"
+                                      onClick={() =>
+                                        setWeightsDraft((prev) => ({
+                                          ...prev,
+                                          [q.subjectId]: round2(Math.max(0, (final || 0) + b)),
+                                        }))
+                                      }
+                                      title={`+${b} kg`}
+                                    >
+                                      +{b}
+                                    </Button>
+                                  ))}
+                                  <Button
+                                    size="xs"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      setWeightsDraft((prev) => ({
+                                        ...prev,
+                                        [q.subjectId]: 0,
+                                      }))
+                                    }
+                                    title="Set to 0"
+                                  >
+                                    Reset
+                                  </Button>
+                                </HStack>
+                              </HStack>
+
+                              {/* <Text color="fg.muted" fontSize="sm" textAlign={{ base: "left", sm: "right" }}>
+                                <FormatNumber value={final} maximumFractionDigits={2} /> kg
+                              </Text> */}
+                            </Stack>
+                          </Card.Body>
+                        </Card.Root>
+                      )
+                    })}
+                  </SimpleGrid>
+                )
+              })()}
             </Show>
 
+            {/* Table */}
             <Show when={boardTab === "table"}>
               <Box overflowX="auto">
                 <Table.Root size="sm" width="full">
                   <Table.Header>
                     <Table.Row>
                       <Table.ColumnHeader textAlign="start">Container</Table.ColumnHeader>
+                      <Table.ColumnHeader textAlign="start">QR token</Table.ColumnHeader>
                       <Table.ColumnHeader textAlign="end">Weight (kg)</Table.ColumnHeader>
                       <Table.ColumnHeader textAlign="end">Status</Table.ColumnHeader>
                     </Table.Row>
@@ -767,9 +868,13 @@ export default function FarmerOrderReport({
                       const draft = weightsDraft[c.containerId]
                       const finalWeight = draft ?? c.weightKg ?? 0
                       const done = finalWeight > 0
+                      const token = payload?.containerQrs?.find((x) => x.subjectId === c.containerId)?.token ?? ""
                       return (
                         <Table.Row key={c.containerId}>
                           <Table.Cell>{c.containerId}</Table.Cell>
+                          <Table.Cell>
+                            <MonoToken token={token} inline />
+                          </Table.Cell>
                           <Table.Cell textAlign="end">
                             <FormatNumber value={finalWeight} maximumFractionDigits={2} />
                           </Table.Cell>
@@ -802,24 +907,18 @@ export default function FarmerOrderReport({
         <Portal>
           <Dialog.Backdrop />
           <Dialog.Positioner>
-            <Dialog.Content maxW="lg">
+            <Dialog.Content>
               <Dialog.Header>
                 <Dialog.Title>Create containers</Dialog.Title>
               </Dialog.Header>
               <Dialog.Body>
                 <Stack gap="4">
                   <Text>
-                    Enter how many containers to add. You can preview and print the QR cards after
-                    creation.
+                    Enter how many containers to add. You can preview and print the QR cards after creation.
                   </Text>
                   <Field.Root>
                     <Field.Label>Number of containers</Field.Label>
-                    <InlineNumber
-                      value={String(initCount)}
-                      onValue={(num) => setInitCount(num)}
-                      min={1}
-                      max={2000}
-                    />
+                    <InlineNumber value={Number(initCount) || 0} onValue={(num) => setInitCount(num)} min={1} max={2000} />
                     <Field.HelperText>Max 2000</Field.HelperText>
                   </Field.Root>
                 </Stack>
@@ -828,11 +927,7 @@ export default function FarmerOrderReport({
                 <Dialog.ActionTrigger asChild>
                   <Button variant="outline">Cancel</Button>
                 </Dialog.ActionTrigger>
-                <Button
-                  colorPalette="primary"
-                  onClick={onInitContainers}
-                  disabled={loading || Number(initCount) <= 0}
-                >
+                <Button colorPalette="primary" onClick={onInitContainers} disabled={loading || Number(initCount) <= 0}>
                   Create & Continue
                 </Button>
               </Dialog.Footer>
@@ -846,62 +941,108 @@ export default function FarmerOrderReport({
         <Portal>
           <Dialog.Backdrop />
           <Dialog.Positioner>
-            <Dialog.Content maxW="6xl">
+            <Dialog.Content
+              maxW={{ base: "95vw", md: "900px" }}
+              css={{
+                "@media print": {
+                  boxShadow: "none",
+                  border: "none",
+                  width: "100%",
+                  maxWidth: "none",
+                },
+              }}
+            >
               <Dialog.Header>
                 <Dialog.Title>QR Cards – Preview</Dialog.Title>
               </Dialog.Header>
               <Dialog.Body>
                 <Stack gap="5">
-                  <HStack justifyContent="space-between" alignItems="flex-start" flexWrap="wrap">
-                    <VStack alignItems="flex-start">
+                  {/* meta */}
+                  <Stack
+                    direction={{ base: "column", md: "row" }}
+                    justify="space-between"
+                    align={{ base: "stretch", md: "flex-start" }}
+                    gap="4"
+                  >
+                    <VStack alignItems="flex-start" gap="2">
                       <Text fontWeight="medium">{itemName}</Text>
-                      <Text color="fg.muted">FO: {payload?.farmerOrder?._id ?? farmerOrderId}</Text>
-                      <HStack gap="3" flexWrap="wrap">
-                        <Tag.Root>
-                          <Tag.Label>{payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label>
-                        </Tag.Root>
-                        <Tag.Root>
-                          <Tag.Label>{payload?.farmerOrder?.shift ?? "-"}</Tag.Label>
-                        </Tag.Root>
-                        <Tag.Root>
-                          <Tag.Label>Deliverer: {assignedName}</Tag.Label>
-                        </Tag.Root>
-                      </HStack>
-                    </VStack>
-                    <HStack gap="3" flexWrap="wrap" alignItems="center">
-                      <Tag.Root>
-                        <Tag.Label>
-                          <FormatNumber value={orderedKg} /> kg ordered
-                        </Tag.Label>
-                      </Tag.Root>
-                      <Tag.Root>
-                        <Tag.Label>{payload?.containerQrs?.length ?? 0} containers</Tag.Label>
-                      </Tag.Root>
-                    </HStack>
-                  </HStack>
+                      <Text color="fg.muted" lineClamp={1} minW="0">FO: {payload?.farmerOrder?._id ?? farmerOrderId}</Text>
 
-                  <Hide below="md">
+                      <Wrap gap="2">
+                        <WrapItem>
+                          <Tag.Root><Tag.Label>{payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
+                        </WrapItem>
+                        <WrapItem>
+                          <Tag.Root><Tag.Label>{payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
+                        </WrapItem>
+                        <WrapItem>
+                          <Tag.Root><Tag.Label>Deliverer: {assignedName}</Tag.Label></Tag.Root>
+                        </WrapItem>
+                      </Wrap>
+                    </VStack>
+
+                    <Wrap gap="2" align="center">
+                      <WrapItem>
+                        <Tag.Root>
+                          <Tag.Label><FormatNumber value={orderedKg} /> kg ordered</Tag.Label>
+                        </Tag.Root>
+                      </WrapItem>
+                      <WrapItem>
+                        <Tag.Root>
+                          <Tag.Label>{payload?.containerQrs?.length ?? 0} containers</Tag.Label>
+                        </Tag.Root>
+                      </WrapItem>
+                    </Wrap>
+                  </Stack>
+
+                  <Box display={{ base: "none", md: "block" }}>
                     <Text color="fg.muted" fontSize="sm">
                       Tip: Printing from desktop ensures consistent label sizing.
                     </Text>
-                  </Hide>
+                  </Box>
 
-                  <SimpleGridAuto cols={{ base: 1, sm: 2, md: 3, lg: 4 }} gap="4">
-                    {(payload?.containerQrs ?? []).map((q) => (
-                      <Card.Root key={q.subjectId} variant="subtle">
-                        <Card.Body gap="2" alignItems="center">
-                          <Text fontWeight="medium">{q.subjectId}</Text>
-                          <QRCodeCanvas value={q.token} size={140} />
-                          <Text color="fg.muted" fontSize="xs" textAlign="center">
-                            {q.token}
-                          </Text>
-                        </Card.Body>
-                      </Card.Root>
-                    ))}
-                  </SimpleGridAuto>
+                  {/* grid */}
+                  {(() => {
+                    const cfg = sizeCfg[qrCardSize]
+                    const qrPx = cfg.qr
+
+                    return (
+                      <SimpleGrid
+                        minChildWidth={cfg.previewMin}
+                        gap="4"
+                        css={{
+                          "@media print": { gap: "8px" },
+                        }}
+                      >
+                        {(payload?.containerQrs ?? []).map((q) => (
+                          <Card.Root
+                            key={q.subjectId}
+                            overflow="hidden"
+                            minW="0"
+                            variant="subtle"
+                            css={{
+                              breakInside: "avoid",
+                              "@media print": {
+                                border: "1px solid",
+                                borderColor: "var(--chakra-colors-border)",
+                              },
+                            }}
+                          >
+                            <Card.Body gap="2" alignItems="stretch" minW="0">
+                              <Text fontWeight="semibold" fontSize="sm" lineClamp={1}>{q.subjectId}</Text>
+                              <Box display="grid" placeItems="center" py="2">
+                                <QRCodeCanvas value={q.token} size={qrPx} />
+                              </Box>
+                              <MonoToken token={q.token} />
+                            </Card.Body>
+                          </Card.Root>
+                        ))}
+                      </SimpleGrid>
+                    )
+                  })()}
                 </Stack>
               </Dialog.Body>
-              <Dialog.Footer>
+              <Dialog.Footer css={{ "@media print": { display: "none" } }}>
                 <Dialog.ActionTrigger asChild>
                   <Button variant="outline">Close</Button>
                 </Dialog.ActionTrigger>
@@ -911,7 +1052,7 @@ export default function FarmerOrderReport({
                     openPrintPopup(
                       payload?.containerQrs ?? [],
                       `Containers for FO ${payload?.farmerOrder?._id ?? ""}`,
-                      160,
+                      sizeCfg[qrCardSize].qr,
                       4,
                     )
                   }
@@ -931,12 +1072,8 @@ export default function FarmerOrderReport({
           When farmer report is complete, advance the pipeline using:
         </Text>
         <HStack gap="2" wrap="wrap">
-          <Tag.Root>
-            <Tag.Label>PATCH /api/farmer-orders/:id/stage</Tag.Label>
-          </Tag.Root>
-          <Tag.Root>
-            <Tag.Label>updateFarmerOrderStageService</Tag.Label>
-          </Tag.Root>
+          <Tag.Root><Tag.Label>PATCH /api/farmer-orders/:id/stage</Tag.Label></Tag.Root>
+          <Tag.Root><Tag.Label>updateFarmerOrderStageService</Tag.Label></Tag.Root>
         </HStack>
       </VStack>
     </Stack>
@@ -946,31 +1083,30 @@ export default function FarmerOrderReport({
 /* ----------------------- * Inline Inputs & Small Helpers * ----------------------*/
 
 function InlineNumber(props: {
-  value: string
+  value: number
   onValue: (n: number) => void
   min?: number
   max?: number
   step?: number
   width?: string
+  size?: "xs" | "sm" | "md" | "lg"
 }) {
-  const { value, onValue, min = 0, max = 1_000_000, step = 0.1 } = props
+  const { value, onValue, min = 0, max = 1_000_000, step = 0.1, size = "sm" } = props
   return (
-    <Box display="flex" alignItems="center" gap="2" width={props.width ?? "220px"}>
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onValue(safeNumber(e.target.value))}
-        style={{
-          flex: 1,
-          padding: "8px 10px",
-          borderRadius: 10,
-          border: "1px solid var(--chakra-colors-border)",
-        }}
-      />
-    </Box>
+    <NumberInput.Root
+      value={String(Number.isFinite(value) ? value : 0)}
+      onValueChange={(d) => onValue(safeNumber(d.value))}
+      min={min}
+      max={max}
+      step={step}
+      width={props.width ?? "220px"}
+      maxW="100%"
+      size={size}
+      aria-label="Numeric value"
+    >
+      <NumberInput.Control />
+      <NumberInput.Input inputMode="decimal" />
+    </NumberInput.Root>
   )
 }
 
@@ -982,32 +1118,64 @@ function InlineWeightEditor(props: { value: number; onChange: (n: number) => voi
       min={0}
       max={2000}
       step={0.5}
-      width="140px"
+      width="160px"
+      maxW="100%"
       size="sm"
+      aria-label="Weight (kg)"
     >
       <NumberInput.Control />
-      <NumberInput.Input />
+      <NumberInput.Input inputMode="decimal" />
     </NumberInput.Root>
   )
 }
 
-function Segmented<T extends string>(props: {
-  value: T
-  onChange: (v: T) => void
-  items: { value: T; label: string }[]
-}) {
+function MonoToken({ token, inline = false }: { token: string; inline?: boolean }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(token)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1000)
+    } catch {}
+  }
+
   return (
-    <HStack gap="2">
-      {props.items.map((it) => (
+    <HStack
+      gap="2"
+      alignItems="center"
+      justifyContent="space-between"
+      bg="bg.subtle"
+      borderRadius="lg"
+      px="3"
+      py="2"
+      w="full"
+      minW="0"
+      overflow="hidden"
+    >
+      <Text
+        as="span"
+        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        fontSize={inline ? "xs" : "sm"}
+        color="fg.muted"
+        lineClamp={1}
+        title={token}
+        minW="0"
+        flex={1}
+      >
+        {token}
+      </Text>
+
+      <Tooltip content={copied ? "Copied!" : "Copy token"}>
         <Button
-          key={it.value}
-          size="sm"
-          variant={props.value === it.value ? "solid" : "outline"}
-          onClick={() => props.onChange(it.value)}
+          size="xs"
+          variant="subtle"
+          onClick={copy}
+          aria-label="Copy QR token"
+          flexShrink={0}
         >
-          {it.label}
+          {copied ? <LuCheck /> : <LuCopy />}
         </Button>
-      ))}
+      </Tooltip>
     </HStack>
   )
 }
@@ -1056,7 +1224,7 @@ function round2(n: number) {
 }
 
 function safeNumber(v: string | number): number {
-  const n = Number(v)
+  const n = typeof v === "string" && v.trim() === "" ? NaN : Number(v)
   if (!Number.isFinite(n)) return 0
   return n
 }
