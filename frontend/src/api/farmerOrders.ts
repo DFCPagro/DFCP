@@ -16,7 +16,7 @@ import type {
   ShiftFarmerOrderItem,
   FarmerOrderStatus,
 } from "@/types/farmerOrders";
-import type {FarmerViewByShiftResponse} from "@/pages/farmer/farmerOrder.type";
+import type { FarmerViewByShiftResponse } from "@/pages/farmer/farmerOrder.type";
 // NEW: fake helpers (no network)
 import { getFakeByShift } from "./fakes/farmerOrders.fake";
 
@@ -130,7 +130,6 @@ export async function getMyFarmerOrdersByShift(
   return data;
 }
 
-
 /* ------------------------- Stage & Status mutations ----------------------- */
 
 /** Body for advancing a farmer order to a specific stage */
@@ -207,7 +206,7 @@ const toQuery = (params: Record<string, any>) => {
   const s = usp.toString();
   return s ? `?${s}` : "";
 };
-const unwrap = <T,>(p: any): T => (p?.data ?? p) as T;
+const unwrap = <T>(p: any): T => (p?.data ?? p) as T;
 
 // --- List my orders (role-aware on BE) ---
 export type ListMyOrdersParams = {
@@ -232,6 +231,7 @@ export async function acceptMyFarmerOrder(orderId: string) {
 }
 export async function rejectMyFarmerOrder(orderId: string, note: string) {
   return updateFarmerOrderStatus(orderId, "problem", note);
+}
 /* ------------------ Print payload & container operations ------------------ */
 /**
  * The following types and functions support the "Farmer Order Report" screen:
