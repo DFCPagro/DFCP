@@ -2,19 +2,11 @@
 
 import StyledIconButton from "@/components/ui/IconButton";
 import {
-  Badge,
-  Box,
-  Button,
-  Dialog,
-  HStack,
-  Icon,
-  Portal,
-  Separator,
-  Stack,
-  Text,
-  VisuallyHidden,
+  Badge, Box, Button, Dialog, HStack, Icon, Portal, Separator, Stack, Text, VisuallyHidden,
 } from "@chakra-ui/react";
 import { Sparkles, X } from "lucide-react";
+import { useMemo } from "react";
+import { useNavigate as useRRNavigate } from "react-router-dom";
 
 export type RoleDetails = {
   name: string;
@@ -37,21 +29,10 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   details: RoleDetails | null;
   onConfirm: () => void;
-  /**
-   * Optional navigation function from your app/router.
-   * If not provided, window.location.href is used.
-   */
-  navigate?: (path: string) => void;
-  /**
-   * Destination path or builder. Defaults to `/employment/application?role=<name>`.
-   */
+  navigate?: (path: string) => void; // optional override
   applicationHref?: string | ((details: RoleDetails) => string);
 };
 
-/**
- * A dynamic, rich dialog that renders role-specific details.
- * Pass a RoleDetails object for each role (from JSON / API).
- */
 export function RolePreviewDialog({
   open,
   onOpenChange,
@@ -60,6 +41,20 @@ export function RolePreviewDialog({
   navigate,
   applicationHref,
 }: Props) {
+  // ✅ Hooks must be called every render, unconditionally
+  const rrNavigate = useRRNavigate();
+
+  const targetHref = useMemo(() => {
+    if (typeof applicationHref === "function" && details) {
+      return applicationHref(details);
+    }
+    if (typeof applicationHref === "string") return applicationHref;
+    // default even when details is null (safe; won’t be used if we return null)
+    const roleName = details?.name ? encodeURIComponent(details.name) : "";
+    return `/job-application?role=${roleName}`;
+  }, [applicationHref, details]);
+
+  // Now we can safely early-return; hook order already fixed above
   if (!details) return null;
 
   const payText =
@@ -67,20 +62,15 @@ export function RolePreviewDialog({
       ? `${details.currency ?? "$"}${details.payMin}–${details.payMax} / hr`
       : "Pay scale varies by shift & location";
 
-  const targetHref =
-    typeof applicationHref === "function"
-      ? applicationHref(details)
-      : applicationHref ??
-        `/employment/application?role=${encodeURIComponent(details.name ?? "")}`;
-
   const goToApplication = () => {
     onConfirm?.();
     onOpenChange?.(false);
-
     if (typeof navigate === "function") {
       navigate(targetHref);
-    } else {
-      window.location.href = targetHref; // hard navigation fallback
+    } else if (typeof rrNavigate === "function") {
+      rrNavigate(targetHref);
+    } else if (typeof window !== "undefined") {
+      window.location.href = targetHref;
     }
   };
 
@@ -106,7 +96,7 @@ export function RolePreviewDialog({
                   </Dialog.Title>
                 </HStack>
                 <Dialog.CloseTrigger asChild>
-                  <StyledIconButton size="sm" variant="subtle" borderRadius="lg">
+                  <StyledIconButton size="sm" variant="subtle" borderRadius="lg" aria-label="Close">
                     <X />
                   </StyledIconButton>
                 </Dialog.CloseTrigger>
@@ -138,103 +128,72 @@ export function RolePreviewDialog({
 
             <Separator />
 
-            {/* Scrollable body */}
-            <Box
-              maxH="60vh"
-              overflowY="auto"
-              px={{ base: 4, md: 5 }}
-              py={{ base: 4, md: 5 }}
-            >
+            {/* Body */}
+            <Box maxH="60vh" overflowY="auto" px={{ base: 4, md: 5 }} py={{ base: 4, md: 5 }}>
               <Stack gap="5">
-                {/* Overview */}
                 <Box>
-                  <Text fontWeight="semibold" mb="1">
-                    Overview
-                  </Text>
+                  <Text fontWeight="semibold" mb="1">Overview</Text>
                   <Text color="fg.muted">{details.description}</Text>
                 </Box>
 
-                {/* Highlights */}
-                {details.highlights && details.highlights.length > 0 && (
+                {details.highlights?.length ? (
                   <Box>
-                    <Text fontWeight="semibold" mb="2">
-                      Highlights
-                    </Text>
+                    <Text fontWeight="semibold" mb="2">Highlights</Text>
                     <Stack as="ul" gap="2" pl="5">
                       {details.highlights.map((h, i) => (
-                        <Text as="li" key={i}>
-                          {h}
-                        </Text>
+                        <Text as="li" key={i}>{h}</Text>
                       ))}
                     </Stack>
                   </Box>
-                )}
+                ) : null}
 
-                {/* Responsibilities / Requirements in two columns (stack on mobile) */}
-                {(details.responsibilities?.length || details.requirements?.length) && (
-                  <Stack
-                    direction={{ base: "column", md: "row" }}
-                    gap={{ base: 4, md: 6 }}
-                    align="start"
-                  >
-                    {details.responsibilities && details.responsibilities.length > 0 && (
+                {(details.responsibilities?.length || details.requirements?.length) ? (
+                  <Stack direction={{ base: "column", md: "row" }} gap={{ base: 4, md: 6 }} align="start">
+                    {details.responsibilities?.length ? (
                       <Box flex="1">
-                        <Text fontWeight="semibold" mb="2">
-                          Responsibilities
-                        </Text>
+                        <Text fontWeight="semibold" mb="2">Responsibilities</Text>
                         <Stack as="ul" gap="2" pl="5">
                           {details.responsibilities.map((r, i) => (
-                            <Text as="li" key={i}>
-                              {r}
-                            </Text>
+                            <Text as="li" key={i}>{r}</Text>
                           ))}
                         </Stack>
                       </Box>
-                    )}
-                    {details.requirements && details.requirements.length > 0 && (
+                    ) : null}
+                    {details.requirements?.length ? (
                       <Box flex="1">
-                        <Text fontWeight="semibold" mb="2">
-                          Requirements
-                        </Text>
+                        <Text fontWeight="semibold" mb="2">Requirements</Text>
                         <Stack as="ul" gap="2" pl="5">
                           {details.requirements.map((r, i) => (
-                            <Text as="li" key={i}>
-                              {r}
-                            </Text>
+                            <Text as="li" key={i}>{r}</Text>
                           ))}
                         </Stack>
                       </Box>
-                    )}
+                    ) : null}
                   </Stack>
-                )}
+                ) : null}
 
-                {/* FAQ */}
-                {details.faq && details.faq.length > 0 && (
+                {details.faq?.length ? (
                   <Box>
-                    <Text fontWeight="semibold" mb="2">
-                      FAQs
-                    </Text>
+                    <Text fontWeight="semibold" mb="2">FAQs</Text>
                     <Stack gap="3">
                       {details.faq.map((f, i) => (
                         <Box key={i} borderWidth="1px" rounded="lg" p="3" bg="bg.subtle">
-                          <Text fontWeight="medium" mb="1">
-                            {f.q}
-                          </Text>
+                          <Text fontWeight="medium" mb="1">{f.q}</Text>
                           <Text color="fg.muted">{f.a}</Text>
                         </Box>
                       ))}
                     </Stack>
                   </Box>
-                )}
+                ) : null}
               </Stack>
             </Box>
 
             <Separator />
 
-            {/* Footer actions */}
+            {/* Footer */}
             <Box p={{ base: 4, md: 5 }} pt="0">
               <HStack justify="end" gap="2">
-                <Button colorPalette="blue" borderRadius="xl" onClick={goToApplication}>
+                <Button type="button" colorPalette="blue" borderRadius="xl" onClick={goToApplication}>
                   Continue to application
                 </Button>
               </HStack>

@@ -75,13 +75,14 @@ export function ApplicationFormCard(props: ApplicationFormCardProps) {
               <Separator />
 
               {/* Agreement */}
-              <Checkbox.Root alignItems="flex-start">
-                <Checkbox.HiddenInput
-                  checked={agree}
-                  onChange={(e) =>
-                    onChangeField("__agree_internal__", e.currentTarget.checked)
-                  }
-                />
+              <Checkbox.Root
+                alignItems="flex-start"
+                checked={agree}
+                onCheckedChange={({ checked }) =>
+                  onChangeField("__agree_internal__", checked === true)
+                }
+              >
+                <Checkbox.HiddenInput />
                 <Checkbox.Control mt="1" />
                 <Checkbox.Label>
                   I certify that all information is accurate.

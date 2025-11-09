@@ -5,8 +5,12 @@ import { Role, roles } from "../utils/constants";
 // Use the Address type from the model to stay in sync with the schema
 import type { Address } from "../models/user.model";
 import { Farmer } from "../models/farmer.model"; // or: import { User } from "../models/user.model";
+import type { FlattenMaps, Require_id } from "mongoose";
 
 export const DEFAULT_LC_ID = "66e007000000000000000001";
+
+export type LeanUser = Require_id<FlattenMaps<User>>;
+
 
 /**
  * Create a user document in the base User collection.
@@ -77,10 +81,8 @@ export async function findUserByEmail(email: string) {
 }
 
 /** Strict lookup by id with a 404 if missing. */
-export async function getUserById(id: string) {
-  const user = await User.findById(id);
-  if (!user) throw new ApiError(404, "User not found");
-  return user;
+export async function getUserById(id: string): Promise<LeanUser | null> {
+  return User.findById(id).lean().exec();
 }
 
 /** ---------- Public projection helpers (used by /auth/me) ---------- **/
@@ -117,9 +119,11 @@ export function toPublicUser(u: any): PublicUser {
 }
 
 export async function getPublicUserById(id: string): Promise<PublicUser> {
-  const user = await getUserById(id);
-  return toPublicUser(user);
+  const u = await getUserById(id);
+  if (!u) throw new ApiError(404, "User not found");
+  return toPublicUser(u); // u is plain/lean
 }
+
 
 // ====== (user personal info ) ======
 import { Types } from "mongoose";

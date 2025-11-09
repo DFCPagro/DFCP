@@ -58,8 +58,9 @@ export default function HeaderBar({
           {/* Info popover: legend + shift times (hidden by default) */}
           <Popover.Root>
             <Popover.Trigger asChild>
-              <IconButton aria-label="Shift info" variant="ghost" size="xs">
+              <IconButton aria-label="Shift info" variant="ghost" size="xs" p="2">
                 <Info size={16} />
+                info
               </IconButton>
             </Popover.Trigger>
             <Popover.Positioner>

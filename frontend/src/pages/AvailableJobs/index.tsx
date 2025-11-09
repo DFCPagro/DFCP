@@ -33,15 +33,15 @@ export const roleImages: Record<string, string> = {
   deliverer:
     "https://img.freepik.com/premium-photo/cheerful-delivery-guy-with-box-hand-ai_431161-12363.jpg",
   picker:
-    "https://source.unsplash.com/640x360/?warehouse,worker,scanner&sig=picker",
+    "images/jobs/picker.jpg",
   industrialdeliverer:
     "https://i.pinimg.com/736x/0e/b0/be/0eb0be1ace7c9caf9211564c3b2eede3.jpg",
   farmer:
     "https://i.pinimg.com/originals/df/ae/83/dfae83290c2c77ae42d83b99e201b5f2.jpg",
   sorting:
-    "https://source.unsplash.com/640x360/?warehouse,sorting,conveyor&sig=sorting",
+    "images/jobs/sorter.png",
   "warehouse-worker":
-    "https://source.unsplash.com/640x360/?warehouse,forklift,worker&sig=warehouse-worker",
+    "images/jobs/warehouse-worker.jpg",
   default:
     "https://tse4.mm.bing.net/th/id/OIP.fPZcB-2duJR_eBOo2jS7YQAAAA?rs=1&pid=ImgDetMain&o=7&rm=3",
 }
