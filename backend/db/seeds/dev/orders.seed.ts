@@ -1,17 +1,21 @@
 /**
- * Dev Seeder – Orders
+ * Dev Seeder – Orders (+ PickerTasks bootstrap for current shift)
  *
- * Seeds 15 orders total:
- *  • 5 for the current shift
- *  • 5 for the next shift
- *  • 5 for the shift after that
+ * Seeds 30 orders total:
+ *  • 10 for the current shift
+ *  • 10 for the next shift
+ *  • 10 for the shift after that
  *
- * Uses static data from `db/seeds/data/orders.seed.json`.
+ * Uses static data from `db/seeds/data/orders.data.json`.
  * Does NOT create AMS documents — each order gets a random amsId.
  * Forces LogisticsCenterId = 66e007000000000000000001.
  *
+ * After seeding, generates PickerTasks **for the current shift only**,
+ * then marks the **first 7 tasks** as "ready".
+ *
  * Run:
  *   $env:MONGO_URI="mongodb+srv://user:pass@cluster/mydb"
+ *   $env:ADMIN_USER_ID="66e00700000000000000abcd"  # optional
  *   npm run seed:orders
  */
 
@@ -22,12 +26,18 @@ import { connectDB, disconnectDB } from "../../../src/db/connect";
 import { Order } from "../../../src/models/order.model";
 import { loadJSON } from "../utils/io";
 
+// 👇 imports for picker tasks
+import { default as PickerTaskModel } from "../../../src/models/PickerTasks.model";
+import { generatePickerTasksForShift } from "../../../src/services/pickerTasks.service";
+
 // -----------------------------
 // Config
 // -----------------------------
 const TZ = "Asia/Jerusalem";
 const LC_ID = "66e007000000000000000001";
 const DATA_PATH = path.resolve(__dirname, "../data/orders.data.json");
+
+const ORDERS_PER_SHIFT = 10;
 
 const ITEM_NAME_BY_ID: Record<string, string> = {
   "db63c0177cfae45a8385313a": "Apple Fuji",
@@ -49,7 +59,7 @@ const SHIFT_CONFIG = [
   { name: "evening" as const, startMin: 1080, endMin: 1380 },
   { name: "night" as const, startMin: 1380, endMin: 1740 }, // wraps midnight
 ];
-type ShiftName = typeof SHIFT_CONFIG[number]["name"];
+type ShiftName = (typeof SHIFT_CONFIG)[number]["name"];
 
 // -----------------------------
 // Time helpers
@@ -79,7 +89,7 @@ function addDays(d: Date, days: number) {
   return x;
 }
 function isInShift(mins: number, start: number, end: number) {
-  return end <= 1440 ? start <= mins && mins < end : mins >= start || mins < (end - 1440);
+  return end <= 1440 ? start <= mins && mins < end : mins >= start || mins < end - 1440;
 }
 
 // determine current + next two shifts
@@ -113,13 +123,14 @@ async function seed() {
   try {
     const staticData: any[] = await loadJSON(DATA_PATH);
     if (!Array.isArray(staticData) || staticData.length === 0) {
-      throw new Error("orders.seed.json is empty or invalid.");
+      throw new Error("orders.data.json is empty or invalid.");
     }
 
     const windows = getNextThreeShifts(new Date());
     console.log(`📦 Using 3 shifts: ${windows.map((w) => `${w.ymd} ${w.shift}`).join(", ")}`);
 
-    const needed = 15;
+    // build a pool of docs we can cycle through
+    const needed = ORDERS_PER_SHIFT; // per shift
     const docs: any[] = [];
     for (let i = 0; i < needed; i++) docs.push(staticData[i % staticData.length]);
 
@@ -127,8 +138,21 @@ async function seed() {
     let cursor = 0;
 
     for (const win of windows) {
-      for (let j = 0; j < 5; j++) {
-        const src = { ...docs[cursor++] };
+      for (let j = 0; j < ORDERS_PER_SHIFT; j++) {
+        const src = { ...docs[cursor++ % docs.length] };
+
+        // (optional) ensure lines have name if missing: use ITEM_NAME_BY_ID
+        if (Array.isArray(src.items)) {
+          src.items = src.items.map((row: any) => ({
+            ...row,
+            name:
+              row?.name ||
+              ITEM_NAME_BY_ID[String(row?.itemId)] ||
+              ITEM_NAME_BY_ID[String(row?.itemID)] ||
+              undefined,
+          }));
+        }
+
         const order = {
           ...src,
           _id: new Types.ObjectId(),
@@ -146,8 +170,55 @@ async function seed() {
     // Clear old dev orders first (optional)
     await Order.deleteMany({});
     const inserted = await Order.insertMany(ordersToInsert);
-    console.log(`✅ Inserted ${inserted.length} orders (5 per shift × 3 shifts)`);
+    console.log(`✅ Inserted ${inserted.length} orders (${ORDERS_PER_SHIFT} per shift × 3 shifts)`);
 
+    // ---------------------------------------------------------
+    // Generate PickerTasks for the CURRENT shift only
+    // ---------------------------------------------------------
+    const current = windows[0]; // { ymd, shift }
+    const ADMIN_USER_ID =
+      process.env.ADMIN_USER_ID && Types.ObjectId.isValid(process.env.ADMIN_USER_ID)
+        ? new Types.ObjectId(process.env.ADMIN_USER_ID)
+        : new Types.ObjectId(); // fallback dummy
+
+    console.log(
+      `🧰 Generating picker tasks for current shift ${current.ymd} ${current.shift} (LC=${LC_ID})`
+    );
+
+    // create/refresh tasks (do NOT auto-set ready here; we’ll set only first 7 below)
+    const genRes = await generatePickerTasksForShift({
+      logisticCenterId: LC_ID,
+      createdByUserId: ADMIN_USER_ID,
+      shiftName: current.shift,
+      shiftDate: current.ymd,
+      autoSetReady: false,
+    });
+
+    console.log(
+      `📋 PickerTasks: created=${genRes.createdCount}, existed=${genRes.alreadyExisted}, ordersProcessed=${genRes.ordersProcessed}`
+    );
+
+    // Flip first 7 to "ready"
+    const firstSeven = await PickerTaskModel.find({
+      logisticCenterId: new Types.ObjectId(LC_ID),
+      shiftName: current.shift,
+      shiftDate: current.ymd,
+    })
+      .sort({ createdAt: 1, _id: 1 })
+      .select({ _id: 1 })
+      .limit(7)
+      .lean()
+      .exec();
+
+    if (firstSeven.length) {
+      await PickerTaskModel.updateMany(
+        { _id: { $in: firstSeven.map((t) => t._id) } },
+        { $set: { status: "ready" } }
+      );
+      console.log(`🚦 Marked first ${firstSeven.length} picker tasks as "ready"`);
+    } else {
+      console.log("ℹ️ No picker tasks found to flip to ready.");
+    }
   } catch (err) {
     console.error("❌ Seed failed:", err);
     throw err;

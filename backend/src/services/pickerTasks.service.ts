@@ -156,7 +156,7 @@ export async function generatePickerTasksForShift(params: {
     shiftName,
     shiftDate,
     priority = 0,
-    autoSetReady = true,
+    autoSetReady = false,
   } = params
 
   const { shiftName: sName, shiftDate: sDate, tz } = await resolveCurrentShiftParams(

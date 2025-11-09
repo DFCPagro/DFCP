@@ -1,118 +1,174 @@
 import * as React from "react"
-import { Stack, HStack, Heading, Text, Box, SimpleGrid, Spinner, Icon } from "@chakra-ui/react"
+import { Box, Heading, HStack, Text, Badge, Code, Button, Table } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
-import { DateTime } from "luxon"
-import { AlertTriangle } from "lucide-react"
+import type { PickerTask, PickerTaskListResponse } from "@/api/pickerTask"
+import { getContactInfoById } from "@/api/user" // <- NEW
 
-import { fetchCurrentShift } from "@/api/shifts"
-import type { ShiftName as ApiShiftName } from "@/api/shifts"
-
-import {
-  fetchPickerTasksForShift,
-  fetchShiftPickerTasksSummary,
-  type ShiftName,
-  type PickerTask,
-} from "@/api/pickerTask"
-
-import PickerTasksTable from "./components/pickerTasksTable"
-import TaskDetailsModal from "./components/taskDetailsModal"
-
-function isValidShiftName(s: ApiShiftName): s is ShiftName {
-  return s !== "none"
+type ContactInfo = {
+  name?: string | null
+  email?: string | null
+  phone: string
+  birthday?: string | null
 }
 
-const ErrorBanner = ({ children }: { children: React.ReactNode }) => (
-  <Box role="alert" borderWidth="1px" borderRadius="md" p={3} bg="red.50" borderColor="red.200">
-    <HStack align="start" gap={2}>
-      <Icon as={AlertTriangle} boxSize={4} color="red.500" />
-      <Text>{children}</Text>
-    </HStack>
-  </Box>
-)
+const fmtKg = (n?: number) => (typeof n === "number" ? n.toFixed(2) : "0.00")
+const fmtL  = (n?: number) => (typeof n === "number" ? n.toFixed(1) : "0.0")
+const shortId = (id?: string) => (id && id.length > 8 ? `${id.slice(0, 4)}…${id.slice(-4)}` : id || "-")
+const titleCase = (s?: string) => (s ? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "")
 
-export default function PickerTasksPage() {
-  const [selectedTask, setSelectedTask] = React.useState<PickerTask | null>(null)
-  const [open, setOpen] = React.useState(false)
+/** Badge styles by status */
+const STATUS_BADGE: Record<
+  NonNullable<PickerTask["status"]>,
+  { bg: string; color: string; border: string }
+> = {
+  open:        { bg: "gray.50",   color: "gray.800",  border: "gray.200" },
+  ready:       { bg: "green.50",  color: "green.800", border: "green.200" },
+  claimed:     { bg: "purple.50", color: "purple.800", border: "purple.200" },
+  in_progress: { bg: "blue.50",   color: "blue.800",  border: "blue.200" },
+  done:        { bg: "teal.50",   color: "teal.800",  border: "teal.200" },
+  cancelled:   { bg: "orange.50", color: "orange.800", border: "orange.200" },
+  problem:     { bg: "red.50",    color: "red.800",   border: "red.200" },
+}
 
-  const currentQ = useQuery({
-    queryKey: ["pickerTasks", "currentShiftCtx"],
+export default function PickerTasksTable({
+  data,
+  onView,
+}: {
+  data: PickerTaskListResponse
+  onView: (task: PickerTask) => void
+}) {
+  const counts = data.countsByStatus || {}
+  const subtitle = [
+    `${data.pagination?.total ?? data.items.length} total`,
+    ...Object.entries(counts).filter(([, v]) => !!v).map(([k, v]) => `${k}: ${v}`),
+  ].join(" • ")
+
+  // Bring "problem" to the top
+  const sortedItems = React.useMemo(() => {
+    const score = (t: PickerTask) => (t.status === "problem" ? 1 : 0)
+    return [...(data.items ?? [])].sort((a, b) => score(b) - score(a))
+  }, [data.items])
+
+  // --- NEW: batch fetch contact info for assigned pickers ---
+  const assignedIds = React.useMemo(() => {
+    const s = new Set<string>()
+    for (const t of sortedItems) {
+      if (t.assignedPickerUserId) s.add(String(t.assignedPickerUserId))
+    }
+    return Array.from(s)
+  }, [sortedItems])
+
+  const contactsQ = useQuery({
+    queryKey: ["contactsById", assignedIds.sort().join(",")],
+    enabled: assignedIds.length > 0,
     queryFn: async () => {
-      const cur = await fetchCurrentShift()
-      if (!isValidShiftName(cur.shift)) throw new Error("No active shift right now")
-      const tz = "Asia/Jerusalem"
-      const shiftDate = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd")
-      return { shiftName: cur.shift as ShiftName, shiftDate, tz }
+      const entries = await Promise.all(
+        assignedIds.map(async (id) => {
+          try {
+            const info = (await getContactInfoById(id)) as ContactInfo
+            return [id, info] as const
+          } catch {
+            return [id, null] as const
+          }
+        })
+      )
+      return Object.fromEntries(entries) as Record<string, ContactInfo | null>
     },
   })
 
-  const tasksQ = useQuery({
-    enabled: !!currentQ.data,
-    queryKey: ["pickerTasks", "shift", currentQ.data?.shiftName, currentQ.data?.shiftDate],
-    queryFn: async () => {
-      const { shiftName, shiftDate } = currentQ.data!
-      const res= await fetchPickerTasksForShift({ shiftName, shiftDate, page: 1, limit: 500 })
-      console.log("picker tasks for shift", res)
-      return res
-    },
-  })
+  const getClaimedByLabel = (t: PickerTask) => {
+    if (!t.assignedPickerUserId) return "—"
+    const id = String(t.assignedPickerUserId)
+    const short = shortId(id)
+    const contact = contactsQ.data?.[id] || null
 
-  const summaryQ = useQuery({
-    enabled: !!currentQ.data,
-    queryKey: ["pickerTasks", "shiftSummary", currentQ.data?.shiftName, currentQ.data?.shiftDate],
-    queryFn: async () => {
-      const { shiftName, shiftDate } = currentQ.data!
-      const res = await fetchShiftPickerTasksSummary({ shiftName, shiftDate })
-      console.log("shift summary", res)
-      return res
-    },
-  })
+    // If still loading contacts, at least show short id
+    if (contactsQ.isLoading) return short
 
-  const isLoading = currentQ.isLoading || tasksQ.isLoading || summaryQ.isLoading
-  const shiftTitle = currentQ.data ? `${currentQ.data.shiftDate} • ${currentQ.data.shiftName}` : "Current Shift"
-
-  const onView = (t: PickerTask) => {
-    setSelectedTask(t)
-    setOpen(true)
+    const name = contact?.name?.trim()
+    return name && name.length
+      ? `${name} • ${short}`
+      : short
   }
 
   return (
-    <Stack gap={6}>
-      <HStack justifyContent="space-between">
-        <Heading size="lg">Picker Tasks — {shiftTitle}</Heading>
-      </HStack>
-
-      {isLoading && (
-        <HStack>
-          <Spinner />
-          <Text>Loading current shift…</Text>
+    <Box borderWidth="1px" borderRadius="md" overflow="hidden">
+      <Box px={4} py={3} borderBottomWidth="1px">
+        <HStack justifyContent="space-between">
+          <Heading size="sm">Tasks for current shift</Heading>
+          <Text color="gray.600">{subtitle}</Text>
         </HStack>
-      )}
+      </Box>
 
-      {currentQ.isError && <ErrorBanner>{(currentQ.error as Error)?.message || "Failed to load current shift"}</ErrorBanner>}
-      {!isLoading && (tasksQ.isError || summaryQ.isError) && (
-        <ErrorBanner>{((tasksQ.error || summaryQ.error) as Error)?.message || "Failed to load data"}</ErrorBanner>
-      )}
+      <Box p={4} overflowX="auto">
+        <Table.Root size="sm" width="full" variant="outline">
+          <Table.Header>
+            <Table.Row>
+              <Table.ColumnHeader>Status</Table.ColumnHeader>
+              <Table.ColumnHeader>Order</Table.ColumnHeader>
+              <Table.ColumnHeader>Claimed By</Table.ColumnHeader>
+              <Table.ColumnHeader textAlign="end">Boxes</Table.ColumnHeader>
+              <Table.ColumnHeader textAlign="end">Total Kg</Table.ColumnHeader>
+              <Table.ColumnHeader textAlign="end">Total L</Table.ColumnHeader>
+              <Table.ColumnHeader textAlign="end">Actions</Table.ColumnHeader>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {sortedItems.map((t) => {
+              const totalBoxes =
+                t.plan?.summary?.totalBoxes ??
+                t.plan?.boxes?.length ??
+                0
 
-      {summaryQ.data && (
-        <SimpleGrid columns={[1, 5]} gap={4}>
-          {Object.entries({
-            "Total Tasks": summaryQ.data.totalTasks ?? 0,
-            Ready: summaryQ.data.counts?.ready ?? 0,
-            "In Progress": summaryQ.data.counts?.in_progress ?? 0,
-            Open: summaryQ.data.counts?.open ?? 0,
-            Problem: summaryQ.data.counts?.problem ?? 0,
-          }).map(([label, val]) => (
-            <Box key={label} p={3} borderWidth="1px" borderRadius="md">
-              <Text fontSize="sm" color="gray.500">{label}</Text>
-              <Heading size="md">{val}</Heading>
-            </Box>
-          ))}
-        </SimpleGrid>
-      )}
+              const totalKg =
+                typeof t.totalEstKg === "number"
+                  ? t.totalEstKg
+                  : (t.plan?.summary as any)?.totalKg ??
+                    (t.plan?.boxes?.reduce((s, b) => s + (b.estWeightKg || 0), 0) ?? 0)
 
-      {tasksQ.data && <PickerTasksTable data={tasksQ.data} onView={onView} />}
+              const totalL =
+                typeof t.totalLiters === "number"
+                  ? t.totalLiters
+                  : (t.plan?.summary as any)?.totalLiters ??
+                    (t.plan?.boxes?.reduce((s, b) => s + (b.estFillLiters || 0), 0) ?? 0)
 
-      <TaskDetailsModal task={selectedTask} open={open} onClose={() => setOpen(false)} />
-    </Stack>
+              const badgeStyle = STATUS_BADGE[t.status ?? "open"]
+
+              return (
+                <Table.Row key={(t as any)._id ?? (t as any).id}>
+                  <Table.Cell>
+                    <Badge
+                      borderWidth="1px"
+                      bg={badgeStyle.bg}
+                      color={badgeStyle.color}
+                      borderColor={badgeStyle.border}
+                      px={2}
+                      py={0.5}
+                      rounded="md"
+                    >
+                      {titleCase(t.status)}
+                    </Badge>
+                  </Table.Cell>
+
+                  <Table.Cell><Code>{shortId(t.orderId)}</Code></Table.Cell>
+
+                  <Table.Cell>
+                    {/* Show only if assigned; if status explicitly "ready", keep "—" (not claimed) */}
+                    {t.status === "ready" ? "—" : getClaimedByLabel(t)}
+                  </Table.Cell>
+
+                  <Table.Cell textAlign="end">{totalBoxes}</Table.Cell>
+                  <Table.Cell textAlign="end">{fmtKg(totalKg)}</Table.Cell>
+                  <Table.Cell textAlign="end">{fmtL(totalL)}</Table.Cell>
+                  <Table.Cell textAlign="end">
+                    <Button size="sm" onClick={() => onView(t)}>View details</Button>
+                  </Table.Cell>
+                </Table.Row>
+              )
+            })}
+          </Table.Body>
+        </Table.Root>
+      </Box>
+    </Box>
   )
 }
