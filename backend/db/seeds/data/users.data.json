@@ -453,5 +453,79 @@
         "logisticCenterId": "66e007000000000000000001"
       }
     ]
+  },
+  
+  {
+    "_id": "66f2aa00000000000000003f",
+    "name": "David Tal",
+    "email": "david.tal@gmail.com",
+    "password": "farmer123",
+    "role": "farmer",
+    "activeStatus": true,
+    "uid": "FMR-3",
+    "logisticCenterId": "66e007000000000000000001",
+    "addresses": [
+      {
+        "lnt": 35.539,
+        "alt": 33.006,
+        "address": "Kiryat Shmona, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      },
+      {
+        "lnt": 35.56,
+        "alt": 32.78,
+        "address": "Safed, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      }
+    ]
+  },
+  {
+    "_id": "66f2aa000000000000000040",
+    "name": "Hagit Oren",
+    "email": "hagit.oren@gmail.com",
+    "password": "farmer123",
+    "role": "farmer",
+    "activeStatus": true,
+    "uid": "FMR-4",
+    "logisticCenterId": "66e007000000000000000001",
+    "addresses": [
+      {
+        "lnt": 34.86,
+        "alt": 32.22,
+        "address": "Hadera, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      },
+      {
+        "lnt": 34.90,
+        "alt": 32.30,
+        "address": "Netanya, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      }
+    ]
+  },
+  {
+    "_id": "66f2aa000000000000000041",
+    "name": "Eitan Shachar",
+    "email": "eitan.shachar@gmail.com",
+    "password": "farmer123",
+    "role": "farmer",
+    "activeStatus": true,
+    "uid": "FMR-5",
+    "logisticCenterId": "66e007000000000000000001",
+    "addresses": [
+      {
+        "lnt": 35.55,
+        "alt": 32.40,
+        "address": "Beit She'an, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      },
+      {
+        "lnt": 35.54,
+        "alt": 32.55,
+        "address": "Jordan Valley, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      }
+    ]
   }
+
 ]

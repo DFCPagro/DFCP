@@ -16,5 +16,34 @@
     "farmLogo": "https://picsum.photos/seed/lahavim-organics/512/512",
     "farmerBio": "Small-batch organic orchards and seasonal open-field produce. We prioritize biodiversity corridors and beneficial insects over broad-spectrum sprays.",
     "lands": ["66f2aa00000000000000ab02"]
+  },
+  
+  {
+    "user": "66f2aa00000000000000003f",
+    "farmName": "Galilee Heights Produce",
+    "agriculturalInsurance": true,
+    "agreementPercentage": 70,
+    "farmLogo": "https://picsum.photos/seed/galilee-heights/512/512",
+    "farmerBio": "Cultivating high-quality fruits and olives in the Upper Galilee. We use sustainable water practices and focus on heirloom varieties.",
+    "lands": ["66f2aa00000000000000ab03"]
+  },
+  {
+    "user": "66f2aa000000000000000040",
+    "farmName": "Coastal Plain Vineyards",
+    "agriculturalInsurance": false,
+    "agreementPercentage": 55,
+    "farmLogo": "https://picsum.photos/seed/coastal-vineyards/512/512",
+    "farmerBio": "A small vineyard and open-field farm near the coast. We specialize in seasonal greens and grapes, avoiding synthetic pesticides.",
+    "lands": ["66f2aa00000000000000ab04", "66f2aa00000000000000ab05"]
+  },
+  {
+    "user": "66f2aa000000000000000041",
+    "farmName": "Jordan Valley Dates",
+    "agriculturalInsurance": true,
+    "agreementPercentage": 80,
+    "farmLogo": "https://picsum.photos/seed/jordan-dates/512/512",
+    "farmerBio": "Dedicated to Medjool date production in the hot climate of the Jordan Valley. We utilize geothermal heating for early-season crops.",
+    "lands": ["66f2aa00000000000000ab06"]
   }
+
 ]
