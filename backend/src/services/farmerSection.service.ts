@@ -6,6 +6,7 @@ import FarmerLand from "../models/farmerLand.model";
 import FarmerSection from "../models/farmerSection.model";
 // If your items model/service uses a different path/name, adjust this import:
 import Item from "../models/Item.model";
+
 /* =========================================================
  * Types exposed to controllers (DTOs & Inputs)
  * ======================================================= */
@@ -15,10 +16,10 @@ export type SectionCropDTO = {
   plantedAmountGrams: number;
   avgRatePerUnit?: number | null;
   expectedFruitingPerPlant?: number | null;
-  plantedOnDate: string | null;       // "YYYY-MM-DD" or null
+  plantedOnDate: string | null; // "YYYY-MM-DD" or null
   expectedHarvestDate: string | null; // "YYYY-MM-DD" or null
   status: "planting" | "growing" | "readyForHarvest" | "clearing" | "problem";
-  statusPercentage: number;           // 0..100
+  statusPercentage: number; // 0..100
 };
 
 export type SectionDTO = {
@@ -52,13 +53,43 @@ export type CreateCropInput = {
   plantedAmountGrams: number;
   avgRatePerUnit?: number | null;
   expectedFruitingPerPlant?: number | null;
-  plantedOnDate?: string | null;       // "YYYY-MM-DD" or null
+  plantedOnDate?: string | null; // "YYYY-MM-DD" or null
   expectedHarvestDate?: string | null; // "YYYY-MM-DD" or null
 };
 
 /** Update section input (partial) */
 export type UpdateSectionPatch = Partial<Omit<CreateSectionInput, never>>;
 
+/* =========================================================
+ * Small utilities
+ * ======================================================= */
+
+/** Accepts null | "YYYY-MM-DD" | Date | string; returns "YYYY-MM-DD" | null */
+function normalizeYYYYMMDD(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "string") {
+    // If it's already "YYYY-MM-DD", accept it
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+    // Try to parse ISO or other string formats
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    return ymd(d);
+  }
+  if (v instanceof Date) return ymd(v);
+  return null;
+}
+
+/** Ensures that provided optional date is either null or "YYYY-MM-DD" */
+function nullableYYYYMMDD(v: unknown): string | null {
+  return normalizeYYYYMMDD(v);
+}
+
+function ymd(d: Date): string {
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
 /* =========================================================
  * Public Service API (exported)
  * ======================================================= */
@@ -82,7 +113,10 @@ export async function listLandsForFarmer(userId: string): Promise<LandDTO[]> {
   if (!lands.length) return [];
 
   // Count sections per land (aggregation for fewer round-trips)
-  const counts = await FarmerSection.aggregate<{ _id: Types.ObjectId; count: number }>([
+  const counts = await FarmerSection.aggregate<{
+    _id: Types.ObjectId;
+    count: number;
+  }>([
     { $match: { land: { $in: lands.map((l) => l._id) } } },
     { $group: { _id: "$land", count: { $sum: 1 } } },
   ]);
@@ -91,14 +125,14 @@ export async function listLandsForFarmer(userId: string): Promise<LandDTO[]> {
   for (const c of counts) byLandId.set(String(c._id), c.count);
 
   return lands.map((land: any) =>
-    mapLandDocToDTO(land, byLandId.get(String(land._id)) ?? 0),
+    mapLandDocToDTO(land, byLandId.get(String(land._id)) ?? 0)
   );
 }
 
 /** List sections for a land (with embedded crops) — ownership enforced */
 export async function listSectionsByLand(
   userId: string,
-  landId: string,
+  landId: string
 ): Promise<SectionDTO[]> {
   const farmer = await getFarmerFromUser(userId);
   const land = await assertLandOwnership(farmer._id, landId);
@@ -113,7 +147,7 @@ export async function listSectionsByLand(
 export async function createSection(
   userId: string,
   landId: string,
-  input: CreateSectionInput,
+  input: CreateSectionInput
 ): Promise<SectionDTO> {
   const farmer = await getFarmerFromUser(userId);
   const land = await assertLandOwnership(farmer._id, landId);
@@ -140,7 +174,7 @@ export async function createSection(
 export async function addCropToSection(
   userId: string,
   sectionId: string,
-  input: CreateCropInput,
+  input: CreateCropInput
 ): Promise<SectionCropDTO> {
   const farmer = await getFarmerFromUser(userId);
   const { section } = await assertSectionOwnership(farmer._id, sectionId);
@@ -173,7 +207,7 @@ export async function addCropToSection(
       $push: { crops: cropSubdoc },
       $set: { updatedAt: now },
     },
-    { new: true, projection: { crops: 1 } },
+    { new: true, projection: { crops: 1 } }
   ).lean();
 
   if (!updated) {
@@ -192,7 +226,7 @@ export async function addCropToSection(
 export async function updateSection(
   userId: string,
   sectionId: string,
-  patch: UpdateSectionPatch,
+  patch: UpdateSectionPatch
 ): Promise<SectionDTO> {
   const farmer = await getFarmerFromUser(userId);
   await assertSectionOwnership(farmer._id, sectionId);
@@ -200,13 +234,15 @@ export async function updateSection(
   const toSet: Record<string, unknown> = { updatedAt: new Date() };
 
   if ("name" in patch) toSet["name"] = patch.name ?? null;
-  if ("areaM2" in patch) toSet["areaM2"] = typeof patch.areaM2 === "number" ? patch.areaM2 : 0;
-  if ("measurements" in patch) toSet["measurements"] = patch.measurements ?? null;
+  if ("areaM2" in patch)
+    toSet["areaM2"] = typeof patch.areaM2 === "number" ? patch.areaM2 : 0;
+  if ("measurements" in patch)
+    toSet["measurements"] = patch.measurements ?? null;
 
   const updated = await FarmerSection.findOneAndUpdate(
     { _id: sectionId },
     { $set: toSet },
-    { new: true },
+    { new: true }
   ).lean();
 
   if (!updated) throw new ApiError(404, "Section not found");
@@ -215,7 +251,10 @@ export async function updateSection(
 }
 
 /** Delete a section (cascade its embedded crops) — ownership enforced */
-export async function deleteSection(userId: string, sectionId: string): Promise<void> {
+export async function deleteSection(
+  userId: string,
+  sectionId: string
+): Promise<void> {
   const farmer = await getFarmerFromUser(userId);
   await assertSectionOwnership(farmer._id, sectionId);
 
@@ -231,7 +270,7 @@ export async function deleteSection(userId: string, sectionId: string): Promise<
 
 async function assertLandOwnership(
   farmerId: Types.ObjectId | string,
-  landId: string,
+  landId: string
 ) {
   if (!mongoose.isValidObjectId(landId)) {
     throw new ApiError(400, "Invalid landId");
@@ -247,7 +286,7 @@ async function assertLandOwnership(
 
 async function assertSectionOwnership(
   farmerId: Types.ObjectId | string,
-  sectionId: string,
+  sectionId: string
 ) {
   if (!mongoose.isValidObjectId(sectionId)) {
     throw new ApiError(400, "Invalid sectionId");
@@ -272,7 +311,9 @@ function mapLandDocToDTO(land: any, sectionsCount: number): LandDTO {
     name: land.name,
     areaM2: Number(land.areaM2 ?? 0),
     sectionsCount,
-    updatedAt: land.updatedAt ? new Date(land.updatedAt).toISOString() : new Date().toISOString(),
+    updatedAt: land.updatedAt
+      ? new Date(land.updatedAt).toISOString()
+      : new Date().toISOString(),
   };
 }
 
@@ -283,7 +324,9 @@ function mapSectionDocToDTO(section: any): SectionDTO {
     name: section.name ?? null,
     areaM2: Number(section.areaM2 ?? 0),
     measurements: section.measurements ?? null,
-    updatedAt: section.updatedAt ? new Date(section.updatedAt).toISOString() : new Date().toISOString(),
+    updatedAt: section.updatedAt
+      ? new Date(section.updatedAt).toISOString()
+      : new Date().toISOString(),
     crops: Array.isArray(section.crops) ? section.crops.map(mapCropToDTO) : [],
   };
 }
@@ -306,32 +349,29 @@ function mapCropToDTO(crop: any): SectionCropDTO {
 }
 
 /* =========================================================
- * Small utilities
+ * LEGACY PLACEHOLDERS (do not remove now)
+ * -------------------------------------------------------
+ * If your current codebase contains Farmer/Land-affecting
+ * functions inside the Section service (historical reasons),
+ * move them down here UNCHANGED and export them exactly as
+ * before. Add a comment like:
+ *
+ *   // TODO: move to farmerLand.service / farmer.service
+ *
+ * We’re intentionally NOT inventing signatures here to avoid
+ * breaking your app. Keep the original names/params/returns.
  * ======================================================= */
 
-/** Accepts null | "YYYY-MM-DD" | Date | string; returns "YYYY-MM-DD" | null */
-function normalizeYYYYMMDD(v: unknown): string | null {
-  if (v === null || v === undefined) return null;
-  if (typeof v === "string") {
-    // If it's already "YYYY-MM-DD", accept it
-    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-    // Try to parse ISO or other string formats
-    const d = new Date(v);
-    if (isNaN(d.getTime())) return null;
-    return ymd(d);
-  }
-  if (v instanceof Date) return ymd(v);
-  return null;
-}
-
-/** Ensures that provided optional date is either null or "YYYY-MM-DD" */
-function nullableYYYYMMDD(v: unknown): string | null {
-  return normalizeYYYYMMDD(v);
-}
-
-function ymd(d: Date): string {
-  const yy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
+/**=============================TODO============
+ * Move to farmerLand.service.ts
+ * 
+ * listLandsForFarmer(userId)
+ * assertLandOwnership(farmerId, landId) (ownership guard)
+ * mapLandDocToDTO(land, sectionsCount)
+ * 
+ * 
+ * Move to farmer.service.ts
+ * 
+ * getFarmerFromUser(userId) (farmer lookup by user)
+ * 
+ ==============================================*/
