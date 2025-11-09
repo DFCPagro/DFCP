@@ -45,7 +45,7 @@ export const PATHS = {
 
   // picker pages
   pickerDashboard: "/picker/dashboard",
-  pickerTask: "/picker/task/:taskId",
+  pickerTask: "/picker/task",
   pickerSchedule: "/picker/Schedule", // ← add this
 
   // public QR routes

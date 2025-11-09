@@ -189,7 +189,7 @@ export async function postClaimFirstReadyTaskForCurrentShift(req: Request, res: 
         data: { shift: result.shift },
       });
     }
-
+    console.log("claimed task: ", result.task);
     return res.json({ data: result });
   } catch (err: any) {
     console.error("[postClaimFirstReadyTaskForCurrentShift] error:", err);

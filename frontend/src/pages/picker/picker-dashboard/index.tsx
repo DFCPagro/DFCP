@@ -15,18 +15,18 @@ import {
 } from "@chakra-ui/react";
 import { RefreshCcw, Play } from "lucide-react";
 import toast from "react-hot-toast";
-import type { LeaderboardEntry, PickerStats, Quest, QuestScope, ReadyOrder } from "./types";
+import type { LeaderboardEntry, PickerStats, Quest, QuestScope } from "./types";
 import {
   apiFetchLeaderboard,
   apiFetchQuests,
-  apiFetchReadyOrders,
   apiFetchStats,
-  apiClaimOrder,
-} from "./api/mock";
+} from "./api/mock"; // keep your mocks for stats/leaderboard/quests
 import { useInterval } from "./hooks/useInterval";
-import { LeaderboardCard, QuestCard, StatsCard } from "./components"; 
+import { LeaderboardCard, QuestCard, StatsCard } from "./components";
 import { useNavigate } from "react-router-dom";
 import { PATHS } from "@/routes/paths";
+
+
 
 /* Glow frame without animations */
 function GlowCard({
@@ -60,7 +60,7 @@ export default function PickerDashboard() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [scope, setScope] = useState<QuestScope>("day");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [assigning, setAssigning] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -97,7 +97,13 @@ export default function PickerDashboard() {
     setQuests((prev) =>
       prev.map((q) =>
         q.id === activeQuest.id
-          ? { ...q, active: true, progress: 0, startedAt: Date.now(), expiresAt: Date.now() + q.timeLimitMin * 60 * 1000 }
+          ? {
+              ...q,
+              active: true,
+              progress: 0,
+              startedAt: Date.now(),
+              expiresAt: Date.now() + q.timeLimitMin * 60 * 1000,
+            }
           : q,
       ),
     );
@@ -110,55 +116,19 @@ export default function PickerDashboard() {
     return Math.max(0, Math.floor((q.expiresAt - Date.now()) / 1000));
   }, [activeQuest]);
 
-  // --- Auto-claim logic ---
-  const pickBest = (list: ReadyOrder[]) =>
-    [...list].sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority === "rush" ? -1 : 1; // rush first
-      if (a.readyForMin !== b.readyForMin) return b.readyForMin - a.readyForMin; // longest waiting first
-      return b.items - a.items; // then larger batches
-    })[0];
-
-
-    
-  const claimNextAvailable = async () => {
-    setAssigning(true);
-    try {
-      const queue = await apiFetchReadyOrders();
-      if (!queue.length) {
-        toast("No orders in queue", { icon: "ℹ️" });
-        return;
+  // === Real claim-first integration ===
+  const onStartPicking = async () => {
+     navigate(PATHS.pickerTask); // go to the Start page
       }
-      let remaining = [...queue];
-      // Try best → next-best if a race occurs
-      while (remaining.length) {
-        const best = pickBest(remaining);
-        try {
-          await apiClaimOrder(best.id);
-          const taskParam = String(best.orderId ?? best.id).replace(/^#/, "");
-          toast.success("Order assigned");
-          navigate(PATHS.pickerTask.replace(":taskId", encodeURIComponent(taskParam)));
-          return;
-        } catch {
-          remaining = remaining.filter((x) => x.id !== best.id);
-        }
-      }
-      toast.error("Could not claim an order. Try again.");
-    } finally {
-      setAssigning(false);
-    }
-  };
-  // --- end auto-claim ---
+
+  
+  // === end integration ===
 
   const onRefresh = () => setRefreshKey((k) => k + 1);
 
-  const onStartPicking = async () => {
-    if (assigning || loading) return;
-    await claimNextAvailable();
-  };
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !assigning && !loading) {
+      if (e.code === "Space" && !claiming && !loading) {
         e.preventDefault();
         onStartPicking();
       }
@@ -166,7 +136,7 @@ export default function PickerDashboard() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [assigning, loading]);
+  }, [claiming, loading]);
 
   if (loading || !stats || !activeQuest) {
     return (
@@ -177,7 +147,7 @@ export default function PickerDashboard() {
         </HStack>
       </Container>
     );
-  }
+    }
 
   return (
     <Container maxW="7xl" py={6}>
@@ -261,7 +231,7 @@ export default function PickerDashboard() {
           </GlowCard>
         </GridItem>
 
-        {/* Orders CTA → auto-assign */}
+        {/* Orders CTA → claim-first */}
         <GridItem colSpan={12}>
           <GlowCard from="green.400" to="teal.400">
             <Card.Body
@@ -280,13 +250,13 @@ export default function PickerDashboard() {
                   size="lg"
                   colorPalette="green"
                   rounded="full"
-                  disabled={assigning}
+                  disabled={claiming}
                   transition="transform .12s ease"
-                  _hover={{ transform: assigning ? undefined : "translateY(-1px)" }}
+                  _hover={{ transform: claiming ? undefined : "translateY(-1px)" }}
                 >
                   <HStack gap={2}>
-                    {assigning ? <Spinner size="sm" /> : <Play size={18} />}
-                    <Text>{assigning ? "Assigning…" : "Start picking"}</Text>
+                    {claiming ? <Spinner size="sm" /> : <Play size={18} />}
+                    <Text>{claiming ? "Assigning…" : "Start picking"}</Text>
                   </HStack>
                 </Button>
               </HStack>

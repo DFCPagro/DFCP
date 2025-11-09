@@ -1,4 +1,4 @@
-// frontend/src/pages/opManager/components/OrdersCard.tsx
+// frontend/src/pages/opManager/picker-tasksManagement/components/OrdersCard.tsx
 import * as React from "react";
 import { Card, HStack, Heading, Spinner, Alert, Text, Badge, Box, Table, Button } from "@chakra-ui/react";
 

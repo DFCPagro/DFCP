@@ -7,11 +7,12 @@ import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
 
+
 // Lazy imports...
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
-const Dashboard = lazy(() => import("@/pages/Dashboard"));
+
 const JobApplication = lazy(() => import("@/pages/JobApplication"));
 const AvailabileJobs = lazy(() => import("@/pages/AvailableJobs"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -32,7 +33,7 @@ const FarmerOrderForShift = lazy(() => import("@/pages/farmer/farmerOrdersForShi
 
 // Picker pages
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
-const PickTaskPage = lazy(() => import("@/pages/picker/pick-task"));
+const PickTaskPage = lazy(() => import("@/pages/picker/picker-task"));
 const PickerSchedule = lazy(() => import("@/pages/picker/picker-Schedule"));
 
 // Admin / Manager pages
@@ -42,7 +43,7 @@ const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const LogisticCenter = lazy(() => import("@/pages/LogisticCenter"));
-const PickerTasks = lazy(() => import("@/pages/opManager/pickerTasksManager"));
+const PickerTasks = lazy(() => import("@/pages/opManager/picker-tasksManagement"));
 
 const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
 const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"));
@@ -257,7 +258,7 @@ export default function AppRoutes() {
             path={PATHS.PickerTasksPage}
             element={
               <RoleGuard allow={["opManager", "admin"]}>
-                <PickerTasks />
+                <PickerTasks  />
               </RoleGuard>
             }
           />

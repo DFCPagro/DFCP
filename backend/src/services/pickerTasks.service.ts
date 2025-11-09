@@ -643,38 +643,39 @@ export async function getShiftPickerTasksSummary(params: {
  * Atomically claim the first READY picker task for the current shift.
  * Sort: highest priority first, then oldest created (FIFO within same priority).
  */
+/**
+ * Claim the first READY, unassigned picker task for the current shift
+ * and return full task details in the same shape produced by "generate".
+ */
 export async function claimFirstReadyTaskForCurrentShift(params: {
   logisticCenterId: string | Types.ObjectId
   pickerUserId: string | Types.ObjectId
 }) {
-  const { logisticCenterId, pickerUserId } = params
+  const { logisticCenterId, pickerUserId } = params;
 
   // Resolve current shift
   const { shiftName, shiftDate } = await (async () => {
-    const name = (await getCurrentShift()) as ShiftName
-    const cfg = await getShiftConfigByKey({ logisticCenterId: String(logisticCenterId), name })
-    const tz = cfg?.timezone || "Asia/Jerusalem"
-    const date = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd")
-    return { shiftName: name, shiftDate: date }
-  })()
+    const name = (await getCurrentShift()) as ShiftName;
+    const cfg = await getShiftConfigByKey({ logisticCenterId: String(logisticCenterId), name });
+    const tz = cfg?.timezone || "Asia/Jerusalem";
+    const date = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
+    return { shiftName: name, shiftDate: date };
+  })();
 
-  // Enrich "by" snapshot for audit, if available
-  let byContact: any = undefined
+  let byContact: any;
   try {
-    byContact = await getContactInfoByIdService(String(pickerUserId))
-  } catch {
-    /* noop */
-  }
+    byContact = await getContactInfoByIdService(String(pickerUserId));
+  } catch {}
 
   const filter = {
     logisticCenterId: toOid(logisticCenterId),
     shiftName,
     shiftDate,
     status: "ready",
-    assignedPickerUserId: null,
-  }
+    $or: [{ assignedPickerUserId: null }, { assignedPickerUserId: { $exists: false } }],
+  };
 
-  const now = new Date()
+  const now = new Date();
   const update = {
     $set: {
       status: "claimed",
@@ -692,15 +693,22 @@ export async function claimFirstReadyTaskForCurrentShift(params: {
         meta: { shiftName, shiftDate },
       },
     },
-  }
+  };
 
-  const sort = { priority: -1, createdAt: 1, _id: 1 as const }
+  const sort = { priority: -1, createdAt: 1, _id: 1 as const };
 
-  const task = await PickerTaskModel.findOneAndUpdate(filter, update, { sort, new: true }).lean()
+  // ✅ Return the full document, same as `listPickerTasksForShift`
+  const task = await PickerTaskModel.findOneAndUpdate(filter, update, {
+    sort,
+    new: true,
+    lean: true, // Keep as lean object for frontend serialization
+  });
 
   return {
     shift: { logisticCenterId: String(logisticCenterId), shiftName, shiftDate },
     claimed: !!task,
-    task, // null if none found
-  }
+    taskId: task ? String(task._id) : null,
+    task, // full object (same as in listPickerTasksForShift)
+  };
 }
+

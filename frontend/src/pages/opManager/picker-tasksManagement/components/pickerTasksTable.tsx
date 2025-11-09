@@ -1,3 +1,4 @@
+// frontend/src/pages/opManager/picker-tasksManagement/components/pickerTasksTable.tsx
 import * as React from "react"
 import { Box, Heading, HStack, Text, Badge, Code, Button, Table } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"

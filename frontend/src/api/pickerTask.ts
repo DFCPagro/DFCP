@@ -7,13 +7,13 @@ import { api } from "@/api/config";
 export type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
 export type AuditEntry = {
-  action: string
-  note?: string
-  by?: { id?: string; name?: string; role?: string } | string
-  at?: string
-  timestamp?: string
-  meta?: Record<string, any> | null
-}
+  action: string;
+  note?: string;
+  by?: { id?: string; name?: string; role?: string } | string;
+  at?: string;             // ISO date
+  timestamp?: string;      // legacy alias, if present
+  meta?: Record<string, any> | null;
+};
 
 export type PickerTaskStatus =
   | "open"
@@ -68,21 +68,19 @@ export type PlanSummary = {
   totalLiters?: number;
 };
 
-
 /** Full plan stored on the task */
 export type PickerTaskPlan = {
   boxes: PlanBox[];
-  summary: PlanSummary; // was summary?: PlanSummary
+  summary: PlanSummary; // normalized (never undefined)
 };
 
-
 export type PickerTaskProgress = {
-  currentBoxIndex?: number; // new (we set it in the service)
+  currentBoxIndex?: number; // service sets; optional for BC
   currentStepIndex: number;
   placedKg: number;
   placedUnits: number;
-  startedAt: string | null;
-  finishedAt: string | null;
+  startedAt: string | null;   // ISO
+  finishedAt: string | null;  // ISO
 };
 
 export type PickerTask = {
@@ -92,7 +90,7 @@ export type PickerTask = {
   shiftDate: string; // yyyy-LL-dd
   orderId: string;
 
-  // NEW: one task per order with full plan
+  // One task per order with full plan
   plan: PickerTaskPlan;
 
   // rollups across plan.boxes
@@ -104,7 +102,7 @@ export type PickerTask = {
   priority: number;
   assignedPickerUserId: string | null;
 
-  /** computed on the server via $addFields */
+  /** computed on the server via $addFields (list API) */
   isAssigned?: boolean;
 
   progress: PickerTaskProgress;
@@ -113,7 +111,7 @@ export type PickerTask = {
   updatedAt: string;
   notes?: string;
 
-   historyAuditTrail?: AuditEntry[] 
+  historyAuditTrail?: AuditEntry[];
 };
 
 export type PickerTaskCountsByStatus = Partial<Record<PickerTaskStatus, number>>;
@@ -132,16 +130,16 @@ export interface PickerTaskListResponse {
   pagination: { page: number; limit: number; total: number };
   countsByStatus: PickerTaskCountsByStatus;
   countsByAssignment: PickerTaskCountsByAssignment;
-  items: PickerTask[];
+  items: PickerTask[]; // full documents
 }
 
 /** Body for POST /pickerTasks/generate */
 export interface GeneratePickerTasksBody {
   shiftName?: ShiftName | null;
   shiftDate?: string | null; // yyyy-LL-dd
-  priority?: number; // default 0
-  stageKey?: string; // not used anymore but kept for compat
-  autoSetReady?: boolean; // default true
+  priority?: number;         // default 0
+  stageKey?: string;         // legacy compat
+  autoSetReady?: boolean;    // default true
 }
 
 /** Exact backend shape returned by POST /generate (matches service) */
@@ -183,7 +181,9 @@ export type ClaimFirstReadyTaskResult = {
     shiftDate: string;
   };
   claimed: boolean;
-  task: PickerTask | null;
+  taskId: string | null;         // <-- explicit id for convenience
+  task: PickerTask | null;       // full object (same shape as list/generate)
+  computedTotals?: boolean;      // optional hint if BE derived totals from plan
 };
 
 /* =========================
@@ -215,14 +215,14 @@ export async function generatePickerTasks(
 
 /**
  * GET /api/pickerTasks/shift
- * Supported filters:
+ * Filters:
  * - status?: PickerTaskStatus | string
  * - page?: number
  * - limit?: number
  * - assignedOnly?: boolean
  * - unassignedOnly?: boolean
  * - pickerUserId?: string
- * - ensure?: boolean (default true on server; pass false to skip ensuring)
+ * - ensure?: boolean (server default true; pass false to skip)
  */
 export async function fetchPickerTasksForShift(params: {
   shiftName: ShiftName;
