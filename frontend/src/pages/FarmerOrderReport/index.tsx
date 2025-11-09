@@ -1,73 +1,47 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Alert,
-  Badge,
-  Box,
-  Button,
-  Card,
-  Dialog,
-  EmptyState,
-  Field,
-  Fieldset,
-  FormatNumber,
-  HStack,
-  Image,
-  Input,
-  Portal,
-  Progress,
-  Separator,
-  Show,
-  Stack,
-  Stat,
-  Table,
-  Tag,
-  Text,
-  Tabs,
-  VStack,
-  NumberInput,
-  SegmentGroup,
-  Kbd,
-  SimpleGrid,
-  Wrap,
-  WrapItem,
+  Alert, Badge, Box, Button, Card, Dialog, EmptyState, Field, Fieldset, FormatNumber,
+  HStack, Image, Input, Portal, Progress, Separator, Show, Stack, Stat, Table, Tag, Text,
+  Tabs, VStack, SegmentGroup, SimpleGrid, Wrap, WrapItem,
 } from "@chakra-ui/react"
 import { QRCodeCanvas } from "qrcode.react"
-import { LuShoppingCart, LuCopy, LuCheck } from "react-icons/lu"
+import { LuShoppingCart } from "react-icons/lu"
 import { Tooltip } from "@/components/ui/tooltip"
 
-import type { Container as FoContainer, ContainerQR, FarmerOrder, PrintPayload } from "@/api/farmerOrders"
+import type { Container as FoContainer, ContainerQR, PrintPayload } from "@/api/farmerOrders"
 
-/**
- * Farmer order report – Chakra UI v3
- * Super robust against overflow & layout breakage.
- */
+// constants & utils
+import { TOLERANCE_PCT } from "./constants/metrics"
+import { sizeCfg, type QrCardSize } from "./constants/sizing"
+import { round2, safeNumber, formatNum } from "./utils/numbers"
+import { hashString } from "./utils/strings"
+import { getFarmerOrderIdFromUrl } from "./utils/url"
 
-const mockMode = true
+// printing
+import { generatePdfLabels } from "./printing/pdf"
+import { printInHiddenFrameQRCards } from "./printing/printInHiddenFrame"
 
-type QualityMetricConfig = {
-  key: string
-  label: string
-  target: number
-  unit?: string
-  min?: number
-  max?: number
-}
+// components
+import { InlineNumber } from "./components/InlineNumber"
+import { InlineWeightEditor } from "./components/InlineWeightEditor"
+import { MonoToken } from "./components/MonoToken"
+import { StepPill } from "./components/StepPill"
+import { QualityStandardsPanel } from "./components/QualityStandardsPanel"
+
+// mock services (replace with real API when ready)
+import { mockMode, mockPayload, delay } from "./services/farmerOrders.mock"
 
 type Props = {
-  farmerOrderId: string
-  qualityA?: QualityMetricConfig[]
+  farmerOrderId?: string
   pickupAddress?: string
   assignedDeliverer?: string | null
 }
 
-type QrCardSize = "sm" | "md" | "lg" | "xl"
+export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assignedDeliverer }: Props) {
+  // Resolve FO id from props or URL
+  const foIdFromUrl = useMemo(() => getFarmerOrderIdFromUrl(), [])
+  const effectiveFoId = (farmerOrderId || foIdFromUrl || "").trim()
 
-export default function FarmerOrderReport({
-  farmerOrderId,
-  qualityA,
-  pickupAddress,
-  assignedDeliverer,
-}: Props) {
   const [loading, setLoading] = useState(false)
   const [payload, setPayload] = useState<PrintPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -78,7 +52,7 @@ export default function FarmerOrderReport({
   const [openPreview, setOpenPreview] = useState(false)
 
   // Views
-  const [qrFilter, setQrFilter] = useState<"pending" | "weighed" | "all">("pending")
+  const [qrFilter, setQrFilter] = useState<"pending" | "weighed" | "all">("all")
   const [boardTab, setBoardTab] = useState<"cards" | "table">("cards")
   const [qrCardSize, setQrCardSize] = useState<QrCardSize>("md")
 
@@ -86,82 +60,13 @@ export default function FarmerOrderReport({
   const [weightsDraft, setWeightsDraft] = useState<Record<string, number>>({})
   const [savingWeights, setSavingWeights] = useState(false)
 
-  // Grade A config
-  const qualityConfig: QualityMetricConfig[] = useMemo(
-    () =>
-      qualityA && qualityA.length
-        ? qualityA
-        : [
-            { key: "sizeMm", label: "Size", target: 60, unit: "mm", min: 58.8, max: 61.2 },
-            { key: "brix", label: "Sugar (Brix)", target: 12, unit: "°Bx", min: 11.76, max: 12.24 },
-            { key: "defectPct", label: "Defects", target: 0, unit: "%", min: 0, max: 2 },
-            { key: "moisturePct", label: "Moisture", target: 85, unit: "%", min: 83.3, max: 86.7 },
-          ],
-    [qualityA],
-  )
-
-  const [qualityValues, setQualityValues] = useState<Record<string, number>>(() => ({
-    sizeMm: 60,
-    brix: 12,
-    defectPct: 0,
-    moisturePct: 85,
-  }))
-
-  // -------- MOCK data --------
-  const mockMakeToken = () =>
-    `QR-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-  const mockPayload = (id: string, containers = 0): PrintPayload => {
-    const base: FarmerOrder = {
-      _id: id,
-      itemId: "66e0item0000000000000001",
-      type: "Tomato",
-      variety: "Cluster",
-      pictureUrl:
-        "https://images.unsplash.com/photo-1546470427-c5b384e0b66b?q=80&w=420&fit=crop",
-      pickUpDate: "2025-11-07",
-      shift: "morning",
-      farmerName: "Moshe Levi",
-      farmName: "Levi Farms – Valley A",
-      farmerId: "66e0farmer0000000000000001",
-      logisticCenterId: "66e007000000000000000001",
-      forcastedQuantityKg: 520,
-      containers: [],
-      farmerStatus: "pending",
-      pickupAddress: "Moshav HaYogev 12, Emek Yizrael",
-    }
-
-    const cQrs: ContainerQR[] = []
-    const foContainers: FoContainer[] = []
-    for (let i = 1; i <= containers; i++) {
-      const cid = `${id}_${i}`
-      foContainers.push({ containerId: cid, weightKg: 0 })
-      cQrs.push({
-        token: mockMakeToken(),
-        sig: mockMakeToken().slice(0, 16),
-        scope: "container",
-        subjectType: "Container",
-        subjectId: cid,
-      })
-    }
-
-    return {
-      farmerOrder: { ...base, containers: foContainers },
-      farmerOrderQR: {
-        token: mockMakeToken(),
-        sig: mockMakeToken().slice(0, 16),
-        scope: "farmer-order",
-      },
-      containerQrs: cQrs,
-    }
-  }
-
   // -------- Derived values --------
   const orderedKg = useMemo(() => {
     const fo = payload?.farmerOrder
     const committed =
       fo?.forcastedQuantityKg ??
-      fo?.forecastedQuantityKg ??
-      fo?.sumOrderedQuantityKg ??
+      (fo as any)?.forecastedQuantityKg ??
+      (fo as any)?.sumOrderedQuantityKg ??
       0
     return Math.max(0, Number(committed) || 0)
   }, [payload])
@@ -178,9 +83,8 @@ export default function FarmerOrderReport({
     return round2(base + draftAdded)
   }, [payload, weightsDraft])
 
-  const tolerancePct = 2
   const minAllowedTotal = useMemo(
-    () => round2(orderedKg * (1 - tolerancePct / 100)),
+    () => round2(orderedKg * (1 - TOLERANCE_PCT / 100)),
     [orderedKg],
   )
 
@@ -205,9 +109,9 @@ export default function FarmerOrderReport({
   const assignedName = useMemo(() => {
     if (assignedDeliverer && assignedDeliverer.trim().length) return assignedDeliverer
     const pool = ["Avi Peretz", "Dana Levi", "Noam Cohen", "Tamar Azulay", "Yossi Ben-David", "Maya Oren"]
-    const hash = hashString(farmerOrderId)
+    const hash = hashString(effectiveFoId || "seed")
     return pool[hash % pool.length] + " (placeholder)"
-  }, [assignedDeliverer, farmerOrderId])
+  }, [assignedDeliverer, effectiveFoId])
 
   const pickup = useMemo(() => {
     if (pickupAddress && pickupAddress.trim().length) return pickupAddress
@@ -224,15 +128,15 @@ export default function FarmerOrderReport({
 
   // -------- Load --------
   const load = useCallback(async () => {
+    if (!effectiveFoId) return
     setLoading(true)
     setError(null)
     try {
       if (mockMode) {
         await delay(150)
-        setPayload(mockPayload(farmerOrderId, 0))
+        setPayload(mockPayload(effectiveFoId, 0))
       } else {
-        // TODO: wire API
-        setPayload(mockPayload(farmerOrderId, 0))
+        // TODO real API
       }
       setWeightsDraft({})
     } catch (e: any) {
@@ -240,85 +144,11 @@ export default function FarmerOrderReport({
     } finally {
       setLoading(false)
     }
-  }, [farmerOrderId])
+  }, [effectiveFoId])
 
   useEffect(() => {
     load()
   }, [load])
-
-  // -------- Actions --------
-  const openPrintPopup = useCallback(
-    (qrs: ContainerQR[], title: string, sizePx = 180, cols = 4) => {
-      const w = window.open("", "_blank", "noopener,noreferrer,width=1200,height=800")
-      if (!w) return
-
-      const cards = qrs
-        .map(
-          (q) => `
-          <div class="card">
-            <div class="id">${q.subjectId}</div>
-            <div class="qr" id="qr-${q.subjectId}"></div>
-            <div class="token">${q.token}</div>
-          </div>`,
-        )
-        .join("")
-
-      const tokensJson = JSON.stringify(
-        qrs.map((q) => ({ id: q.subjectId, token: q.token })),
-      )
-
-      w.document.write(`
-      <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>${title}</title>
-          <style>
-            :root { --size: ${sizePx}px; }
-            *{box-sizing:border-box}
-            body{font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;padding:16px}
-            .toolbar{position:sticky;top:0;background:#fff;padding:8px 0;margin-bottom:8px;border-bottom:1px solid #eee;display:flex;gap:8px}
-            .btn{padding:8px 12px;border-radius:10px;border:1px solid #444;background:#111;color:#fff;cursor:pointer}
-            .grid{display:grid;grid-template-columns:repeat(${cols}, minmax(0, 1fr));gap:12px}
-            .card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;break-inside:avoid}
-            .id{font-weight:600;font-size:12px}
-            .token{font-family: ui-monospace, SFMono-Regular, Menlo, monospace;font-size:11px;color:#374151;word-break:break-all;text-align:center}
-            canvas{width:var(--size);height:var(--size)}
-            @media print { .toolbar{display:none} body{padding:0} .grid{gap:8px} .card{page-break-inside:avoid;break-inside:avoid} }
-          </style>
-        </head>
-        <body>
-          <div class="toolbar">
-            <button class="btn" onclick="window.print()">Print</button>
-            <button class="btn" onclick="window.close()">Close</button>
-          </div>
-          <h2 style="margin:8px 0 16px">${title}</h2>
-          <div class="grid">${cards}</div>
-          <script>
-            const data = ${tokensJson};
-            function render(canvas, text){
-              const size = Number(getComputedStyle(document.documentElement).getPropertyValue('--size').replace('px','')) || ${sizePx};
-              canvas.width = size; canvas.height = size;
-              const ctx = canvas.getContext('2d');
-              ctx.fillStyle = "#000"; ctx.font = "12px system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-              ctx.strokeStyle="#000"; ctx.strokeRect(0,0,size,size);
-              ctx.fillText(text, size/2, size/2, size - 12);
-            }
-            data.forEach(({id, token}) => {
-              const el = document.getElementById("qr-"+id);
-              if(!el) return;
-              const c = document.createElement("canvas");
-              render(c, token);
-              el.appendChild(c);
-            });
-          </script>
-        </body>
-      </html>
-    `)
-      w.document.close()
-      w.focus()
-    },
-    [],
-  )
 
   const onInitContainers = useCallback(async () => {
     const count = Number(initCount)
@@ -329,7 +159,7 @@ export default function FarmerOrderReport({
       if (mockMode) {
         await delay(120)
         setPayload((prev) => {
-          const base = prev ?? mockPayload(farmerOrderId, 0)
+          const base = prev ?? mockPayload(effectiveFoId, 0)
           const start = (base.farmerOrder.containers?.length ?? 0) + 1
           const newContainers: FoContainer[] = []
           const newQrs: ContainerQR[] = []
@@ -338,8 +168,8 @@ export default function FarmerOrderReport({
             const cid = `${base.farmerOrder._id}_${seq}`
             newContainers.push({ containerId: cid, weightKg: 0 })
             newQrs.push({
-              token: mockMakeToken(),
-              sig: mockMakeToken().slice(0, 16),
+              token: `QR-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+              sig: Math.random().toString(36).slice(2, 18),
               scope: "container",
               subjectType: "Container",
               subjectId: cid,
@@ -355,7 +185,7 @@ export default function FarmerOrderReport({
           }
         })
       } else {
-        // TODO: API call
+        // TODO: API call -> initContainersForFarmerOrder
       }
       setOpenInit(false)
       setQrFilter("pending")
@@ -367,14 +197,11 @@ export default function FarmerOrderReport({
       setLoading(false)
       setInitCount(0)
     }
-  }, [farmerOrderId, initCount])
+  }, [effectiveFoId, initCount])
 
   const putWeights = useCallback(
     async (weights: Record<string, number>) => {
-      const list = Object.entries(weights).map(([containerId, weightKg]) => ({
-        containerId,
-        weightKg,
-      }))
+      const list = Object.entries(weights).map(([containerId, weightKg]) => ({ containerId, weightKg }))
       if (!list.length) return
       setSavingWeights(true)
       try {
@@ -393,62 +220,31 @@ export default function FarmerOrderReport({
             }
           })
         } else {
-          // TODO: API call
+          // TODO: API call -> patchContainerWeights
         }
-        setWeightsDraft({})
+        setWeightsDraft((prev) => {
+          const copy = { ...prev }
+          for (const k of Object.keys(weights)) delete copy[k]
+          return copy
+        })
       } catch (e: any) {
         setError(e?.message || "Failed to update container weights")
       } finally {
         setSavingWeights(false)
       }
     },
-    [],
+    [effectiveFoId],
   )
 
   const saveWeights = useCallback(() => putWeights(weightsDraft), [putWeights, weightsDraft])
 
-  const qualityWarnings = useMemo(() => {
-    const warns: string[] = []
-    for (const m of qualityConfig) {
-      const v = Number(qualityValues[m.key])
-      if (!Number.isFinite(v)) continue
-      const t = Number(m.target)
-      const lower = m.min ?? t * 0.98
-      const upper = m.max ?? t * 1.02
-      if (v < lower || v > upper) {
-        warns.push(
-          `${m.label}: ${formatNum(v)}${m.unit ?? ""} deviates from Quality A target ${formatNum(t)}${
-            m.unit ?? ""
-          } by >2%`,
-        )
-      }
-    }
-    return warns
-  }, [qualityConfig, qualityValues])
-
   const underfillWarning = useMemo(() => {
     if (!orderedKg) return null
     if (totalWeighedKg < minAllowedTotal) {
-      return `Total weight ${formatNum(
-        totalWeighedKg,
-      )} kg is below allowed minimum (${formatNum(minAllowedTotal)} kg, i.e. max 2% under ${formatNum(
-        orderedKg,
-      )} kg). Please re-check.`
+      return `Total weight ${formatNum(totalWeighedKg)} kg is below allowed minimum (${formatNum(minAllowedTotal)} kg, i.e. max ${TOLERANCE_PCT}% under ${formatNum(orderedKg)} kg). Please re-check.`
     }
     return null
   }, [orderedKg, totalWeighedKg, minAllowedTotal])
-
-  // Card sizing map
-  const sizeCfg = useMemo(
-    () =>
-      ({
-        sm: { qr: 112, minCard: "220px", previewMin: "180px" },
-        md: { qr: 140, minCard: "260px", previewMin: "220px" },
-        lg: { qr: 168, minCard: "300px", previewMin: "260px" },
-        xl: { qr: 208, minCard: "360px", previewMin: "320px" },
-      } as const),
-    [],
-  )
 
   // -------- Render --------
   return (
@@ -458,16 +254,17 @@ export default function FarmerOrderReport({
         <Card.Body gap="4">
           <HStack justifyContent="space-between" alignItems="flex-start" wrap="wrap" minW="0">
             <VStack alignItems="flex-start" gap="2" minW="200px" flex="1" minWidth={0}>
-              <Text fontSize="xl" fontWeight="semibold">
-                Farmer Order Report
-              </Text>
+              <Text fontSize="xl" fontWeight="semibold">Farmer Order Report</Text>
               <HStack gap="2" wrap="wrap">
-                <Badge>{payload?.farmerOrder?._id ?? farmerOrderId}</Badge>
+                <Badge>{(payload?.farmerOrder?._id ?? effectiveFoId) || "—"}</Badge>
                 <Tag.Root><Tag.Label>Shift: {payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
                 <Tag.Root><Tag.Label>Date: {payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
               </HStack>
               <Text color="fg.muted" lineClamp={1} minW="0">Pickup: {pickup}</Text>
               <Text color="fg.muted" lineClamp={1} minW="0">Deliverer: {assignedName}</Text>
+              <Text color="fg.muted" fontSize="sm" title={typeof window !== "undefined" ? window.location.href : ""}>
+                URL-bound FO: {effectiveFoId || "not detected"}
+              </Text>
             </VStack>
 
             <HStack gap="4" alignItems="center" minW="260px" flexShrink={0}>
@@ -492,9 +289,7 @@ export default function FarmerOrderReport({
                   <Stat.ValueText>
                     <FormatNumber value={orderedKg} maximumFractionDigits={2} /> kg
                   </Stat.ValueText>
-                  <Text color="fg.muted" fontSize="sm">
-                    Quality grade: A
-                  </Text>
+                  <Text color="fg.muted" fontSize="sm">Quality grade: A</Text>
                 </Stat.Root>
               </VStack>
             </HStack>
@@ -504,7 +299,7 @@ export default function FarmerOrderReport({
 
           {/* Actions */}
           <HStack gap="3" wrap="wrap">
-            <Button onClick={() => setOpenInit(true)} disabled={loading}>
+            <Button onClick={() => setOpenInit(true)} disabled={loading || !effectiveFoId}>
               Create containers
             </Button>
             <Button
@@ -514,7 +309,7 @@ export default function FarmerOrderReport({
             >
               Preview & Print
             </Button>
-            <Button onClick={load} variant="ghost" disabled={loading}>
+            <Button onClick={load} variant="ghost" disabled={loading || !effectiveFoId}>
               Re-fetch
             </Button>
           </HStack>
@@ -549,94 +344,14 @@ export default function FarmerOrderReport({
         </Card.Body>
       </Card.Root>
 
-      {/* Quality – Grade A */}
-      <Card.Root variant="outline" overflow="hidden">
-        <Card.Body gap="4">
-          <HStack justifyContent="space-between" alignItems="center" wrap="wrap">
-            <Text fontSize="lg" fontWeight="semibold">
-              Quality Standard – Grade A
-            </Text>
-            <Tag.Root colorPalette="green">
-              <Tag.Label>Allowed tolerance ±{tolerancePct}%</Tag.Label>
-            </Tag.Root>
-          </HStack>
-
-          <Fieldset.Root size="lg">
-            <Fieldset.Legend>Measure against target</Fieldset.Legend>
-            <Fieldset.HelperText>Warn if value differs by &gt;2% from Grade A target.</Fieldset.HelperText>
-            <Fieldset.Content>
-              <SimpleGridAuto cols={{ base: 1, sm: 2, md: 3, lg: 4 }} gap="4">
-                {qualityConfig.map((m) => {
-                  const v = qualityValues[m.key]
-                  const t = m.target
-                  const lower = m.min ?? t * 0.98
-                  const upper = m.max ?? t * 1.02
-                  const outOfRange = Number(v) < lower || Number(v) > upper
-                  const deviation = Math.min(100, Math.abs(((Number(v) - t) / (t || 1)) * 100))
-                  return (
-                    <Card.Root key={m.key} variant={outOfRange ? "subtle" : "elevated"} overflow="hidden">
-                      <Card.Body gap="3">
-                        <Field.Root invalid={outOfRange}>
-                          <Field.Label>{m.label}</Field.Label>
-                          <HStack align="center" gap="2" wrap="wrap">
-                            <InlineNumber
-                              value={Number(v ?? 0)}
-                              onValue={(num) =>
-                                setQualityValues((prev) => ({
-                                  ...prev,
-                                  [m.key]: num,
-                                }))
-                              }
-                            />
-                            <Text color="fg.muted">{m.unit ?? ""}</Text>
-                          </HStack>
-                          <Field.HelperText>
-                            Target: {formatNum(t)} {m.unit ?? ""} (±{tolerancePct}%)
-                          </Field.HelperText>
-
-                          <Progress.Root value={deviation} width="full">
-                            <Progress.Track>
-                              <Progress.Range />
-                            </Progress.Track>
-                          </Progress.Root>
-
-                          <Show when={outOfRange}>
-                            <Field.ErrorText asChild>
-                              <span>⚠️ Deviation &gt; {tolerancePct}% – please double-check.</span>
-                            </Field.ErrorText>
-                          </Show>
-                        </Field.Root>
-                      </Card.Body>
-                    </Card.Root>
-                  )
-                })}
-              </SimpleGridAuto>
-            </Fieldset.Content>
-          </Fieldset.Root>
-
-          <Show when={(qualityWarnings.length ?? 0) > 0}>
-            <Alert.Root status="warning" title="Quality deviations detected">
-              <Alert.Description asChild>
-                <span>
-                  {qualityWarnings.map((w, i) => (
-                    <span key={i} style={{ display: "block" }}>
-                      • {w}
-                    </span>
-                  ))}
-                </span>
-              </Alert.Description>
-            </Alert.Root>
-          </Show>
-        </Card.Body>
-      </Card.Root>
+      {/* Order-level Quality Standards (plugged component uses the hook) */}
+      <QualityStandardsPanel />
 
       {/* Containers – board */}
       <Card.Root variant="outline" overflow="hidden">
         <Card.Body gap="4" minW="0">
           <HStack justifyContent="space-between" alignItems="center" wrap="wrap">
-            <Text fontSize="lg" fontWeight="semibold">
-              Containers – Weigh-in
-            </Text>
+            <Text fontSize="lg" fontWeight="semibold">Containers – Weigh-in</Text>
             <HStack gap="3" wrap="wrap">
               <Tag.Root>
                 <Tag.Label>
@@ -707,7 +422,7 @@ export default function FarmerOrderReport({
                   </EmptyState.Description>
                 </VStack>
                 <Box>
-                  <Button onClick={() => setOpenInit(true)} colorPalette="primary">
+                  <Button onClick={() => setOpenInit(true)} colorPalette="primary" disabled={!effectiveFoId}>
                     Create containers
                   </Button>
                 </Box>
@@ -727,11 +442,9 @@ export default function FarmerOrderReport({
             {/* Cards */}
             <Show when={boardTab === "cards"}>
               {(() => {
-                const cfg = sizeCfg[qrCardSize]
-                const qrPx = cfg.qr
-
+                const qrPx = sizeCfg[qrCardSize].qr
                 return (
-                  <SimpleGrid minChildWidth={cfg.minCard} gap="4">
+                  <SimpleGrid minChildWidth={sizeCfg[qrCardSize].minCard} gap="4">
                     {filteredQrs.map((q) => {
                       const draft = weightsDraft[q.subjectId]
                       const serverWeight =
@@ -752,13 +465,7 @@ export default function FarmerOrderReport({
                           overflow="hidden"
                           minW="0"
                         >
-                          <Card.Body
-                            gap="3"
-                            alignItems="stretch"
-                            display="grid"
-                            gridTemplateRows="auto auto auto auto"
-                            minW="0"
-                          >
+                          <Card.Body gap="3" minW="0">
                             {/* Header: id + status */}
                             <HStack justifyContent="space-between" alignItems="center" minH="28px" minW="0">
                               <Text fontWeight="semibold" fontSize="sm" title={q.subjectId} lineClamp={1} minW="0">
@@ -796,10 +503,7 @@ export default function FarmerOrderReport({
                                 <InlineWeightEditor
                                   value={final}
                                   onChange={(kg) =>
-                                    setWeightsDraft((prev) => ({
-                                      ...prev,
-                                      [q.subjectId]: kg,
-                                    }))
+                                    setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: kg }))
                                   }
                                 />
                                 <Text color="fg.muted" flexShrink={0}>kg</Text>
@@ -826,10 +530,7 @@ export default function FarmerOrderReport({
                                     size="xs"
                                     variant="ghost"
                                     onClick={() =>
-                                      setWeightsDraft((prev) => ({
-                                        ...prev,
-                                        [q.subjectId]: 0,
-                                      }))
+                                      setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: 0 }))
                                     }
                                     title="Set to 0"
                                   >
@@ -837,10 +538,6 @@ export default function FarmerOrderReport({
                                   </Button>
                                 </HStack>
                               </HStack>
-
-                              {/* <Text color="fg.muted" fontSize="sm" textAlign={{ base: "left", sm: "right" }}>
-                                <FormatNumber value={final} maximumFractionDigits={2} /> kg
-                              </Text> */}
                             </Stack>
                           </Card.Body>
                         </Card.Root>
@@ -903,7 +600,7 @@ export default function FarmerOrderReport({
       </Card.Root>
 
       {/* Create containers dialog */}
-      <Dialog.Root open={openInit} onOpenChange={(e) => setOpenInit(e.open)}>
+      <Dialog.Root open={openInit} closeOnInteractOutside={false} closeOnEscape={false} onOpenChange={(e) => setOpenInit(e.open)}>
         <Portal>
           <Dialog.Backdrop />
           <Dialog.Positioner>
@@ -927,7 +624,7 @@ export default function FarmerOrderReport({
                 <Dialog.ActionTrigger asChild>
                   <Button variant="outline">Cancel</Button>
                 </Dialog.ActionTrigger>
-                <Button colorPalette="primary" onClick={onInitContainers} disabled={loading || Number(initCount) <= 0}>
+                <Button colorPalette="primary" onClick={onInitContainers} disabled={loading || Number(initCount) <= 0 || !effectiveFoId}>
                   Create & Continue
                 </Button>
               </Dialog.Footer>
@@ -937,7 +634,7 @@ export default function FarmerOrderReport({
       </Dialog.Root>
 
       {/* Preview & Print */}
-      <Dialog.Root open={openPreview} onOpenChange={(e) => setOpenPreview(e.open)}>
+      <Dialog.Root open={openPreview} closeOnInteractOutside={false} closeOnEscape={false} onOpenChange={(e) => setOpenPreview(e.open)}>
         <Portal>
           <Dialog.Backdrop />
           <Dialog.Positioner>
@@ -966,7 +663,7 @@ export default function FarmerOrderReport({
                   >
                     <VStack alignItems="flex-start" gap="2">
                       <Text fontWeight="medium">{itemName}</Text>
-                      <Text color="fg.muted" lineClamp={1} minW="0">FO: {payload?.farmerOrder?._id ?? farmerOrderId}</Text>
+                      <Text color="fg.muted" lineClamp={1} minW="0">FO: {(payload?.farmerOrder?._id ?? effectiveFoId) || "—"}</Text>
 
                       <Wrap gap="2">
                         <WrapItem>
@@ -1003,16 +700,12 @@ export default function FarmerOrderReport({
 
                   {/* grid */}
                   {(() => {
-                    const cfg = sizeCfg[qrCardSize]
-                    const qrPx = cfg.qr
-
+                    const qrPx = sizeCfg[qrCardSize].qr
                     return (
                       <SimpleGrid
-                        minChildWidth={cfg.previewMin}
+                        minChildWidth={sizeCfg[qrCardSize].previewMin}
                         gap="4"
-                        css={{
-                          "@media print": { gap: "8px" },
-                        }}
+                        css={{ "@media print": { gap: "8px" } }}
                       >
                         {(payload?.containerQrs ?? []).map((q) => (
                           <Card.Root
@@ -1046,19 +739,49 @@ export default function FarmerOrderReport({
                 <Dialog.ActionTrigger asChild>
                   <Button variant="outline">Close</Button>
                 </Dialog.ActionTrigger>
+
+                {/* Silent print (hidden iframe, no focus change) */}
                 <Button
-                  colorPalette="primary"
+                  variant="subtle"
                   onClick={() =>
-                    openPrintPopup(
-                      payload?.containerQrs ?? [],
+                    printInHiddenFrameQRCards(
+                      (payload?.containerQrs ?? []).map(q => ({ subjectId: q.subjectId, token: q.token })),
                       `Containers for FO ${payload?.farmerOrder?._id ?? ""}`,
                       sizeCfg[qrCardSize].qr,
-                      4,
+                      4
                     )
                   }
                   disabled={!payload?.containerQrs?.length}
                 >
-                  Print
+                  Silent Browser Print
+                </Button>
+
+                {/* PDF open in new tab */}
+                <Button
+                  colorPalette="primary"
+                  onClick={() =>
+                    generatePdfLabels({
+                      qrs: (payload?.containerQrs ?? []).map(q => ({ subjectId: q.subjectId, token: q.token })),
+                      title: `Containers for FO ${payload?.farmerOrder?._id ?? ""}`,
+                      fileBase: `FO-${payload?.farmerOrder?._id ?? "labels"}`,
+                      cols: 4,
+                      rows: "auto",
+                      qrPx: sizeCfg[qrCardSize].qr,
+                      marginMm: 10,
+                      gapMm: 4,
+                      cellPaddingMm: 4,
+                      meta: {
+                        itemName,
+                        date: payload?.farmerOrder?.pickUpDate ?? "",
+                        shift: payload?.farmerOrder?.shift ?? "",
+                        deliverer: assignedName,
+                      },
+                      openMode: "tab",
+                    })
+                  }
+                  disabled={!payload?.containerQrs?.length}
+                >
+                  Open PDF in New Tab
                 </Button>
               </Dialog.Footer>
             </Dialog.Content>
@@ -1078,162 +801,4 @@ export default function FarmerOrderReport({
       </VStack>
     </Stack>
   )
-}
-
-/* ----------------------- * Inline Inputs & Small Helpers * ----------------------*/
-
-function InlineNumber(props: {
-  value: number
-  onValue: (n: number) => void
-  min?: number
-  max?: number
-  step?: number
-  width?: string
-  size?: "xs" | "sm" | "md" | "lg"
-}) {
-  const { value, onValue, min = 0, max = 1_000_000, step = 0.1, size = "sm" } = props
-  return (
-    <NumberInput.Root
-      value={String(Number.isFinite(value) ? value : 0)}
-      onValueChange={(d) => onValue(safeNumber(d.value))}
-      min={min}
-      max={max}
-      step={step}
-      width={props.width ?? "220px"}
-      maxW="100%"
-      size={size}
-      aria-label="Numeric value"
-    >
-      <NumberInput.Control />
-      <NumberInput.Input inputMode="decimal" />
-    </NumberInput.Root>
-  )
-}
-
-function InlineWeightEditor(props: { value: number; onChange: (n: number) => void }) {
-  return (
-    <NumberInput.Root
-      value={String(props.value ?? 0)}
-      onValueChange={(d) => props.onChange(safeNumber(d.value))}
-      min={0}
-      max={2000}
-      step={0.5}
-      width="160px"
-      maxW="100%"
-      size="sm"
-      aria-label="Weight (kg)"
-    >
-      <NumberInput.Control />
-      <NumberInput.Input inputMode="decimal" />
-    </NumberInput.Root>
-  )
-}
-
-function MonoToken({ token, inline = false }: { token: string; inline?: boolean }) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(token)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1000)
-    } catch {}
-  }
-
-  return (
-    <HStack
-      gap="2"
-      alignItems="center"
-      justifyContent="space-between"
-      bg="bg.subtle"
-      borderRadius="lg"
-      px="3"
-      py="2"
-      w="full"
-      minW="0"
-      overflow="hidden"
-    >
-      <Text
-        as="span"
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontSize={inline ? "xs" : "sm"}
-        color="fg.muted"
-        lineClamp={1}
-        title={token}
-        minW="0"
-        flex={1}
-      >
-        {token}
-      </Text>
-
-      <Tooltip content={copied ? "Copied!" : "Copy token"}>
-        <Button
-          size="xs"
-          variant="subtle"
-          onClick={copy}
-          aria-label="Copy QR token"
-          flexShrink={0}
-        >
-          {copied ? <LuCheck /> : <LuCopy />}
-        </Button>
-      </Tooltip>
-    </HStack>
-  )
-}
-
-function StepPill(props: { children: React.ReactNode; active?: boolean }) {
-  return (
-    <Tag.Root colorPalette={props.active ? "green" : undefined} variant={props.active ? "solid" : "outline"}>
-      <Tag.Label>{props.children}</Tag.Label>
-    </Tag.Root>
-  )
-}
-
-function SimpleGridAuto(props: { cols?: any; gap?: string; children: React.ReactNode }) {
-  return (
-    <Box
-      display="grid"
-      gridTemplateColumns={{
-        base: "repeat(1, minmax(0, 1fr))",
-        sm: "repeat(2, minmax(0, 1fr))",
-        md: "repeat(3, minmax(0, 1fr))",
-        lg: "repeat(4, minmax(0, 1fr))",
-        ...(props.cols || {}),
-      }}
-      gap={props.gap ?? "4"}
-      w="full"
-    >
-      {props.children}
-    </Box>
-  )
-}
-
-function delay(ms: number) {
-  return new Promise((r) => setTimeout(r, ms))
-}
-
-function formatNum(n: number, digits = 2) {
-  if (!Number.isFinite(n)) return "0"
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(n)
-}
-
-function round2(n: number) {
-  return Math.round(n * 100) / 100
-}
-
-function safeNumber(v: string | number): number {
-  const n = typeof v === "string" && v.trim() === "" ? NaN : Number(v)
-  if (!Number.isFinite(n)) return 0
-  return n
-}
-
-function hashString(s: string) {
-  let h = 0
-  for (let i = 0; i < s.length; i++) {
-    h = (h << 5) - h + s.charCodeAt(i)
-    h |= 0
-  }
-  return Math.abs(h)
 }
