@@ -1,13 +1,32 @@
 // src/app/examples/QRExample.tsx (or pages/QRExample.tsx)
+import { toItemRows, pickCurrency } from "@/pages/customer/customerOrders/components/helpers";
 import React from "react";
-import { Button, Box, Text, Spinner, VStack, Code, Separator } from "@chakra-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import TokenQR from "@/components/common/TokenQR";
 import { scan } from "@/api/scan";
 import { type ScanResponse } from "@/types/qrToken";
+// src/pages/DeliveryNote.tsx
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {
+  Box,
+  Button,
+  Container,
+  Heading,
+  HStack,
+  Separator,
+  Spinner,
+  Text,
+  VStack,
+  Code,
+} from "@chakra-ui/react";
+import type { OrderRowAPI } from "@/types/orders";
+import ItemList from "@/components/common/ItemList";
+import { fetchOrders } from "@/api/orders";
+
+// reuse the same helpers used by Orders
 
 const DEMO_TOKEN = "QR-b97ce09d-a4a0-45ca-93cf-5170f73d26c0";
-
 const QRExample: React.FC = () => {
   const { data, error, isFetching, refetch, isSuccess } = useQuery<ScanResponse>({
     queryKey: ["scan", DEMO_TOKEN],
@@ -15,6 +34,7 @@ const QRExample: React.FC = () => {
     enabled: false, // manual only
     retry: 0,
   });
+
 
   return (
     <VStack align="stretch" gap={4} p={4}>

@@ -24,8 +24,7 @@
     "agriculturalInsurance": true,
     "agreementPercentage": 70,
     "farmLogo": "https://picsum.photos/seed/galilee-heights/512/512",
-    "farmerBio": "Cultivating high-quality fruits and olives in the Upper Galilee. We use sustainable water practices and focus on heirloom varieties.",
-    "lands": ["66f2aa00000000000000ab03"]
+"farmerBio": "Established by a former urban planner who returned to the land, Mount Carmel Microgreens specializes in **vertical farming of specialty greens and edible flowers** under controlled environments. Located on the slopes of Mount Carmel, we harness natural air currents for ventilation and utilize **100% rainwater harvesting** for irrigation. Our commitment is to achieving the highest nutritional density and flavor profile, supplying high-end restaurants and health-conscious consumers. We practice a zero-waste policy, composting all spent growing mediums and generating our own nutrient solutions. This small-footprint operation demonstrates how intensive, hyper-local farming can thrive in challenging topographies.",    "lands": ["66f2aa00000000000000ab03"]
   },
   {
     "user": "66f2aa000000000000000040",
@@ -33,8 +32,7 @@
     "agriculturalInsurance": false,
     "agreementPercentage": 55,
     "farmLogo": "https://picsum.photos/seed/coastal-vineyards/512/512",
-    "farmerBio": "A small vineyard and open-field farm near the coast. We specialize in seasonal greens and grapes, avoiding synthetic pesticides.",
-    "lands": ["66f2aa00000000000000ab04", "66f2aa00000000000000ab05"]
+"farmerBio": "A second-generation family farm deeply rooted in the harsh but mineral-rich soil of the Arava Valley. Our specialty is **cold-pressed olive oil and rare desert-adapted citrus varieties** that thrive under extreme heat. Our grandfather pioneered a highly efficient **sub-surface drip irrigation system** over forty years ago, which uses 60% less water than traditional methods. We employ natural pest control by maintaining habitat for local raptors and insects, drastically reducing the need for chemical intervention. Every harvest is meticulously hand-sorted to ensure premium quality, reflecting our belief that the most challenging environments yield the most concentrated flavors and resilient crops. We view ourselves as custodians of this delicate desert ecosystem.",    "lands": ["66f2aa00000000000000ab04", "66f2aa00000000000000ab05"]
   },
   {
     "user": "66f2aa000000000000000041",
@@ -42,8 +40,7 @@
     "agriculturalInsurance": true,
     "agreementPercentage": 80,
     "farmLogo": "https://picsum.photos/seed/jordan-dates/512/512",
-    "farmerBio": "Dedicated to Medjool date production in the hot climate of the Jordan Valley. We utilize geothermal heating for early-season crops.",
-    "lands": ["66f2aa00000000000000ab06"]
+"farmerBio": "Established by a former urban planner who returned to the land, Mount Carmel Microgreens specializes in **vertical farming of specialty greens and edible flowers** under controlled environments. Located on the slopes of Mount Carmel, we harness natural air currents for ventilation and utilize **100% rainwater harvesting** for irrigation. Our commitment is to achieving the highest nutritional density and flavor profile, supplying high-end restaurants and health-conscious consumers. We practice a zero-waste policy, composting all spent growing mediums and generating our own nutrient solutions. This small-footprint operation demonstrates how intensive, hyper-local farming can thrive in challenging topographies.",    "lands": ["66f2aa00000000000000ab06"]
   }
 
 ]
