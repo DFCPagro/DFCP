@@ -41,7 +41,7 @@ export const WORKER_MARKET_GROUP = {
 
 const customerMenu: MenuRegistry["customer"] = [
   { type: "link", key: "market", label: "Market", path: P.market, exact: true },
-  { type: "link", key: "orders", label: "MyOrders", path: P.orders },
+  { type: "link", key: "orders", label: "My Orders", path: P.orders },
   { type: "link", key: "profile", label: "Profile", path: P.profile },
   {
     type: "link",
@@ -58,20 +58,20 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     type: "link",
     key: "farmer-dashboard",
     label: "Dashboard",
-    path: "/farmerDashboard",
+    path: P.FarmerDashboard,
   },
   { type: "link", key: "farmer-crops", label: "Crops", path: "/farmer/crops" },
   {
     type: "link",
     key: "farmer-upcoming",
     label: "Upcoming Deliveries",
-    path: "/farmer/deliveries/upcoming",
+    path: P.FarmerOrdersForShift,
   },
   {
     type: "link",
     key: "farmer-reports",
     label: "Delivery Reports",
-    path: "/farmer/deliveries/reports",
+    path: P.FarmerOrderReport,
   },
   WORKER_MARKET_GROUP,
 ] as const;
@@ -345,8 +345,8 @@ export function getMenuFor(mode: Mode, role?: string | null) {
 }
 
 export const DEFAULT_LANDINGS: Record<Mode, string> = {
-  noUser: "/", // <— public landing
+  noUser: P.home, // <— public landing
   work: "/dashboard",
-  customer: "/market",
+  customer: P.market,
   // (or a role-specific landing if you want later)
 };

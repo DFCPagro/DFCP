@@ -28,7 +28,7 @@ export const mockRoles: readonly Role[] = [
     ],
   },
   {
-    name: "picker",
+    name: "Picker",
     description: "Packages and labels containers before shipping.",
     fields: [
       { label: "Full Name", type: "text" },
@@ -42,7 +42,7 @@ export const mockRoles: readonly Role[] = [
     ],
   },
   {
-    name: "industrialDeliverer",
+    name: "IndustrialDeliverer",
     description: "delivering goods from farms to logistic center",
     fields: [
       { label: "Full Name", type: "text" },

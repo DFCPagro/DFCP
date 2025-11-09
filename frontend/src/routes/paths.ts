@@ -4,7 +4,7 @@ export const PATHS = {
   home: "/",
   login: "/login",
   register: "/register",
-  dashboard: "/dashboard",
+  //dashboard: "/dashboard",
 
   driverSchedule: "/driver-schedule",
   jobs: "/jobs",

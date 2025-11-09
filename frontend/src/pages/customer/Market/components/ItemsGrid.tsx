@@ -32,18 +32,22 @@ export type ItemsGridProps = {
   error?: string | null;
 
   /** Paging */
-  page: number;          // 1-based
-  totalPages: number;    // >= 1
-  totalItems?: number;   // optional for small summary
+  page: number; // 1-based
+  totalPages: number; // >= 1
+  totalItems?: number; // optional for small summary
   onPageChange: (p: number) => void;
 
   /** Add handler; qty is ALWAYS in UNITS */
   onAdd?: (payload: { item: MarketItem; qty: number }) => void;
 
   /** Layout */
+  /**
+   * Baseline minimum height for cards.
+   * Final row height equals the tallest item in that row.
+   */
   minCardHeight?: string; // default "280px"
   columns?: { base?: number; sm?: number; md?: number; lg?: number; xl?: number };
-  gutter?: string;        // grid gap; default "4"
+  gutter?: string; // grid gap; default "4"
 
   allItemsForRelated?: MarketItem[];
 };
@@ -90,13 +94,24 @@ function ItemsGridBase({
           xl: columns.xl ? `repeat(${columns.xl}, minmax(0, 1fr))` : undefined,
         }}
         gap={gutter}
+        alignItems="stretch"
       >
         {renderSkeletons
           ? Array.from({ length: (columns.lg ?? 4) * 2 }).map((_, i) => (
-              <GridItem key={`s-${i}`}>
-                <Box borderWidth="1px" borderRadius="lg" overflow="hidden" minH={minCardHeight} p="0">
+              <GridItem key={`s-${i}`} display="flex">
+                <Box
+                  borderWidth="1px"
+                  borderRadius="lg"
+                  overflow="hidden"
+                  minH={minCardHeight}
+                  h="full"
+                  w="full"
+                  p="0"
+                  display="flex"
+                  flexDirection="column"
+                >
                   <Skeleton height="80px" />
-                  <Stack gap="2" p="3">
+                  <Stack gap="2" p="3" flex="1">
                     <Skeleton height="18px" />
                     <Skeleton height="14px" />
                     <Skeleton height="10px" />
@@ -106,14 +121,19 @@ function ItemsGridBase({
               </GridItem>
             ))
           : items.map((it) => (
-              <GridItem key={itemKey(it)}>
-                <MarketItemCard
-                  item={it}
-                  unit={unit}                 // card resolves effective mode + lock
-                  onUnitChange={onUnitChange} // no-op inside card if locked by item
-                  onAdd={onAdd}               // qty will be normalized to UNITS by the card
-                  allItemsForRelated={allItemsForRelated}
-                />
+              <GridItem key={itemKey(it)} display="flex">
+                {/* Stretch container makes each cell match the tallest item in the row */}
+                <Box minH={minCardHeight} h="full" w="full" display="flex">
+                  <Box flex="1" minH={0} display="flex">
+                    <MarketItemCard
+                      item={it}
+                      unit={unit}
+                      onUnitChange={onUnitChange}
+                      onAdd={onAdd}
+                      allItemsForRelated={allItemsForRelated}
+                    />
+                  </Box>
+                </Box>
               </GridItem>
             ))}
       </Grid>

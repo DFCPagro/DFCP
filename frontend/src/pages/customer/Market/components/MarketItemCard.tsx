@@ -248,22 +248,22 @@ if (qtyToSend > 0) onAdd?.({ item, qty: qtyToSend });
             </Stack>
 
             {farmerIcon ? (
-              <Avatar.Root size="sm">
-                <Avatar.Image src={farmerIcon} alt={farmerName ?? "farmer"} />
-              </Avatar.Root>
+                  <Avatar.Root colorPalette={pickPalette(farmerName)}>
+                  <Avatar.Fallback name={farmerName ?? "Farmer"} />
+                </Avatar.Root>
             ) : null}
           </HStack>
 
           {farmerName ? (
             <HStack justify="space-between">
               <Text fontSize="sm" color="fg.muted" lineClamp={1}>{farmerName}</Text>
-              {farmerIcon ? (
+              {/* {farmerIcon ? (
                 <Image src={farmerIcon ?? fallbackTemp} objectFit="cover" w="20%" h="20%" />
               ) : (
                 <Avatar.Root colorPalette={pickPalette(farmerName)}>
                   <Avatar.Fallback name={farmerName ?? "Farmer"} />
                 </Avatar.Root>
-              )}
+              )} */}
             </HStack>
           ) : null}
 

@@ -57,7 +57,7 @@ function PinButtonBase({
           </IconButton>
         </Tooltip.Trigger>
         <Tooltip.Positioner>
-          <Tooltip.Content>{tooltip}</Tooltip.Content>
+          <Tooltip.Content>{tooltip} </Tooltip.Content>
         </Tooltip.Positioner>
       </Tooltip.Root>
 

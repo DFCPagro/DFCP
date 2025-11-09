@@ -1,4 +1,3 @@
-// src/pages/DeliveryNote.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -11,12 +10,11 @@ import {
   Spinner,
   Text,
   VStack,
-  Code,
   Badge,
   Stack,
   IconButton,
 } from "@chakra-ui/react";
-import { Copy, Printer, ArrowLeft,Download} from "lucide-react";
+import { Copy, Printer, ArrowLeft, Download } from "lucide-react";
 import type { OrderRowAPI } from "@/types/orders";
 import ItemList from "@/components/common/ItemList";
 import { fetchOrders } from "@/api/orders";
@@ -189,6 +187,10 @@ export default function DeliveryNotePage() {
     [order]
   );
   const isInvoice = new Set<UIStatus>(["received", "delivered"]).has(ui);
+  const pageTitle = isInvoice ? "Invoice" : "Delivery Note";
+  const containerW = isInvoice ? "6xl" : "4xl";
+  const headerSize: "xl" | "lg" = isInvoice ? "xl" : "lg";
+
   const currency = useMemo(
     () => pickCurrency((order as any)?.items ?? []) ?? "$",
     [order]
@@ -202,10 +204,10 @@ export default function DeliveryNotePage() {
 
   if (loading) {
     return (
-      <Container maxW="4xl" py={10}>
+      <Container maxW={containerW} py={10}>
         <HStack justify="center" py={16}>
           <Spinner />
-          <Text color="fg.muted">Loading delivery note…</Text>
+          <Text color="fg.muted">Loading {pageTitle.toLowerCase()}…</Text>
         </HStack>
       </Container>
     );
@@ -213,83 +215,84 @@ export default function DeliveryNotePage() {
 
   if (!order) {
     return (
-      <Container maxW="4xl" py={10}>
+      <Container maxW={containerW} py={10}>
         <VStack align="stretch" gap={4}>
-          <Heading size="lg">Delivery Note</Heading>
+          <Heading size={headerSize}>{pageTitle}</Heading>
           <Box p={4} borderWidth="1px" borderRadius="lg">
             <Text color="fg.muted">Order not found.</Text>
           </Box>
-<Button onClick={() => nav(-1)}>
-  <HStack gap={2}>
-    <ArrowLeft size={16} />
-    <Text>Back</Text>
-  </HStack>
-</Button>
+          <Button onClick={() => nav(-1)}>
+            <HStack gap={2}>
+              <ArrowLeft size={16} />
+              <Text>Back</Text>
+            </HStack>
+          </Button>
         </VStack>
       </Container>
     );
   }
 
   const orderId = (order as any).orderId ?? order.id;
-const handleDownload = () => {
-  const prev = document.title;
-  document.title = `DeliveryNote-${orderId}`;
-  window.print();
-  // restore title after print
-  setTimeout(() => (document.title = prev), 500);
-};
+  const handleDownload = () => {
+    const prev = document.title;
+    document.title = `${pageTitle}-${orderId}`;
+    window.print();
+    // restore title after print
+    setTimeout(() => (document.title = prev), 500);
+  };
+
   return (
-    <Container maxW="4xl" py={8}>
+    <Container maxW={containerW} py={isInvoice ? 10 : 8}>
       {/* Page header */}
-<HStack justify="space-between" mb={4} className="no-print">
-  <HStack>
-<Button size="sm" variant="ghost" onClick={() => nav(-1)}>
-  <HStack gap={2}>
-    <ArrowLeft size={16} />
-    <Text>Back</Text>
-  </HStack>
-</Button>
+      <HStack justify="space-between" mb={4} className="no-print">
+        <HStack>
+          <Button size="sm" variant="ghost" onClick={() => nav(-1)}>
+            <HStack gap={2}>
+              <ArrowLeft size={16} />
+              <Text>Back</Text>
+            </HStack>
+          </Button>
 
-    <Heading size="lg">Delivery Note</Heading>
-  </HStack>
+          <Heading size={headerSize}>{pageTitle}</Heading>
+        </HStack>
 
-  <HStack gap={2}>
-    <IconButton
-      aria-label="Download PDF"
-      size="sm"
-      variant="solid"
-      onClick={handleDownload}
-    >
-      <Download size={16} />
-    </IconButton>
-    <IconButton
-      aria-label="Print"
-      size="sm"
-      variant="outline"
-      onClick={() => window.print()}
-    >
-      <Printer size={16} />
-    </IconButton>
-    <IconButton
-      aria-label="Copy ID"
-      size="sm"
-      variant="outline"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(String(orderId));
-        } catch {}
-      }}
-    >
-      <Copy size={16} />
-    </IconButton>
-  </HStack>
-</HStack>
+        <HStack gap={2}>
+          <IconButton
+            aria-label="Download PDF"
+            size="sm"
+            variant="solid"
+            onClick={handleDownload}
+          >
+            <Download size={16} />
+          </IconButton>
+          <IconButton
+            aria-label="Print"
+            size="sm"
+            variant="outline"
+            onClick={() => window.print()}
+          >
+            <Printer size={16} />
+          </IconButton>
+          <IconButton
+            aria-label="Copy ID"
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(String(orderId));
+              } catch {}
+            }}
+          >
+            <Copy size={16} />
+          </IconButton>
+        </HStack>
+      </HStack>
 
       {/* Top summary */}
       <Box
         borderWidth="1px"
         borderRadius="xl"
-        p={4}
+        p={isInvoice ? 6 : 4}
         bgGradient="linear(to-r, gray.50, transparent)"
         _dark={{ bgGradient: "linear(to-r, gray.800, transparent)" }}
       >
@@ -304,7 +307,7 @@ const handleDownload = () => {
                 {STATUS_LABEL[ui]}
               </Badge>
 
-              <Badge variant="subtle" borderRadius="full" px={3} py={1}>
+              <Badge variant="subtle" borderRadius="full" px={3} py={1} size="2xl">
                 {isInvoice ? "Invoice" : "Order"} #{orderId}
               </Badge>
             </HStack>
@@ -320,8 +323,8 @@ const handleDownload = () => {
           <Box
             borderWidth="1px"
             borderRadius="lg"
-            p={3}
-            w={{ base: "100%", md: "280px" }}
+            p={isInvoice ? 4 : 3}
+            w={{ base: "100%", md: isInvoice ? "320px" : "280px" }}
             alignSelf={{ base: "stretch", md: "center" }}
           >
             <Text fontWeight="semibold" fontSize="sm" color="fg.muted" mb={2}>
@@ -337,10 +340,10 @@ const handleDownload = () => {
         </Stack>
       </Box>
 
-      <Separator my={5} />
+      <Separator my={isInvoice ? 6 : 5} />
 
       {/* Items */}
-      <Box borderWidth="1px" borderRadius="xl" p={4}>
+      <Box borderWidth="1px" borderRadius="xl" p={isInvoice ? 6 : 4}>
         <HStack justify="space-between" mb={2}>
           <Text fontWeight="semibold">Items</Text>
           <Text color="fg.muted" fontSize="sm">

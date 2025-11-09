@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { registerApi } from "@/api/auth";
@@ -21,6 +20,7 @@ import {
   Grid as CGrid,
   Image,
   HStack,
+  Checkbox,
 } from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster";
 import AddressAutocomplete from "@/components/common/AddressAutocomplete";
@@ -36,11 +36,9 @@ type FormWithoutAddress = Omit<RegisterPayload, "address">;
 export default function Register() {
   const navigate = useNavigate();
 
-  // picker dialog + country restriction
   const [pickerOpen, setPickerOpen] = useState(false);
   const countries = "IL";
 
-  // form (without address object)
   const [form, setForm] = useState<FormWithoutAddress>({
     name: "",
     email: "",
@@ -49,12 +47,10 @@ export default function Register() {
     birthday: "",
   });
 
-  // local UI state
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // address state → backend `address` object will be built from these
   const [addressText, setAddressText] = useState("");
   const [latitude, setLatitude] = useState<number | undefined>(undefined);
   const [longitude, setLongitude] = useState<number | undefined>(undefined);
@@ -65,10 +61,12 @@ export default function Register() {
     e164: "",
   });
 
+  const [agreeTerms, setAgreeTerms] = useState(false);
+
   const [errors, setErrors] = useState<
     Partial<
       Record<
-        keyof RegisterPayload | "phone" | "address" | "confirmPassword",
+        keyof RegisterPayload | "phone" | "address" | "confirmPassword" | "terms",
         string
       >
     >
@@ -93,7 +91,6 @@ export default function Register() {
     },
   });
 
-  // helpers
   const clearErrorIfValid = (key: keyof typeof errors, ok: boolean) => {
     if (!ok) return;
     setErrors((prev) => {
@@ -106,40 +103,28 @@ export default function Register() {
 
   const handleChange = (key: keyof FormWithoutAddress, value: string) => {
     setForm((p) => ({ ...p, [key]: value }));
-
-    // live validations
     if (key === "name") clearErrorIfValid("name", isValidName(value));
     if (key === "email") clearErrorIfValid("email", isValidEmail(value));
     if (key === "password") {
       clearErrorIfValid("password", value.length >= 8);
-      clearErrorIfValid(
-        "confirmPassword",
-        !!confirmPassword && confirmPassword === value
-      );
+      clearErrorIfValid("confirmPassword", !!confirmPassword && confirmPassword === value);
     }
-    if (key === "birthday")
-      clearErrorIfValid("birthday", !!value && isAtLeast16(value));
+    if (key === "birthday") clearErrorIfValid("birthday", !!value && isAtLeast16(value));
   };
 
   const handleBlur = (key: keyof FormWithoutAddress | "confirmPassword") => {
     if (key === "name") {
-      if (!form.name.trim())
-        setErrors((p) => ({ ...p, name: "Name is required" }));
+      if (!form.name.trim()) setErrors((p) => ({ ...p, name: "Name is required" }));
       else if (!isValidName(form.name))
-        setErrors((p) => ({
-          ...p,
-          name: "Only letters and single spaces are allowed",
-        }));
+        setErrors((p) => ({ ...p, name: "Only letters and single spaces are allowed" }));
     }
     if (key === "email") {
-      if (!form.email.trim())
-        setErrors((p) => ({ ...p, email: "Email is required" }));
+      if (!form.email.trim()) setErrors((p) => ({ ...p, email: "Email is required" }));
       else if (!isValidEmail(form.email))
         setErrors((p) => ({ ...p, email: "Enter a valid email" }));
     }
     if (key === "password") {
-      if (!form.password)
-        setErrors((p) => ({ ...p, password: "Password is required" }));
+      if (!form.password) setErrors((p) => ({ ...p, password: "Password is required" }));
       else if (form.password.length < 8)
         setErrors((p) => ({ ...p, password: "Use at least 8 characters" }));
       if (confirmPassword && confirmPassword !== form.password) {
@@ -149,13 +134,9 @@ export default function Register() {
       }
     }
     if (key === "birthday") {
-      if (!form.birthday)
-        setErrors((p) => ({ ...p, birthday: "Birthday is required" }));
+      if (!form.birthday) setErrors((p) => ({ ...p, birthday: "Birthday is required" }));
       else if (!isAtLeast16(form.birthday))
-        setErrors((p) => ({
-          ...p,
-          birthday: "You must be at least 16 years old",
-        }));
+        setErrors((p) => ({ ...p, birthday: "You must be at least 16 years old" }));
     }
     if (key === "confirmPassword") {
       if (!confirmPassword)
@@ -175,7 +156,6 @@ export default function Register() {
     clearErrorIfValid("phone", !!next.e164);
   };
 
-  // geolocate
   const useMyLocation = async () => {
     if (!navigator.geolocation) {
       toaster.create({
@@ -201,11 +181,9 @@ export default function Register() {
       setLongitude(lng);
 
       try {
-        const addr = await reverseGeocode(lat, lng); // reverseGeocode loads maps internally
+        const addr = await reverseGeocode(lat, lng);
         if (addr) setAddressText(addr);
-      } catch {
-        /* ignore reverse geocode failure */
-      }
+      } catch {}
 
       toaster.create({ type: "success", title: "Location detected" });
       clearErrorIfValid("address", true);
@@ -219,9 +197,7 @@ export default function Register() {
     }
   };
 
-  // computed validity
-  const isAddressValid =
-    !!addressText.trim() && latitude != null && longitude != null;
+  const isAddressValid = !!addressText.trim() && latitude != null && longitude != null;
   const isPhoneValid = !!phoneState.e164;
   const isBirthdayValid = !!form.birthday && isAtLeast16(form.birthday);
   const isConfirmValid = !!confirmPassword && confirmPassword === form.password;
@@ -234,41 +210,37 @@ export default function Register() {
       isConfirmValid &&
       isPhoneValid &&
       isBirthdayValid &&
-      isAddressValid,
-    [form, isConfirmValid, isPhoneValid, isBirthdayValid, isAddressValid]
+      isAddressValid &&
+      agreeTerms,
+    [form, isConfirmValid, isPhoneValid, isBirthdayValid, isAddressValid, agreeTerms]
   );
 
-  // submit
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const newErrors: typeof errors = {};
     if (!form.name?.trim()) newErrors.name = "Name is required";
-    else if (!isValidName(form.name))
-      newErrors.name = "Only letters and single spaces are allowed";
+    else if (!isValidName(form.name)) newErrors.name = "Only letters and single spaces are allowed";
 
     if (!form.email?.trim()) newErrors.email = "Email is required";
     else if (!isValidEmail(form.email)) newErrors.email = "Enter a valid email";
 
     if (!form.password) newErrors.password = "Password is required";
-    else if (form.password.length < 8)
-      newErrors.password = "Use at least 8 characters";
+    else if (form.password.length < 8) newErrors.password = "Use at least 8 characters";
 
     if (!confirmPassword) newErrors.confirmPassword = "Confirm your password";
-    else if (confirmPassword !== form.password)
-      newErrors.confirmPassword = "Passwords do not match";
+    else if (confirmPassword !== form.password) newErrors.confirmPassword = "Passwords do not match";
 
     if (!isBirthdayValid) {
-      newErrors.birthday = form.birthday
-        ? "You must be at least 16 years old"
-        : "Birthday is required";
+      newErrors.birthday = form.birthday ? "You must be at least 16 years old" : "Birthday is required";
     }
 
     if (!isPhoneValid) newErrors.phone = "Phone number is required";
 
     if (!addressText?.trim()) newErrors.address = "Address is required";
-    if (latitude == null || longitude == null)
-      newErrors.address = "Please select a point on the map";
+    if (latitude == null || longitude == null) newErrors.address = "Please select a point on the map";
+
+    if (!agreeTerms) newErrors.terms = "You must agree to the Terms to continue";
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
@@ -290,7 +262,6 @@ export default function Register() {
     mutate(payload);
   };
 
-  // ---- Simple 3-image carousel for the right column (no auto-advance) ----
   const images = [
     { src: "/images/reg1.png", alt: "Register step 1" },
     { src: "/images/reg2.png", alt: "Register step 2" },
@@ -304,7 +275,7 @@ export default function Register() {
 
   return (
     <CGrid templateColumns="repeat(2, 1fr)" bg="#4a6f1eff">
-      <Box mx="auto" mt={10} p={5} borderWidth="1px" borderRadius="2xl" w="90%" bg="white">
+      <Box mx="auto" mt={10} p={5} borderWidth="1px" borderRadius="2xl" w="80%" h="100hv" bg="white">
         <VStack as="form" gap={2} onSubmit={submit} w="100%">
           <Heading size="2xl">Register</Heading>
 
@@ -354,9 +325,7 @@ export default function Register() {
             {errors.email ? (
               <Field.ErrorText>{errors.email}</Field.ErrorText>
             ) : (
-              <Field.HelperText>
-                We’ll send a confirmation email.
-              </Field.HelperText>
+              <Field.HelperText>We’ll send a confirmation email.</Field.HelperText>
             )}
           </Field.Root>
 
@@ -395,9 +364,7 @@ export default function Register() {
             {errors.password ? (
               <Field.ErrorText>{errors.password}</Field.ErrorText>
             ) : (
-              <Field.HelperText>
-                Use a strong password you don’t reuse elsewhere.
-              </Field.HelperText>
+              <Field.HelperText>Use a strong password you don’t reuse elsewhere.</Field.HelperText>
             )}
           </Field.Root>
 
@@ -468,9 +435,7 @@ export default function Register() {
             {errors.birthday ? (
               <Field.ErrorText>{errors.birthday}</Field.ErrorText>
             ) : (
-              <Field.HelperText>
-                You must be at least 16 years old.
-              </Field.HelperText>
+              <Field.HelperText>You must be at least 16 years old.</Field.HelperText>
             )}
           </Field.Root>
 
@@ -483,28 +448,20 @@ export default function Register() {
                 value={addressText}
                 onChange={(v) => {
                   setAddressText(v);
-                  clearErrorIfValid(
-                    "address",
-                    !!v.trim() && latitude != null && longitude != null
-                  );
+                  clearErrorIfValid("address", !!v.trim() && latitude != null && longitude != null);
                 }}
                 onPlaceSelected={({ address, lat, lng }) => {
                   setAddressText(address);
                   if (lat != null) setLatitude(lat);
                   if (lng != null) setLongitude(lng);
-                  clearErrorIfValid(
-                    "address",
-                    !!address && lat != null && lng != null
-                  );
+                  clearErrorIfValid("address", !!address && lat != null && lng != null);
                 }}
                 countries={countries}
                 placeholder="Search and pick an address"
                 flex={1}
               />
             </Flex>
-            {errors.address && (
-              <Field.ErrorText>{errors.address}</Field.ErrorText>
-            )}
+            {errors.address && <Field.ErrorText>{errors.address}</Field.ErrorText>}
           </Field.Root>
 
           <Flex gap={3} align="center" w="full">
@@ -512,12 +469,7 @@ export default function Register() {
               Pick on map
             </Button>
             <Tooltip content="Use my current location" openDelay={0}>
-              <IconButton
-                size="xs"
-                variant="ghost"
-                onClick={useMyLocation}
-                aria-label="Use my location"
-              >
+              <IconButton size="xs" variant="ghost" onClick={useMyLocation} aria-label="Use my location">
                 <LocateFixed size={14} />
               </IconButton>
             </Tooltip>
@@ -528,12 +480,33 @@ export default function Register() {
             )}
           </Flex>
 
-          <Button
-            type="submit"
-            loading={isPending}
-            width="full"
-            disabled={!isFormValid || isPending}
-          >
+          {/* Terms */}
+          <Field.Root invalid={!!errors.terms} required>
+            <Checkbox.Root
+              checked={agreeTerms}
+              onCheckedChange={(d) => {
+                const checked = typeof d.checked === "boolean" ? d.checked : false;
+                setAgreeTerms(checked);
+                clearErrorIfValid("terms", checked);
+              }}
+            >
+              <Checkbox.Control />
+              <Checkbox.Label>
+                I agree to the{" "}
+                <CLink asChild color="blue.500" textDecoration="underline">
+                  <RouterLink to="/terms">Terms of Service</RouterLink>
+                </CLink>{" "}
+                and{" "}
+                <CLink asChild color="blue.500" textDecoration="underline">
+                  <RouterLink to="/privacy">Privacy Policy</RouterLink>
+                </CLink>
+                .
+              </Checkbox.Label>
+            </Checkbox.Root>
+            {errors.terms && <Field.ErrorText>{errors.terms}</Field.ErrorText>}
+          </Field.Root>
+
+          <Button type="submit" loading={isPending} width="full" disabled={!isFormValid || isPending}>
             Create account
           </Button>
 
@@ -543,6 +516,70 @@ export default function Register() {
               <RouterLink to="/login">Login</RouterLink>
             </CLink>
           </Text>
+
+          {/* Advertisement-style promo */}
+          <Box
+            role="group"
+            w="full"
+            borderRadius="xl"
+            p="4"
+            bgGradient="linear(to-r, #1a202c, #2d3748)"
+            position="relative"
+            overflow="hidden"
+            shadow="lg"
+            _hover={{ shadow: "xl" }}
+          >
+            <Box
+              position="absolute"
+              inset="0"
+              opacity="0.15"
+              bgImage="radial-gradient(circle at 20% 20%, #6ca51e 0.5px, transparent 1px), radial-gradient(circle at 80% 30%, #4a6f1e 0.5px, transparent 1px)"
+              bgSize="20px 20px"
+            />
+            <Flex align="center" gap="3">
+              <Box
+                flex="0 0 auto"
+                p="2"
+                borderRadius="full"
+                bg="whiteAlpha.200"
+                transform="translateZ(0)"
+                _groupHover={{ transform: "scale(1.05)" }}
+                transition="transform 0.2s ease"
+              >
+                <Image
+                  src="/images/MDcoin3.png"
+                  alt="Affiliate"
+                  loading="lazy"
+                  boxSize="48px"
+                  objectFit="contain"
+                />
+              </Box>
+
+              <Box flex="1" color="white">
+                <Text fontSize="sm" opacity="0.8" mb="1" color=" #4a6f1e">
+                  Sponsored
+                </Text>
+                <Heading size="md" lineHeight="short" mb="1" color=" #4a6f1e">
+                  Earn with our Affiliate Program
+                </Heading>
+                <Text fontSize="md" opacity="0.9" color=" #4a6f1e">
+                  Share, refer, and receive payouts on every successful signup.
+                </Text>
+              </Box>
+
+              <Button
+                asChild
+                size="xs"
+                variant="solid"
+                colorPalette="teal"
+                borderRadius="full"
+                px="4"
+                _groupHover={{ translateY: "-1px" }}
+              >
+                <RouterLink to="#">Join now</RouterLink>
+              </Button>
+            </Flex>
+          </Box>
         </VStack>
 
         <MapPickerDialog
@@ -554,10 +591,7 @@ export default function Register() {
             setLatitude(v.lat);
             setLongitude(v.lng);
             setPickerOpen(false);
-            clearErrorIfValid(
-              "address",
-              !!v.address && v.lat != null && v.lng != null
-            );
+            clearErrorIfValid("address", !!v.address && v.lat != null && v.lng != null);
           }}
           initial={
             latitude != null && longitude != null
@@ -568,19 +602,26 @@ export default function Register() {
         />
       </Box>
 
-      {/* Right column: 3-image carousel */}
-      <Box w="full" minH="100vh" position="relative" display="flex" alignItems="center" justifyContent="center" p="6">
-        <Box position="relative" minH="100vh" maxW="720px" aspectRatio="16 / 9" overflow="hidden" borderRadius="2xl" bg="black">
+      <Box mx="auto" mt={10} w="80%" h="100hv">
+        <Box
+          position="relative"
+          minH="85vh"
+          maxW="720px"
+          aspectRatio="16 / 9"
+          overflow="hidden"
+          borderRadius="2xl"
+          bg="black"
+        >
           <Image
             key={images[active].src}
             src={images[active].src}
             alt={images[active].alt}
-minH="100vh"
             objectFit="contain"
             loading="lazy"
+            w="full"
+            h="full"
           />
 
-          {/* Controls */}
           <IconButton
             aria-label="Previous image"
             onClick={prev}
@@ -606,7 +647,6 @@ minH="100vh"
             <ChevronRight size={18} />
           </IconButton>
 
-          {/* Dots */}
           <HStack position="absolute" bottom="3" left="50%" transform="translateX(-50%)" gap="2">
             {images.map((_, i) => (
               <Box
