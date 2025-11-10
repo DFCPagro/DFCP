@@ -1,20 +1,40 @@
-import { Box, Grid, Text, VStack } from "@chakra-ui/react"
-import PkgGlyph from "./PkgGlyph"
+import { Box, Grid, VStack, Text } from "@chakra-ui/react"
+import { Package as PackageIcon } from "lucide-react"
 
 export type SizeCode = "L" | "M" | "S" | "U"
 
-const LABEL: Record<SizeCode, string> = { L: "Large", M: "Medium", S: "Small", U: "Box" }
-const ORDER: SizeCode[] = ["L", "M", "S", "U"]
-
-type Props = {
-  sizes: Partial<Record<SizeCode, number>>
-  clickable?: boolean
-  onPickSize?: (size: SizeCode) => void
-  borderAccent?: boolean
+function PkgGlyph() {
+  return (
+    <Box
+      w="36px"
+      h="36px"
+      rounded="md"
+      borderWidth="1px"
+      bg="bg.subtle"
+      _dark={{ bg: "blackAlpha.300" }}
+      display="grid"
+      placeItems="center"
+    >
+      <PackageIcon size={18} />
+    </Box>
+  )
 }
 
-export default function SizeStrip({ sizes, clickable = false, onPickSize, borderAccent = true }: Props) {
-  const visible = ORDER.filter((sz) => (sizes[sz] ?? 0) > 0)
+export default function SizeStrip({
+  sizes,
+  clickable = false,
+  onPickSize,
+  borderAccent = true,
+}: {
+  sizes: Partial<Record<SizeCode, number>>
+  clickable?: boolean
+  onPickSize?: (sizeCode: SizeCode) => void
+  borderAccent?: boolean
+}) {
+  const order: SizeCode[] = ["L", "M", "S", "U"]
+  const label: Record<SizeCode, string> = { L: "Large", M: "Medium", S: "Small", U: "Box" }
+
+  const visible = order.filter((sz) => (sizes[sz] ?? 0) > 0)
   if (visible.length === 0) return null
 
   return (
@@ -36,8 +56,6 @@ export default function SizeStrip({ sizes, clickable = false, onPickSize, border
               cursor={clickable ? "pointer" : "default"}
               onClick={clickable && onPickSize ? () => onPickSize(sz) : undefined}
               _hover={clickable ? { bg: "bg.subtle", _dark: { bg: "blackAlpha.300" } } : undefined}
-              role={clickable ? "button" : undefined}
-              aria-label={clickable ? `Select ${LABEL[sz]} packages` : undefined}
             >
               {idx < visible.length - 1 && (
                 <Box
@@ -53,7 +71,7 @@ export default function SizeStrip({ sizes, clickable = false, onPickSize, border
               <VStack gap={2}>
                 <PkgGlyph />
                 <Text fontSize="xl" fontWeight="bold">
-                  {LABEL[sz]}
+                  {label[sz]}
                 </Text>
                 <Text fontSize="lg" fontWeight="semibold">
                   x{count}

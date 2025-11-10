@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
 import {
   Grid,
   GridItem,
@@ -8,37 +7,39 @@ import {
   VStack,
   Heading,
   Text,
-  Button,
-  Progress,
   Image,
   Badge,
   Separator,
   Spinner,
-  Show,
   IconButton,
-  Input,
+  Button,
 } from "@chakra-ui/react"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import toast from "react-hot-toast"
 
-import {
-  claimFirstReadyTaskForCurrentShift,
-  type PickerTask,
-  type PlanBox,
-  type PlanPiece,
-} from "@/api/pickerTask"
+import { claimFirstReadyTaskForCurrentShift, type PickerTask, type PlanBox, type PlanPiece } from "@/api/pickerTask"
 import { getItemsCatalog } from "@/api/farmerInventory"
 
 import HeaderBar from "@/pages/picker/picker-task/components/HeaderBar"
 import TimerPill from "@/pages/picker/picker-task/components/TimerPill"
 import SizeStrip, { type SizeCode } from "@/pages/picker/picker-task/components/SizeStrip"
-import { type CatalogItem } from "@/pages/picker/picker-task/components/PieceRow"
+import OverallCard from "@/pages/picker/picker-task/components/OverallCard"
+import PackagesSelector from "@/pages/picker/picker-task/components/PackagesSelector"
+import CurrentItemPanel from "@/pages/picker/picker-task/components/CurrentItemPanel"
 
 /* Types */
 type Phase = "load" | "pick"
 const SLA_MIN = (priorityNum: number) => (priorityNum > 0 ? 20 : 45)
-const fmt = (s: number) =>
-  `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
+
+export type CatalogItem = {
+  _id?: string
+  type?: string
+  variety?: string
+  category?: string
+  imageUrl?: string
+  name?: string
+}
 
 /* Helpers */
 function mapBoxTypeToSizeCode(boxType?: string): SizeCode {
@@ -48,7 +49,6 @@ function mapBoxTypeToSizeCode(boxType?: string): SizeCode {
   if (t.startsWith("small")) return "S"
   return "U"
 }
-
 function normalizeBoxType(t?: string): "Small" | "Medium" | "Large" | "Unknown" {
   const s = String(t || "").trim().toLowerCase()
   if (s.startsWith("small")) return "Small"
@@ -58,8 +58,6 @@ function normalizeBoxType(t?: string): "Small" | "Medium" | "Large" | "Unknown" 
 }
 
 export default function PickTaskPage() {
-  const navigate = useNavigate()
-
   const [phase, setPhase] = useState<Phase>("load")
   const [task, setTask] = useState<PickerTask | null>(null)
 
@@ -77,8 +75,9 @@ export default function PickTaskPage() {
   const [selectedBoxNo, setSelectedBoxNo] = useState<number | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
 
-  // weight entry
-  const [weightInput, setWeightInput] = useState<string>("")
+  // inputs
+  const [weightInput, setWeightInput] = useState<string>("") // for kg
+  const [unitsInput, setUnitsInput] = useState<string>("") // for unit
 
   // gating
   const [arrivalConfirmed, setArrivalConfirmed] = useState(false)
@@ -102,7 +101,7 @@ export default function PickTaskPage() {
       try {
         const res = await claimFirstReadyTaskForCurrentShift()
         if (!alive) return
-        if (!res?.claimed || !res.task) {
+        if (!res?.task) {
           setClaiming(false)
           toast("No ready tasks for the current shift.", { icon: "ℹ️" })
           return
@@ -111,27 +110,19 @@ export default function PickTaskPage() {
         const t = res.task
         setTask(t)
 
-        // SLA timer by priority
         const prioMin = SLA_MIN(Number(t.priority ?? 0))
         setDeadline(Date.now() + prioMin * 60 * 1000)
 
-        // Picker must choose size
         setSelectedBoxNo(null)
         setStepIndex(0)
 
-        // Load catalog
-        const allIds = Array.from(
-          new Set((t.plan?.boxes ?? []).flatMap((b) => (b.contents ?? []).map((p) => String(p.itemId)))),
-        )
-        if (allIds.length) {
-          const list = await getItemsCatalog()
-          const map: Record<string, CatalogItem> = {}
-          for (const it of list || []) {
-            const id = String((it as any)?._id || "")
-            if (id) map[id] = it
-          }
-          setCatalog(map)
+        const list = await getItemsCatalog()
+        const map: Record<string, CatalogItem> = {}
+        for (const it of list || []) {
+          const id = String((it as any)?._id || "")
+          if (id) map[id] = it
         }
+        setCatalog(map)
       } catch (e: any) {
         toast.error(e?.message || "Failed to claim a task")
       } finally {
@@ -157,23 +148,30 @@ export default function PickTaskPage() {
     [task],
   )
 
-  // local done flags
+  // done flags (local)
   const [localDoneKey, setLocalDoneKey] = useState<Record<string, boolean>>({})
-  const pieceKey = (p: PlanPiece, i: number) =>
-    `${selectedBoxNo ?? "?"}#${i}@${p.itemId}:${p.mode}:${p.pieceType}`
+  const pieceKey = (p: PlanPiece, i: number, boxNo: number | null = selectedBoxNo) =>
+    `${boxNo ?? "?"}#${i}@${p.itemId}:${p.mode}:${p.pieceType}`
 
   const done = useMemo(() => Object.values(localDoneKey).filter(Boolean).length, [localDoneKey])
   const overall = totalPieces ? Math.min(100, Math.round((done / totalPieces) * 100)) : 0
 
+  // compute "allDone" BEFORE any conditional returns to keep hook order stable
+  const allDone = useMemo(() => {
+    const boxes = task?.plan?.boxes ?? []
+    for (const b of boxes) {
+      for (let i = 0; i < (b.contents?.length ?? 0); i++) {
+        const p = b.contents![i]
+        if (!localDoneKey[pieceKey(p, i, b.boxNo ?? null)]) return false
+      }
+    }
+    return boxes.length > 0
+  }, [task, localDoneKey])
+
   // stats (all boxes)
   const boxStats = useMemo(() => {
     const acc: Record<"Small" | "Medium" | "Large" | "Unknown", { count: number; boxNos: number[]; liters: number; kg: number }> =
-      {
-        Small: { count: 0, boxNos: [], liters: 0, kg: 0 },
-        Medium: { count: 0, boxNos: [], liters: 0, kg: 0 },
-        Large: { count: 0, boxNos: [], liters: 0, kg: 0 },
-        Unknown: { count: 0, boxNos: [], liters: 0, kg: 0 },
-      }
+      { Small: { count: 0, boxNos: [], liters: 0, kg: 0 }, Medium: { count: 0, boxNos: [], liters: 0, kg: 0 }, Large: { count: 0, boxNos: [], liters: 0, kg: 0 }, Unknown: { count: 0, boxNos: [], liters: 0, kg: 0 } }
     for (const b of task?.plan?.boxes ?? []) {
       const t = normalizeBoxType(b.boxType)
       acc[t].count += 1
@@ -204,7 +202,7 @@ export default function PickTaskPage() {
   const unfinishedBoxNos = useMemo(() => {
     const result = new Set<number>()
     for (const b of task?.plan?.boxes ?? []) {
-      const hasPending = (b.contents ?? []).some((p, i) => !localDoneKey[`${b.boxNo ?? "?"}#${i}@${p.itemId}:${p.mode}:${p.pieceType}`])
+      const hasPending = (b.contents ?? []).some((p, i) => !localDoneKey[pieceKey(p, i, b.boxNo ?? null)])
       if (hasPending && typeof b.boxNo === "number") result.add(b.boxNo)
     }
     return result
@@ -219,7 +217,7 @@ export default function PickTaskPage() {
     return counts
   }, [task, unfinishedBoxNos])
 
-  // find next box by size with pending
+  // first box by size with pending
   const firstBoxBySize = useCallback(
     (sz: SizeCode) => {
       if (!task) return null
@@ -234,9 +232,13 @@ export default function PickTaskPage() {
 
   const startWithSize = useCallback(
     (sz: SizeCode) => {
-      const target = firstBoxBySize(sz)
+      const target =
+        firstBoxBySize(sz) ??
+        // if first time, allow any box of that size
+        (task?.plan?.boxes ?? []).find((b) => mapBoxTypeToSizeCode(b.boxType) === sz)?.boxNo ??
+        null
       if (target == null) {
-        toast("No unfinished boxes for that size.")
+        toast("No boxes for that size.")
         return
       }
       setSelectedBoxNo(target)
@@ -244,20 +246,28 @@ export default function PickTaskPage() {
       setPhase("pick")
       setArrivalConfirmed(false)
       setWeightInput("")
+      setUnitsInput("")
     },
-    [firstBoxBySize],
+    [task, firstBoxBySize],
   )
 
   // reset gating on item change
   useEffect(() => {
     setArrivalConfirmed(false)
     setWeightInput("")
+    setUnitsInput("")
   }, [stepIndex, selectedBoxNo])
 
   const confirmArrival = () => {
     if (!cur) return
-    toast.success("Arrival confirmed")
     setArrivalConfirmed(true)
+    if (cur.mode === "kg") {
+      const reqKg = Number(cur.units ?? 1) * Number(cur.estWeightKgPiece ?? 0)
+      setWeightInput(reqKg > 0 ? String(Math.round(reqKg * 100) / 100) : "0")
+    } else {
+      setUnitsInput(String(cur.units ?? 1))
+    }
+    toast.success("Arrival confirmed")
   }
 
   const saveAndNext = () => {
@@ -272,17 +282,21 @@ export default function PickTaskPage() {
         toast.error("Enter weight in kg")
         return
       }
+    } else {
+      const u = Number(unitsInput)
+      if (!Number.isInteger(u) || u <= 0) {
+        toast.error("Enter units")
+        return
+      }
     }
 
     setLocalDoneKey((prev) => ({ ...prev, [pieceKey(cur, stepIndex)]: true }))
 
-    // next item in same box
     if (stepIndex + 1 < piecesInBox.length) {
       setStepIndex((i) => i + 1)
       return
     }
 
-    // box completed: go back to unfinished packages selector
     toast.success(`Box #${selectedBoxNo ?? ""} completed. Select another package.`)
     setSelectedBoxNo(null)
     setStepIndex(0)
@@ -304,24 +318,11 @@ export default function PickTaskPage() {
     return (
       <VStack align="start" p={6} gap={4}>
         <Text fontSize="lg">No ready tasks available right now.</Text>
-        <Button onClick={() => navigate("/picker/dashboard")} variant="outline">
-          Back to dashboard
-        </Button>
       </VStack>
     )
   }
 
   const timeLabel = fmt(timeLeft)
-  const allDone = useMemo(() => {
-    const boxes = task.plan?.boxes ?? []
-    for (const b of boxes) {
-      for (let i = 0; i < (b.contents?.length ?? 0); i++) {
-        const p = b.contents![i]
-        if (!localDoneKey[`${b.boxNo ?? "?"}#${i}@${p.itemId}:${p.mode}:${p.pieceType}`]) return false
-      }
-    }
-    return boxes.length > 0
-  }, [task, localDoneKey])
 
   /* ---------- PHASE: LOAD ---------- */
   if (phase === "load") {
@@ -345,7 +346,14 @@ export default function PickTaskPage() {
                 {/* overall counts */}
                 <VStack align="stretch" gap={2} mb={3}>
                   {(["Large", "Medium", "Small", "Unknown"] as const).map((t) => {
-                    const row = boxStats[t]
+                    const row =
+                      t === "Large"
+                        ? boxStats.Large
+                        : t === "Medium"
+                        ? boxStats.Medium
+                        : t === "Small"
+                        ? boxStats.Small
+                        : boxStats.Unknown
                     if (!row.count) return null
                     return (
                       <HStack key={t} justify="space-between" wrap="wrap">
@@ -370,75 +378,60 @@ export default function PickTaskPage() {
                 <Separator my={4} />
                 <HStack justify="space-between" w="full">
                   <Text fontSize="md" color="fg.muted">
-                    Confirm when boxes are on your cart.
+                    Put these boxes on your cart. Then pick a size to start.
                   </Text>
                   <HStack>
                     <Text color="fg.muted">Show items</Text>
-                    <IconButton
-                      aria-label="Toggle items"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setCatalogOpen((v) => !v)}
-                    >
+                    <IconButton aria-label="Toggle items" size="sm" variant="ghost" onClick={() => setCatalogOpen((v) => !v)}>
                       {catalogOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </IconButton>
                   </HStack>
                 </HStack>
 
-                <Show when={catalogOpen}>
-                  <Separator my={4} />
-                  <VStack align="stretch" gap={2}>
-                    {(task.plan?.summary?.byItem ?? []).map((bi, i) => {
-                      const meta = getMeta(String(bi.itemId))
-                      const displayName =
-                        bi.itemName || meta?.name || `${meta?.type ?? ""} ${meta?.variety ?? ""}`.trim() || bi.itemId
-                      const img = meta?.imageUrl || "/img/item-placeholder.png"
-                      return (
-                        <HStack key={`${bi.itemId}-${i}`} gap={3} py={1}>
-                          <Image src={img} alt={displayName} rounded="md" w="48px" h="48px" objectFit="cover" />
-                          <VStack align="start" gap={0}>
-                            <Text fontWeight="semibold">{displayName}</Text>
-                            <HStack gap={3}>
-                              <Badge variant="surface">bags {bi.bags}</Badge>
-                              <Badge variant="surface">bundles {bi.bundles}</Badge>
-                              {typeof bi.totalKg === "number" && (
-                                <Badge variant="surface" colorPalette="teal">
-                                  ~{Math.round(bi.totalKg * 10) / 10} kg
-                                </Badge>
-                              )}
-                              {typeof bi.totalUnits === "number" && (
-                                <Badge variant="surface" colorPalette="purple">
-                                  {bi.totalUnits} units
-                                </Badge>
-                              )}
-                            </HStack>
-                          </VStack>
-                        </HStack>
-                      )
-                    })}
-                  </VStack>
-                </Show>
+                {catalogOpen && (
+                  <>
+                    <Separator my={4} />
+                    <VStack align="stretch" gap={2}>
+                      {(task.plan?.summary?.byItem ?? []).map((bi, i) => {
+                        const meta = getMeta(String(bi.itemId))
+                        const displayName =
+                          bi.itemName || meta?.name || `${meta?.type ?? ""} ${meta?.variety ?? ""}`.trim() || bi.itemId
+                        const img = meta?.imageUrl || "/img/item-placeholder.png"
+                        return (
+                          <HStack key={`${bi.itemId}-${i}`} gap={3} py={1}>
+                            <Image src={img} alt={displayName} rounded="md" w="48px" h="48px" objectFit="cover" />
+                            <VStack align="start" gap={0}>
+                              <Text fontWeight="semibold">{displayName}</Text>
+                              <HStack gap={3}>
+                                {typeof bi.totalKg === "number" && (
+                                  <Badge variant="surface" colorPalette="teal">
+                                    ~{Math.round(bi.totalKg * 10) / 10} kg
+                                  </Badge>
+                                )}
+                                {typeof bi.totalUnits === "number" && (
+                                  <Badge variant="surface" colorPalette="purple">
+                                    {bi.totalUnits} units
+                                  </Badge>
+                                )}
+                              </HStack>
+                            </VStack>
+                          </HStack>
+                        )
+                      })}
+                    </VStack>
+                  </>
+                )}
               </Card.Body>
 
               <Card.Footer>
-                <HStack gap={3} wrap="wrap" align="center">
-                  <Text fontWeight="semibold" mr={2}>
-                    Start picking with:
-                  </Text>
-                  <Button size="lg" onClick={() => startWithSize("L")} disabled={!sizeCount.L}>
-                    Large
-                  </Button>
-                  <Button size="lg" onClick={() => startWithSize("M")} disabled={!sizeCount.M}>
-                    Medium
-                  </Button>
-                  <Button size="lg" onClick={() => startWithSize("S")} disabled={!sizeCount.S}>
-                    Small
-                  </Button>
-
-                  <Button size="lg" variant="outline" onClick={() => navigate("/picker/dashboard")}>
-                    Cancel
-                  </Button>
-                </HStack>
+                <PackagesSelector
+                  title="Start picking with:"
+                  sizes={sizeCount}
+                  unfinishedBoxNos={new Set<number>()}
+                  onPickSize={(sz) => startWithSize(sz)}
+                  onPickBox={null}
+                  showBoxes={false}
+                />
               </Card.Footer>
             </Card.Root>
           </GridItem>
@@ -455,6 +448,7 @@ export default function PickTaskPage() {
 
   const isKg = cur?.mode === "kg"
   const isKgValid = isKg ? isFinite(Number(weightInput)) && Number(weightInput) > 0 : true
+  const isUnitsValid = !isKg ? Number.isInteger(Number(unitsInput)) && Number(unitsInput) > 0 : true
 
   return (
     <>
@@ -464,31 +458,16 @@ export default function PickTaskPage() {
       <Grid templateColumns={{ base: "1fr", md: "repeat(12, 1fr)" }} gap={6}>
         {/* Overall */}
         <GridItem colSpan={{ base: 12, md: 12 }}>
-          <Card.Root rounded="2xl" borderWidth="1px">
-            <Card.Header>
-              <HStack justify="space-between" w="full">
-                <Heading size="md">Overall</Heading>
-                <Text color="fg.muted">
-                  {(task.plan?.summary?.totalBoxes ?? (task.plan?.boxes?.length ?? 0))} boxes • ~
-                  {Math.round((task.plan?.summary?.totalKg ?? 0) * 10) / 10} kg
-                </Text>
-              </HStack>
-            </Card.Header>
-            <Card.Body>
-              <VStack align="start" gap={3}>
-                <Text fontSize="lg">
-                  {done}/{totalPieces} pieces
-                </Text>
-                <Progress.Root value={overall} size="lg" w="full">
-                  <Progress.Track />
-                  <Progress.Range />
-                </Progress.Root>
-              </VStack>
-            </Card.Body>
-          </Card.Root>
+          <OverallCard
+            done={done}
+            totalPieces={totalPieces}
+            overallPercent={overall}
+            totalBoxes={task.plan?.summary?.totalBoxes ?? task.plan?.boxes?.length ?? 0}
+            totalKg={Math.round((task.plan?.summary?.totalKg ?? 0) * 10) / 10}
+          />
         </GridItem>
 
-        {/* Unfinished packages selector when no box chosen */}
+        {/* Selector of unfinished when no box chosen */}
         {selectedBoxNo == null && !allDone && (
           <GridItem colSpan={{ base: 12, md: 12 }}>
             <Card.Root rounded="2xl" borderWidth="1px">
@@ -499,42 +478,31 @@ export default function PickTaskPage() {
                 </HStack>
               </Card.Header>
               <Card.Body>
-                <SizeStrip
+                <PackagesSelector
                   sizes={unfinishedSizeCount}
-                  clickable
+                  unfinishedBoxNos={unfinishedBoxNos}
                   onPickSize={(sz) => startWithSize(sz)}
+                  onPickBox={(no) => {
+                    setSelectedBoxNo(no)
+                    setStepIndex(0)
+                  }}
+                  showBoxes
                 />
-                <Separator my={4} />
-                <HStack wrap="wrap" gap={2}>
-                  {Array.from(unfinishedBoxNos).sort((a, b) => a - b).map((no) => (
-                    <Button
-                      key={no}
-                      size="md"
-                      variant="surface"
-                      onClick={() => {
-                        setSelectedBoxNo(no)
-                        setStepIndex(0)
-                      }}
-                    >
-                      Box #{no}
-                    </Button>
-                  ))}
-                </HStack>
               </Card.Body>
             </Card.Root>
           </GridItem>
         )}
 
-        {/* All done message */}
+        {/* All done → finish button */}
         {selectedBoxNo == null && allDone && (
           <GridItem colSpan={{ base: 12, md: 12 }}>
             <Card.Root rounded="2xl" borderWidth="1px">
               <Card.Body>
                 <VStack align="start" gap={3}>
                   <Heading size="md">All packages completed</Heading>
-                  <Text>You can return to dashboard.</Text>
-                  <Button onClick={() => navigate("/picker/dashboard")} colorPalette="teal">
-                    Back to dashboard
+                  <Text>Press Finish packing to complete the task.</Text>
+                  <Button colorPalette="teal" onClick={() => (window.location.href = "/picker/dashboard")}>
+                    Finish packing
                   </Button>
                 </VStack>
               </Card.Body>
@@ -542,115 +510,25 @@ export default function PickTaskPage() {
           </GridItem>
         )}
 
-        {/* Current item: image left, controls right */}
+        {/* Current item panel */}
         {selectedBoxNo != null && (
           <GridItem colSpan={{ base: 12, md: 12 }}>
-            <Card.Root rounded="2xl" borderWidth="1px">
-              <Card.Header>
-                <HStack justify="space-between" w="full">
-                  <HStack gap={3}>
-                    <Heading size="md">{cur ? curName : "Box complete"}</Heading>
-                    <Badge size="lg" variant="outline">{`Box #${selectedBoxNo}`}</Badge>
-                  </HStack>
-                </HStack>
-              </Card.Header>
-              <Card.Body>
-                {cur ? (
-                  <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6} alignItems="start">
-                    {/* Left: image */}
-                    <Image src={curImg} alt={curName} rounded="lg" maxH="360px" w="100%" objectFit="cover" />
-
-                    {/* Right: details, input, buttons */}
-                    <VStack align="stretch" gap={5}>
-                      <HStack gap={6} wrap="wrap">
-                        <Badge size="lg" variant="surface" colorPalette="purple">
-                          Piece: {cur.pieceType}
-                        </Badge>
-                        <Badge size="lg" variant="surface" colorPalette="teal">
-                          Mode: {cur.mode}
-                        </Badge>
-                        {cur.units != null && cur.mode !== "kg" && (
-                          <Badge size="lg" variant="surface" colorPalette="purple">
-                            Units: {cur.units}
-                          </Badge>
-                        )}
-                      </HStack>
-
-                      {/* Show KG input only AFTER arrival is confirmed */}
-                      {isKg && arrivalConfirmed && (
-                        <VStack align="stretch" gap={2}>
-                          <Text fontWeight="semibold">Enter measured weight</Text>
-                          <HStack gap={3} maxW="sm">
-                            <Input
-                              inputMode="decimal"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0.00"
-                              value={weightInput}
-                              onChange={(e) => setWeightInput(e.target.value)}
-                              aria-label="Actual weight in kilograms"
-                            />
-                            <Text>kg</Text>
-                          </HStack>
-                          <Text color="fg.muted" fontSize="sm">
-                            Est kg/pc: {Math.round(cur.estWeightKgPiece * 100) / 100} • Liters: {Math.round(cur.liters * 10) / 10}
-                          </Text>
-                        </VStack>
-                      )}
-
-                      {!isKg && (
-                        <Text color="fg.muted">
-                          Est kg/pc: {Math.round(cur.estWeightKgPiece * 100) / 100} • Liters: {Math.round(cur.liters * 10) / 10}
-                        </Text>
-                      )}
-
-                      {/* Right column buttons */}
-                      <HStack gap={3} justify="center" align="center" minH="100px">
-                        {!arrivalConfirmed && (
-                          <Button
-                            size="lg"
-                            variant="solid"
-                            colorPalette="blue"
-                            onClick={confirmArrival}
-                            disabled={!cur}
-                            rounded="full"
-                          >
-                            Confirm arrival
-                          </Button>
-                        )}
-                        {arrivalConfirmed && (
-                          <Button
-                            size="lg"
-                            colorPalette="teal"
-                            onClick={saveAndNext}
-                            disabled={!cur || !selectedBoxNo || !isKgValid}
-                            rounded="full"
-                          >
-                            Continue
-                          </Button>
-                        )}
-                      </HStack>
-                    </VStack>
-                  </Grid>
-                ) : (
-                  <VStack align="start" gap={4}>
-                    <Text fontSize="lg">All pieces done for this box.</Text>
-                    <Button
-                      size="lg"
-                      colorPalette="teal"
-                      onClick={() => {
-                        // back to unfinished selector
-                        setSelectedBoxNo(null)
-                        setStepIndex(0)
-                      }}
-                    >
-                      Select another package
-                    </Button>
-                  </VStack>
-                )}
-              </Card.Body>
-            </Card.Root>
+            <CurrentItemPanel
+              cur={cur}
+              curName={curName}
+              curImg={curImg}
+              selectedBoxNo={selectedBoxNo}
+              arrivalConfirmed={arrivalConfirmed}
+              isKg={!!isKg}
+              isKgValid={!!isKgValid}
+              isUnitsValid={!!isUnitsValid}
+              weightInput={weightInput}
+              unitsInput={unitsInput}
+              setWeightInput={setWeightInput}
+              setUnitsInput={setUnitsInput}
+              onConfirmArrival={confirmArrival}
+              onContinue={saveAndNext}
+            />
           </GridItem>
         )}
       </Grid>
