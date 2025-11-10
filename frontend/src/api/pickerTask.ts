@@ -253,3 +253,20 @@ export async function claimFirstReadyTaskForCurrentShift(): Promise<ClaimFirstRe
   const res = await api.post("/pickerTasks/shift/claim-first");
   return ensureData<ClaimFirstReadyTaskResult>(res, "Failed to claim a ready task");
 }
+
+
+// add near your other types
+export type CompletePickerTaskResult = {
+  message: string;           // "100 xp"
+  xpAwarded: number;         // 100
+  taskId: string;
+  status: PickerTaskStatus;  // "done"
+  task: PickerTask;          // full task (no audits)
+};
+
+/** POST /picker-task/:taskId/complete */
+export async function completePickerTask(taskId: string): Promise<CompletePickerTaskResult> {
+  if (!taskId) throw new Error("taskId is required");
+  const res = await api.post(`/picker-task/${taskId}/complete`);
+  return ensureData<CompletePickerTaskResult>(res, "Failed to complete picker task");
+}

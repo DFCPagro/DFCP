@@ -6,7 +6,9 @@ import {
   ensureAndListPickerTasksForShift,
   getShiftPickerTasksSummary,
   claimFirstReadyTaskForCurrentShift,
+  completePickerTaskForCurrentShift,
 } from "../services/pickerTasks.service";
+import {addXP} from "../services/picker.service";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/; // yyyy-LL-dd
 const SHIFT_NAMES = ["morning", "afternoon", "evening", "night"] as const;
@@ -206,6 +208,63 @@ export async function postClaimFirstReadyTaskForCurrentShift(req: Request, res: 
 
   } catch (err: any) {
     console.error("[postClaimFirstReadyTaskForCurrentShift] error:", err);
+    return res.status(500).json({ error: "ServerError", details: err?.message ?? String(err) });
+  }
+}
+
+
+/** POST /api/pickerTasks/:taskId/complete */
+export async function postCompletePickerTaskForCurrentShift(req: Request, res: Response) {
+  try {
+    const user = (req as any).user;
+    const lcId = user?.logisticCenterId;
+    const pickerId = user?._id;
+    const { taskId } = req.params;
+
+    if (!mongoose.isValidObjectId(lcId)) {
+      return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
+    }
+    if (!mongoose.isValidObjectId(pickerId)) {
+      return res.status(400).json({ error: "BadRequest", details: "Invalid user id" });
+    }
+    if (!mongoose.isValidObjectId(taskId)) {
+      return res.status(400).json({ error: "BadRequest", details: "Invalid task id" });
+    }
+
+    const result = await completePickerTaskForCurrentShift({
+      logisticCenterId: new Types.ObjectId(lcId),
+      pickerUserId: new Types.ObjectId(String(pickerId)),
+      taskId: new Types.ObjectId(String(taskId)),
+    });
+
+    if (!result.task) {
+      // Not found OR not assigned to this picker OR not in current shift
+      return res.status(403).json({
+        error: "Forbidden",
+        details:
+          "Task not eligible to complete: must belong to current shift and be assigned to the requesting picker.",
+      });
+    }
+
+    // Award XP (100)
+    try {
+      await addXP(String(pickerId), 100);
+    } catch (e: any) {
+      // XP failure shouldn't block completion; log and continue
+      console.warn("[postCompletePickerTaskForCurrentShift] addXP failed:", e?.message || e);
+    }
+
+    return res.status(200).json({
+      data: {
+        message: "100 xp",
+        xpAwarded: 100,
+        taskId: String(result.task._id),
+        status: result.task.status, // "done"
+        task: result.task, // full task, minus audits
+      },
+    });
+  } catch (err: any) {
+    console.error("[postCompletePickerTaskForCurrentShift] error:", err);
     return res.status(500).json({ error: "ServerError", details: err?.message ?? String(err) });
   }
 }

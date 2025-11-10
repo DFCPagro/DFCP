@@ -751,3 +751,77 @@ export async function findActiveTaskForPickerInShift(params: {
     task, // may be null
   };
 }
+
+
+
+/**
+ * Mark a picker task as DONE for the current shift.
+ * Requirements:
+ *  - task belongs to LC's current shift (name+date)
+ *  - task is assigned to this picker
+ * Side effects:
+ *  - sets status="done"
+ *  - sets progress.finishedAt=now (and preserves startedAt if already set)
+ *  - appends an audit entry (not returned)
+ * Returns: updated lean task (without historyAuditTrail), or null if not eligible.
+ */
+export async function completePickerTaskForCurrentShift(params: {
+  logisticCenterId: string | Types.ObjectId;
+  pickerUserId: string | Types.ObjectId;
+  taskId: string | Types.ObjectId;
+}) {
+  const { logisticCenterId, pickerUserId, taskId } = params;
+
+  const { shiftName, shiftDate } = await resolveCurrentShiftParams(logisticCenterId);
+
+  // Build “by” for audit (best-effort)
+  let byContact: any;
+  try {
+    byContact = await getContactInfoByIdService(String(pickerUserId));
+  } catch { /* noop */ }
+
+  const now = new Date();
+
+  // Only complete if: task is for current shift, assigned to this picker
+  const filter = {
+    _id: toOid(taskId),
+    logisticCenterId: toOid(logisticCenterId),
+    shiftName,
+    shiftDate,
+    assignedPickerUserId: toOid(pickerUserId),
+  };
+
+  const update = {
+    $set: {
+      status: "done",
+      "progress.finishedAt": now,
+      // do not unset progress.startedAt — if it was never set, you can set it now if desired:
+      // "progress.startedAt": { $ifNull: ["$progress.startedAt", now] } // not valid in $set
+    },
+    $push: {
+      historyAuditTrail: buildAuditEntry({
+        action: "done",
+        note: "Task completed",
+        by: byContact
+          ? { id: toOid(byContact.id || pickerUserId), name: byContact.name, role: byContact.role || "picker" }
+          : { id: toOid(pickerUserId), role: "picker" },
+        meta: { shiftName, shiftDate, completedAt: now.toISOString() },
+        at: now,
+      }),
+    },
+  } as const;
+
+  // Sort not needed when matching by _id, but we keep options uniform
+  const task = await PickerTaskModel.findOneAndUpdate(filter, update, {
+    new: true,
+    lean: true,
+  })
+    .select({ historyAuditTrail: 0 }) // don't return audits to the picker flow
+    .lean<PickerTaskLean>()
+    .exec();
+
+  return {
+    shift: { logisticCenterId: String(logisticCenterId), shiftName, shiftDate },
+    task, // null if not eligible or not found
+  };
+}

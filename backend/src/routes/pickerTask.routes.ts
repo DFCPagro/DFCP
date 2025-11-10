@@ -3,7 +3,8 @@ import {
   postGeneratePickerTasks,
   getPickerTasksForShiftController,
   getShiftPickerTasksSummaryController,
-  postClaimFirstReadyTaskForCurrentShift, // ⬅️ add
+  postClaimFirstReadyTaskForCurrentShift,
+  postCompletePickerTaskForCurrentShift, 
 } from "../controllers/pickerTasks.controller";
 import { authenticate, authorize } from "../middlewares/auth";
 
@@ -19,6 +20,12 @@ r.get("/shift/summary", authenticate, authorize("admin", "opManager"), getShiftP
 r.post(
   "/shift/claim-first", authenticate, authorize("picker"),
   postClaimFirstReadyTaskForCurrentShift
+);
+
+// ✅ picker completes a task for the *current* shift
+r.post(
+  "/:taskId/complete", authenticate, authorize("picker","admin", "opManager"),
+  postCompletePickerTaskForCurrentShift
 );
 
 export default r;
