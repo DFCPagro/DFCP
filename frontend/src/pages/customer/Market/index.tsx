@@ -59,7 +59,6 @@ function formatShiftLabel(s: any): string {
   return `${date}${date && win ? " • " : ""}${win}`;
 }
 
-
 /* ------------------------------- component ------------------------------- */
 
 export default function MarketPage() {
@@ -111,18 +110,17 @@ export default function MarketPage() {
     return off;
   }, [cartCtx]);
 
-  // badge count
-  const cartCount = useMemo(() => {
-    if (isUnit) {
-      return cartLines.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
-    }
-    const kg = cartLines.reduce((sum, l: any) => {
-      const units = Number(l.quantity) || 0;
-      const per = Number(l.avgWeightPerUnitKg) || 0.02;
-      return sum + units * per;
-    }, 0);
-    return Math.max(0, Math.round(kg));
-  }, [cartLines, isUnit]);
+  // badge count: number of different items (rows), independent of unit mode
+  const cartDistinctCount = useMemo(() => {
+    const keys = cartLines.map((l: any) => {
+      if (l.key) return String(l.key);
+      if (l.stockId) return String(l.stockId);
+      const item = l.itemId ?? "item";
+      const farmer = l.farmerId ?? "farmer";
+      return `${item}|${farmer}`;
+    });
+    return new Set(keys).size;
+  }, [cartLines]);
 
   // drawers
   const [pinOpen, setPinOpen] = useState(false);
@@ -384,7 +382,8 @@ export default function MarketPage() {
       {/* floating controls */}
       <PinButton active={isActive} onClick={() => setPinOpen(true)} />
       <CartFAB
-        count={cartCount}
+        uniqueCount={cartDistinctCount}
+        unitMode={isUnit ? "unit" : "kg"}
         onClick={() => setCartOpen(true)}
         tooltip={isUnit ? "Cart" : "Cart (kg mode)"}
       />

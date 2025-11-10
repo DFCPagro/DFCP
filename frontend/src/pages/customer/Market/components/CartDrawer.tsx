@@ -1,4 +1,3 @@
-// src/pages/.../components/CartDrawer.tsx
 import { memo, useCallback, useMemo, useState } from "react";
 import {
   Box,
@@ -199,7 +198,7 @@ function CartDrawerBase({
   );
 
   // Totals we can display either way
-  const { totalUnits, totalApproxKg } = useMemo(() => {
+  const { totalUnits, totalApproxKg, totalItems } = useMemo(() => {
     let units = 0;
     let kg = 0;
     for (const l of items) {
@@ -207,7 +206,9 @@ function CartDrawerBase({
       units += u;
       kg += u * getAvgUnitKg(l);
     }
-    return { totalUnits: units, totalApproxKg: kg };
+    // Count unique rows by stable key
+    const uniqueCount = new Set(items.map(getLineKey)).size;
+    return { totalUnits: units, totalApproxKg: kg, totalItems: uniqueCount };
   }, [items]);
 
   const handleRemove = useCallback(
@@ -444,13 +445,13 @@ function CartDrawerBase({
 
                 <Separator />
 
-                {/* Totals — switch labels by global view mode */}
+                {/* Totals — replace unit count with distinct item count */}
                 <Stack gap="1">
                   {unit ? (
                     <>
                       <HStack justify="space-between">
-                        <Text color="fg.muted">Total units</Text>
-                        <Text>{totalUnits}</Text>
+                        <Text color="fg.muted">Total items</Text>
+                        <Text>{totalItems}</Text>
                       </HStack>
                       <HStack justify="space-between">
                         <Text color="fg.muted">Total approx weight</Text>
@@ -464,8 +465,8 @@ function CartDrawerBase({
                         <Text>{totalApproxKg.toFixed(2)} kg</Text>
                       </HStack>
                       <HStack justify="space-between">
-                        <Text color="fg.muted">Total ≈ units</Text>
-                        <Text>{totalUnits}</Text>
+                        <Text color="fg.muted">Total items</Text>
+                        <Text>{totalItems}</Text>
                       </HStack>
                     </>
                   )}

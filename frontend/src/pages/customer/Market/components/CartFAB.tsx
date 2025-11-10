@@ -4,9 +4,7 @@ import { FiShoppingCart } from "react-icons/fi"
 
 /**
  * Floating Cart button.
- * Notes:
- * - All pricing/availability logic lives elsewhere.
- * - Badge shows number of different items (rows) regardless of unit mode.
+ * Badge shows number of different items (rows) regardless of unit mode.
  */
 export type CartFABProps = {
   onClick: () => void
@@ -41,8 +39,17 @@ function CartFABBase({
   unitMode,
   hideWhenZero = true,
 }: CartFABProps) {
-  // Always display number of different items (rows).
-  const distinctItems = typeof uniqueCount === "number" ? uniqueCount : count ?? 0
+  // Always display number of different items (rows). Clamp to [0, ∞).
+  const distinctItems = useMemo(() => {
+    const raw =
+      typeof uniqueCount === "number"
+        ? uniqueCount
+        : typeof count === "number"
+        ? count
+        : 0
+    const n = Number.isFinite(raw as number) ? Number(raw) : 0
+    return n > 0 ? Math.floor(n) : 0
+  }, [uniqueCount, count])
 
   // Auto RTL placement when neither left nor right provided
   const { finalLeft, finalRight } = useMemo(() => {
@@ -53,9 +60,9 @@ function CartFABBase({
     return isRTL ? { finalLeft: undefined, finalRight: 16 } : { finalLeft: 16, finalRight: undefined }
   }, [left, right])
 
-  const badgeText = distinctItems > 0 ? (distinctItems > 99 ? "99+" : String(distinctItems)) : null
+  const badgeText = distinctItems > 99 ? "99+" : distinctItems > 0 ? String(distinctItems) : null
 
-  // Keep mode mention if helpful, but the count refers to different items.
+  // Count logic is mode-agnostic; copy can mention mode if provided.
   const computedTooltip =
     tooltip ??
     (unitMode === "kg"
@@ -67,10 +74,7 @@ function CartFABBase({
   const computedAria = ariaLabel ?? "Open cart"
 
   // Announce distinct items (rows) for screen readers.
-  const ariaDesc =
-    typeof distinctItems === "number"
-      ? `${distinctItems} different item${distinctItems === 1 ? "" : "s"} in cart`
-      : undefined
+  const ariaDesc = `${distinctItems} different item${distinctItems === 1 ? "" : "s"} in cart`
 
   return (
     <Box position="fixed" left={finalLeft} right={finalRight} bottom={bottom} zIndex={zIndex}>
@@ -97,7 +101,7 @@ function CartFABBase({
         </Tooltip.Positioner>
       </Tooltip.Root>
 
-      {!hideWhenZero || (badgeText && distinctItems > 0) ? (
+      {(!hideWhenZero || distinctItems > 0) && (
         <Box
           position="absolute"
           top="-6px"
@@ -122,9 +126,10 @@ function CartFABBase({
         >
           {badgeText ?? 0}
         </Box>
-      ) : null}
+      )}
     </Box>
   )
 }
 
 export const CartFAB = memo(CartFABBase)
+export default CartFAB
