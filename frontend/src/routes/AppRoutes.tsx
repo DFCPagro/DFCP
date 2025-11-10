@@ -286,7 +286,9 @@ export default function AppRoutes() {
             path={PATHS.PickerTasksPage}
             element={
               <RoleGuard allow={["opManager", "admin"]}>
-                <PickerTasks />
+                <PickerTasks 
+                  
+                />
               </RoleGuard>
             }
           />

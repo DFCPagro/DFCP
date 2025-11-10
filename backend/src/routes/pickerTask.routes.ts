@@ -11,9 +11,9 @@ const r = Router();
 
 r.post("/generate", authenticate, authorize("admin", "opManager"), postGeneratePickerTasks);
 
-r.get("/shift", authenticate, authorize("admin", "opManager", "picker"), getPickerTasksForShiftController);
+r.get("/shift", authenticate, authorize("admin", "opManager"), getPickerTasksForShiftController);
 
-r.get("/shift/summary", authenticate, authorize("admin", "opManager", "picker"), getShiftPickerTasksSummaryController);
+r.get("/shift/summary", authenticate, authorize("admin", "opManager"), getShiftPickerTasksSummaryController);
 
 // ✅ picker claims the first READY task for the *current* shift
 r.post(

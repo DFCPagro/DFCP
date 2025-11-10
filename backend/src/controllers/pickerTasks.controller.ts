@@ -62,12 +62,11 @@ export async function postGeneratePickerTasks(req: Request, res: Response) {
   }
 }
 
-/** GET /api/pickerTasks/shift?shiftName=morning&shiftDate=2025-11-05&status=ready&page=1&limit=50 */
+/** GET /api/pickerTasks/shift?shiftName=morning&shiftDate=2025-11-05 */
 export async function getPickerTasksForShiftController(req: Request, res: Response) {
   try {
     const user = (req as any).user;
     const lcId = user?.logisticCenterId;
-
     if (!mongoose.isValidObjectId(lcId)) {
       return res.status(400).json({ error: "BadRequest", details: "Invalid logisticCenterId" });
     }
@@ -88,7 +87,6 @@ export async function getPickerTasksForShiftController(req: Request, res: Respon
       return res.status(400).json({ error: "BadRequest", details: "shiftDate must be yyyy-LL-dd" });
     }
 
-    // ⬇️ ALWAYS return all tasks (no assigned/unassigned filtering)
     const common = {
       logisticCenterId: new Types.ObjectId(lcId),
       shiftName: shiftName as ShiftName,
@@ -99,11 +97,15 @@ export async function getPickerTasksForShiftController(req: Request, res: Respon
     };
 
     if (parseBool(ensure) !== false) {
+      // Ensure tasks exist, but RETURN ONLY the list payload to match frontend type
       const result = await ensureAndListPickerTasksForShift({
         ...common,
         createdByUserId: new Types.ObjectId(String(user._id)),
       });
-      return res.json({ data: result }); // { ensure, data }
+      // If you want to expose ensure stats, you can add response headers:
+      // res.set("X-Ensure-Created", String(result.ensure.createdCount));
+      // res.set("X-Ensure-AlreadyExisted", String(result.ensure.alreadyExisted));
+      return res.json({ data: result.data });
     }
 
     const data = await listPickerTasksForShift(common);
@@ -113,6 +115,7 @@ export async function getPickerTasksForShiftController(req: Request, res: Respon
     return res.status(500).json({ error: "ServerError", details: err?.message ?? String(err) });
   }
 }
+
 
 /** GET /api/pickerTasks/shift/summary?shiftName=afternoon&shiftDate=2025-11-06 */
 export async function getShiftPickerTasksSummaryController(req: Request, res: Response) {
