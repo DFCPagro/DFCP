@@ -1,5 +1,4 @@
-import { Fragment, memo, useMemo } from "react"
-import type { ReactNode } from "react"
+import { Fragment, memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
     Badge,
     Box,
@@ -8,66 +7,65 @@ import {
     Dialog,
     HStack,
     Image,
-    ScrollArea,
     Separator,
     Stack,
     Table,
     Text,
     VStack,
-} from "@chakra-ui/react"
-import { FiArrowRight, FiCheck, FiX } from "react-icons/fi"
-import { useNavigate } from "react-router-dom"
+} from "@chakra-ui/react";
+import { FiArrowRight, FiCheck, FiX, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
 
-import { useSubmittedOrders } from "../hooks/useSubmittedOrders"
-import type { SubmittedContext, SubmittedGroup, SubmittedLine } from "../shared/submittedOrders.shared"
+import { useSubmittedOrders } from "../hooks/useSubmittedOrders";
+import type { SubmittedContext, SubmittedLine } from "../shared/submittedOrders.shared";
 
-export type DemandStats = {
-    /** Example fields; supply whatever you use on the page via getDemandStats */
-    demandKg?: number
-    committedKg?: number
-    remainingKg?: number
-    // extend as needed
-}
+// Adjust these imports to your actual file locations if needed
+import { getDemandStatistics } from "@/api/farmerInventory";
+import type { DemandStatisticsResponse, DemandStatisticsItem } from "@/types/farmerInventory";
+
+/* --------------------------------- Props --------------------------------- */
 
 export type SubmittedOrdersDialogProps = {
-    /** Control from parent */
-    open: boolean
-    onOpenChange: (open: boolean) => void
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    context: SubmittedContext;
+    confirmNavigateTo?: string;
+    title?: ReactNode;
+    description?: ReactNode;
+};
 
-    /** Current page context (date/shift/LC). */
-    context: SubmittedContext
+/* ------------------------------ Small helpers ----------------------------- */
 
-    /**
-     * Route to navigate to on Confirm. Defaults to '/dashboard'.
-     * If you prefer another route, pass it here.
-     */
-    confirmNavigateTo?: string
+function slotKeyFromContext(ctx: SubmittedContext): string {
+    // Prefer an explicit slotKey if present
+    // @ t s-expect-error tolerate optional slotKey on context
+    if ((ctx as any)?.slotKey) return (ctx as any).slotKey as string;
 
-    /** Optional: custom title/description nodes */
-    title?: ReactNode
-    description?: ReactNode
+    // Compose "monday-afternoon" from date+shift
+    const date = (ctx as any)?.date ? new Date((ctx as any).date) : new Date();
+    const day = date.toLocaleDateString("en-GB", { weekday: "long" }).toLowerCase();
+    const shift = ((ctx as any)?.shiftName || (ctx as any)?.shift || "morning").toLowerCase();
+    return `${day}-${shift}`;
 }
 
-function formatKg(n?: number) {
-    if (!Number.isFinite(n ?? NaN)) return "0 kg"
-    const v = n as number
-    if (v >= 1000) return `${(v / 1000).toFixed(1)} t`
-    if (v >= 100) return `${Math.round(v)} kg`
-    return `${Number(v.toFixed(1))} kg`
+function formatQtyKg(n?: number) {
+    if (!Number.isFinite(n ?? NaN)) return "0 kg";
+    const v = n as number;
+    if (v >= 1000) return `${(v / 1000).toFixed(1)} t`;
+    if (v >= 100) return `${Math.round(v)} kg`;
+    return `${Number(v.toFixed(1))} kg`;
 }
 
-function groupTitle(g: SubmittedGroup) {
-    const t = g.type ? `  ${g.type}` : ""
-    const v = g.variety ? ` • ${g.variety}` : ""
-    return `${t}${v}`
-}
+/* ------------------------------- Main component --------------------------- */
 
-function firstImage(lines: SubmittedLine[]): string | undefined {
-    for (const l of lines) {
-        if (l.imageUrl) return l.imageUrl
-    }
-    return undefined
-}
+type CoverageRow = {
+    itemId: string;
+    name: string;
+    imageUrl?: string;
+    demandKg: number;
+    submittedKg: number;
+    remainingKg: number;
+};
 
 const SubmittedOrdersDialog = memo(function SubmittedOrdersDialog({
     open,
@@ -77,104 +75,250 @@ const SubmittedOrdersDialog = memo(function SubmittedOrdersDialog({
     title,
     description,
 }: SubmittedOrdersDialogProps) {
-    const navigate = useNavigate()
-    const { groups, totals, clear } = useSubmittedOrders(context)
+    const navigate = useNavigate();
 
-    const hasAny = groups.length > 0
+    // Submitted orders (lines already restricted to "submitted" statuses by your hook/type contract)
+    const { groups, clear } = useSubmittedOrders(context);
+
+    // Demand from API
+    const [demand, setDemand] = useState<DemandStatisticsResponse | null>(null);
+    const [isDemandLoading, setIsDemandLoading] = useState<boolean>(false);
+    const [demandError, setDemandError] = useState<unknown>(null);
+
+    useEffect(() => {
+        if (!open) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                setIsDemandLoading(true);
+                setDemandError(null);
+                const slotKey = slotKeyFromContext(context);
+                const res = await getDemandStatistics({ slotKey });
+                if (!cancelled) setDemand(res);
+            } catch (err) {
+                if (!cancelled) setDemandError(err);
+            } finally {
+                if (!cancelled) setIsDemandLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [open, context]);
+
+    /* ----------------------- Coverage + contributors data -------------------- */
+
+    // Flatten submitted lines
+    const allLines = useMemo<SubmittedLine[]>(() => {
+        const out: SubmittedLine[] = [];
+        for (const g of groups) for (const l of g.lines) out.push(l);
+        return out;
+    }, [groups]);
+
+    // Lines by item for contributors list
+    const linesByItem = useMemo(() => {
+        const map = new Map<string, SubmittedLine[]>();
+        for (const l of allLines) {
+            const arr = map.get(l.itemId) ?? [];
+            arr.push(l);
+            map.set(l.itemId, arr);
+        }
+        return map;
+    }, [allLines]);
+
+    // Coverage rows (all demanded items even with submitted=0)
+    const coverageRows = useMemo<CoverageRow[]>(() => {
+        if (!demand?.items?.length) return [];
+
+        const wanted = slotKeyFromContext(context);
+        let slot = demand.items.find((s) => s.slotKey === wanted);
+
+        // Fallback: BE may return a single slot or different key format
+        if (!slot) {
+            slot = demand.items[0];
+            if (slot) {
+                console.warn("[SubmittedOrdersDialog] No exact slotKey match. Falling back to first slot:", {
+                    wanted,
+                    fallback: slot.slotKey,
+                });
+            }
+        }
+        if (!slot) return [];
+
+        // Sum submitted by itemId
+        const submittedByItem = new Map<string, number>();
+        for (const l of allLines) {
+            const prev = submittedByItem.get(l.itemId) ?? 0;
+            submittedByItem.set(l.itemId, prev + (l.qtyKg ?? 0));
+        }
+
+        // Produce rows for every demanded item
+        const rows: CoverageRow[] = (slot.items ?? []).map((it: DemandStatisticsItem) => {
+            const demandKg = it.averageDemandQuantityKg ?? 0;
+            const submittedKg = submittedByItem.get(it.itemId) ?? 0;
+            let remainingKg = demandKg - submittedKg;
+            if (remainingKg <= 0) remainingKg = 0;
+            return {
+                itemId: it.itemId,
+                name: it.itemDisplayName,
+                imageUrl: it.imageUrl,
+                demandKg,
+                submittedKg,
+                remainingKg,
+            };
+        });
+
+        // Sort: largest missing first
+        rows.sort((a, b) => a.remainingKg - b.remainingKg);
+        return rows;
+    }, [demand, context, allLines]);
+
+    // Header/footer KPIs
+    const kpis = useMemo(() => {
+        let totalDemand = 0;
+        let totalSubmitted = 0;
+        let missingCount = 0;
+        let metCount = 0;
+        let overCount = 0;
+
+        for (const r of coverageRows) {
+            totalDemand += r.demandKg;
+            totalSubmitted += r.submittedKg;
+            if (r.remainingKg > 0) missingCount++;
+            else if (r.remainingKg < 0) overCount++;
+            else metCount++;
+        }
+
+        return {
+            totalDemand,
+            totalSubmitted,
+            totalRemaining: totalDemand - totalSubmitted,
+            missingCount,
+            metCount,
+            overCount,
+        };
+    }, [coverageRows]);
+
+    // Expand/collapse tracking per item
+    const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
+    function toggleItemOpen(itemId: string) {
+        setOpenItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+    }
+
+    /* -------------------------------- Header UI ------------------------------ */
 
     const headerTitle = title ?? (
-        <HStack gap={3}>
+        <HStack gap={3} wrap="wrap">
             <Text fontSize="lg" fontWeight="bold">
-                Submitted Orders Summary
+                Demand Coverage
             </Text>
-            <Badge variant="subtle">
-                {totals.linesCount} {totals.linesCount === 1 ? "line" : "lines"}
+            <Badge variant="outline">Items: {coverageRows.length}</Badge>
+            <Badge variant="subtle">Demand: {formatQtyKg(kpis.totalDemand)}</Badge>
+            <Badge variant="solid">Submitted: {formatQtyKg(kpis.totalSubmitted)}</Badge>
+            <Badge
+                variant="subtle"
+                colorPalette={kpis.totalRemaining > 0 ? "red" : kpis.totalRemaining < 0 ? "orange" : "green"}
+            >
+                Remaining: {formatQtyKg(kpis.totalRemaining)}
             </Badge>
-            <Badge variant="solid">{formatKg(totals.totalKg)}</Badge>
+            <HStack gap={1}>
+                <Badge variant="outline">Missing: {kpis.missingCount}</Badge>
+                <Badge variant="outline">Met: {kpis.metCount}</Badge>
+                <Badge variant="outline">Over: {kpis.overCount}</Badge>
+            </HStack>
         </HStack>
-    )
+    );
 
     const headerDesc = description ?? (
         <Text color="fg.muted" fontSize="sm">
-            Live demand figures are shown for each item. Confirm will clear the summary and take you back.
+            All demanded items for this slot are listed with submitted and remaining quantities.
         </Text>
-    )
+    );
 
-    const onContinue = () => onOpenChange(false)
-
+    const onContinue = () => onOpenChange(false);
     const onConfirm = () => {
-        // Clear store (per your decision), close, then navigate to dashboard.
-        clear()
-        onOpenChange(false)
-        navigate(confirmNavigateTo)
-    }
+        clear();
+        onOpenChange(false);
+        navigate(confirmNavigateTo);
+    };
 
+    /* -------------------------------- Body UI -------------------------------- */
 
     const content = (
         <Stack gap={4}>
-            {groups.map((g) => {
-                const img = firstImage(g.lines)
+            {coverageRows.map((r) => {
+                const contributors = (linesByItem.get(r.itemId) ?? [])
+                    .slice()
+                    .sort((a, b) => (b.qtyKg ?? 0) - (a.qtyKg ?? 0));
+                const isOpen = !!openItems[r.itemId];
+
                 return (
-                    <Fragment key={g.groupKey}>
+                    <Fragment key={r.itemId}>
                         <HStack align="start" justify="space-between" gap={4}>
-                            {/* Left: Item identity */}
+                            {/* Left: item identity + badges */}
                             <HStack gap={3} minW={0}>
-                                {img ? (
-                                    <Image src={img} alt={g.itemId} boxSize="44px" borderRadius="md" objectFit="cover" />
+                                {r.imageUrl ? (
+                                    <Image src={r.imageUrl} alt={r.name} boxSize="44px" borderRadius="md" objectFit="cover" />
                                 ) : (
                                     <Box boxSize="44px" borderRadius="md" bg="bg.muted" />
                                 )}
                                 <VStack align="start" gap={1} minW={0}>
-                                    <Text fontWeight="semibold" lineClamp={1}>
-                                        {groupTitle(g)}
-                                    </Text>
-                                    <HStack gap={2} wrap="wrap">
-                                        <Badge variant="outline">Submitted: {formatKg(g.totalSubmittedKg)}</Badge>
-                                        {typeof g?.remainingKg === "number" && (
-                                            <Badge
-                                                variant="subtle"
-                                                colorPalette={(g?.remainingKg ?? 0) < 0 ? "red" : "green"}
-                                            >
-                                                Remaining: {formatKg(g?.remainingKg)}
-                                            </Badge>
+                                    <HStack gap={2}>
+                                        <Text fontWeight="semibold" lineClamp={1}>
+                                            {r.name}
+                                        </Text>
+
+                                        {/* Toggle only if we have contributors */}
+                                        {!!contributors.length && (
+                                            <Button size="xs" variant="ghost" onClick={() => toggleItemOpen(r.itemId)}>
+                                                {isOpen ? <FiChevronUp /> : <FiChevronDown />}
+                                                <Text ml="1">{isOpen ? "Hide" : "View"} {contributors.length}</Text>
+                                            </Button>
+
                                         )}
+                                    </HStack>
+
+                                    <HStack gap={2} wrap="wrap">
+                                        <Badge variant="outline">Demand: {formatQtyKg(r.demandKg)}</Badge>
+                                        <Badge variant="subtle">Submitted: {formatQtyKg(r.submittedKg)}</Badge>
+                                        <Badge
+                                            variant="solid"
+                                            colorPalette={r.remainingKg > 0 ? "red" : r.remainingKg < 0 ? "orange" : "green"}
+                                        >
+                                            Remaining: {formatQtyKg(r.remainingKg)}
+                                        </Badge>
                                     </HStack>
                                 </VStack>
                             </HStack>
 
-                            {/* Right: Demand stats table */}
-                            <Box minW="280px" flexShrink={0}>
+                            {/* Right: compact numbers table */}
+                            <Box minW="300px" flexShrink={0}>
                                 <Table.Root size="sm" variant="outline">
                                     <Table.Body>
                                         <Table.Row>
                                             <Table.Cell>
                                                 <Text color="fg.subtle">Demand</Text>
                                             </Table.Cell>
-                                            <Table.Cell textAlign="end">{formatKg(g?.demandKg)}</Table.Cell>
-
-                                            <Table.Cell>
-                                                <Text color="fg.subtle">Remaining</Text>
-                                            </Table.Cell>
-                                            <Table.Cell textAlign="end">{formatKg(g?.demandKg - g?.totalSubmittedKg)}</Table.Cell>
+                                            <Table.Cell textAlign="end">{formatQtyKg(r.demandKg)}</Table.Cell>
 
                                             <Table.Cell>
                                                 <Text color="fg.subtle">Submitted</Text>
                                             </Table.Cell>
-                                            <Table.Cell textAlign="end">
-                                                <HStack justify="end" gap={1}>
-                                                    <Text>{formatKg(g.totalSubmittedKg)}</Text>
-                                                    <Badge>{g.lines.length}</Badge>
-                                                </HStack>
+                                            <Table.Cell textAlign="end">{formatQtyKg(r.submittedKg)}</Table.Cell>
+
+                                            <Table.Cell>
+                                                <Text color="fg.subtle">Remaining</Text>
                                             </Table.Cell>
+                                            <Table.Cell textAlign="end">{formatQtyKg(r.remainingKg)}</Table.Cell>
                                         </Table.Row>
                                     </Table.Body>
                                 </Table.Root>
                             </Box>
                         </HStack>
 
-                        {/* Per-line details (collapsed style) */}
-                        <ScrollArea.Root>
-                            <ScrollArea.Viewport style={{ maxHeight: 160 }}>
+                        {/* Contributors (farmers) */}
+                        {isOpen && !!contributors.length && (
+                            <Box pl="56px">
                                 <Table.Root size="sm">
                                     <Table.Header>
                                         <Table.Row>
@@ -186,7 +330,7 @@ const SubmittedOrdersDialog = memo(function SubmittedOrdersDialog({
                                         </Table.Row>
                                     </Table.Header>
                                     <Table.Body>
-                                        {g.lines.map((l, idx) => (
+                                        {contributors.map((l, idx) => (
                                             <Table.Row key={`${l.key}-${idx}`}>
                                                 <Table.Cell>
                                                     <HStack gap={2}>
@@ -197,25 +341,25 @@ const SubmittedOrdersDialog = memo(function SubmittedOrdersDialog({
                                                 <Table.Cell>
                                                     <Text lineClamp={1}>{l.farmName || <Code color="fg.muted">unknown</Code>}</Text>
                                                 </Table.Cell>
-                                                <Table.Cell textAlign="end">{formatKg(l.qtyKg)}</Table.Cell>
+                                                <Table.Cell textAlign="end">{formatQtyKg(l.qtyKg)}</Table.Cell>
                                             </Table.Row>
                                         ))}
                                     </Table.Body>
                                 </Table.Root>
-                            </ScrollArea.Viewport>
-                        </ScrollArea.Root>
+                            </Box>
+                        )}
 
                         <Separator />
                     </Fragment>
-                )
+                );
             })}
         </Stack>
+    );
 
-    )
+    /* --------------------------------- Render -------------------------------- */
 
     return (
         <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)}>
-            {/* Ensure overlay and center positioning */}
             <Dialog.Backdrop />
             <Dialog.Positioner>
                 <Dialog.Content
@@ -239,30 +383,46 @@ const SubmittedOrdersDialog = memo(function SubmittedOrdersDialog({
                     </Dialog.Header>
 
                     <Dialog.Body>
-                        {hasAny ? (
+                        {isDemandLoading ? (
+                            <VStack py={10} gap={2}>
+                                <Text fontWeight="medium">Loading demand…</Text>
+                                <Text color="fg.muted" fontSize="sm">Please wait</Text>
+                            </VStack>
+                        ) : demandError ? (
+                            <VStack py={10} gap={2}>
+                                <Text fontWeight="medium">Failed to load demand</Text>
+                                <Text color="fg.muted" fontSize="sm">Check the slotKey or network and try again.</Text>
+                            </VStack>
+                        ) : coverageRows.length ? (
                             <Box>{content}</Box>
                         ) : (
                             <VStack py={10} gap={2}>
-                                <Text fontWeight="medium">No submitted orders yet</Text>
-                                <Text color="fg.muted" fontSize="sm">
-                                    Submit items first, then return here to review.
-                                </Text>
+                                <Text fontWeight="medium">No demanded items for this slot</Text>
+                                <Text color="fg.muted" fontSize="sm">Adjust the date/shift and try again.</Text>
                             </VStack>
                         )}
                     </Dialog.Body>
 
                     <Dialog.Footer>
-                        <HStack w="full" justify="space-between">
-                            <HStack gap={3}>
-                                <Badge variant="outline">Lines: {totals.linesCount}</Badge>
-                                <Badge variant="solid">Total: {formatKg(totals.totalKg)}</Badge>
+                        <HStack w="full" justify="space-between" wrap="wrap" gap={3}>
+                            <HStack gap={3} wrap="wrap">
+                                <Badge variant="outline">Items: {coverageRows.length}</Badge>
+                                <Badge variant="subtle">Demand: {formatQtyKg(kpis.totalDemand)}</Badge>
+                                <Badge variant="solid">Submitted: {formatQtyKg(kpis.totalSubmitted)}</Badge>
+                                <Badge
+                                    variant="subtle"
+                                    colorPalette={kpis.totalRemaining > 0 ? "red" : kpis.totalRemaining < 0 ? "orange" : "green"}
+                                >
+                                    Remaining: {formatQtyKg(kpis.totalRemaining)}
+                                </Badge>
                             </HStack>
+
                             <HStack gap={2}>
                                 <Button variant="ghost" onClick={onContinue}>
                                     <FiArrowRight />
                                     <Text ml={2}>Continue</Text>
                                 </Button>
-                                <Button variant="solid" colorPalette="green" onClick={onConfirm} disabled={!hasAny}>
+                                <Button variant="solid" colorPalette="green" onClick={onConfirm} disabled={!coverageRows.length}>
                                     <FiCheck />
                                     <Text ml={2}>Confirm</Text>
                                 </Button>
@@ -272,7 +432,7 @@ const SubmittedOrdersDialog = memo(function SubmittedOrdersDialog({
                 </Dialog.Content>
             </Dialog.Positioner>
         </Dialog.Root>
-    )
-})
+    );
+});
 
-export default SubmittedOrdersDialog
+export default SubmittedOrdersDialog;

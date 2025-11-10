@@ -22,23 +22,18 @@
     "db:seed:faker": "npx -y tsx db/seeds/cli.ts seed --mode faker --count \"users=10\" --yes",
     "db:seed:subset": "npx -y tsx db/seeds/cli.ts seed --mode static --fresh --only \"package-sizes,items,item-packing,logistics-centers,available-stock,demand-statistics,users\" --yes",
     "db:rebuild:static": "npm run db:reset && npm run db:seed:static",
-    
     "seed:ams": "ts-node --transpile-only db/seeds/dev/next2-ams.seeder.ts",
     "seed:testorders": "ts-node db/seeds/dev/ordersForTesting.seed.ts",
     "seed:orders": "npx tsx db/seeds/dev/orders.seed.ts",
     "seed:farmerInventory": "ts-node db/seeds/dev/seed.farmerInventory.ts",
-
+    "seed:rebuild": "npm run seed:ams && npm run seed:farmerInventory",
     "docker:up": "docker compose -f ../docker-compose.dev.yml up -d",
     "docker:down": "docker compose -f ../docker-compose.dev.yml down",
     "docker:logs": "docker compose -f ../docker-compose.dev.yml logs -f backend mongo frontend",
-
     "docker:sh:backend": "docker compose -f ../docker-compose.dev.yml exec backend sh",
     "docker:sh:mongo": "docker compose -f ../docker-compose.dev.yml exec mongo bash",
-
     "docker:seed:static": "docker compose -f ../docker-compose.dev.yml exec backend node scripts/wait-for-mongo.js -- npm run db:rebuild:static",
-
     "docker:seed:all": "docker compose -f ../docker-compose.dev.yml exec backend node scripts/wait-for-mongo.js -- sh -lc 'npm run db:rebuild:static && npm run seed:ams && npm run seed:orders'",
-
     "docker:seed:ams": "docker compose -f ../docker-compose.dev.yml exec backend node scripts/wait-for-mongo.js -- npm run seed:ams",
     "docker:seed:orders": "docker compose -f ../docker-compose.dev.yml exec backend node scripts/wait-for-mongo.js -- npm run seed:orders"
   },

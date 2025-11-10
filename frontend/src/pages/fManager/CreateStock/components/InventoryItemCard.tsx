@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react"
+import { memo, useMemo, useState, useEffect } from "react"
 import {
     Box,
     Stack,
@@ -143,7 +143,79 @@ function InventoryItemCardBase({
         }),
         [pickUpDate, shift, lcId]
     );
-    const { isSubmitted, add } = useSubmittedOrders(submittedCtx);
+    const { isSubmitted, add, lines } = useSubmittedOrders(submittedCtx);
+
+    // --- Equal split suggestions (ceil), excluding already-submitted rows ---
+    const groupDemandKg = Number(demand?.averageDemandQuantityKg ?? 0);
+    // Sum of quantities already submitted from this card (by rowKey)
+    const alreadySubmittedTotal = useMemo(() => {
+        let sum = 0;
+        for (const l of lines) {
+            if (l.itemId === itemId) sum += Number(l.qtyKg ?? 0);
+        }
+        return sum;
+    }, [lines, itemId]);
+
+
+    const remainingDemandKg = Math.max(
+        0,
+        Math.ceil(Number.isFinite(groupDemandKg) ? groupDemandKg : 0) - Math.floor(alreadySubmittedTotal)
+    );
+
+
+
+    const equalSuggestions = useMemo(() => {
+        if (!remainingDemandKg || !Number.isFinite(remainingDemandKg) || remainingDemandKg <= 0) return {};
+
+        // Eligible = not yet submitted AND has positive availability (if provided)
+        const eligible = rows.filter((r) => {
+            const k = getRowKey(r);
+            if (isSubmitted(k)) return false;
+            const raw = (r as any).currentAvailableAmountKg;
+            const avail = raw == null ? NaN : Number(raw);
+            // include if availability is missing (NaN) or > 0
+            return !Number.isFinite(avail) || avail > 0;
+        });
+
+
+        const n = eligible.length;
+        if (n === 0) return {};
+
+        const perShare = Math.ceil(remainingDemandKg / n);
+
+        const out: Record<string, string> = {};
+        for (const r of eligible) {
+            const k = getRowKey(r);
+            const avail = Number((r as any).currentAvailableAmountKg ?? Infinity);
+            // If availability is known, cap to it (rounded down to integer kg)
+            const cap = Number.isFinite(avail) ? Math.max(0, Math.floor(avail)) : Infinity;
+            const suggested = Math.max(0, Math.min(perShare, cap | 0)) | 0;
+            out[k] = String(suggested);
+
+        }
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rows, isSubmitted, remainingDemandKg]);
+
+
+    useEffect(() => {
+        if (!remainingDemandKg) return;
+        setQtyByRow((prev) => {
+            let changed = false;
+            const next = { ...prev };
+            for (const [rowKey, suggested] of Object.entries(equalSuggestions)) {
+                const cur = next[rowKey];
+                if (cur === undefined || cur === "") {
+                    next[rowKey] = suggested;
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        });
+    }, [itemId, remainingDemandKg, equalSuggestions]);
+
+
+
 
     const { create, isSubmitting } = useCreateFarmerOrder()
     const onChangeQty = (rowKey: string, v: string) => {
