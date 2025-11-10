@@ -1,5 +1,4 @@
-// src/models/PickerTasks.model.ts
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, type InferSchemaType, type HydratedDocument, type Model, Types as MTypes } from "mongoose";
 import toJSON from "../utils/toJSON";
 
 export const PICKER_TASK_STATUSES = [
@@ -60,19 +59,19 @@ const PlanSummaryItemSchema = new Schema(
   { _id: false }
 );
 
-// ✅ Plan summary — add totalKg / totalLiters here
+// ✅ Plan summary — mirrors top-level totals for convenience
 const PlanSummarySchema = new Schema(
   {
     totalBoxes: { type: Number, required: true },
     byItem: { type: [PlanSummaryItemSchema], default: [] },
     warnings: { type: [String], default: [] },
-    totalKg: { type: Number, default: undefined },      // <-- ADDED
-    totalLiters: { type: Number, default: undefined },  // <-- ADDED
+    totalKg: { type: Number, default: undefined },
+    totalLiters: { type: Number, default: undefined },
   },
   { _id: false }
 );
 
-// ✅ Full plan — give summary a default object (not undefined)
+// ✅ Full plan — give summary a default object
 const PlanSchema = new Schema(
   {
     boxes: { type: [PlanBoxSchema], default: [] },
@@ -128,7 +127,7 @@ const PickerTaskSchema = new Schema(
     // Handy rollups (across plan.boxes)
     totalEstKg: { type: Number, default: 0 },
     totalLiters: { type: Number, default: 0 },
-    totalEstUnits: { type: Number, default: 0 }, // if you want a units rollup
+    totalEstUnits: { type: Number, default: 0 },
 
     status: { type: String, enum: PICKER_TASK_STATUSES, default: "open", index: true },
     priority: { type: Number, default: 0, index: true },
@@ -152,22 +151,23 @@ PickerTaskSchema.plugin(toJSON);
 /* ---------- Totals rollup: compute & mirror ---------- */
 
 // Small helper to compute totals from plan
-function rollupPlanTotals(plan?: { boxes?: Array<{ estWeightKg?: number; estFillLiters?: number; contents?: Array<{ mode: "kg" | "unit"; qtyKg?: number; units?: number; liters?: number }> }> }) {
+function rollupPlanTotals(plan?: {
+  boxes?: Array<{
+    estWeightKg?: number;
+    estFillLiters?: number;
+    contents?: Array<{ mode: "kg" | "unit"; qtyKg?: number; units?: number; liters?: number }>;
+  }>;
+}) {
   let totalKg = 0;
   let totalL = 0;
   let totalUnits = 0;
 
   for (const b of plan?.boxes ?? []) {
-    // Prefer box-level estimates (fast, consistent with your packing)
     if (typeof b.estWeightKg === "number") totalKg += b.estWeightKg;
     if (typeof b.estFillLiters === "number") totalL += b.estFillLiters;
 
-    // Still count units from pieces
     for (const p of b.contents ?? []) {
       if (p.mode === "unit" && typeof p.units === "number") totalUnits += p.units;
-      // (optional) If you distrust box-level kg/l, you could also add piece-level aggregates here.
-      // if (p.mode === "kg" && typeof p.qtyKg === "number") totalKg += p.qtyKg;
-      // if (typeof p.liters === "number") totalL += p.liters;
     }
   }
 
@@ -181,26 +181,22 @@ PickerTaskSchema.pre("save", function (next) {
     const boxes: any[] = plan.boxes || [];
     let summary: any = plan.summary;
 
-    // ensure summary exists
     if (!summary) {
       summary = { totalBoxes: 0, byItem: [], warnings: [] };
       plan.summary = summary;
       this.set("plan", plan);
     }
 
-    // totalBoxes from boxes length if not set
     if (typeof summary.totalBoxes !== "number") {
       summary.totalBoxes = boxes.length || 0;
     }
 
     const { totalKg, totalL, totalUnits } = rollupPlanTotals(plan);
 
-    // set top-level rollups
     this.set("totalEstKg", +Number(totalKg).toFixed(3));
     this.set("totalLiters", +Number(totalL).toFixed(3));
     this.set("totalEstUnits", totalUnits);
 
-    // mirror into summary (optional but handy for UI fallback)
     summary.totalKg = +Number(totalKg).toFixed(3);
     summary.totalLiters = +Number(totalL).toFixed(3);
 
@@ -212,16 +208,34 @@ PickerTaskSchema.pre("save", function (next) {
 
 /* ---------- Indexes ---------- */
 
-// list/sort helpers
+// Sort-friendly listing
 PickerTaskSchema.index({ shiftDate: 1, shiftName: 1, status: 1, priority: -1, createdAt: 1 });
+// Assignment queries
 PickerTaskSchema.index({ shiftDate: 1, shiftName: 1, assignedPickerUserId: 1 });
-// unique: one task per (LC, shift, date, order)
+// Unique: one task per (LC, shift, date, order)
 PickerTaskSchema.index(
   { logisticCenterId: 1, shiftName: 1, shiftDate: 1, orderId: 1 },
   { unique: true, name: "uniq_task_per_shift_order" }
 );
-// optional shortcut
+// Optional shortcut
 PickerTaskSchema.index({ logisticCenterId: 1, shiftName: 1, shiftDate: 1, orderId: 1 });
 
-export default mongoose.models.PickerTask ||
-  mongoose.model("PickerTask", PickerTaskSchema);
+// 🔹 Speed up “active-for-picker-in-shift” guard
+PickerTaskSchema.index(
+  { logisticCenterId: 1, shiftDate: 1, shiftName: 1, assignedPickerUserId: 1, status: 1 },
+  { name: "ix_active_for_picker_in_shift" }
+);
+
+/* ---------- Types & Typed Model ---------- */
+
+export type PickerTask = InferSchemaType<typeof PickerTaskSchema>;
+export type PickerTaskDoc = HydratedDocument<PickerTask>;
+
+/** Lean type for `.lean()` queries so `_id` is not `unknown` */
+export type PickerTaskLean = Omit<PickerTask, "_id"> & { _id: MTypes.ObjectId };
+
+const PickerTaskModelTyped: Model<PickerTask> =
+  (mongoose.models.PickerTask as Model<PickerTask>) ||
+  mongoose.model<PickerTask>("PickerTask", PickerTaskSchema);
+
+export default PickerTaskModelTyped;
