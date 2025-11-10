@@ -192,11 +192,11 @@ function MarketItemCardBase({
   const handleAdd = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-   const qEff = ensureQtySafe(qty);
-const sellsInUnitOnly =
-  String((item as any).unitMode ?? "").trim().toLowerCase() === "unit";
-const qtyToSend = sellsInUnitOnly ? Math.max(1, Math.floor(qEff)) : qtyToUnits(item as any, effUnit, qEff);
-if (qtyToSend > 0) onAdd?.({ item, qty: qtyToSend });
+      const qEff = ensureQtySafe(qty);
+      const sellsInUnitOnly =
+        String((item as any).unitMode ?? "").trim().toLowerCase() === "unit";
+      const qtyToSend = sellsInUnitOnly ? Math.max(1, Math.floor(qEff)) : qtyToUnits(item as any, effUnit, qEff);
+      if (qtyToSend > 0) onAdd?.({ item, qty: qtyToSend });
 
     },
     [onAdd, item, qty, ensureQtySafe, effUnit]
@@ -247,11 +247,11 @@ if (qtyToSend > 0) onAdd?.({ item, qty: qtyToSend });
               ) : null}
             </Stack>
 
-            {farmerIcon ? (
-                  <Avatar.Root colorPalette={pickPalette(farmerName)}>
-                  <Avatar.Fallback name={farmerName ?? "Farmer"} />
-                </Avatar.Root>
-            ) : null}
+            {/* {farmerIcon ? (
+              <Avatar.Root size="sm">
+                <Avatar.Image src={farmerIcon} alt={farmerName ?? "farmer"} />
+              </Avatar.Root>
+            ) : null} */}
           </HStack>
 
           {farmerName ? (
@@ -344,7 +344,7 @@ if (qtyToSend > 0) onAdd?.({ item, qty: qtyToSend });
               <MarketItemPage
                 item={item}
                 unit={effUnit}
-                onUnitChange={locked ? () => {} : onUnitChange}
+                onUnitChange={locked ? () => { } : onUnitChange}
                 onClose={closeQuickView}
                 // MarketItemPage already normalizes to UNITS
                 onAddToCart={({ item: it, qty }) => onAdd?.({ item: it, qty })}
