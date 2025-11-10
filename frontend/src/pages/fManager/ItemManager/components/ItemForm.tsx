@@ -1,4 +1,3 @@
-// src/pages/items/ItemForm.tsx
 import { useMemo } from "react";
 import {
   Box,
@@ -24,9 +23,9 @@ import {
 } from "./form/useItemFormState";
 import ItemsPackingSection from "./form/sections/itemPacking";
 import SellModesSection from "./form/sections/sellModeSection";
-import NonProduceQualitySection, {
-  type NonProduceQuality,
-} from "./form/sections/NonProduceQualitySection";
+import DairyQualityStandardsSection, {
+  type DairyQualityStandards,
+} from "@/components/common/items/DairyQualityStandards";
 
 type Props = {
   defaultValues?: Partial<ItemFormValues>;
@@ -108,6 +107,12 @@ export default function ItemForm({
   };
 
   const isProduce = isFruitOrVegetable(values.category);
+
+  // helper to keep dairy (non-produce) standards only when there's at least one Grade A cell filled
+  const hasAnyDairyA = (qs?: DairyQualityStandards | undefined) => {
+    if (!qs) return false;
+    return Object.values(qs).some((row: any) => !!row?.A && String(row.A).trim().length > 0);
+  };
 
   return (
     <form onSubmit={handleSubmit} noValidate>
@@ -323,16 +328,15 @@ export default function ItemForm({
             </Text>
           </>
         ) : (
-          <NonProduceQualitySection
+          <DairyQualityStandardsSection
             value={
               (values as any).qualityStandards as
-                | NonProduceQuality
+                | DairyQualityStandards
                 | undefined
             }
             onChange={(next) => {
               if (readOnly) return;
-              const cleaned =
-                next && next.grade && next.grade.length > 0 ? next : undefined;
+              const cleaned = hasAnyDairyA(next) ? next : undefined;
               setValues((s) => ({ ...(s as any), qualityStandards: cleaned }));
             }}
             readOnly={readOnly}

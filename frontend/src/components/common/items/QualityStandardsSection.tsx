@@ -167,15 +167,17 @@ export default function QualityStandardsSection({
   }
 
   return (
-    <Accordion.Root defaultValue={["qs"]} multiple>
+    <Accordion.Root defaultValue={["qs"]} multiple collapsible>
       <Accordion.Item value="qs">
         <Card.Root variant="outline" overflow="hidden">
           <Card.Body p="0">
             {/* Header */}
             <Box px="4" py="3" bgGradient="to-r" gradientFrom="bg" gradientTo="bg.subtle">
               <HStack justifyContent="space-between" wrap="wrap" gap="3">
+                {/* Trigger acts exactly like the previous example (button inside ItemTrigger) */}
                 <Accordion.ItemTrigger asChild>
                   <Tag.Root
+                    as="button"
                     variant="surface"
                     size="lg"
                     borderRadius="full"
@@ -184,9 +186,8 @@ export default function QualityStandardsSection({
                     cursor="pointer"
                     _hover={{ shadow: "sm" }}
                   >
-                    <Tag.Label>
-                      Quality Standards — A / B / C
-                    </Tag.Label>
+                    <Tag.Label>Quality Standards — A / B / C</Tag.Label>
+                    <Accordion.ItemIndicator />
                   </Tag.Root>
                 </Accordion.ItemTrigger>
 
@@ -205,150 +206,152 @@ export default function QualityStandardsSection({
             </Box>
 
             <Accordion.ItemContent>
-              <Stack gap="5" px="4" py="4">
-                {/* Editable tolerance with locked visuals */}
-                <Field.Root>
-                  <Field.Label>Set tolerance ratio</Field.Label>
-                  <HStack gap="2" align="center" w="full" maxW="360px">
-                    <LockedInput
-                      value={tolerance ?? ""}
-                      onChange={(v) => setTol(v)}
-                      placeholder="0.02"
-                      locked={!!readOnly}
-                    />
-                    <Badge variant="subtle" flexShrink={0}>ratio</Badge>
-                    <Text color="fg.muted" fontSize="xs">0.02 = 2%</Text>
-                  </HStack>
-                </Field.Root>
+              <Accordion.ItemBody>
+                <Stack gap="5" px="4" py="4">
+                  {/* Editable tolerance with locked visuals */}
+                  <Field.Root>
+                    <Field.Label>Set tolerance ratio</Field.Label>
+                    <HStack gap="2" align="center" w="full" maxW="360px">
+                      <LockedInput
+                        value={tolerance ?? ""}
+                        onChange={(v) => setTol(v)}
+                        placeholder="0.02"
+                        locked={!!readOnly}
+                      />
+                      <Badge variant="subtle" flexShrink={0}>ratio</Badge>
+                      <Text color="fg.muted" fontSize="xs">0.02 = 2%</Text>
+                    </HStack>
+                  </Field.Root>
 
-                <Separator />
+                  <Separator />
 
-                {/* Card grid on mobile, rich table on desktop */}
-                <SimpleGrid columns={{ base: 1, md: 1 }} gap="4">
-                  {/* Desktop table */}
-                  <Box display={{ base: "none", md: "block" }} overflowX="auto">
-                    <Table.Root size="sm" variant="outline" minW="900px">
-                      <Table.Header>
-                        <Table.Row>
-                          <Table.ColumnHeader w="28%">Metric</Table.ColumnHeader>
-                          <Table.ColumnHeader w="24%">
-                            <HStack gap="2">
-                              <Badge colorPalette="green" variant="solid">A</Badge>
-                              <Text fontWeight="medium">Best</Text>
-                            </HStack>
-                          </Table.ColumnHeader>
-                          <Table.ColumnHeader w="24%">
-                            <HStack gap="2">
-                              <Badge colorPalette="yellow" variant="solid">B</Badge>
-                              <Text fontWeight="medium">Acceptable</Text>
-                            </HStack>
-                          </Table.ColumnHeader>
-                          <Table.ColumnHeader w="24%">
-                            <HStack gap="2">
-                              <Badge colorPalette="red" variant="solid">C</Badge>
-                              <Text fontWeight="medium">Minimum</Text>
-                            </HStack>
-                          </Table.ColumnHeader>
-                        </Table.Row>
-                      </Table.Header>
-                      <Table.Body>
-                        {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
-                          const row = (value as any)?.[key] as ABC | undefined
-                          const unit = isText ? undefined : UNIT[key]
-                          const zebra = (idxFromKey(key) % 2) === 0
-                          return (
-                            <Table.Row key={String(key)} bg={zebra ? "bg" : "bg.subtle"}>
-                              <Table.Cell>
+                  {/* Same process: user fills values directly in the table */}
+                  <SimpleGrid columns={{ base: 1, md: 1 }} gap="4">
+                    {/* Desktop table */}
+                    <Box display={{ base: "none", md: "block" }} overflowX="auto">
+                      <Table.Root size="sm" variant="outline" minW="900px">
+                        <Table.Header>
+                          <Table.Row>
+                            <Table.ColumnHeader w="28%">Metric</Table.ColumnHeader>
+                            <Table.ColumnHeader w="24%">
+                              <HStack gap="2">
+                                <Badge colorPalette="green" variant="solid">A</Badge>
+                                <Text fontWeight="medium">Best</Text>
+                              </HStack>
+                            </Table.ColumnHeader>
+                            <Table.ColumnHeader w="24%">
+                              <HStack gap="2">
+                                <Badge colorPalette="yellow" variant="solid">B</Badge>
+                                <Text fontWeight="medium">Acceptable</Text>
+                              </HStack>
+                            </Table.ColumnHeader>
+                            <Table.ColumnHeader w="24%">
+                              <HStack gap="2">
+                                <Badge colorPalette="red" variant="solid">C</Badge>
+                                <Text fontWeight="medium">Minimum</Text>
+                              </HStack>
+                            </Table.ColumnHeader>
+                          </Table.Row>
+                        </Table.Header>
+                        <Table.Body>
+                          {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
+                            const row = (value as any)?.[key] as ABC | undefined
+                            const unit = isText ? undefined : UNIT[key]
+                            const zebra = (idxFromKey(key) % 2) === 0
+                            return (
+                              <Table.Row key={String(key)} bg={zebra ? "bg" : "bg.subtle"}>
+                                <Table.Cell>
+                                  <HStack gap="2">
+                                    <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
+                                    <Text fontWeight="medium">{label}</Text>
+                                  </HStack>
+                                </Table.Cell>
+                                <Table.Cell>
+                                  <UnitInput
+                                    value={row?.A ?? ""}
+                                    onChange={(v) => setCell(key, "A", v)}
+                                    placeholder={placeholderA}
+                                    unit={unit}
+                                    locked={!!readOnly}
+                                  />
+                                </Table.Cell>
+                                <Table.Cell>
+                                  <UnitInput
+                                    value={row?.B ?? ""}
+                                    onChange={(v) => setCell(key, "B", v)}
+                                    placeholder={placeholderB}
+                                    unit={unit}
+                                    locked={!!readOnly}
+                                  />
+                                </Table.Cell>
+                                <Table.Cell>
+                                  <UnitInput
+                                    value={row?.C ?? ""}
+                                    onChange={(v) => setCell(key, "C", v)}
+                                    placeholder={placeholderC}
+                                    unit={unit}
+                                    locked={!!readOnly}
+                                  />
+                                </Table.Cell>
+                              </Table.Row>
+                            )
+                          })}
+                        </Table.Body>
+                      </Table.Root>
+                    </Box>
+
+                    {/* Mobile cards (same data, stacked) */}
+                    <Stack gap="3" display={{ base: "flex", md: "none" }}>
+                      {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
+                        const row = (value as any)?.[key] as ABC | undefined
+                        const unit = isText ? undefined : UNIT[key]
+                        return (
+                          <Card.Root key={String(key)} variant="elevated" overflow="hidden">
+                            <Card.Body gap="3">
+                              <HStack gap="2">
+                                <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
+                                <Text fontWeight="medium">{label}</Text>
+                              </HStack>
+                              <Stack gap="2">
                                 <HStack gap="2">
-                                  <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
-                                  <Text fontWeight="medium">{label}</Text>
+                                  <Badge colorPalette="green" variant="solid" minW="28px" textAlign="center">A</Badge>
+                                  <UnitInput
+                                    value={row?.A ?? ""}
+                                    onChange={(v) => setCell(key, "A", v)}
+                                    placeholder={placeholderA}
+                                    unit={unit}
+                                    locked={!!readOnly}
+                                  />
                                 </HStack>
-                              </Table.Cell>
-                              <Table.Cell>
-                                <UnitInput
-                                  value={row?.A ?? ""}
-                                  onChange={(v) => setCell(key, "A", v)}
-                                  placeholder={placeholderA}
-                                  unit={unit}
-                                  locked={!!readOnly}
-                                />
-                              </Table.Cell>
-                              <Table.Cell>
-                                <UnitInput
-                                  value={row?.B ?? ""}
-                                  onChange={(v) => setCell(key, "B", v)}
-                                  placeholder={placeholderB}
-                                  unit={unit}
-                                  locked={!!readOnly}
-                                />
-                              </Table.Cell>
-                              <Table.Cell>
-                                <UnitInput
-                                  value={row?.C ?? ""}
-                                  onChange={(v) => setCell(key, "C", v)}
-                                  placeholder={placeholderC}
-                                  unit={unit}
-                                  locked={!!readOnly}
-                                />
-                              </Table.Cell>
-                            </Table.Row>
-                          )
-                        })}
-                      </Table.Body>
-                    </Table.Root>
-                  </Box>
-
-                  {/* Mobile cards */}
-                  <Stack gap="3" display={{ base: "flex", md: "none" }}>
-                    {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
-                      const row = (value as any)?.[key] as ABC | undefined
-                      const unit = isText ? undefined : UNIT[key]
-                      return (
-                        <Card.Root key={String(key)} variant="elevated" overflow="hidden">
-                          <Card.Body gap="3">
-                            <HStack gap="2">
-                              <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
-                              <Text fontWeight="medium">{label}</Text>
-                            </HStack>
-                            <Stack gap="2">
-                              <HStack gap="2">
-                                <Badge colorPalette="green" variant="solid" minW="28px" textAlign="center">A</Badge>
-                                <UnitInput
-                                  value={row?.A ?? ""}
-                                  onChange={(v) => setCell(key, "A", v)}
-                                  placeholder={placeholderA}
-                                  unit={unit}
-                                  locked={!!readOnly}
-                                />
-                              </HStack>
-                              <HStack gap="2">
-                                <Badge colorPalette="yellow" variant="solid" minW="28px" textAlign="center">B</Badge>
-                                <UnitInput
-                                  value={row?.B ?? ""}
-                                  onChange={(v) => setCell(key, "B", v)}
-                                  placeholder={placeholderB}
-                                  unit={unit}
-                                  locked={!!readOnly}
-                                />
-                              </HStack>
-                              <HStack gap="2">
-                                <Badge colorPalette="red" variant="solid" minW="28px" textAlign="center">C</Badge>
-                                <UnitInput
-                                  value={row?.C ?? ""}
-                                  onChange={(v) => setCell(key, "C", v)}
-                                  placeholder={placeholderC}
-                                  unit={unit}
-                                  locked={!!readOnly}
-                                />
-                              </HStack>
-                            </Stack>
-                          </Card.Body>
-                        </Card.Root>
-                      )
-                    })}
-                  </Stack>
-                </SimpleGrid>
-              </Stack>
+                                <HStack gap="2">
+                                  <Badge colorPalette="yellow" variant="solid" minW="28px" textAlign="center">B</Badge>
+                                  <UnitInput
+                                    value={row?.B ?? ""}
+                                    onChange={(v) => setCell(key, "B", v)}
+                                    placeholder={placeholderB}
+                                    unit={unit}
+                                    locked={!!readOnly}
+                                  />
+                                </HStack>
+                                <HStack gap="2">
+                                  <Badge colorPalette="red" variant="solid" minW="28px" textAlign="center">C</Badge>
+                                  <UnitInput
+                                    value={row?.C ?? ""}
+                                    onChange={(v) => setCell(key, "C", v)}
+                                    placeholder={placeholderC}
+                                    unit={unit}
+                                    locked={!!readOnly}
+                                  />
+                                </HStack>
+                              </Stack>
+                            </Card.Body>
+                          </Card.Root>
+                        )
+                      })}
+                    </Stack>
+                  </SimpleGrid>
+                </Stack>
+              </Accordion.ItemBody>
             </Accordion.ItemContent>
           </Card.Body>
         </Card.Root>

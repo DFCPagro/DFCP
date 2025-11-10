@@ -9,86 +9,48 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react"
-
-// UPDATE PATH if your shared component lives elsewhere
-import QualityStandardsSection, {
-  type QualityStandards as QSABC,
-} from "@/components/common/items/QualityStandardsSection"
+import DairyQualityStandardsSection, {
+  type DairyQualityStandards as DQS,
+} from "@/components/common/items/DairyQualityStandards"
 
 /**
- * Panel goals:
- * 1) Show READ-ONLY Quality Standards examples (A/B/C) using the shared component
+ * Panel goals (mirrors produce QualityStandardsPanel):
+ * 1) Show READ-ONLY A/B/C examples using the shared dairy component
  *    — fields look normal (not muted), but cannot be edited.
  * 2) Show Measurements as a TABLE (single value per metric, NO A/B/C).
- *
- * Excluded everywhere: rejectionRate, maxDefectRatioLengthDiameter
  */
 
-// excluded keys
-const EXCLUDED: Array<keyof QSABC> = [
-  "maxDefectRatioLengthDiameter",
-  "rejectionRate",
-]
-
 // labels for rows in measured section
-const LABELS: Record<keyof QSABC, string> = {
-  brix: "brix",
-  acidityPercentage: "Acidity percentage",
-  pressure: "pressure",
-  colorDescription: "Color description",
-  colorPercentage: "Color Percentage",
-  weightPerUnit: "Weight per unit",
-  diameterMM: "Diameter MM",
-  qualityGrade: "Quality grade",
-  maxDefectRatioLengthDiameter: "Max defect eatio length diameter",
-  rejectionRate: "Rejection rate",
+const LABELS: Record<keyof DQS, string> = {
+  grade: "Quality grade (text)",
+  freshnessDays: "Freshness (days)",
+  fatPercentage: "Fat percentage",
 }
 
 // which metrics are free text
-const IS_TEXT: Partial<Record<keyof QSABC, boolean>> = {
-  colorDescription: true,
-  qualityGrade: true,
+const IS_TEXT: Partial<Record<keyof DQS, boolean>> = {
+  grade: true,
 }
 
 // units (shown as chips)
-const UNIT: Partial<Record<keyof QSABC, string>> = {
-  brix: "%",
-  acidityPercentage: "%",
-  pressure: "kg/cm²",
-  colorPercentage: "%",
-  weightPerUnit: "g",
-  diameterMM: "mm",
+const UNIT: Partial<Record<keyof DQS, string>> = {
+  freshnessDays: "days",
+  fatPercentage: "%",
 }
 
-type MeasuredValues = Partial<
-  Record<
-    Exclude<keyof QSABC, "maxDefectRatioLengthDiameter" | "rejectionRate">,
-    string
-  >
->
+type MeasuredValues = Partial<Record<keyof DQS, string>>
 
-export function QualityStandardsPanel() {
+export default function DairyQualityStandardsPanel() {
   // READ-ONLY A/B/C examples to show in the common component
-  const [qsExample, setQsExample] = React.useState<QSABC | undefined>(undefined)
-
-  // Product-level tolerance ratio (e.g., "0.02")
-  const [toleranceRatio, setToleranceRatio] = React.useState<string | null>("0.02")
+  const [qsExample, setQsExample] = React.useState<DQS | undefined>(undefined)
 
   // Actual measurements (single value per metric)
   const [measured, setMeasured] = React.useState<MeasuredValues | undefined>({})
 
   const metricKeys = React.useMemo(
-    () =>
-      (Object.keys(LABELS) as Array<keyof QSABC>).filter(
-        (k) => !EXCLUDED.includes(k),
-      ),
+    () => Object.keys(LABELS) as Array<keyof DQS>,
     [],
   )
-
-  const setTol = React.useCallback((v: string) => {
-    const t = v.trim()
-    setToleranceRatio(t.length ? t : null)
-  }, [])
 
   const setMeasuredCell = React.useCallback(
     (key: keyof MeasuredValues, val: string) => {
@@ -109,12 +71,10 @@ export function QualityStandardsPanel() {
       {/* 1) READ-ONLY A/B/C examples */}
       <Card.Root variant="outline" overflow="hidden">
         <Card.Body>
-          <QualityStandardsSection
+          <DairyQualityStandardsSection
             value={qsExample}
             onChange={setQsExample}
             readOnly
-            tolerance={toleranceRatio ?? ""}
-            onChangeTolerance={setTol}
           />
         </Card.Body>
       </Card.Root>
@@ -127,12 +87,12 @@ export function QualityStandardsPanel() {
           </Text>
 
           <Box overflowX="auto" pt="1">
-            <Table.Root size="sm" variant="outline" minW="720px">
+            <Table.Root size="sm" variant="outline" minW="640px">
               <Table.Header>
                 <Table.Row>
-                  <Table.ColumnHeader w="34%">Field</Table.ColumnHeader>
-                  <Table.ColumnHeader w="48%">Measured</Table.ColumnHeader>
-                  <Table.ColumnHeader w="18%">Unit</Table.ColumnHeader>
+                  <Table.ColumnHeader w="40%">Field</Table.ColumnHeader>
+                  <Table.ColumnHeader w="45%">Measured</Table.ColumnHeader>
+                  <Table.ColumnHeader w="15%">Unit</Table.ColumnHeader>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
@@ -176,5 +136,3 @@ export function QualityStandardsPanel() {
     </Stack>
   )
 }
-
-export default QualityStandardsPanel

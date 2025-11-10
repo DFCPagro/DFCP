@@ -15,6 +15,7 @@ export function mockPayload(id: string, containers = 0): PrintPayload {
     itemId: "66e0item0000000000000001",
     type: "Tomato",
     variety: "Cluster",
+    category: "dairy",
     pictureUrl:
       "https://images.unsplash.com/photo-1546470427-c5b384e0b66b?q=80&w=420&fit=crop",
     pickUpDate: "2025-11-07",

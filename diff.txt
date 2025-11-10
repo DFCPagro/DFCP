@@ -1,0 +1,3197 @@
+diff --git a/backend/scripts/mongo/setup-rs.ts b/backend/scripts/mongo/setup-rs.ts
+index a2340bd..b729643 100644
+--- a/backend/scripts/mongo/setup-rs.ts
++++ b/backend/scripts/mongo/setup-rs.ts
+@@ -1,20 +1,22 @@
+ #!/usr/bin/env ts-node
+ /**
+  * Cross-platform single-node Replica Set bootstrap (ALWAYS on port 27017)
+- * - If *anything* is listening on 27017, kill it, then start a fresh mongod
+- * - Windows/macOS/Linux supported
++ * - Frees 27017 (kills listeners)
++ * - Forces Mongo's Unix socket into a user-owned dir (avoids /tmp permission issues)
++ * - If startup still fails, retries once with Unix domain sockets disabled
+  *
+  * ENV (optional):
+- *   MONGOD_BIN     Full path to mongod binary (e.g. C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe)
+- *   MONGO_DATA_DIR Data dir for this RS (default: <repo>/data/mongo/rs0)
++ *   MONGOD_BIN     Full path to mongod binary
++ *   MONGO_DATA_DIR Data dir (default: <repo>/data/mongo/rs0)
+  *   MONGO_RS       Replica set name (default: rs0)
+- *   MONGO_DB       DB name to append to the printed URI (default: yourdb)
++ *   MONGO_DB       DB name in URI (default: yourdb)
+  */
+ 
+ import { spawn, spawnSync } from "child_process";
+ import net from "net";
+ import fs from "fs";
+ import path from "path";
++import os from "os";
+ import { MongoClient } from "mongodb";
+ 
+ // ---------- Config & Paths ----------
+@@ -26,13 +28,14 @@ const DATA_DIR = (
+ ).trim();
+ const PID_FILE = path.join(DATA_DIR, "mongod.pid");
+ const LOG_FILE = path.join(DATA_DIR, "mongod.log");
+-const PORT = 27017; // <— always use the default MongoDB port
++const PORT = 27017;
++const SOCK_DIR = path.join(DATA_DIR, "sock"); // force sockets here (never /tmp)
++const NO_SOCK_CONF = path.join(DATA_DIR, "mongod-nosock.conf");
+ 
+ // ---------- Resolve mongod binary ----------
+ function stripQuotes(s: string) {
+   return s.replace(/^[“"']?(.*?)[”"']?$/, "$1");
+ }
+-
+ function resolveMongodBin(): string {
+   const hint = process.env.MONGOD_BIN?.trim();
+   if (hint) {
+@@ -40,32 +43,20 @@ function resolveMongodBin(): string {
+     if (fs.existsSync(cleaned)) return cleaned;
+     throw new Error(`MONGOD_BIN was set but file not found: ${cleaned}`);
+   }
+-
+   if (process.platform === "win32") {
+     const res = spawnSync("where", ["mongod"], { encoding: "utf8" });
+     if (res.status === 0) {
+-      const candidates = res.stdout
+-        .split(/\r?\n/)
+-        .map((l) => l.trim())
+-        .filter(Boolean);
+-      const exe =
+-        candidates.find((c) => c.toLowerCase().endsWith("mongod.exe")) ||
+-        candidates[0];
++      const exe = res.stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0];
+       if (exe && fs.existsSync(exe)) return exe;
+     }
+     const common = [
+       "C:\\Program Files\\MongoDB\\Server\\8.0\\bin\\mongod.exe",
+       "C:\\Program Files\\MongoDB\\Server\\7.0\\bin\\mongod.exe",
+       "C:\\Program Files\\MongoDB\\Server\\6.0\\bin\\mongod.exe",
+-      "C:\\Program Files\\MongoDB\\bin\\mongod.exe",
+-      "C:\\ProgramData\\chocolatey\\bin\\mongod.exe",
+     ];
+     for (const p of common) if (fs.existsSync(p)) return p;
+-    throw new Error(
+-      "Could not locate mongod.exe. Install MongoDB Community Server, or set MONGOD_BIN to the full path (no quotes)."
+-    );
++    return "mongod.exe";
+   }
+-
+   const which = spawnSync("which", ["mongod"], { encoding: "utf8" });
+   if (which.status === 0) {
+     const p = which.stdout.trim();
+@@ -73,72 +64,48 @@ function resolveMongodBin(): string {
+   }
+   return "mongod";
+ }
+-
+ const MONGOD_BIN = resolveMongodBin();
+ 
+ // ---------- Small utils ----------
+-function sleep(ms: number) {
+-  return new Promise((r) => setTimeout(r, ms));
+-}
++const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+ 
+ async function portInUse(port: number): Promise<boolean> {
+   return new Promise((resolve) => {
+     const socket = net.createConnection({ port, host: "127.0.0.1" });
+-    socket.once("connect", () => {
+-      socket.end();
+-      resolve(true);
+-    });
++    socket.once("connect", () => { socket.end(); resolve(true); });
+     socket.once("error", () => resolve(false));
+   });
+ }
+ 
+-// Find PID that is LISTENING on a TCP port (best-effort, cross-platform)
++function sh(cmd: string, args: string[], opts: any = {}) {
++  return spawnSync(cmd, args, { encoding: "utf8", ...opts });
++}
++
++// Find PID that is LISTENING on a TCP port (best-effort)
+ function findPidByPortSync(port: number): number | null {
+   try {
+     if (process.platform === "win32") {
+-      // netstat -ano | findstr :27017
+-      const res = spawnSync("cmd", ["/c", `netstat -ano | findstr :${port}`], {
+-        encoding: "utf8",
+-      });
++      const res = sh("cmd", ["/c", `netstat -ano | findstr :${port}`]);
+       if (res.status === 0 && res.stdout) {
+-        const lines = res.stdout
+-          .split(/\r?\n/)
+-          .map((l) => l.trim())
+-          .filter(Boolean);
+-        // pick a LISTENING line first; fallback to the last column PID on any match
+-        const listening =
+-          lines.find((l) => /\bLISTENING\b/i.test(l)) ?? lines[0];
+-        if (listening) {
+-          const parts = listening.split(/\s+/);
++        const line = res.stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean)[0];
++        if (line) {
++          const parts = line.split(/\s+/);
+           const pid = Number(parts[parts.length - 1]);
+           return Number.isFinite(pid) ? pid : null;
+         }
+       }
+     } else {
+-      // Prefer lsof: lsof -iTCP:27017 -sTCP:LISTEN -Pn -t
+-      let res = spawnSync(
+-        "lsof",
+-        ["-iTCP:" + port, "-sTCP:LISTEN", "-Pn", "-t"],
+-        { encoding: "utf8" }
+-      );
++      // lsof is nicest if present
++      let res = sh("lsof", ["-iTCP:" + port, "-sTCP:LISTEN", "-Pn", "-t"]);
+       if (res.status === 0 && res.stdout.trim()) {
+         const pid = Number(res.stdout.trim().split(/\s+/)[0]);
+         if (Number.isFinite(pid)) return pid;
+       }
+-      // Fallback to netstat (Linux/older macOS):
+-      // netstat -lpn | grep :27017   (note: -p requires sudo on some systems; we parse if available)
+-      res = spawnSync(
+-        "bash",
+-        ["-lc", `netstat -lpn 2>/dev/null | grep :${port} || true`],
+-        { encoding: "utf8" }
+-      );
++      // Fallback to netstat
++      res = sh("bash", ["-lc", `netstat -lpn 2>/dev/null | grep :${port} || true`]);
+       if (res.status === 0 && res.stdout) {
+-        const line = res.stdout
+-          .split(/\n/)
+-          .map((l) => l.trim())
+-          .filter(Boolean)[0];
++        const line = res.stdout.split(/\n/).map(l => l.trim()).filter(Boolean)[0];
+         if (line) {
+-          // format example: tcp 0 0 127.0.0.1:27017 0.0.0.0:* LISTEN 12345/mongod
+           const m = line.match(/\bLISTEN\b.*?(\d+)\/[^\s]+$/);
+           if (m) {
+             const pid = Number(m[1]);
+@@ -147,49 +114,43 @@ function findPidByPortSync(port: number): number | null {
+         }
+       }
+     }
+-  } catch {
+-    /* ignore */
+-  }
++  } catch {}
+   return null;
+ }
+ 
+ async function killPidGracefully(pid: number) {
+   if (!pid || pid <= 0) return;
+-
+   if (process.platform === "win32") {
+-    // Try a graceful close then force
+-    spawnSync("taskkill", ["/PID", String(pid), "/T"], { stdio: "ignore" });
+-    // give it a moment
++    sh("taskkill", ["/PID", String(pid), "/T"]);
+     for (let i = 0; i < 10; i++) {
+       await sleep(200);
+-      const chk = spawnSync("tasklist", ["/FI", `PID eq ${pid}`], {
+-        encoding: "utf8",
+-      });
++      const chk = sh("tasklist", ["/FI", `PID eq ${pid}`]);
+       if (!chk.stdout || !chk.stdout.includes(String(pid))) return;
+     }
+-    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+-      stdio: "ignore",
+-    });
++    sh("taskkill", ["/PID", String(pid), "/T", "/F"]);
+   } else {
+-    try {
+-      process.kill(pid, "SIGTERM");
+-    } catch {
+-      /* ignore */
+-    }
+-    // wait up to ~2s
++    try { process.kill(pid, "SIGTERM"); } catch {}
+     for (let i = 0; i < 10; i++) {
+       await sleep(200);
+-      try {
+-        process.kill(pid, 0);
+-      } catch {
+-        return;
+-      } // no longer running
+-    }
+-    try {
+-      process.kill(pid, "SIGKILL");
+-    } catch {
+-      /* ignore */
++      try { process.kill(pid, 0); } catch { return; }
+     }
++    try { process.kill(pid, "SIGKILL"); } catch {}
++  }
++}
++
++function rmIfExists(p: string) {
++  try { fs.unlinkSync(p); } catch {}
++}
++
++function canWrite(dir: string): boolean {
++  try {
++    fs.mkdirSync(dir, { recursive: true });
++    const test = path.join(dir, `.touch-${process.pid}-${Date.now()}`);
++    fs.writeFileSync(test, "ok");
++    fs.unlinkSync(test);
++    return true;
++  } catch {
++    return false;
+   }
+ }
+ 
+@@ -200,10 +161,7 @@ async function ensurePortFree(port: number) {
+     const ownPid = Number(txt);
+     if (Number.isFinite(ownPid)) {
+       await killPidGracefully(ownPid);
+-      // remove stale pidfile
+-      try {
+-        fs.unlinkSync(PID_FILE);
+-      } catch {}
++      rmIfExists(PID_FILE);
+     }
+   }
+ 
+@@ -211,53 +169,73 @@ async function ensurePortFree(port: number) {
+   if (await portInUse(port)) {
+     const pid = findPidByPortSync(port);
+     if (pid) {
+-      console.log(
+-        `⚠️  Port ${port} is in use by PID ${pid}. Terminating it...`
+-      );
++      console.log(`⚠️  Port ${port} is in use by PID ${pid}. Terminating it...`);
+       await killPidGracefully(pid);
+     } else {
+-      console.log(
+-        `⚠️  Port ${port} is in use by an unknown PID. Attempting to proceed after delay...`
+-      );
++      console.log(`⚠️  Port ${port} is in use by an unknown PID. Waiting...`);
+     }
+ 
+-    // Wait for the port to be released
+     const t0 = Date.now();
+     while (await portInUse(port)) {
+-      if (Date.now() - t0 > 10_000) {
+-        throw new Error(
+-          `Could not free port ${port}. Please close the process using it and retry.`
+-        );
++      if (Date.now() - t0 > 15_000) {
++        throw new Error(`Could not free port ${port}. Close the process using it and retry.`);
+       }
+       await sleep(200);
+     }
+   }
+ }
+ 
+-// ---------- Start mongod ----------
+-async function startMongod(port: number): Promise<number> {
++function ensureDataDirWritable() {
+   fs.mkdirSync(DATA_DIR, { recursive: true });
+-
++  fs.mkdirSync(SOCK_DIR, { recursive: true });
++
++  // Make sure it’s writable by the current user
++  if (!canWrite(DATA_DIR)) {
++    // Best effort: relax perms for user; chown needs sudo so we only chmod here
++    try { fs.chmodSync(DATA_DIR, 0o700); } catch {}
++    if (!canWrite(DATA_DIR)) {
++      throw new Error(`Data dir not writable: ${DATA_DIR}`);
++    }
++  }
+   // Ensure the log file exists
+-  try {
+-    fs.closeSync(fs.openSync(LOG_FILE, "a"));
+-  } catch {}
++  try { fs.closeSync(fs.openSync(LOG_FILE, "a")); } catch {}
++}
+ 
++function buildArgsBase(useUnixSockets: boolean, useConfig: string | null): string[] {
+   const args = [
+-    "--replSet",
+-    RS_NAME,
+-    "--bind_ip",
+-    "127.0.0.1",
+-    "--port",
+-    String(port),
+-    "--dbpath",
+-    DATA_DIR,
+-    "--logpath",
+-    LOG_FILE,
++    "--replSet", RS_NAME,
++    "--bind_ip", "127.0.0.1",
++    "--port", String(PORT),
++    "--dbpath", DATA_DIR,
++    "--logpath", LOG_FILE,
+     "--logappend",
+-    "--pidfilepath",
+-    PID_FILE, // <— let mongod manage a real PID file
++    "--pidfilepath", PID_FILE,
+   ];
++  if (useConfig) {
++    args.unshift("--config", useConfig);
++  }
++  if (useUnixSockets && process.platform !== "win32") {
++    // Always force Mongo’s Unix socket into our user-controlled dir
++    args.push("--unixSocketPrefix", SOCK_DIR);
++  }
++  return args;
++}
++
++function writeNoSockConfig() {
++  const yaml = [
++    "net:",
++    "  unixDomainSocket:",
++    "    enabled: false",
++    "", // newline at end
++  ].join("\n");
++  fs.writeFileSync(NO_SOCK_CONF, yaml);
++}
++
++async function startMongodOnce({ useUnixSockets, useNoSockConfig }:
++  { useUnixSockets: boolean; useNoSockConfig: boolean; }): Promise<number> {
++
++  const configPath = useNoSockConfig ? NO_SOCK_CONF : null;
++  const args = buildArgsBase(useUnixSockets, configPath);
+ 
+   const child = spawn(MONGOD_BIN, args, {
+     detached: true,
+@@ -266,39 +244,28 @@ async function startMongod(port: number): Promise<number> {
+   });
+ 
+   if (!child.pid) {
+-    throw new Error("Failed to spawn mongod. Check your MONGOD_BIN or PATH.");
++    throw new Error("Failed to spawn mongod. Check MONGOD_BIN or PATH.");
+   }
+-
+   child.unref();
+ 
+-  // Wait up to 12s for the port to open
++  // Wait up to 20s for the port to open
+   const start = Date.now();
+-  while (!(await portInUse(port))) {
+-    if (Date.now() - start > 12_000) {
+-      throw new Error(
+-        `mongod did not open port ${port} in time. See log: ${LOG_FILE}`
+-      );
++  while (!(await portInUse(PORT))) {
++    if (Date.now() - start > 20_000) {
++      throw new Error(`mongod did not open port ${PORT} in time. See log: ${LOG_FILE}`);
+     }
+     await sleep(200);
+   }
+ 
+-  // Prefer PID from pidfile (more accurate on Windows due to detached spawn)
+   try {
+     const pf = fs.readFileSync(PID_FILE, "utf8").trim();
+     const realPid = Number(pf);
+     if (Number.isFinite(realPid)) return realPid;
+-  } catch {
+-    /* ignore */
+-  }
+-
++  } catch {}
+   return child.pid!;
+ }
+ 
+-// ---------- Ensure replica set initiated ----------
+-async function ensureReplicaSet(
+-  baseUri: string,
+-  port: number
+-): Promise<"initiated" | "already"> {
++async function ensureReplicaSet(baseUri: string, port: number): Promise<"initiated" | "already"> {
+   const client = new MongoClient(baseUri, { directConnection: true });
+   try {
+     await client.connect();
+@@ -318,59 +285,87 @@ async function ensureReplicaSet(
+       },
+     });
+ 
+-    const start = Date.now();
+-    while (true) {
++    const t0 = Date.now();
++    for (;;) {
+       try {
+         const status = await admin.command({ replSetGetStatus: 1 });
+-        const primary = (status.members || []).find(
+-          (m: any) => m.stateStr === "PRIMARY"
+-        );
++        const primary = (status.members || []).find((m: any) => m.stateStr === "PRIMARY");
+         if (primary) break;
+-      } catch {
+-        /* keep polling */
+-      }
+-      if (Date.now() - start > 20_000) {
++      } catch {}
++      if (Date.now() - t0 > 20_000) {
+         throw new Error("Replica set did not become PRIMARY in time.");
+       }
+       await sleep(500);
+     }
+-
+     return "initiated";
+   } finally {
+     await client.close().catch(() => {});
+   }
+ }
+ 
++function tailLogHint(lines = 60) {
++  try {
++    const txt = fs.readFileSync(LOG_FILE, "utf8");
++    const tail = txt.split(/\r?\n/).slice(-lines).join("\n");
++    console.error("\n--- mongod.log (tail) ---\n" + tail + "\n-------------------------\n");
++  } catch {}
++}
++
+ // ---------- Main ----------
+ async function main() {
+   console.log(`🔎 Using mongod: ${MONGOD_BIN}`);
+   console.log(`📁 Data dir    : ${DATA_DIR}`);
++  console.log(`📎 Socket dir  : ${SOCK_DIR} (forcing unix sockets here)`);
+   console.log(`📝 Log file    : ${LOG_FILE}`);
+   console.log(`🧩 RS name     : ${RS_NAME}`);
+   console.log(`🔌 Port        : ${PORT}`);
+ 
++  ensureDataDirWritable();
++
+   // Always free the default port before starting
+   await ensurePortFree(PORT);
+ 
+   const baseUri = `mongodb://127.0.0.1:${PORT}`;
+   const rsUri = `${baseUri}/${DB_NAME}?replicaSet=${RS_NAME}`;
+ 
+-  const pid = await startMongod(PORT);
+-  console.log(`▶️  Started mongod (pid ${pid})`);
+-
+-  const rsState = await ensureReplicaSet(baseUri, PORT);
+-  console.log(
+-    rsState === "initiated"
+-      ? "✅ Replica set initiated"
+-      : "✅ Replica set already configured"
+-  );
++  // First attempt: use Unix sockets, but in our own dir (never /tmp)
++  try {
++    const pid = await startMongodOnce({ useUnixSockets: true, useNoSockConfig: false });
++    console.log(`▶️  Started mongod (pid ${pid})`);
++    const rsState = await ensureReplicaSet(baseUri, PORT);
++    console.log(rsState === "initiated" ? "✅ Replica set initiated" : "✅ Replica set already configured");
++    console.log("\n🔗 Add this to your .env:");
++    console.log(`MONGODB_URI=${rsUri}\n`);
++    return;
++  } catch (e: any) {
++    console.warn(`⚠️  First start attempt failed: ${e?.message || e}`);
++    tailLogHint(60);
++  }
+ 
+-  console.log("\n🔗 Add this to your .env:");
+-  console.log(`MONGODB_URI=${rsUri}\n`);
++  // If first attempt failed, retry once with unix sockets disabled entirely
++  try {
++    console.log("🔁 Retrying with Unix domain sockets DISABLED…");
++    writeNoSockConfig();
++    rmIfExists(PID_FILE);
++    await ensurePortFree(PORT);
++    const pid = await startMongodOnce({ useUnixSockets: false, useNoSockConfig: true });
++    console.log(`▶️  Started mongod (pid ${pid}) [no unix socket]`);
++    const rsState = await ensureReplicaSet(baseUri, PORT);
++    console.log(rsState === "initiated" ? "✅ Replica set initiated" : "✅ Replica set already configured");
++    console.log("\n🔗 Add this to your .env:");
++    console.log(`MONGODB_URI=${rsUri}\n`);
++    return;
++  } catch (e: any) {
++    console.error("❌ setup-rs failed (retry also failed):", e?.message || e);
++    tailLogHint(120);
++    console.error(`   Check log file at: ${LOG_FILE}`);
++    process.exit(1);
++  }
+ }
+ 
+ main().catch((err) => {
+-  console.error("❌ setup-rs failed:", err?.message || err);
++  console.error("❌ setup-rs failed (uncaught):", err?.message || err);
++  tailLogHint(120);
+   console.error(`   Check log file at: ${LOG_FILE}`);
+   process.exit(1);
+ });
+diff --git a/frontend/.gitignore b/frontend/.gitignore
+index 737ddb9..d86303e 100644
+--- a/frontend/.gitignore
++++ b/frontend/.gitignore
+@@ -24,3 +24,5 @@ package-lock.json
+ *.njsproj
+ *.sln
+ *.sw?
++
++*.zip
+diff --git a/frontend/src/api/farmerOrders.ts b/frontend/src/api/farmerOrders.ts
+index 1381c33..32b48a5 100644
+--- a/frontend/src/api/farmerOrders.ts
++++ b/frontend/src/api/farmerOrders.ts
+@@ -333,6 +333,7 @@ export type FarmerOrder = {
+   pictureUrl?: string;
+   pickUpDate: string;
+   shift: ShiftName;
++  category: string;
+   farmerName: string;
+   farmName: string;
+   farmerId: string;
+diff --git a/frontend/src/api/shifts.ts b/frontend/src/api/shifts.ts
+index bca0447..8030c6a 100644
+--- a/frontend/src/api/shifts.ts
++++ b/frontend/src/api/shifts.ts
+@@ -48,6 +48,7 @@ export async function fetchNextShifts(
+  * Each item includes the normalized windows for general, deliverer, etc.
+  */
+ export async function fetchShiftWindows(logisticCenterId: string) {
++  console.log("hiiii")
+   const res = await api.get("/shifts/windows/all", {
+     params: { lc: logisticCenterId },
+   });
+diff --git a/frontend/src/components/common/items/QualityStandardsSection.tsx b/frontend/src/components/common/items/QualityStandardsSection.tsx
+index ec2bb12..395d2a7 100644
+--- a/frontend/src/components/common/items/QualityStandardsSection.tsx
++++ b/frontend/src/components/common/items/QualityStandardsSection.tsx
+@@ -167,15 +167,17 @@ export default function QualityStandardsSection({
+   }
+ 
+   return (
+-    <Accordion.Root defaultValue={["qs"]} multiple>
++    <Accordion.Root defaultValue={["qs"]} multiple collapsible>
+       <Accordion.Item value="qs">
+         <Card.Root variant="outline" overflow="hidden">
+           <Card.Body p="0">
+             {/* Header */}
+             <Box px="4" py="3" bgGradient="to-r" gradientFrom="bg" gradientTo="bg.subtle">
+               <HStack justifyContent="space-between" wrap="wrap" gap="3">
++                {/* Trigger acts exactly like the previous example (button inside ItemTrigger) */}
+                 <Accordion.ItemTrigger asChild>
+                   <Tag.Root
++                    as="button"
+                     variant="surface"
+                     size="lg"
+                     borderRadius="full"
+@@ -184,9 +186,8 @@ export default function QualityStandardsSection({
+                     cursor="pointer"
+                     _hover={{ shadow: "sm" }}
+                   >
+-                    <Tag.Label>
+-                      Quality Standards — A / B / C
+-                    </Tag.Label>
++                    <Tag.Label>Quality Standards — A / B / C</Tag.Label>
++                    <Accordion.ItemIndicator />
+                   </Tag.Root>
+                 </Accordion.ItemTrigger>
+ 
+@@ -205,150 +206,152 @@ export default function QualityStandardsSection({
+             </Box>
+ 
+             <Accordion.ItemContent>
+-              <Stack gap="5" px="4" py="4">
+-                {/* Editable tolerance with locked visuals */}
+-                <Field.Root>
+-                  <Field.Label>Set tolerance ratio</Field.Label>
+-                  <HStack gap="2" align="center" w="full" maxW="360px">
+-                    <LockedInput
+-                      value={tolerance ?? ""}
+-                      onChange={(v) => setTol(v)}
+-                      placeholder="0.02"
+-                      locked={!!readOnly}
+-                    />
+-                    <Badge variant="subtle" flexShrink={0}>ratio</Badge>
+-                    <Text color="fg.muted" fontSize="xs">0.02 = 2%</Text>
+-                  </HStack>
+-                </Field.Root>
+-
+-                <Separator />
++              <Accordion.ItemBody>
++                <Stack gap="5" px="4" py="4">
++                  {/* Editable tolerance with locked visuals */}
++                  <Field.Root>
++                    <Field.Label>Set tolerance ratio</Field.Label>
++                    <HStack gap="2" align="center" w="full" maxW="360px">
++                      <LockedInput
++                        value={tolerance ?? ""}
++                        onChange={(v) => setTol(v)}
++                        placeholder="0.02"
++                        locked={!!readOnly}
++                      />
++                      <Badge variant="subtle" flexShrink={0}>ratio</Badge>
++                      <Text color="fg.muted" fontSize="xs">0.02 = 2%</Text>
++                    </HStack>
++                  </Field.Root>
+ 
+-                {/* Card grid on mobile, rich table on desktop */}
+-                <SimpleGrid columns={{ base: 1, md: 1 }} gap="4">
+-                  {/* Desktop table */}
+-                  <Box display={{ base: "none", md: "block" }} overflowX="auto">
+-                    <Table.Root size="sm" variant="outline" minW="900px">
+-                      <Table.Header>
+-                        <Table.Row>
+-                          <Table.ColumnHeader w="28%">Metric</Table.ColumnHeader>
+-                          <Table.ColumnHeader w="24%">
+-                            <HStack gap="2">
+-                              <Badge colorPalette="green" variant="solid">A</Badge>
+-                              <Text fontWeight="medium">Best</Text>
+-                            </HStack>
+-                          </Table.ColumnHeader>
+-                          <Table.ColumnHeader w="24%">
+-                            <HStack gap="2">
+-                              <Badge colorPalette="yellow" variant="solid">B</Badge>
+-                              <Text fontWeight="medium">Acceptable</Text>
+-                            </HStack>
+-                          </Table.ColumnHeader>
+-                          <Table.ColumnHeader w="24%">
+-                            <HStack gap="2">
+-                              <Badge colorPalette="red" variant="solid">C</Badge>
+-                              <Text fontWeight="medium">Minimum</Text>
+-                            </HStack>
+-                          </Table.ColumnHeader>
+-                        </Table.Row>
+-                      </Table.Header>
+-                      <Table.Body>
+-                        {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
+-                          const row = (value as any)?.[key] as ABC | undefined
+-                          const unit = isText ? undefined : UNIT[key]
+-                          const zebra = (idxFromKey(key) % 2) === 0
+-                          return (
+-                            <Table.Row key={String(key)} bg={zebra ? "bg" : "bg.subtle"}>
+-                              <Table.Cell>
+-                                <HStack gap="2">
+-                                  <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
+-                                  <Text fontWeight="medium">{label}</Text>
+-                                </HStack>
+-                              </Table.Cell>
+-                              <Table.Cell>
+-                                <UnitInput
+-                                  value={row?.A ?? ""}
+-                                  onChange={(v) => setCell(key, "A", v)}
+-                                  placeholder={placeholderA}
+-                                  unit={unit}
+-                                  locked={!!readOnly}
+-                                />
+-                              </Table.Cell>
+-                              <Table.Cell>
+-                                <UnitInput
+-                                  value={row?.B ?? ""}
+-                                  onChange={(v) => setCell(key, "B", v)}
+-                                  placeholder={placeholderB}
+-                                  unit={unit}
+-                                  locked={!!readOnly}
+-                                />
+-                              </Table.Cell>
+-                              <Table.Cell>
+-                                <UnitInput
+-                                  value={row?.C ?? ""}
+-                                  onChange={(v) => setCell(key, "C", v)}
+-                                  placeholder={placeholderC}
+-                                  unit={unit}
+-                                  locked={!!readOnly}
+-                                />
+-                              </Table.Cell>
+-                            </Table.Row>
+-                          )
+-                        })}
+-                      </Table.Body>
+-                    </Table.Root>
+-                  </Box>
++                  <Separator />
+ 
+-                  {/* Mobile cards */}
+-                  <Stack gap="3" display={{ base: "flex", md: "none" }}>
+-                    {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
+-                      const row = (value as any)?.[key] as ABC | undefined
+-                      const unit = isText ? undefined : UNIT[key]
+-                      return (
+-                        <Card.Root key={String(key)} variant="elevated" overflow="hidden">
+-                          <Card.Body gap="3">
+-                            <HStack gap="2">
+-                              <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
+-                              <Text fontWeight="medium">{label}</Text>
+-                            </HStack>
+-                            <Stack gap="2">
++                  {/* Same process: user fills values directly in the table */}
++                  <SimpleGrid columns={{ base: 1, md: 1 }} gap="4">
++                    {/* Desktop table */}
++                    <Box display={{ base: "none", md: "block" }} overflowX="auto">
++                      <Table.Root size="sm" variant="outline" minW="900px">
++                        <Table.Header>
++                          <Table.Row>
++                            <Table.ColumnHeader w="28%">Metric</Table.ColumnHeader>
++                            <Table.ColumnHeader w="24%">
+                               <HStack gap="2">
+-                                <Badge colorPalette="green" variant="solid" minW="28px" textAlign="center">A</Badge>
+-                                <UnitInput
+-                                  value={row?.A ?? ""}
+-                                  onChange={(v) => setCell(key, "A", v)}
+-                                  placeholder={placeholderA}
+-                                  unit={unit}
+-                                  locked={!!readOnly}
+-                                />
++                                <Badge colorPalette="green" variant="solid">A</Badge>
++                                <Text fontWeight="medium">Best</Text>
+                               </HStack>
++                            </Table.ColumnHeader>
++                            <Table.ColumnHeader w="24%">
+                               <HStack gap="2">
+-                                <Badge colorPalette="yellow" variant="solid" minW="28px" textAlign="center">B</Badge>
+-                                <UnitInput
+-                                  value={row?.B ?? ""}
+-                                  onChange={(v) => setCell(key, "B", v)}
+-                                  placeholder={placeholderB}
+-                                  unit={unit}
+-                                  locked={!!readOnly}
+-                                />
++                                <Badge colorPalette="yellow" variant="solid">B</Badge>
++                                <Text fontWeight="medium">Acceptable</Text>
+                               </HStack>
++                            </Table.ColumnHeader>
++                            <Table.ColumnHeader w="24%">
++                              <HStack gap="2">
++                                <Badge colorPalette="red" variant="solid">C</Badge>
++                                <Text fontWeight="medium">Minimum</Text>
++                              </HStack>
++                            </Table.ColumnHeader>
++                          </Table.Row>
++                        </Table.Header>
++                        <Table.Body>
++                          {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
++                            const row = (value as any)?.[key] as ABC | undefined
++                            const unit = isText ? undefined : UNIT[key]
++                            const zebra = (idxFromKey(key) % 2) === 0
++                            return (
++                              <Table.Row key={String(key)} bg={zebra ? "bg" : "bg.subtle"}>
++                                <Table.Cell>
++                                  <HStack gap="2">
++                                    <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
++                                    <Text fontWeight="medium">{label}</Text>
++                                  </HStack>
++                                </Table.Cell>
++                                <Table.Cell>
++                                  <UnitInput
++                                    value={row?.A ?? ""}
++                                    onChange={(v) => setCell(key, "A", v)}
++                                    placeholder={placeholderA}
++                                    unit={unit}
++                                    locked={!!readOnly}
++                                  />
++                                </Table.Cell>
++                                <Table.Cell>
++                                  <UnitInput
++                                    value={row?.B ?? ""}
++                                    onChange={(v) => setCell(key, "B", v)}
++                                    placeholder={placeholderB}
++                                    unit={unit}
++                                    locked={!!readOnly}
++                                  />
++                                </Table.Cell>
++                                <Table.Cell>
++                                  <UnitInput
++                                    value={row?.C ?? ""}
++                                    onChange={(v) => setCell(key, "C", v)}
++                                    placeholder={placeholderC}
++                                    unit={unit}
++                                    locked={!!readOnly}
++                                  />
++                                </Table.Cell>
++                              </Table.Row>
++                            )
++                          })}
++                        </Table.Body>
++                      </Table.Root>
++                    </Box>
++
++                    {/* Mobile cards (same data, stacked) */}
++                    <Stack gap="3" display={{ base: "flex", md: "none" }}>
++                      {METRICS.map(({ key, label, placeholderA, placeholderB, placeholderC, isText }) => {
++                        const row = (value as any)?.[key] as ABC | undefined
++                        const unit = isText ? undefined : UNIT[key]
++                        return (
++                          <Card.Root key={String(key)} variant="elevated" overflow="hidden">
++                            <Card.Body gap="3">
+                               <HStack gap="2">
+-                                <Badge colorPalette="red" variant="solid" minW="28px" textAlign="center">C</Badge>
+-                                <UnitInput
+-                                  value={row?.C ?? ""}
+-                                  onChange={(v) => setCell(key, "C", v)}
+-                                  placeholder={placeholderC}
+-                                  unit={unit}
+-                                  locked={!!readOnly}
+-                                />
++                                <Box w="6px" h="18px" bg={isText ? "purple.5" : "blue.5"} borderRadius="full" />
++                                <Text fontWeight="medium">{label}</Text>
+                               </HStack>
+-                            </Stack>
+-                          </Card.Body>
+-                        </Card.Root>
+-                      )
+-                    })}
+-                  </Stack>
+-                </SimpleGrid>
+-              </Stack>
++                              <Stack gap="2">
++                                <HStack gap="2">
++                                  <Badge colorPalette="green" variant="solid" minW="28px" textAlign="center">A</Badge>
++                                  <UnitInput
++                                    value={row?.A ?? ""}
++                                    onChange={(v) => setCell(key, "A", v)}
++                                    placeholder={placeholderA}
++                                    unit={unit}
++                                    locked={!!readOnly}
++                                  />
++                                </HStack>
++                                <HStack gap="2">
++                                  <Badge colorPalette="yellow" variant="solid" minW="28px" textAlign="center">B</Badge>
++                                  <UnitInput
++                                    value={row?.B ?? ""}
++                                    onChange={(v) => setCell(key, "B", v)}
++                                    placeholder={placeholderB}
++                                    unit={unit}
++                                    locked={!!readOnly}
++                                  />
++                                </HStack>
++                                <HStack gap="2">
++                                  <Badge colorPalette="red" variant="solid" minW="28px" textAlign="center">C</Badge>
++                                  <UnitInput
++                                    value={row?.C ?? ""}
++                                    onChange={(v) => setCell(key, "C", v)}
++                                    placeholder={placeholderC}
++                                    unit={unit}
++                                    locked={!!readOnly}
++                                  />
++                                </HStack>
++                              </Stack>
++                            </Card.Body>
++                          </Card.Root>
++                        )
++                      })}
++                    </Stack>
++                  </SimpleGrid>
++                </Stack>
++              </Accordion.ItemBody>
+             </Accordion.ItemContent>
+           </Card.Body>
+         </Card.Root>
+diff --git a/frontend/src/pages/FarmerOrderReport/components/QualityStandardsPanel.tsx b/frontend/src/pages/FarmerOrderReport/components/QualityStandardsPanel.tsx
+index 0a30a2b..704b35f 100644
+--- a/frontend/src/pages/FarmerOrderReport/components/QualityStandardsPanel.tsx
++++ b/frontend/src/pages/FarmerOrderReport/components/QualityStandardsPanel.tsx
+@@ -33,15 +33,15 @@ const EXCLUDED: Array<keyof QSABC> = [
+ // labels for rows in measured section
+ const LABELS: Record<keyof QSABC, string> = {
+   brix: "brix",
+-  acidityPercentage: "acidityPercentage",
++  acidityPercentage: "Acidity percentage",
+   pressure: "pressure",
+-  colorDescription: "colorDescription",
+-  colorPercentage: "colorPercentage",
+-  weightPerUnit: "weightPerUnit",
+-  diameterMM: "diameterMM",
+-  qualityGrade: "qualityGrade",
+-  maxDefectRatioLengthDiameter: "maxDefectRatioLengthDiameter",
+-  rejectionRate: "rejectionRate",
++  colorDescription: "Color description",
++  colorPercentage: "Color Percentage",
++  weightPerUnit: "Weight per unit",
++  diameterMM: "Diameter MM",
++  qualityGrade: "Quality grade",
++  maxDefectRatioLengthDiameter: "Max defect eatio length diameter",
++  rejectionRate: "Rejection rate",
+ }
+ 
+ // which metrics are free text
+diff --git a/frontend/src/pages/FarmerOrderReport/hooks/useQualityStandards.ts b/frontend/src/pages/FarmerOrderReport/hooks/useQualityStandards.ts
+index 02824c1..c6bf5db 100644
+--- a/frontend/src/pages/FarmerOrderReport/hooks/useQualityStandards.ts
++++ b/frontend/src/pages/FarmerOrderReport/hooks/useQualityStandards.ts
+@@ -1,69 +1,87 @@
+-import * as React from "react"
+-import { METRICS, TOLERANCE_PCT, type MetricKey } from "../constants/metrics"
+-import { formatNum, safeNumber } from "../utils/numbers"
++// src/hooks/useFarmerOrders.ts
++import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
++import {
++  qkFarmerOrdersByShift,
++  getFarmerOrdersByShift,
++  getMyFarmerOrdersByShift,
++  getFarmerOrdersSummary,
++  advanceFarmerOrderStage,
++  updateFarmerOrderStatus,
++  getFarmerOrderPrintPayload,
++  initContainers,
++  patchContainerWeights,
++} from "@/api/farmerOrders";
+ 
+-type ABC = { A: string; B: string; C: string; unit?: string }
++export function useFarmerOrdersSummary() {
++  return useQuery({
++    queryKey: ["farmerOrders", "summary"],
++    queryFn: getFarmerOrdersSummary,
++  });
++}
+ 
+-export function useQualityStandards() {
+-  // QS state
+-  const [qsABC, setQsABC] = React.useState<Record<MetricKey, ABC>>(() => {
+-    const seed: Record<MetricKey, ABC> = {} as any
+-    METRICS.forEach((m) => {
+-      seed[m.key] = {
+-        A: m.type === "number" && Number.isFinite(m.seedA) ? String(m.seedA) : "",
+-        B: "",
+-        C: "",
+-        unit: m.unit,
+-      }
+-    })
+-    return seed
+-  })
++export function useOrdersByShift(params: Parameters<typeof qkFarmerOrdersByShift>[0]) {
++  return useQuery({
++    queryKey: qkFarmerOrdersByShift(params),
++    queryFn: () => getFarmerOrdersByShift(params),
++    enabled: Boolean(params?.date && params?.shiftName),
++  });
++}
+ 
+-  const [qsMeasured, setQsMeasured] = React.useState<Record<MetricKey, number | string>>(() => {
+-    const seed: Record<MetricKey, number | string> = {} as any
+-    METRICS.forEach((m) => {
+-      seed[m.key] = m.type === "number" && Number.isFinite(m.seedA) ? Number(m.seedA) : ""
+-    })
+-    return seed
+-  })
++export function useMyOrdersByShift(params: Parameters<typeof qkFarmerOrdersByShift>[0]) {
++  return useQuery({
++    queryKey: qkFarmerOrdersByShift(params),
++    queryFn: () => getMyFarmerOrdersByShift(params),
++    enabled: Boolean(params?.date && params?.shiftName),
++  });
++}
+ 
+-  // helpers
+-  function parseA(key: MetricKey): number | null {
+-    const a = Number(qsABC[key]?.A)
+-    return Number.isFinite(a) ? a : null
+-  }
++export function useAdvanceStage() {
++  const qc = useQueryClient();
++  return useMutation({
++    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof advanceFarmerOrderStage>[1] }) =>
++      advanceFarmerOrderStage(id, body),
++    onSuccess: () => {
++      qc.invalidateQueries({ queryKey: ["farmerOrders"] });
++    },
++  });
++}
+ 
+-  function deviationInfo(key: MetricKey, val: number) {
+-    const A = parseA(key) ?? 0
+-    const lower = A * (1 - TOLERANCE_PCT / 100)
+-    const upper = A * (1 + TOLERANCE_PCT / 100)
+-    const out = Number(val) < lower || Number(val) > upper
+-    const deviationPct = Math.min(100, Math.abs(((Number(val) - A) / (A || 1)) * 100))
+-    return { out, lower: Number(formatNum(lower)), upper: Number(formatNum(upper)), deviationPct, A: Number(formatNum(A)) }
+-  }
++export function useUpdateFarmerStatus() {
++  const qc = useQueryClient();
++  return useMutation({
++    mutationFn: ({ id, status, note }: { id: string; status: any; note?: string }) =>
++      updateFarmerOrderStatus(id, status, note),
++    onSuccess: () => {
++      qc.invalidateQueries({ queryKey: ["farmerOrders"] });
++    },
++  });
++}
+ 
+-  const qualityWarnings = React.useMemo(() => {
+-    const warns: string[] = []
+-    METRICS.filter((m) => m.type === "number").forEach((m) => {
+-      const v = Number(qsMeasured[m.key])
+-      const A = parseA(m.key)
+-      if (!Number.isFinite(v) || A == null || !Number.isFinite(A)) return
+-      const { out } = deviationInfo(m.key, v)
+-      if (out) {
+-        warns.push(
+-          `${m.label}: ${formatNum(v)}${m.unit ?? ""} deviates from A=${formatNum(A)}${m.unit ?? ""} by >${TOLERANCE_PCT}%`,
+-        )
+-      }
+-    })
+-    return warns
+-  }, [qsMeasured, qsABC])
++export function usePrintPayload(farmerOrderId?: string) {
++  return useQuery({
++    queryKey: ["farmerOrders", "print", farmerOrderId],
++    queryFn: () => getFarmerOrderPrintPayload(farmerOrderId!),
++    enabled: !!farmerOrderId,
++  });
++}
+ 
+-  const qualityDeviationCount = qualityWarnings.length
++export function useInitContainers() {
++  const qc = useQueryClient();
++  return useMutation({
++    mutationFn: ({ id, count }: { id: string; count: number }) => initContainers(id, count),
++    onSuccess: (_, { id }) => {
++      qc.invalidateQueries({ queryKey: ["farmerOrders", "print", id] });
++    },
++  });
++}
+ 
+-  return {
+-    qsABC, setQsABC,
+-    qsMeasured, setQsMeasured,
+-    parseA, deviationInfo, safeNumber,
+-    qualityWarnings, qualityDeviationCount,
+-  }
++export function usePatchContainerWeights() {
++  const qc = useQueryClient();
++  return useMutation({
++    mutationFn: ({ id, weights }: { id: string; weights: Array<{ containerId: string; weightKg: number }> }) =>
++      patchContainerWeights(id, weights),
++    onSuccess: (_, { id }) => {
++      qc.invalidateQueries({ queryKey: ["farmerOrders", "print", id] });
++    },
++  });
+ }
+diff --git a/frontend/src/pages/FarmerOrderReport/index.tsx b/frontend/src/pages/FarmerOrderReport/index.tsx
+index 79bdb5d..5147acb 100644
+--- a/frontend/src/pages/FarmerOrderReport/index.tsx
++++ b/frontend/src/pages/FarmerOrderReport/index.tsx
+@@ -1,804 +1,362 @@
+-import React, { useCallback, useEffect, useMemo, useState } from "react"
++import * as React from "react"
+ import {
+-  Alert, Badge, Box, Button, Card, Dialog, EmptyState, Field, Fieldset, FormatNumber,
+-  HStack, Image, Input, Portal, Progress, Separator, Show, Stack, Stat, Table, Tag, Text,
+-  Tabs, VStack, SegmentGroup, SimpleGrid, Wrap, WrapItem,
++  Box,
++  Stack,
++  HStack,
++  VStack,
++  Text,
++  Heading,
++  Badge,
++  Avatar,
++  Table,
++  Link,
++  Card,
++  Separator,
++  Skeleton,
+ } from "@chakra-ui/react"
+-import { QRCodeCanvas } from "qrcode.react"
+-import { LuShoppingCart } from "react-icons/lu"
+-import { Tooltip } from "@/components/ui/tooltip"
+-
+-import type { Container as FoContainer, ContainerQR, PrintPayload } from "@/api/farmerOrders"
+-
+-// constants & utils
+-import { TOLERANCE_PCT } from "./constants/metrics"
+-import { sizeCfg, type QrCardSize } from "./constants/sizing"
+-import { round2, safeNumber, formatNum } from "./utils/numbers"
+-import { hashString } from "./utils/strings"
+-import { getFarmerOrderIdFromUrl } from "./utils/url"
+-
+-// printing
+-import { generatePdfLabels } from "./printing/pdf"
+-import { printInHiddenFrameQRCards } from "./printing/printInHiddenFrame"
+-
+-// components
+-import { InlineNumber } from "./components/InlineNumber"
+-import { InlineWeightEditor } from "./components/InlineWeightEditor"
+-import { MonoToken } from "./components/MonoToken"
+-import { StepPill } from "./components/StepPill"
+-import { QualityStandardsPanel } from "./components/QualityStandardsPanel"
+-
+-// mock services (replace with real API when ready)
+-import { mockMode, mockPayload, delay } from "./services/farmerOrders.mock"
+-
+-type Props = {
+-  farmerOrderId?: string
+-  pickupAddress?: string
+-  assignedDeliverer?: string | null
++import { useLocation, useParams } from "react-router-dom"
++import { useQuery } from "@tanstack/react-query"
++import { formatDMY } from "@/utils/date"
++import { api } from "@/api/config"
++import { fetchShiftWindows } from "@/api/shifts"
++
++/* ===========================
++ * Local types for this page
++ * =========================== */
++export type ShiftKey = "morning" | "afternoon" | "evening" | "night"
++
++type FarmerViewByShiftResponse = {
++  meta: {
++    lc: string
++    date: string
++    shiftName: ShiftKey
++    tz: string
++    page: number
++    limit: number
++    total: number
++    pages: number
++    problemCount: number
++    scopedToFarmer?: boolean
++    forFarmerView?: boolean
++  }
++  items: Array<{
++    id: string
++    itemId: string
++    type: string
++    variety?: string
++    imageUrl?: string
++    farmerName: string
++    farmName: string
++    shift: ShiftKey
++    pickUpDate: string
++    pickUpTime?: string | null
++    logisticCenterId: string
++    farmerStatus: string
++    orderedQuantityKg: number
++    forcastedQuantityKg: number
++    finalQuantityKg?: number | null
++    containers: string[]
++    containerSnapshots: any[]
++    stageKey: string | null
++    farmersQSreport?: any
++    inspectionQSreport?: any
++    visualInspection?: any
++    inspectionStatus: "pending" | "passed" | "failed"
++  }>
+ }
+ 
+-export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assignedDeliverer }: Props) {
+-  // Resolve FO id from props or URL
+-  const foIdFromUrl = useMemo(() => getFarmerOrderIdFromUrl(), [])
+-  const effectiveFoId = (farmerOrderId || foIdFromUrl || "").trim()
+-
+-  const [loading, setLoading] = useState(false)
+-  const [payload, setPayload] = useState<PrintPayload | null>(null)
+-  const [error, setError] = useState<string | null>(null)
+-
+-  // Flow
+-  const [openInit, setOpenInit] = useState(false)
+-  const [initCount, setInitCount] = useState<number | string>(0)
+-  const [openPreview, setOpenPreview] = useState(false)
+-
+-  // Views
+-  const [qrFilter, setQrFilter] = useState<"pending" | "weighed" | "all">("all")
+-  const [boardTab, setBoardTab] = useState<"cards" | "table">("cards")
+-  const [qrCardSize, setQrCardSize] = useState<QrCardSize>("md")
+-
+-  // Draft weights
+-  const [weightsDraft, setWeightsDraft] = useState<Record<string, number>>({})
+-  const [savingWeights, setSavingWeights] = useState(false)
+-
+-  // -------- Derived values --------
+-  const orderedKg = useMemo(() => {
+-    const fo = payload?.farmerOrder
+-    const committed =
+-      fo?.forcastedQuantityKg ??
+-      (fo as any)?.forecastedQuantityKg ??
+-      (fo as any)?.sumOrderedQuantityKg ??
+-      0
+-    return Math.max(0, Number(committed) || 0)
+-  }, [payload])
+-
+-  const totalWeighedKg = useMemo(() => {
+-    const base = (payload?.farmerOrder?.containers ?? []).reduce(
+-      (sum, c) => sum + (Number(c.weightKg) || 0),
+-      0,
+-    )
+-    const draftAdded = Object.entries(weightsDraft).reduce(
+-      (sum, [, v]) => sum + (Number(v) || 0),
+-      0,
+-    )
+-    return round2(base + draftAdded)
+-  }, [payload, weightsDraft])
++export type FarmerOrderForShiftItem = {
++  id: string
++  itemId: string
++  type: string
++  variety?: string
++  imageUrl?: string
++  forcastedQuantityKg: number
++  finalQuantityKg?: number | null
++  farmerReportUrl?: string
++  pickUpTime?: string | null
++  farmerName?: string
++  farmName?: string
++}
+ 
+-  const minAllowedTotal = useMemo(
+-    () => round2(orderedKg * (1 - TOLERANCE_PCT / 100)),
+-    [orderedKg],
+-  )
++export type FarmerOrderForShiftPayload = {
++  date: string
++  shift: ShiftKey
++  pickUpTime?: string | null
++  deliverer?: {
++    id: string
++    name: string
++    phone?: string
++    vehiclePlate?: string
++    company?: string
++  } | null
++  items: FarmerOrderForShiftItem[]
++}
+ 
+-  const weighedIds = useMemo(() => {
+-    const set = new Set<string>()
+-    ;(payload?.farmerOrder?.containers ?? []).forEach((c) => {
+-      if ((Number(c.weightKg) || 0) > 0) set.add(c.containerId)
+-    })
+-    Object.entries(weightsDraft).forEach(([cid, w]) => {
+-      if (Number(w) > 0) set.add(cid)
+-    })
+-    return set
+-  }, [payload, weightsDraft])
++/* ===========================
++ * API call (farmer view)
++ * baseURL must include /api/v1 in api config.
++ * =========================== */
++const BASE = "/farmer-orders"
++
++async function fetchFarmerOrderForShift(
++  date: string,
++  shift: ShiftKey,
++  opts?: { signal?: AbortSignal },
++): Promise<FarmerViewByShiftResponse> {
++  const sp = new URLSearchParams()
++  sp.set("date", date)
++  sp.set("shiftName", shift)
++
++  const { data } = await api.get<FarmerViewByShiftResponse>(`${BASE}/by-shift?${sp.toString()}`, {
++    signal: opts?.signal,
++  })
++
++  return data
++}
+ 
+-  const filteredQrs = useMemo(() => {
+-    const all = payload?.containerQrs ?? []
+-    if (qrFilter === "all") return all
+-    if (qrFilter === "weighed") return all.filter((q) => weighedIds.has(q.subjectId))
+-    return all.filter((q) => !weighedIds.has(q.subjectId))
+-  }, [payload?.containerQrs, qrFilter, weighedIds])
++/* ===========================
++ * Helpers – countdown
++ * =========================== */
+ 
+-  const assignedName = useMemo(() => {
+-    if (assignedDeliverer && assignedDeliverer.trim().length) return assignedDeliverer
+-    const pool = ["Avi Peretz", "Dana Levi", "Noam Cohen", "Tamar Azulay", "Yossi Ben-David", "Maya Oren"]
+-    const hash = hashString(effectiveFoId || "seed")
+-    return pool[hash % pool.length] + " (placeholder)"
+-  }, [assignedDeliverer, effectiveFoId])
++/** Convert minutes since midnight to "HH:mm" */
++function minsToHHmm(mins: number) {
++  const h = Math.floor(mins / 60)
++  const m = mins % 60
++  const pad = (n: number) => String(n).padStart(2, "0")
++  return `${pad(h)}:${pad(m)}`
++}
+ 
+-  const pickup = useMemo(() => {
+-    if (pickupAddress && pickupAddress.trim().length) return pickupAddress
+-    return (
+-      payload?.farmerOrder?.pickupAddress ||
+-      `${payload?.farmerOrder?.farmName ?? "Unknown farm"} (pickup point)`
+-    )
+-  }, [pickupAddress, payload?.farmerOrder?.pickupAddress, payload?.farmerOrder?.farmName])
++/** Combine ISO date (YYYY-MM-DD) and "HH:mm" into a Date in the local timezone */
++function combineDateTimeLocal(dateISO: string, hhmm: string): Date {
++  const [h, m] = hhmm.split(":").map((x) => parseInt(x, 10))
++  const d = new Date(dateISO + "T00:00:00")
++  d.setHours(h || 0, m || 0, 0, 0)
++  return d
++}
+ 
+-  const itemName = useMemo(() => {
+-    const fo = payload?.farmerOrder
+-    return (fo?.variety ? `${fo?.type ?? ""} ${fo?.variety}`.trim() : fo?.type) || "Unknown Item"
+-  }, [payload?.farmerOrder])
++function formatDuration(ms: number) {
++  const totalSeconds = Math.floor(Math.abs(ms) / 1000)
++  const days = Math.floor(totalSeconds / 86400)
++  const hours = Math.floor((totalSeconds % 86400) / 3600)
++  const minutes = Math.floor((totalSeconds % 3600) / 60)
++  const seconds = totalSeconds % 60
++  const pad = (n: number) => n.toString().padStart(2, "0")
++  if (days > 0) {
++    return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
++  }
++  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
++}
+ 
+-  // -------- Load --------
+-  const load = useCallback(async () => {
+-    if (!effectiveFoId) return
+-    setLoading(true)
+-    setError(null)
+-    try {
+-      if (mockMode) {
+-        await delay(150)
+-        setPayload(mockPayload(effectiveFoId, 0))
+-      } else {
+-        // TODO real API
+-      }
+-      setWeightsDraft({})
+-    } catch (e: any) {
+-      setError(e?.message || "Failed to load farmer order")
+-    } finally {
+-      setLoading(false)
++/* ===========================
++ * Page
++ * =========================== */
++export default function FarmerOrderForShift() {
++  const { state } = useLocation() as { state?: { group?: Partial<FarmerOrderForShiftPayload> } }
++  const params = useParams<{ date: string; shift: ShiftKey }>()
++
++  // Resolve params/state for SSR-safe date/shift
++  const dateISO = React.useMemo(() => {
++    const fromState = state?.group?.date
++    if (fromState) return typeof fromState === "string" ? fromState : new Date(fromState).toISOString().slice(0, 10)
++    return params.date || new Date().toISOString().slice(0, 10)
++  }, [params.date, state?.group?.date])
++
++  const shift = (state?.group?.shift as ShiftKey) || (params.shift as ShiftKey) || "morning"
++
++  const { data, isLoading } = useQuery({
++    queryKey: ["farmer-order-for-shift", dateISO, shift],
++    queryFn: ({ signal }) => fetchFarmerOrderForShift(dateISO, shift, { signal }),
++    // No initialData here since we need lc from server response for windows API
++    refetchOnMount: true,
++    refetchOnWindowFocus: false,
++  })
++
++  // Resolve LC for shift APIs (prefer meta.lc, fallback to first item)
++  const logisticCenterId = React.useMemo(() => {
++    return data?.meta.lc || data?.items?.[0]?.logisticCenterId || ""
++  }, [data?.meta.lc, data?.items])
++
++  // Fetch all shift windows for LC (to get the official start time of the selected shift)
++  const { data: windows, isLoading: isWindowsLoading } = useQuery({
++    enabled: !!logisticCenterId,
++    queryKey: ["shift-windows-all", logisticCenterId],
++    queryFn: () => fetchShiftWindows(logisticCenterId),
++    refetchOnMount: true,
++    refetchOnWindowFocus: false,
++  })
++
++  const currentShiftWindow = React.useMemo(() => {
++    if (!windows) return null
++    // windows is an array of { name, timezone, general: { startMin, endMin }, ... }
++    const row = (windows as any[]).find((w) => w.name === shift)
++    return row || null
++  }, [windows, shift])
++
++  // Build target start datetime:
++  // - Preferred: official general.startMin from /shifts/windows/all for this LC + dateISO
++  // - Fallback: API's pickUpTime per item if present (use the first item's pickUpTime)
++  const pickupTimeFromItems = React.useMemo(() => {
++    const it = data?.items?.find((x) => x.pickUpTime)
++    return it?.pickUpTime ?? null
++  }, [data?.items])
++
++  const targetStart = React.useMemo(() => {
++    if (currentShiftWindow?.general?.startMin != null) {
++      const hhmm = minsToHHmm(currentShiftWindow.general.startMin)
++      return combineDateTimeLocal(dateISO, hhmm)
+     }
+-  }, [effectiveFoId])
+-
+-  useEffect(() => {
+-    load()
+-  }, [load])
+-
+-  const onInitContainers = useCallback(async () => {
+-    const count = Number(initCount)
+-    if (!Number.isInteger(count) || count <= 0) return
+-    try {
+-      setLoading(true)
+-      setError(null)
+-      if (mockMode) {
+-        await delay(120)
+-        setPayload((prev) => {
+-          const base = prev ?? mockPayload(effectiveFoId, 0)
+-          const start = (base.farmerOrder.containers?.length ?? 0) + 1
+-          const newContainers: FoContainer[] = []
+-          const newQrs: ContainerQR[] = []
+-          for (let i = 0; i < count; i++) {
+-            const seq = start + i
+-            const cid = `${base.farmerOrder._id}_${seq}`
+-            newContainers.push({ containerId: cid, weightKg: 0 })
+-            newQrs.push({
+-              token: `QR-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+-              sig: Math.random().toString(36).slice(2, 18),
+-              scope: "container",
+-              subjectType: "Container",
+-              subjectId: cid,
+-            })
+-          }
+-          return {
+-            farmerOrder: {
+-              ...base.farmerOrder,
+-              containers: [...(base.farmerOrder.containers ?? []), ...newContainers],
+-            },
+-            farmerOrderQR: base.farmerOrderQR,
+-            containerQrs: [...(base.containerQrs ?? []), ...newQrs],
+-          }
+-        })
+-      } else {
+-        // TODO: API call -> initContainersForFarmerOrder
+-      }
+-      setOpenInit(false)
+-      setQrFilter("pending")
+-      setBoardTab("cards")
+-      setOpenPreview(true)
+-    } catch (e: any) {
+-      setError(e?.message || "Failed to initialize containers")
+-    } finally {
+-      setLoading(false)
+-      setInitCount(0)
++    if (pickupTimeFromItems) {
++      return combineDateTimeLocal(dateISO, pickupTimeFromItems)
+     }
+-  }, [effectiveFoId, initCount])
++    // No known start -> default to start of day (neutral), still shows "since/remaining"
++    return combineDateTimeLocal(dateISO, "00:00")
++  }, [currentShiftWindow, dateISO, pickupTimeFromItems])
+ 
+-  const putWeights = useCallback(
+-    async (weights: Record<string, number>) => {
+-      const list = Object.entries(weights).map(([containerId, weightKg]) => ({ containerId, weightKg }))
+-      if (!list.length) return
+-      setSavingWeights(true)
+-      try {
+-        if (mockMode) {
+-          await delay(120)
+-          setPayload((prev) => {
+-            if (!prev) return prev
+-            return {
+-              ...prev,
+-              farmerOrder: {
+-                ...prev.farmerOrder,
+-                containers: (prev.farmerOrder.containers ?? []).map((c) =>
+-                  weights[c.containerId] != null ? { ...c, weightKg: weights[c.containerId] } : c,
+-                ),
+-              },
+-            }
+-          })
+-        } else {
+-          // TODO: API call -> patchContainerWeights
+-        }
+-        setWeightsDraft((prev) => {
+-          const copy = { ...prev }
+-          for (const k of Object.keys(weights)) delete copy[k]
+-          return copy
+-        })
+-      } catch (e: any) {
+-        setError(e?.message || "Failed to update container weights")
+-      } finally {
+-        setSavingWeights(false)
+-      }
+-    },
+-    [effectiveFoId],
+-  )
++  const effectivePickupLabel = React.useMemo(() => {
++    if (currentShiftWindow?.general?.startMin != null) {
++      return minsToHHmm(currentShiftWindow.general.startMin)
++    }
++    return pickupTimeFromItems ?? "TBD"
++  }, [currentShiftWindow, pickupTimeFromItems])
+ 
+-  const saveWeights = useCallback(() => putWeights(weightsDraft), [putWeights, weightsDraft])
++  // Live ticking countdown
++  const [now, setNow] = React.useState<Date>(() => new Date())
++  React.useEffect(() => {
++    const id = setInterval(() => setNow(new Date()), 1000)
++    return () => clearInterval(id)
++  }, [])
+ 
+-  const underfillWarning = useMemo(() => {
+-    if (!orderedKg) return null
+-    if (totalWeighedKg < minAllowedTotal) {
+-      return `Total weight ${formatNum(totalWeighedKg)} kg is below allowed minimum (${formatNum(minAllowedTotal)} kg, i.e. max ${TOLERANCE_PCT}% under ${formatNum(orderedKg)} kg). Please re-check.`
+-    }
+-    return null
+-  }, [orderedKg, totalWeighedKg, minAllowedTotal])
++  const diffMs = React.useMemo(() => targetStart.getTime() - now.getTime(), [targetStart, now])
++  const countdownText = React.useMemo(() => formatDuration(diffMs), [diffMs])
++  const countdownState = diffMs >= 0 ? "upcoming" : "past"
+ 
+-  // -------- Render --------
+   return (
+-    <Stack gap="6" p={{ base: "3", md: "4" }} w="full" minW="0">
+-      {/* Header / Summary */}
+-      <Card.Root variant="outline" overflow="hidden">
+-        <Card.Body gap="4">
+-          <HStack justifyContent="space-between" alignItems="flex-start" wrap="wrap" minW="0">
+-            <VStack alignItems="flex-start" gap="2" minW="200px" flex="1" minWidth={0}>
+-              <Text fontSize="xl" fontWeight="semibold">Farmer Order Report</Text>
+-              <HStack gap="2" wrap="wrap">
+-                <Badge>{(payload?.farmerOrder?._id ?? effectiveFoId) || "—"}</Badge>
+-                <Tag.Root><Tag.Label>Shift: {payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
+-                <Tag.Root><Tag.Label>Date: {payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
++    <Box p={4}>
++      <Stack gap={4}>
++        <VStack align="start" gap={0}>
++          <Heading size="md">Farmer Order For Shift</Heading>
++          <Text color="fg.muted">
++            {formatDMY(dateISO)} · {shift.charAt(0).toUpperCase() + shift.slice(1)} · Pickup {effectivePickupLabel}
++          </Text>
++
++          {/* Countdown (uses official shift windows when available) */}
++          <HStack mt="1" gap="2" alignItems="center">
++            <Text fontWeight="semibold">Countdown:</Text>
++            {isLoading || (logisticCenterId && isWindowsLoading) ? (
++              <Skeleton height="20px" width="140px" />
++            ) : (
++              <Badge
++                colorPalette={countdownState === "upcoming" ? "green" : "red"}
++                variant="subtle"
++                fontFamily="mono"
++                fontSize="sm"
++              >
++                {countdownState === "upcoming" ? `${countdownText} to start` : `${countdownText} since start`}
++              </Badge>
++            )}
++          </HStack>
++        </VStack>
++
++        {/* Deliverer (farmer endpoint doesn’t supply; keep placeholder) */}
++        <Card.Root>
++          <Card.Body p={4}>
++            {isLoading ? (
++              <Skeleton height="24px" />
++            ) : (data as any)?.deliverer ? (
++              <HStack justifyContent="space-between" alignItems="center">
++                <HStack>
++                  <Avatar.Root>
++                    <Avatar.Fallback name={(data as any).deliverer.name} />
++                  </Avatar.Root>
++                  <VStack align="start" gap={0}>
++                    <Text fontWeight="semibold">Assigned deliverer</Text>
++                    <Text>{(data as any).deliverer.name}</Text>
++                    <HStack>
++                      {(data as any).deliverer.phone ? <Badge>{(data as any).deliverer.phone}</Badge> : null}
++                      {(data as any).deliverer.vehiclePlate ? <Badge>{(data as any).deliverer.vehiclePlate}</Badge> : null}
++                      {(data as any).deliverer.company ? <Badge>{(data as any).deliverer.company}</Badge> : null}
++                    </HStack>
++                  </VStack>
++                </HStack>
+               </HStack>
+-              <Text color="fg.muted" lineClamp={1} minW="0">Pickup: {pickup}</Text>
+-              <Text color="fg.muted" lineClamp={1} minW="0">Deliverer: {assignedName}</Text>
+-              <Text color="fg.muted" fontSize="sm" title={typeof window !== "undefined" ? window.location.href : ""}>
+-                URL-bound FO: {effectiveFoId || "not detected"}
+-              </Text>
+-            </VStack>
+-
+-            <HStack gap="4" alignItems="center" minW="260px" flexShrink={0}>
+-              {payload?.farmerOrder?.pictureUrl ? (
+-                <Image
+-                  src={payload.farmerOrder.pictureUrl}
+-                  alt={itemName}
+-                  width="120px"
+-                  height="120px"
+-                  borderRadius="2xl"
+-                  objectFit="cover"
+-                />
+-              ) : null}
+-
+-              <VStack alignItems="flex-end" minW="240px" gap="3">
+-                <Stat.Root>
+-                  <Stat.Label>Item</Stat.Label>
+-                  <Stat.ValueText lineClamp={1} maxW="260px">{itemName}</Stat.ValueText>
+-                </Stat.Root>
+-                <Stat.Root>
+-                  <Stat.Label>Ordered amount</Stat.Label>
+-                  <Stat.ValueText>
+-                    <FormatNumber value={orderedKg} maximumFractionDigits={2} /> kg
+-                  </Stat.ValueText>
+-                  <Text color="fg.muted" fontSize="sm">Quality grade: A</Text>
+-                </Stat.Root>
++            ) : (
++              <VStack align="start">
++                <Text fontWeight="semibold">Assigned deliverer</Text>
++                <Badge colorPalette="gray">Not assigned yet</Badge>
+               </VStack>
+-            </HStack>
+-          </HStack>
+-
+-          <Separator />
+-
+-          {/* Actions */}
+-          <HStack gap="3" wrap="wrap">
+-            <Button onClick={() => setOpenInit(true)} disabled={loading || !effectiveFoId}>
+-              Create containers
+-            </Button>
+-            <Button
+-              variant="outline"
+-              onClick={() => setOpenPreview(true)}
+-              disabled={!(payload?.containerQrs?.length ?? 0)}
+-            >
+-              Preview & Print
+-            </Button>
+-            <Button onClick={load} variant="ghost" disabled={loading || !effectiveFoId}>
+-              Re-fetch
+-            </Button>
+-          </HStack>
+-
+-          {/* Errors / loading */}
+-          <Show when={!!error}>
+-            <Alert.Root status="error" title="Error">
+-              <Alert.Description asChild>
+-                <span>{error}</span>
+-              </Alert.Description>
+-            </Alert.Root>
+-          </Show>
+-
+-          <Show when={loading}>
+-            <Progress.Root value={60} width="full" aria-label="Loading">
+-              <Progress.Track>
+-                <Progress.Range />
+-              </Progress.Track>
+-            </Progress.Root>
+-          </Show>
+-        </Card.Body>
+-      </Card.Root>
+-
+-      {/* Step indicator */}
+-      <Card.Root variant="subtle" overflow="hidden">
+-        <Card.Body>
+-          <HStack gap="3" wrap="wrap">
+-            <StepPill active>1. Create containers</StepPill>
+-            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>2. Weigh-in</StepPill>
+-            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>3. Print labels</StepPill>
+-          </HStack>
+-        </Card.Body>
+-      </Card.Root>
+-
+-      {/* Order-level Quality Standards (plugged component uses the hook) */}
+-      <QualityStandardsPanel />
+-
+-      {/* Containers – board */}
+-      <Card.Root variant="outline" overflow="hidden">
+-        <Card.Body gap="4" minW="0">
+-          <HStack justifyContent="space-between" alignItems="center" wrap="wrap">
+-            <Text fontSize="lg" fontWeight="semibold">Containers – Weigh-in</Text>
+-            <HStack gap="3" wrap="wrap">
+-              <Tag.Root>
+-                <Tag.Label>
+-                  Weighed total: <FormatNumber value={totalWeighedKg} maximumFractionDigits={2} /> kg
+-                </Tag.Label>
+-              </Tag.Root>
+-              <Tag.Root>
+-                <Tag.Label>
+-                  Min allowed: <FormatNumber value={minAllowedTotal} maximumFractionDigits={2} /> kg
+-                </Tag.Label>
+-              </Tag.Root>
+-
+-              <Tooltip content={Object.keys(weightsDraft).length ? "Save all edited weights" : ""}>
+-                <Button
+-                  onClick={saveWeights}
+-                  colorPalette="green"
+-                  disabled={!Object.keys(weightsDraft).length || savingWeights}
+-                  loading={savingWeights}
+-                >
+-                  Save weights
+-                </Button>
+-              </Tooltip>
+-            </HStack>
+-          </HStack>
+-
+-          <HStack gap="3" wrap="wrap" alignItems="center">
+-            {/* Filter */}
+-            <SegmentGroup.Root
+-              size="sm"
+-              value={qrFilter}
+-              onValueChange={(e) => setQrFilter((e.value as any) ?? "pending")}
+-            >
+-              <SegmentGroup.Indicator />
+-              <SegmentGroup.Items items={["pending", "weighed", "all"]} />
+-            </SegmentGroup.Root>
+-
+-            {/* Size */}
+-            <SegmentGroup.Root
+-              size="sm"
+-              value={qrCardSize}
+-              onValueChange={(e) => setQrCardSize((e.value as any) ?? "md")}
+-            >
+-              <SegmentGroup.Indicator />
+-              <SegmentGroup.Items items={["sm", "md", "lg", "xl"]} />
+-            </SegmentGroup.Root>
+-
+-            <Box flex="1" />
+-
+-            <HStack gap="2" minW={{ base: "full", md: "420px" }} w={{ base: "full", md: "auto" }}>
+-              <Input readOnly value={payload?.farmerOrderQR?.token ?? ""} placeholder="Farmer Order QR token" />
+-              <Button onClick={() => setOpenPreview(true)} variant="subtle">
+-                Show QRs
+-              </Button>
+-            </HStack>
+-          </HStack>
+-
+-          {/* Empty state */}
+-          <Show when={(payload?.containerQrs?.length ?? 0) === 0}>
+-            <EmptyState.Root>
+-              <EmptyState.Content>
+-                <EmptyState.Indicator>
+-                  <LuShoppingCart />
+-                </EmptyState.Indicator>
+-                <VStack textAlign="center">
+-                  <EmptyState.Title>No containers yet</EmptyState.Title>
+-                  <EmptyState.Description>
+-                    Start by creating the number of containers to generate QR labels.
+-                  </EmptyState.Description>
+-                </VStack>
+-                <Box>
+-                  <Button onClick={() => setOpenInit(true)} colorPalette="primary" disabled={!effectiveFoId}>
+-                    Create containers
+-                  </Button>
+-                </Box>
+-              </EmptyState.Content>
+-            </EmptyState.Root>
+-          </Show>
+-
+-          {/* Board view */}
+-          <Show when={(payload?.containerQrs?.length ?? 0) > 0}>
+-            <Tabs.Root value={boardTab} onValueChange={(e) => setBoardTab(e.value as any)}>
+-              <Tabs.List>
+-                <Tabs.Trigger value="cards">Card view</Tabs.Trigger>
+-                <Tabs.Trigger value="table">Table view</Tabs.Trigger>
+-              </Tabs.List>
+-            </Tabs.Root>
+-
+-            {/* Cards */}
+-            <Show when={boardTab === "cards"}>
+-              {(() => {
+-                const qrPx = sizeCfg[qrCardSize].qr
+-                return (
+-                  <SimpleGrid minChildWidth={sizeCfg[qrCardSize].minCard} gap="4">
+-                    {filteredQrs.map((q) => {
+-                      const draft = weightsDraft[q.subjectId]
+-                      const serverWeight =
+-                        (payload?.farmerOrder?.containers ?? []).find((c) => c.containerId === q.subjectId)?.weightKg ?? 0
+-                      const final = draft ?? serverWeight ?? 0
+-                      const hasServerWeight = (serverWeight || 0) > 0
+-                      const done = final > 0
+-                      const edited = draft !== undefined && draft !== serverWeight
+-
+-                      return (
+-                        <Card.Root
+-                          key={q.subjectId}
+-                          variant="elevated"
+-                          _hover={{ shadow: "md" }}
+-                          borderRadius="xl"
+-                          h="full"
+-                          role="group"
+-                          overflow="hidden"
+-                          minW="0"
+-                        >
+-                          <Card.Body gap="3" minW="0">
+-                            {/* Header: id + status */}
+-                            <HStack justifyContent="space-between" alignItems="center" minH="28px" minW="0">
+-                              <Text fontWeight="semibold" fontSize="sm" title={q.subjectId} lineClamp={1} minW="0">
+-                                {q.subjectId}
+-                              </Text>
+-                              <HStack gap="2" flexShrink={0}>
+-                                {edited ? (
+-                                  <Tag.Root colorPalette="yellow" variant="subtle" title="Edited locally; not saved">
+-                                    <Tag.Label>edited</Tag.Label>
+-                                  </Tag.Root>
+-                                ) : null}
+-                                <Tag.Root colorPalette={done ? "green" : hasServerWeight ? "blue" : "gray"} variant="subtle">
+-                                  <Tag.Label>{done ? "set" : hasServerWeight ? "saved" : "pending"}</Tag.Label>
+-                                </Tag.Root>
+-                              </HStack>
+-                            </HStack>
+-
+-                            {/* QR */}
+-                            <Box display="grid" placeItems="center" py="2" bg="bg.subtle" borderRadius="lg">
+-                              <QRCodeCanvas value={q.token} size={qrPx} />
+-                            </Box>
+-
+-                            {/* Token */}
+-                            <MonoToken token={q.token} />
+-
+-                            {/* Controls */}
+-                            <Stack
+-                              direction={{ base: "column", sm: "row" }}
+-                              align={{ base: "stretch", sm: "center" }}
+-                              justify="space-between"
+-                              gap="2"
+-                              minW="0"
+-                            >
+-                              <HStack gap="2" align="center" wrap="wrap" minW="0">
+-                                <InlineWeightEditor
+-                                  value={final}
+-                                  onChange={(kg) =>
+-                                    setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: kg }))
+-                                  }
+-                                />
+-                                <Text color="fg.muted" flexShrink={0}>kg</Text>
+-
+-                                {/* quick bumps */}
+-                                <HStack gap="1" wrap="wrap">
+-                                  {([0.5, 1, 5] as const).map((b) => (
+-                                    <Button
+-                                      key={b}
+-                                      size="xs"
+-                                      variant="outline"
+-                                      onClick={() =>
+-                                        setWeightsDraft((prev) => ({
+-                                          ...prev,
+-                                          [q.subjectId]: round2(Math.max(0, (final || 0) + b)),
+-                                        }))
+-                                      }
+-                                      title={`+${b} kg`}
+-                                    >
+-                                      +{b}
+-                                    </Button>
+-                                  ))}
+-                                  <Button
+-                                    size="xs"
+-                                    variant="ghost"
+-                                    onClick={() =>
+-                                      setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: 0 }))
+-                                    }
+-                                    title="Set to 0"
+-                                  >
+-                                    Reset
+-                                  </Button>
+-                                </HStack>
+-                              </HStack>
+-                            </Stack>
+-                          </Card.Body>
+-                        </Card.Root>
+-                      )
+-                    })}
+-                  </SimpleGrid>
+-                )
+-              })()}
+-            </Show>
+-
+-            {/* Table */}
+-            <Show when={boardTab === "table"}>
+-              <Box overflowX="auto">
+-                <Table.Root size="sm" width="full">
+-                  <Table.Header>
+-                    <Table.Row>
+-                      <Table.ColumnHeader textAlign="start">Container</Table.ColumnHeader>
+-                      <Table.ColumnHeader textAlign="start">QR token</Table.ColumnHeader>
+-                      <Table.ColumnHeader textAlign="end">Weight (kg)</Table.ColumnHeader>
+-                      <Table.ColumnHeader textAlign="end">Status</Table.ColumnHeader>
+-                    </Table.Row>
+-                  </Table.Header>
+-                  <Table.Body>
+-                    {(payload?.farmerOrder?.containers ?? []).map((c) => {
+-                      const draft = weightsDraft[c.containerId]
+-                      const finalWeight = draft ?? c.weightKg ?? 0
+-                      const done = finalWeight > 0
+-                      const token = payload?.containerQrs?.find((x) => x.subjectId === c.containerId)?.token ?? ""
+-                      return (
+-                        <Table.Row key={c.containerId}>
+-                          <Table.Cell>{c.containerId}</Table.Cell>
+-                          <Table.Cell>
+-                            <MonoToken token={token} inline />
+-                          </Table.Cell>
+-                          <Table.Cell textAlign="end">
+-                            <FormatNumber value={finalWeight} maximumFractionDigits={2} />
+-                          </Table.Cell>
+-                          <Table.Cell textAlign="end">
+-                            {done ? <Badge colorPalette="green">set</Badge> : <Badge>pending</Badge>}
+-                          </Table.Cell>
+-                        </Table.Row>
+-                      )
+-                    })}
+-                  </Table.Body>
+-                </Table.Root>
+-              </Box>
+-            </Show>
+-
+-            <Separator />
+-
+-            <Show when={!!underfillWarning}>
+-              <Alert.Root status="warning" title="Under the allowed total">
+-                <Alert.Description asChild>
+-                  <span>{underfillWarning ?? ""}</span>
+-                </Alert.Description>
+-              </Alert.Root>
+-            </Show>
+-          </Show>
+-        </Card.Body>
+-      </Card.Root>
+-
+-      {/* Create containers dialog */}
+-      <Dialog.Root open={openInit} closeOnInteractOutside={false} closeOnEscape={false} onOpenChange={(e) => setOpenInit(e.open)}>
+-        <Portal>
+-          <Dialog.Backdrop />
+-          <Dialog.Positioner>
+-            <Dialog.Content>
+-              <Dialog.Header>
+-                <Dialog.Title>Create containers</Dialog.Title>
+-              </Dialog.Header>
+-              <Dialog.Body>
+-                <Stack gap="4">
+-                  <Text>
+-                    Enter how many containers to add. You can preview and print the QR cards after creation.
+-                  </Text>
+-                  <Field.Root>
+-                    <Field.Label>Number of containers</Field.Label>
+-                    <InlineNumber value={Number(initCount) || 0} onValue={(num) => setInitCount(num)} min={1} max={2000} />
+-                    <Field.HelperText>Max 2000</Field.HelperText>
+-                  </Field.Root>
+-                </Stack>
+-              </Dialog.Body>
+-              <Dialog.Footer>
+-                <Dialog.ActionTrigger asChild>
+-                  <Button variant="outline">Cancel</Button>
+-                </Dialog.ActionTrigger>
+-                <Button colorPalette="primary" onClick={onInitContainers} disabled={loading || Number(initCount) <= 0 || !effectiveFoId}>
+-                  Create & Continue
+-                </Button>
+-              </Dialog.Footer>
+-            </Dialog.Content>
+-          </Dialog.Positioner>
+-        </Portal>
+-      </Dialog.Root>
+-
+-      {/* Preview & Print */}
+-      <Dialog.Root open={openPreview} closeOnInteractOutside={false} closeOnEscape={false} onOpenChange={(e) => setOpenPreview(e.open)}>
+-        <Portal>
+-          <Dialog.Backdrop />
+-          <Dialog.Positioner>
+-            <Dialog.Content
+-              maxW={{ base: "95vw", md: "900px" }}
+-              css={{
+-                "@media print": {
+-                  boxShadow: "none",
+-                  border: "none",
+-                  width: "100%",
+-                  maxWidth: "none",
+-                },
+-              }}
+-            >
+-              <Dialog.Header>
+-                <Dialog.Title>QR Cards – Preview</Dialog.Title>
+-              </Dialog.Header>
+-              <Dialog.Body>
+-                <Stack gap="5">
+-                  {/* meta */}
+-                  <Stack
+-                    direction={{ base: "column", md: "row" }}
+-                    justify="space-between"
+-                    align={{ base: "stretch", md: "flex-start" }}
+-                    gap="4"
+-                  >
+-                    <VStack alignItems="flex-start" gap="2">
+-                      <Text fontWeight="medium">{itemName}</Text>
+-                      <Text color="fg.muted" lineClamp={1} minW="0">FO: {(payload?.farmerOrder?._id ?? effectiveFoId) || "—"}</Text>
+-
+-                      <Wrap gap="2">
+-                        <WrapItem>
+-                          <Tag.Root><Tag.Label>{payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
+-                        </WrapItem>
+-                        <WrapItem>
+-                          <Tag.Root><Tag.Label>{payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
+-                        </WrapItem>
+-                        <WrapItem>
+-                          <Tag.Root><Tag.Label>Deliverer: {assignedName}</Tag.Label></Tag.Root>
+-                        </WrapItem>
+-                      </Wrap>
+-                    </VStack>
+-
+-                    <Wrap gap="2" align="center">
+-                      <WrapItem>
+-                        <Tag.Root>
+-                          <Tag.Label><FormatNumber value={orderedKg} /> kg ordered</Tag.Label>
+-                        </Tag.Root>
+-                      </WrapItem>
+-                      <WrapItem>
+-                        <Tag.Root>
+-                          <Tag.Label>{payload?.containerQrs?.length ?? 0} containers</Tag.Label>
+-                        </Tag.Root>
+-                      </WrapItem>
+-                    </Wrap>
+-                  </Stack>
+-
+-                  <Box display={{ base: "none", md: "block" }}>
+-                    <Text color="fg.muted" fontSize="sm">
+-                      Tip: Printing from desktop ensures consistent label sizing.
+-                    </Text>
+-                  </Box>
+-
+-                  {/* grid */}
+-                  {(() => {
+-                    const qrPx = sizeCfg[qrCardSize].qr
++            )}
++          </Card.Body>
++        </Card.Root>
++
++        <Separator />
++
++        {/* Items */}
++        <Card.Root>
++          <Card.Body p={4}>
++            <Heading size="sm" mb={3}>
++              Items
++            </Heading>
++            <Table.Root>
++              <Table.Header>
++                <Table.Row>
++                  <Table.ColumnHeader>Item</Table.ColumnHeader>
++                  <Table.ColumnHeader>Forecasted (kg)</Table.ColumnHeader>
++                  <Table.ColumnHeader>Final (kg)</Table.ColumnHeader>
++                  <Table.ColumnHeader textAlign="end">Actions</Table.ColumnHeader>
++                </Table.Row>
++              </Table.Header>
++              <Table.Body>
++                {isLoading ? (
++                  <Table.Row>
++                    <Table.Cell colSpan={4}>
++                      <Skeleton height="20px" />
++                    </Table.Cell>
++                  </Table.Row>
++                ) : (
++                  (data?.items || []).map((it) => {
++                    const displayName = `${it.type}${it.variety ? ` ${it.variety}` : ""}`
+                     return (
+-                      <SimpleGrid
+-                        minChildWidth={sizeCfg[qrCardSize].previewMin}
+-                        gap="4"
+-                        css={{ "@media print": { gap: "8px" } }}
+-                      >
+-                        {(payload?.containerQrs ?? []).map((q) => (
+-                          <Card.Root
+-                            key={q.subjectId}
+-                            overflow="hidden"
+-                            minW="0"
+-                            variant="subtle"
+-                            css={{
+-                              breakInside: "avoid",
+-                              "@media print": {
+-                                border: "1px solid",
+-                                borderColor: "var(--chakra-colors-border)",
+-                              },
+-                            }}
++                      <Table.Row key={it.id}>
++                        <Table.Cell>
++                          <HStack>
++                            <Avatar.Root size="sm">
++                              {it.imageUrl ? <Avatar.Image src={it.imageUrl} alt={displayName} /> : null}
++                              <Avatar.Fallback name={displayName} />
++                            </Avatar.Root>
++                            <VStack align="start" gap={0}>
++                              <Text>{displayName}</Text>
++                              {/* Optional subtext */}
++                              {it.farmName || it.farmerName ? (
++                                <Text fontSize="xs" color="fg.muted">
++                                  {it.farmName}
++                                  {it.farmName && it.farmerName ? " · " : ""}
++                                  {it.farmerName}
++                                </Text>
++                              ) : null}
++                            </VStack>
++                          </HStack>
++                        </Table.Cell>
++                        <Table.Cell>{it.forcastedQuantityKg}</Table.Cell>
++                        <Table.Cell>{it.finalQuantityKg ?? "—"}</Table.Cell>
++                        <Table.Cell textAlign="end">
++                          <Link
++                            href={`http://localhost:5173/farmer/farmer-order-report?id=${it.id}`}
++                            color="blue.500"
++                            fontWeight="medium"
+                           >
+-                            <Card.Body gap="2" alignItems="stretch" minW="0">
+-                              <Text fontWeight="semibold" fontSize="sm" lineClamp={1}>{q.subjectId}</Text>
+-                              <Box display="grid" placeItems="center" py="2">
+-                                <QRCodeCanvas value={q.token} size={qrPx} />
+-                              </Box>
+-                              <MonoToken token={q.token} />
+-                            </Card.Body>
+-                          </Card.Root>
+-                        ))}
+-                      </SimpleGrid>
++                            Report
++                          </Link>
++                        </Table.Cell>
++                      </Table.Row>
+                     )
+-                  })()}
+-                </Stack>
+-              </Dialog.Body>
+-              <Dialog.Footer css={{ "@media print": { display: "none" } }}>
+-                <Dialog.ActionTrigger asChild>
+-                  <Button variant="outline">Close</Button>
+-                </Dialog.ActionTrigger>
+-
+-                {/* Silent print (hidden iframe, no focus change) */}
+-                <Button
+-                  variant="subtle"
+-                  onClick={() =>
+-                    printInHiddenFrameQRCards(
+-                      (payload?.containerQrs ?? []).map(q => ({ subjectId: q.subjectId, token: q.token })),
+-                      `Containers for FO ${payload?.farmerOrder?._id ?? ""}`,
+-                      sizeCfg[qrCardSize].qr,
+-                      4
+-                    )
+-                  }
+-                  disabled={!payload?.containerQrs?.length}
+-                >
+-                  Silent Browser Print
+-                </Button>
+-
+-                {/* PDF open in new tab */}
+-                <Button
+-                  colorPalette="primary"
+-                  onClick={() =>
+-                    generatePdfLabels({
+-                      qrs: (payload?.containerQrs ?? []).map(q => ({ subjectId: q.subjectId, token: q.token })),
+-                      title: `Containers for FO ${payload?.farmerOrder?._id ?? ""}`,
+-                      fileBase: `FO-${payload?.farmerOrder?._id ?? "labels"}`,
+-                      cols: 4,
+-                      rows: "auto",
+-                      qrPx: sizeCfg[qrCardSize].qr,
+-                      marginMm: 10,
+-                      gapMm: 4,
+-                      cellPaddingMm: 4,
+-                      meta: {
+-                        itemName,
+-                        date: payload?.farmerOrder?.pickUpDate ?? "",
+-                        shift: payload?.farmerOrder?.shift ?? "",
+-                        deliverer: assignedName,
+-                      },
+-                      openMode: "tab",
+-                    })
+-                  }
+-                  disabled={!payload?.containerQrs?.length}
+-                >
+-                  Open PDF in New Tab
+-                </Button>
+-              </Dialog.Footer>
+-            </Dialog.Content>
+-          </Dialog.Positioner>
+-        </Portal>
+-      </Dialog.Root>
+-
+-      {/* Footer note */}
+-      <VStack alignItems="flex-start" gap="2">
+-        <Text fontSize="sm" color="fg.muted">
+-          When farmer report is complete, advance the pipeline using:
+-        </Text>
+-        <HStack gap="2" wrap="wrap">
+-          <Tag.Root><Tag.Label>PATCH /api/farmer-orders/:id/stage</Tag.Label></Tag.Root>
+-          <Tag.Root><Tag.Label>updateFarmerOrderStageService</Tag.Label></Tag.Root>
+-        </HStack>
+-      </VStack>
+-    </Stack>
++                  })
++                )}
++              </Table.Body>
++            </Table.Root>
++          </Card.Body>
++        </Card.Root>
++      </Stack>
++    </Box>
+   )
+ }
+diff --git a/frontend/src/pages/FarmerOrderReport/services/farmerOrders.mock.ts b/frontend/src/pages/FarmerOrderReport/services/farmerOrders.mock.ts
+index 06bfa22..da679a3 100644
+--- a/frontend/src/pages/FarmerOrderReport/services/farmerOrders.mock.ts
++++ b/frontend/src/pages/FarmerOrderReport/services/farmerOrders.mock.ts
+@@ -15,6 +15,7 @@ export function mockPayload(id: string, containers = 0): PrintPayload {
+     itemId: "66e0item0000000000000001",
+     type: "Tomato",
+     variety: "Cluster",
++    category: "dairy",
+     pictureUrl:
+       "https://images.unsplash.com/photo-1546470427-c5b384e0b66b?q=80&w=420&fit=crop",
+     pickUpDate: "2025-11-07",
+diff --git a/frontend/src/pages/fManager/ItemManager/components/ItemForm.tsx b/frontend/src/pages/fManager/ItemManager/components/ItemForm.tsx
+index 24430dc..a30df07 100644
+--- a/frontend/src/pages/fManager/ItemManager/components/ItemForm.tsx
++++ b/frontend/src/pages/fManager/ItemManager/components/ItemForm.tsx
+@@ -1,4 +1,3 @@
+-// src/pages/items/ItemForm.tsx
+ import { useMemo } from "react";
+ import {
+   Box,
+@@ -24,9 +23,9 @@ import {
+ } from "./form/useItemFormState";
+ import ItemsPackingSection from "./form/sections/itemPacking";
+ import SellModesSection from "./form/sections/sellModeSection";
+-import NonProduceQualitySection, {
+-  type NonProduceQuality,
+-} from "./form/sections/NonProduceQualitySection";
++import DairyQualityStandardsSection, {
++  type DairyQualityStandards,
++} from "@/components/common/items/DairyQualityStandards";
+ 
+ type Props = {
+   defaultValues?: Partial<ItemFormValues>;
+@@ -109,6 +108,12 @@ export default function ItemForm({
+ 
+   const isProduce = isFruitOrVegetable(values.category);
+ 
++  // helper to keep dairy (non-produce) standards only when there's at least one Grade A cell filled
++  const hasAnyDairyA = (qs?: DairyQualityStandards | undefined) => {
++    if (!qs) return false;
++    return Object.values(qs).some((row: any) => !!row?.A && String(row.A).trim().length > 0);
++  };
++
+   return (
+     <form onSubmit={handleSubmit} noValidate>
+       <Stack gap={4}>
+@@ -323,16 +328,15 @@ export default function ItemForm({
+             </Text>
+           </>
+         ) : (
+-          <NonProduceQualitySection
++          <DairyQualityStandardsSection
+             value={
+               (values as any).qualityStandards as
+-                | NonProduceQuality
++                | DairyQualityStandards
+                 | undefined
+             }
+             onChange={(next) => {
+               if (readOnly) return;
+-              const cleaned =
+-                next && next.grade && next.grade.length > 0 ? next : undefined;
++              const cleaned = hasAnyDairyA(next) ? next : undefined;
+               setValues((s) => ({ ...(s as any), qualityStandards: cleaned }));
+             }}
+             readOnly={readOnly}
+diff --git a/frontend/src/pages/fManager/ItemManager/components/form/sections/NonProduceQualitySection.tsx b/frontend/src/pages/fManager/ItemManager/components/form/sections/NonProduceQualitySection.tsx
+deleted file mode 100644
+index 115d303..0000000
+--- a/frontend/src/pages/fManager/ItemManager/components/form/sections/NonProduceQualitySection.tsx
++++ /dev/null
+@@ -1,99 +0,0 @@
+-import { Box, Field, Input, NativeSelect, NumberInput, Text } from "@chakra-ui/react"
+-
+-export type NonProduceQuality = {
+-  /** Enum grade: A | B | C */
+-  grade?: "A" | "B" | "C" | null
+-  /** Shelf-life or freshness in days, min 0 */
+-  freshnessDays?: number | null
+-  /** Fat percentage, 0–100 */
+-  fatPercentage?: number | null
+-}
+-
+-type Props = {
+-  value?: NonProduceQuality | null
+-  onChange: (next?: NonProduceQuality | null) => void
+-  readOnly?: boolean
+-}
+-
+-export default function NonProduceQualitySection({ value, onChange, readOnly }: Props) {
+-  const v = value ?? {}
+-
+-  const set = <K extends keyof NonProduceQuality>(key: K, next: NonProduceQuality[K]) => {
+-    onChange({ ...v, [key]: next })
+-  }
+-
+-  const parseNumber = (raw: string): number | null => {
+-    if (raw.trim() === "") return null
+-    const n = Number(raw)
+-    return Number.isFinite(n) ? n : null
+-  }
+-
+-  return (
+-    <Box bg="bg.panel" p={4} borderRadius="md" borderWidth="1px">
+-      {/* Grade */}
+-      <Field.Root>
+-        <Field.Label>Quality grade</Field.Label>
+-        <NativeSelect.Root disabled={readOnly} width="240px">
+-          <NativeSelect.Field
+-            value={v.grade ?? ""}
+-            onChange={(e) => {
+-              const val = e.target.value as "A" | "B" | "C" | ""
+-              set("grade", val ? val : null)
+-            }}
+-          >
+-            <option value="">Select grade</option>
+-            <option value="A">A</option>
+-            <option value="B">B</option>
+-            <option value="C">C</option>
+-          </NativeSelect.Field>
+-          <NativeSelect.Indicator />
+-        </NativeSelect.Root>
+-        <Text mt="2" fontSize="xs" color="fg.muted">
+-          Choose one of the allowed grades: A, B, or C.
+-        </Text>
+-      </Field.Root>
+-
+-      {/* Freshness (days) */}
+-      <Field.Root mt="4">
+-        <Field.Label>Freshness (days)</Field.Label>
+-        <NumberInput.Root min={0} step={1} width="240px" disabled={readOnly}>
+-          <NumberInput.Control />
+-          <NumberInput.Input
+-            inputMode="numeric"
+-            value={v.freshnessDays ?? ""}
+-            onChange={(e) => {
+-              const n = parseNumber(e.target.value)
+-              set("freshnessDays", n == null ? null : Math.max(0, n))
+-            }}
+-          />
+-        </NumberInput.Root>
+-        <Text mt="2" fontSize="xs" color="fg.muted">
+-          Non-negative number of days.
+-        </Text>
+-      </Field.Root>
+-
+-      {/* Fat percentage */}
+-      <Field.Root mt="4">
+-        <Field.Label>Fat percentage (%)</Field.Label>
+-        <NumberInput.Root min={0} max={100} step={0.1} width="240px" disabled={readOnly}>
+-          <NumberInput.Control />
+-          <NumberInput.Input
+-            inputMode="decimal"
+-            value={v.fatPercentage ?? ""}
+-            onChange={(e) => {
+-              const n = parseNumber(e.target.value)
+-              if (n == null) {
+-                set("fatPercentage", null)
+-              } else {
+-                set("fatPercentage", Math.max(0, Math.min(100, n)))
+-              }
+-            }}
+-          />
+-        </NumberInput.Root>
+-        <Text mt="2" fontSize="xs" color="fg.muted">
+-          Value from 0 to 100.
+-        </Text>
+-      </Field.Root>
+-    </Box>
+-  )
+-}
+diff --git a/frontend/src/pages/farmer/farmerOrdersForShift/index.tsx b/frontend/src/pages/farmer/farmerOrdersForShift/index.tsx
+index 800c67f..6e83217 100644
+--- a/frontend/src/pages/farmer/farmerOrdersForShift/index.tsx
++++ b/frontend/src/pages/farmer/farmerOrdersForShift/index.tsx
+@@ -1,4 +1,3 @@
+-// src/pages/farmer/farmerOrderForShift/index.tsx
+ import * as React from "react"
+ import {
+   Box,
+@@ -19,6 +18,7 @@ import { useLocation, useParams } from "react-router-dom"
+ import { useQuery } from "@tanstack/react-query"
+ import { formatDMY } from "@/utils/date"
+ import { api } from "@/api/config"
++import { fetchShiftWindows } from "@/api/shifts"
+ 
+ /* ===========================
+  * Local types for this page
+@@ -65,34 +65,6 @@ type FarmerViewByShiftResponse = {
+   }>
+ }
+ 
+-export type FarmerOrderForShiftItem = {
+-  id: string
+-  itemId: string
+-  type: string
+-  variety?: string
+-  imageUrl?: string
+-  forcastedQuantityKg: number
+-  finalQuantityKg?: number | null
+-  farmerReportUrl?: string
+-  pickUpTime?: string | null
+-  farmerName?: string
+-  farmName?: string
+-}
+-
+-export type FarmerOrderForShiftPayload = {
+-  date: string
+-  shift: ShiftKey
+-  pickUpTime?: string | null
+-  deliverer?: {
+-    id: string
+-    name: string
+-    phone?: string
+-    vehiclePlate?: string
+-    company?: string
+-  } | null
+-  items: FarmerOrderForShiftItem[]
+-}
+-
+ /* ===========================
+  * API call (farmer view)
+  * baseURL must include /api/v1 in api config.
+@@ -103,7 +75,7 @@ async function fetchFarmerOrderForShift(
+   date: string,
+   shift: ShiftKey,
+   opts?: { signal?: AbortSignal },
+-): Promise<FarmerOrderForShiftPayload> {
++): Promise<FarmerViewByShiftResponse> {
+   const sp = new URLSearchParams()
+   sp.set("date", date)
+   sp.set("shiftName", shift)
+@@ -112,34 +84,47 @@ async function fetchFarmerOrderForShift(
+     signal: opts?.signal,
+   })
+ 
+-  const pickUpTime = data.items.find((it) => it.pickUpTime)?.pickUpTime ?? null
++  return data
++}
+ 
+-  return {
+-    date: data.meta.date,
+-    shift: data.meta.shiftName,
+-    pickUpTime,
+-    deliverer: null, // not provided to farmer in this endpoint
+-    items: data.items.map((it) => ({
+-      id: it.id,
+-      itemId: it.itemId,
+-      type: it.type,
+-      variety: it.variety,
+-      imageUrl: it.imageUrl,
+-      forcastedQuantityKg: it.forcastedQuantityKg,
+-      finalQuantityKg: it.finalQuantityKg ?? null,
+-      farmerReportUrl: undefined,
+-      pickUpTime: it.pickUpTime ?? null,
+-      farmerName: it.farmerName,
+-      farmName: it.farmName,
+-    })),
++/* ===========================
++ * Helpers – countdown
++ * =========================== */
++
++/** Convert minutes since midnight to "HH:mm" */
++function minsToHHmm(mins: number) {
++  const h = Math.floor(mins / 60)
++  const m = mins % 60
++  const pad = (n: number) => String(n).padStart(2, "0")
++  return `${pad(h)}:${pad(m)}`
++}
++
++/** Combine ISO date (YYYY-MM-DD) and "HH:mm" into a Date in the local timezone */
++function combineDateTimeLocal(dateISO: string, hhmm: string): Date {
++  const [h, m] = hhmm.split(":").map((x) => parseInt(x, 10))
++  const d = new Date(dateISO + "T00:00:00")
++  d.setHours(h || 0, m || 0, 0, 0)
++  return d
++}
++
++function formatDuration(ms: number) {
++  const totalSeconds = Math.floor(Math.abs(ms) / 1000)
++  const days = Math.floor(totalSeconds / 86400)
++  const hours = Math.floor((totalSeconds % 86400) / 3600)
++  const minutes = Math.floor((totalSeconds % 3600) / 60)
++  const seconds = totalSeconds % 60
++  const pad = (n: number) => n.toString().padStart(2, "0")
++  if (days > 0) {
++    return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+   }
++  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+ }
+ 
+ /* ===========================
+  * Page
+  * =========================== */
+ export default function FarmerOrderForShift() {
+-  const { state } = useLocation() as { state?: { group?: Partial<FarmerOrderForShiftPayload> } }
++  const { state } = useLocation() as { state?: { group?: Partial<{ date: string; shift: ShiftKey }> } }
+   const params = useParams<{ date: string; shift: ShiftKey }>()
+ 
+   // Resolve params/state for SSR-safe date/shift
+@@ -151,24 +136,91 @@ export default function FarmerOrderForShift() {
+ 
+   const shift = (state?.group?.shift as ShiftKey) || (params.shift as ShiftKey) || "morning"
+ 
+-  const { data, isLoading } = useQuery({
++  const {
++    data,
++    isLoading,
++  } = useQuery({
+     queryKey: ["farmer-order-for-shift", dateISO, shift],
+     queryFn: ({ signal }) => fetchFarmerOrderForShift(dateISO, shift, { signal }),
+-    // Instant paint from navigation state if present, then refetch server truth
+-    initialData: state?.group
+-      ? ({
+-          date: typeof state.group.date === "string" ? state.group.date : dateISO,
+-          shift: (state.group.shift as ShiftKey) || shift,
+-          pickUpTime: state.group.pickUpTime ?? null,
+-          deliverer: null,
+-          items: (state.group.items || []) as FarmerOrderForShiftItem[],
+-        } as FarmerOrderForShiftPayload)
+-      : undefined,
+     refetchOnMount: true,
+     refetchOnWindowFocus: false,
+   })
+ 
+-  const pickupTimeLabel = React.useMemo(() => (data?.pickUpTime ? data.pickUpTime : "TBD"), [data?.pickUpTime])
++  // Derive LC for shift APIs (prefer meta.lc, fallback to first item)
++  const logisticCenterId = React.useMemo(() => {
++    const lc = data?.meta?.lc || data?.items?.[0]?.logisticCenterId || ""
++    // DEBUG: make it clear in console when this value flips truthy
++    if (lc) console.debug("[FarmerOrderForShift] Resolved logisticCenterId:", lc)
++    return lc
++  }, [data?.meta?.lc, data?.items])
++
++  const windowsEnabled = !!logisticCenterId
++
++  // NOTE: If you don't see this being logged, `windowsEnabled` is false (no LC yet)
++  if (!windowsEnabled) {
++    console.debug("[FarmerOrderForShift] Shift windows query disabled (no logisticCenterId yet)")
++  }
++
++  // Fetch all shift windows for LC (to get the official start time of the selected shift)
++  const {
++    data: windows,
++    isLoading: isWindowsLoading,
++  } = useQuery({
++    enabled: windowsEnabled,
++    queryKey: ["shift-windows-all", logisticCenterId],
++    queryFn: async () => {
++      console.debug("[FarmerOrderForShift] Calling fetchShiftWindows for lc:", logisticCenterId)
++      const res = await fetchShiftWindows(logisticCenterId)
++      console.debug("[FarmerOrderForShift] Shift windows loaded:", res)
++      return res
++    },
++    refetchOnMount: true,
++    refetchOnWindowFocus: false,
++  })
++
++  const currentShiftWindow = React.useMemo(() => {
++    if (!windows) return null
++    // windows is an array of { name, timezone, general: { startMin, endMin }, ... }
++    const row = (windows as any[]).find((w) => w.name === shift)
++    return row || null
++  }, [windows, shift])
++
++  // Build target start datetime:
++  // - Preferred: official general.startMin from /shifts/windows/all for this LC + dateISO
++  // - Fallback: API's pickUpTime per item if present (use the first item's pickUpTime)
++  const pickupTimeFromItems = React.useMemo(() => {
++    const it = data?.items?.find((x) => x.pickUpTime)
++    return it?.pickUpTime ?? null
++  }, [data?.items])
++
++  const targetStart = React.useMemo(() => {
++    if (currentShiftWindow?.general?.startMin != null) {
++      const hhmm = minsToHHmm(currentShiftWindow.general.startMin)
++      return combineDateTimeLocal(dateISO, hhmm)
++    }
++    if (pickupTimeFromItems) {
++      return combineDateTimeLocal(dateISO, pickupTimeFromItems)
++    }
++    return combineDateTimeLocal(dateISO, "00:00")
++  }, [currentShiftWindow, dateISO, pickupTimeFromItems])
++
++  const effectivePickupLabel = React.useMemo(() => {
++    if (currentShiftWindow?.general?.startMin != null) {
++      return minsToHHmm(currentShiftWindow.general.startMin)
++    }
++    return pickupTimeFromItems ?? "TBD"
++  }, [currentShiftWindow, pickupTimeFromItems])
++
++  // Live ticking countdown
++  const [now, setNow] = React.useState<Date>(() => new Date())
++  React.useEffect(() => {
++    const id = setInterval(() => setNow(new Date()), 1000)
++    return () => clearInterval(id)
++  }, [])
++
++  const diffMs = React.useMemo(() => targetStart.getTime() - now.getTime(), [targetStart, now])
++  const countdownText = React.useMemo(() => formatDuration(diffMs), [diffMs])
++  const countdownState = diffMs >= 0 ? "upcoming" : "past"
+ 
+   return (
+     <Box p={4}>
+@@ -176,8 +228,25 @@ export default function FarmerOrderForShift() {
+         <VStack align="start" gap={0}>
+           <Heading size="md">Farmer Order For Shift</Heading>
+           <Text color="fg.muted">
+-            {formatDMY(dateISO)} · {shift.charAt(0).toUpperCase() + shift.slice(1)} · Pickup {pickupTimeLabel}
++            {formatDMY(dateISO)} · {shift.charAt(0).toUpperCase() + shift.slice(1)} · Pickup {effectivePickupLabel}
+           </Text>
++
++          {/* Countdown (uses official shift windows when available) */}
++          <HStack mt="1" gap="2" alignItems="center">
++            <Text fontWeight="semibold">Countdown:</Text>
++            {isLoading || (windowsEnabled && isWindowsLoading) ? (
++              <Skeleton height="20px" width="140px" />
++            ) : (
++              <Badge
++                colorPalette={countdownState === "upcoming" ? "green" : "red"}
++                variant="subtle"
++                fontFamily="mono"
++                fontSize="sm"
++              >
++                {countdownState === "upcoming" ? `${countdownText} to start` : `${countdownText} since start`}
++              </Badge>
++            )}
++          </HStack>
+         </VStack>
+ 
+         {/* Deliverer (farmer endpoint doesn’t supply; keep placeholder) */}
+@@ -185,24 +254,8 @@ export default function FarmerOrderForShift() {
+           <Card.Body p={4}>
+             {isLoading ? (
+               <Skeleton height="24px" />
+-            ) : data?.deliverer ? (
+-              <HStack justifyContent="space-between" alignItems="center">
+-                <HStack>
+-                  <Avatar.Root>
+-                    <Avatar.Fallback name={data.deliverer.name} />
+-                  </Avatar.Root>
+-                  <VStack align="start" gap={0}>
+-                    <Text fontWeight="semibold">Assigned deliverer</Text>
+-                    <Text>{data.deliverer.name}</Text>
+-                    <HStack>
+-                      {data.deliverer.phone ? <Badge>{data.deliverer.phone}</Badge> : null}
+-                      {data.deliverer.vehiclePlate ? <Badge>{data.deliverer.vehiclePlate}</Badge> : null}
+-                      {data.deliverer.company ? <Badge>{data.deliverer.company}</Badge> : null}
+-                    </HStack>
+-                  </VStack>
+-                </HStack>
+-              </HStack>
+-            ) : (
++            ) : null}
++            {!isLoading && (
+               <VStack align="start">
+                 <Text fontWeight="semibold">Assigned deliverer</Text>
+                 <Badge colorPalette="gray">Not assigned yet</Badge>
+@@ -235,7 +288,8 @@ export default function FarmerOrderForShift() {
+                       <Skeleton height="20px" />
+                     </Table.Cell>
+                   </Table.Row>
+-                ) : (data?.items || []).map((it) => {
++                ) : (
++                  (data?.items || []).map((it) => {
+                     const displayName = `${it.type}${it.variety ? ` ${it.variety}` : ""}`
+                     return (
+                       <Table.Row key={it.id}>
+@@ -248,9 +302,11 @@ export default function FarmerOrderForShift() {
+                             <VStack align="start" gap={0}>
+                               <Text>{displayName}</Text>
+                               {/* Optional subtext */}
+-                              {(it.farmName || it.farmerName) ? (
++                              {it.farmName || it.farmerName ? (
+                                 <Text fontSize="xs" color="fg.muted">
+-                                  {it.farmName}{it.farmName && it.farmerName ? " · " : ""}{it.farmerName}
++                                  {it.farmName}
++                                  {it.farmName && it.farmerName ? " · " : ""}
++                                  {it.farmerName}
+                                 </Text>
+                               ) : null}
+                             </VStack>
+@@ -259,17 +315,18 @@ export default function FarmerOrderForShift() {
+                         <Table.Cell>{it.forcastedQuantityKg}</Table.Cell>
+                         <Table.Cell>{it.finalQuantityKg ?? "—"}</Table.Cell>
+                         <Table.Cell textAlign="end">
+-                          {it.farmerReportUrl ? (
+-                            <Link href={it.farmerReportUrl} target="_blank" rel="noreferrer">
+-                              Report
+-                            </Link>
+-                          ) : (
+-                            <Text color="fg.muted">Report</Text>
+-                          )}
++                          <Link
++                            href={`http://localhost:5173/farmer/farmer-order-report?id=${it.id}`}
++                            color="blue.500"
++                            fontWeight="medium"
++                          >
++                            Report
++                          </Link>
+                         </Table.Cell>
+                       </Table.Row>
+                     )
+-                  })}
++                  })
++                )}
+               </Table.Body>
+             </Table.Root>
+           </Card.Body>
+diff --git a/frontend/src/routes/AppRoutes.tsx b/frontend/src/routes/AppRoutes.tsx
+index 33b0785..663565b 100644
+--- a/frontend/src/routes/AppRoutes.tsx
++++ b/frontend/src/routes/AppRoutes.tsx
+@@ -1,14 +1,15 @@
+ // src/routes/index.tsx
+ import { Routes, Route, Navigate } from "react-router-dom";
+-import { Suspense, lazy } from "react";
++import { Suspense, lazy, type ReactElement } from "react";
+ import AuthGuard from "@/guards/AuthGuard";
+ import GuestGuard from "@/guards/GuestGuard";
+ import RoleGuard from "@/guards/RoleGuard";
+ import { PATHS } from "./paths";
+ import AppShell from "@/components/layout/AppShell";
+ 
+-
+-// Lazy imports...
++/* =========================
++ * Lazy imports (unchanged)
++ * ========================= */
+ const Home = lazy(() => import("@/pages/Home"));
+ const Login = lazy(() => import("@/pages/Login"));
+ const Register = lazy(() => import("@/pages/Register"));
+@@ -61,30 +62,169 @@ const FarmerOrderReport = lazy(() => import("@/pages/FarmerOrderReport"));
+ const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
+ const QRExample = lazy(() => import("@/pages/QRExample"));
+ 
++/* =========================
++ * Types to keep TS happy
++ * ========================= */
++type Role =
++  | "admin"
++  | "farmer"
++  | "picker"
++  | "deliverer"
++  | "tManager"
++  | "industrialDeliverer"
++  | "fManager"
++  | "csManager"
++  | "opManager";
++
++type RouteItem = {
++  path: string;
++  element: ReactElement;
++  roles?: Role[];       // optional explicit allow list for RoleGuard
++  showHeader?: boolean; // AppShell override
++  showFooter?: boolean; // AppShell override
++};
++
++type RoleRoutes = Record<string, RouteItem[]>;
++
++/* =========================
++ * Route configs (DRY)
++ * ========================= */
++
++// Public (default chrome)
++const PUBLIC_ROUTES: RouteItem[] = [
++  { path: PATHS.home, element: <Home /> },
++  { path: PATHS.notFound, element: <NotFound /> },
++  { path: PATHS.MapExample, element: <MapPickerExamplePage /> },
++  { path: PATHS.QRExample, element: <QRExample /> },
++];
++
++// Public (no footer) – special shell props
++const PUBLIC_NO_FOOTER_ROUTES: RouteItem[] = [
++  // Logistic Center with its own layout props
++  { path: PATHS.logisticCenter, element: <LogisticCenter /> },
++];
++
++// Guest-only
++const GUEST_ROUTES: RouteItem[] = [
++  { path: PATHS.login, element: <Login /> },
++  { path: PATHS.register, element: <Register /> },
++];
++
++// Authenticated customer pages
++const CUSTOMER_ROUTES: RouteItem[] = [
++  { path: PATHS.jobs, element: <AvailabileJobs />, showFooter: true },
++  { path: PATHS.jobApplication, element: <JobApplication />, showFooter: true },
++  { path: PATHS.orders, element: <Orders />, showFooter: true },
++  { path: PATHS.profile, element: <Profile />, showFooter: true },
++  { path: PATHS.market, element: <Market />, showFooter: true },
++
++  // checkout has no footer
++  { path: PATHS.checkout, element: <Checkout />, showFooter: false },
++
++  // deliveryNote has no header
++  { path: PATHS.deliveryNote, element: <DeliveryNote />, showHeader: false },
++];
++
++// Authenticated + role-protected
++const ROLE_ROUTES: RoleRoutes = {
++  // Admin
++  admin: [
++    { path: PATHS.adminDashboard, element: <AdminDashboard /> },
++    { path: PATHS.cropHarvest, element: <CropHarvest /> },
++    { path: PATHS.JobAppReview, element: <JobAppReview /> },
++    { path: PATHS.PackageSizes, element: <PackageSizesPage /> },
++  ],
++
++  // Farmer
++  farmer: [
++    { path: PATHS.FarmerDashboard, element: <FarmerDashboard /> },
++    { path: PATHS.FarmerCropManagement, element: <FarmerCropManagement /> },
++    { path: PATHS.FarmerOrderReport, element: <FarmerOrderReport />, roles: ["farmer", "admin"] },
++    { path: "/farmer/farmerOrderForShift/:date/:shift", element: <FarmerOrderForShift /> },
++  ],
++
++  // Picker
++  picker: [
++    { path: PATHS.pickerDashboard, element: <PickerDashboard /> },
++    { path: PATHS.pickerTask, element: <PickTaskPage /> },
++    { path: PATHS.pickerSchedule, element: <PickerSchedule /> },
++  ],
++
++  // Deliverer
++  deliverer: [
++    { path: PATHS.driverSchedule, element: <DriverSchedule /> },
++  ],
++
++  // OP Manager
++  opManager: [
++    { path: PATHS.PickerTasksPage, element: <PickerTasks />, roles: ["opManager", "admin"] },
++  ],
++
++  // CS Manager
++  csManager: [
++    { path: PATHS.csManagerDashboard, element: <CSManagerDashboard />, roles: ["csManager", "admin"] },
++    { path: PATHS.csManagerOrders, element: <CSManagerOrdersPage />, roles: ["csManager", "admin"] },
++    { path: PATHS.csManagerShiftOrders, element: <CSManagerShiftOrders />, roles: ["csManager", "admin"] },
++  ],
++
++  // F Manager
++  fManager: [
++    { path: PATHS.fManagerDashboard, element: <FManagerDashboard /> },
++    { path: PATHS.fManagerItemManagement, element: <FManagerItemManagement /> },
++    { path: PATHS.fManagerCreateStock, element: <FManagerCreateStock /> },
++    { path: PATHS.fManagerShiftsFarmerOrder, element: <FManagerShiftsFarmerOrder /> },
++    { path: PATHS.fManagerViewFarmerOrders, element: <FManagerViewFarmerOrders /> },
++    { path: PATHS.fManagerViewFarmerList, element: <FManagerViewFarmerList /> },
++    // Keeping your admin ItemsManagment path accessible to fManager as it was unguarded in your file
++    { path: PATHS.ItemsManagment, element: <FManagerItemManagement />, roles: ["fManager"] },
++  ],
++
++  // Worker profile (multi-role)
++  worker: [
++    {
++      path: PATHS.workerProfile,
++      element: <WorkerProfile />,
++      roles: ["farmer", "picker", "deliverer", "tManager", "industrialDeliverer"],
++    },
++  ],
++};
++
++/* =========================
++ * Small render helpers
++ * ========================= */
++const renderSimpleRoutes = (routes: RouteItem[]) =>
++  routes.map(({ path, element }) => <Route key={path} path={path} element={element} />);
++
++const renderRoleProtectedRoutes = () =>
++  Object.entries(ROLE_ROUTES).flatMap(([role, routes]) =>
++    routes.map(({ path, element, roles }) => (
++      <Route
++        key={path}
++        path={path}
++        element={<RoleGuard allow={roles ?? [role as Role]}>{element}</RoleGuard>}
++      />
++    ))
++  );
++
++/* =========================
++ * Router Component
++ * ========================= */
+ export default function AppRoutes() {
+   return (
+     <Suspense fallback={null}>
+       <Routes>
+         {/* --- Public, default chrome --- */}
+-        <Route element={<AppShell />}>
+-          <Route path={PATHS.home} element={<Home />} />
+-          <Route path={PATHS.notFound} element={<NotFound />} />
++        <Route element={<AppShell />}>{renderSimpleRoutes(PUBLIC_ROUTES)}</Route>
+ 
+-          <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
+-          <Route path={PATHS.QRExample} element={< QRExample />} />
+-          <Route path={PATHS.FarmerOrderReport} element={< FarmerOrderReport farmerOrderId="66f2aa000000000000000008" />} />
+-
+-        </Route>
+-
+-        {/* --- Public, no Footer --- */}
++        {/* --- Public, no Footer (special shell props) --- */}
+         <Route element={<AppShell px={0} py={0} maxW="container.md" />}>
+-          <Route path={PATHS.logisticCenter} element={<LogisticCenter />} />
++          {renderSimpleRoutes(PUBLIC_NO_FOOTER_ROUTES)}
+         </Route>
+ 
+         {/* --- Guest-only --- */}
+-        <Route element={<GuestGuard />}>
+-          <Route
+-            element={
++        <Route
++          element={
++            <GuestGuard>
+               <AppShell
+                 px={0}
+                 py={0}
+@@ -92,14 +232,13 @@ export default function AppRoutes() {
+                 showFooter={false}
+                 maxW="100hw"
+               />
+-            }
+-          >
+-            <Route path={PATHS.login} element={<Login />} />
+-            <Route path={PATHS.register} element={<Register />} />
+-          </Route>
++            </GuestGuard>
++          }
++        >
++          {renderSimpleRoutes(GUEST_ROUTES)}
+         </Route>
+ 
+-        {/* --- Authenticated, default chrome --- */}
++        {/* --- Authenticated, default chrome (role-protected inside) --- */}
+         <Route
+           element={
+             <AuthGuard>
+@@ -107,240 +246,32 @@ export default function AppRoutes() {
+             </AuthGuard>
+           }
+         >
+-          {/* --- Admin-only --- */}
+-          <Route
+-            path={PATHS.adminDashboard}
+-            element={
+-              <RoleGuard allow={["admin"]}>
+-                <AdminDashboard />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.JobAppReview}
+-            element={
+-              <RoleGuard allow={["admin", "fManager"]}>
+-                <JobAppReview />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.cropHarvest}
+-            element={
+-              <RoleGuard allow={["admin"]}>
+-                <CropHarvest />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.ItemsManagment}
+-            element={<FManagerItemManagement />}
+-          />
+-
+-          {/* Package sizes */}
+-          <Route
+-            path={PATHS.PackageSizes}
+-            element={
+-              <RoleGuard allow={["admin", "tManager"]}>
+-                <PackageSizesPage />
+-              </RoleGuard>
+-            }
+-          />
+-
+-          {/* Worker routes */}
+-          <Route
+-            path={PATHS.workerProfile}
+-            element={
+-              <RoleGuard
+-                allow={[
+-                  "farmer",
+-                  "picker",
+-                  "deliverer",
+-                  "tManager",
+-                  "industrialDeliverer",
+-                ]}
+-              >
+-                <WorkerProfile />
+-              </RoleGuard>
+-            }
+-          />
+-
+-          {/* Driver-only */}
+-          <Route
+-            path={PATHS.driverSchedule}
+-            element={
+-              <RoleGuard allow={["deliverer"]}>
+-                <DriverSchedule />
+-              </RoleGuard>
+-            }
+-          />
+-
+-          {/* Picker-only */}
+-          <Route
+-            path={PATHS.pickerDashboard}
+-            element={
+-              <RoleGuard allow={["picker"]}>
+-                <PickerDashboard />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.pickerTask}
+-            element={
+-              <RoleGuard allow={["picker"]}>
+-                <PickTaskPage />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.pickerSchedule}
+-            element={
+-              <RoleGuard allow={["picker"]}>
+-                <PickerSchedule />
+-              </RoleGuard>
+-            }
+-          />
+-
+-          {/* Farmer-only */}
+-          <Route
+-            path={PATHS.FarmerDashboard}
+-            element={
+-              <RoleGuard allow={["farmer"]}>
+-                <FarmerDashboard />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path="/farmer/farmerOrderForShift/:date/:shift"
+-            element={
+-              <RoleGuard allow={["farmer"]}>
+-                <FarmerOrderForShift />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.FarmerCropManagement}
+-            element={
+-              <RoleGuard allow={["farmer"]}>
+-                <FarmerCropManagement />
+-              </RoleGuard>
+-            }
+-          />
+-
+-          {/* CS Manager-only */}
+-          <Route
+-            path={PATHS.csManagerDashboard}
+-            element={
+-              <RoleGuard allow={["csManager", "admin"]}>
+-                <CSManagerDashboard />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.csManagerOrders}
+-            element={
+-              <RoleGuard allow={["csManager", "admin"]}>
+-                <CSManagerOrdersPage />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.csManagerShiftOrders}
+-            element={
+-              <RoleGuard allow={["csManager", "admin"]}>
+-                <CSManagerShiftOrders />
+-              </RoleGuard>
+-            }
+-          />
+-
+-          {/* OP Manager-only */}
+-          <Route
+-            path={PATHS.PickerTasksPage}
+-            element={
+-              <RoleGuard allow={["opManager", "admin"]}>
+-                <PickerTasks  />
+-              </RoleGuard>
+-            }
+-          />
+-
+-          {/* F Manager-only */}
+-          <Route
+-            path={PATHS.fManagerDashboard}
+-            element={
+-              <RoleGuard allow={["fManager"]}>
+-                <FManagerDashboard />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.fManagerItemManagement}
+-            element={
+-              <RoleGuard allow={["fManager"]}>
+-                <FManagerItemManagement />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.fManagerCreateStock}
+-            element={
+-              <RoleGuard allow={["fManager"]}>
+-                <FManagerCreateStock />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.fManagerShiftsFarmerOrder}
+-            element={
+-              <RoleGuard allow={["fManager"]}>
+-                <FManagerShiftsFarmerOrder />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.fManagerViewFarmerOrders}
+-            element={
+-              <RoleGuard allow={["fManager"]}>
+-                <FManagerViewFarmerOrders />
+-              </RoleGuard>
+-            }
+-          />
+-          <Route
+-            path={PATHS.fManagerViewFarmerList}
+-            element={
+-              <RoleGuard allow={["fManager"]}>
+-                <FManagerViewFarmerList />
+-              </RoleGuard>
+-            }
+-          />
++          {renderRoleProtectedRoutes()}
+         </Route>
+ 
+-        {/* --- Authenticated, no FOOTER (customer checkout) --- */}
++        {/* --- Authenticated, yes FOOTER (customer pages) --- */}
+         <Route
+           element={
+             <AuthGuard>
+-              <AppShell showFooter={false} maxW="5xl" />
++              <AppShell showFooter={true} />
+             </AuthGuard>
+           }
+         >
+-          <Route path={PATHS.checkout} element={<Checkout />} />
++          {renderSimpleRoutes(CUSTOMER_ROUTES.filter(r => r.showFooter === true))}
+         </Route>
+ 
+-        {/* --- Authenticated, yes FOOTER (customer pages) --- */}
++        {/* --- Authenticated, no FOOTER (customer checkout) --- */}
+         <Route
+           element={
+             <AuthGuard>
+-              <AppShell showFooter={true} />
++              <AppShell showFooter={false} maxW="5xl" />
+             </AuthGuard>
+           }
+         >
+-          <Route path={PATHS.jobs} element={<AvailabileJobs />} />
+-          <Route path={PATHS.jobApplication} element={<JobApplication />} />
+-          <Route path={PATHS.orders} element={<Orders />} />
+-          <Route path={PATHS.profile} element={<Profile />} />
+-          <Route path={PATHS.market} element={<Market />} />
++          {renderSimpleRoutes(CUSTOMER_ROUTES.filter(r => r.showFooter === false))}
+         </Route>
+ 
+-        {/* --- Authenticated, no HEADER --- */}
++        {/* --- Authenticated, no HEADER (delivery note) --- */}
+         <Route
+           element={
+             <AuthGuard>
+@@ -348,7 +279,7 @@ export default function AppRoutes() {
+             </AuthGuard>
+           }
+         >
+-          <Route path={PATHS.deliveryNote} element={<DeliveryNote />} />
++          {renderSimpleRoutes(CUSTOMER_ROUTES.filter(r => r.showHeader === false))}
+         </Route>
+ 
+         {/* Fallback */}

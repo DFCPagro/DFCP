@@ -1,20 +1,22 @@
 #!/usr/bin/env ts-node
 /**
  * Cross-platform single-node Replica Set bootstrap (ALWAYS on port 27017)
- * - If *anything* is listening on 27017, kill it, then start a fresh mongod
- * - Windows/macOS/Linux supported
+ * - Frees 27017 (kills listeners)
+ * - Forces Mongo's Unix socket into a user-owned dir (avoids /tmp permission issues)
+ * - If startup still fails, retries once with Unix domain sockets disabled
  *
  * ENV (optional):
- *   MONGOD_BIN     Full path to mongod binary (e.g. C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe)
- *   MONGO_DATA_DIR Data dir for this RS (default: <repo>/data/mongo/rs0)
+ *   MONGOD_BIN     Full path to mongod binary
+ *   MONGO_DATA_DIR Data dir (default: <repo>/data/mongo/rs0)
  *   MONGO_RS       Replica set name (default: rs0)
- *   MONGO_DB       DB name to append to the printed URI (default: yourdb)
+ *   MONGO_DB       DB name in URI (default: yourdb)
  */
 
 import { spawn, spawnSync } from "child_process";
 import net from "net";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { MongoClient } from "mongodb";
 
 // ---------- Config & Paths ----------
@@ -26,13 +28,14 @@ const DATA_DIR = (
 ).trim();
 const PID_FILE = path.join(DATA_DIR, "mongod.pid");
 const LOG_FILE = path.join(DATA_DIR, "mongod.log");
-const PORT = 27017; // <— always use the default MongoDB port
+const PORT = 27017;
+const SOCK_DIR = path.join(DATA_DIR, "sock"); // force sockets here (never /tmp)
+const NO_SOCK_CONF = path.join(DATA_DIR, "mongod-nosock.conf");
 
 // ---------- Resolve mongod binary ----------
 function stripQuotes(s: string) {
   return s.replace(/^[“"']?(.*?)[”"']?$/, "$1");
 }
-
 function resolveMongodBin(): string {
   const hint = process.env.MONGOD_BIN?.trim();
   if (hint) {
@@ -40,32 +43,20 @@ function resolveMongodBin(): string {
     if (fs.existsSync(cleaned)) return cleaned;
     throw new Error(`MONGOD_BIN was set but file not found: ${cleaned}`);
   }
-
   if (process.platform === "win32") {
     const res = spawnSync("where", ["mongod"], { encoding: "utf8" });
     if (res.status === 0) {
-      const candidates = res.stdout
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const exe =
-        candidates.find((c) => c.toLowerCase().endsWith("mongod.exe")) ||
-        candidates[0];
+      const exe = res.stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0];
       if (exe && fs.existsSync(exe)) return exe;
     }
     const common = [
       "C:\\Program Files\\MongoDB\\Server\\8.0\\bin\\mongod.exe",
       "C:\\Program Files\\MongoDB\\Server\\7.0\\bin\\mongod.exe",
       "C:\\Program Files\\MongoDB\\Server\\6.0\\bin\\mongod.exe",
-      "C:\\Program Files\\MongoDB\\bin\\mongod.exe",
-      "C:\\ProgramData\\chocolatey\\bin\\mongod.exe",
     ];
     for (const p of common) if (fs.existsSync(p)) return p;
-    throw new Error(
-      "Could not locate mongod.exe. Install MongoDB Community Server, or set MONGOD_BIN to the full path (no quotes)."
-    );
+    return "mongod.exe";
   }
-
   const which = spawnSync("which", ["mongod"], { encoding: "utf8" });
   if (which.status === 0) {
     const p = which.stdout.trim();
@@ -73,72 +64,48 @@ function resolveMongodBin(): string {
   }
   return "mongod";
 }
-
 const MONGOD_BIN = resolveMongodBin();
 
 // ---------- Small utils ----------
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
-}
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 async function portInUse(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = net.createConnection({ port, host: "127.0.0.1" });
-    socket.once("connect", () => {
-      socket.end();
-      resolve(true);
-    });
+    socket.once("connect", () => { socket.end(); resolve(true); });
     socket.once("error", () => resolve(false));
   });
 }
 
-// Find PID that is LISTENING on a TCP port (best-effort, cross-platform)
+function sh(cmd: string, args: string[], opts: any = {}) {
+  return spawnSync(cmd, args, { encoding: "utf8", ...opts });
+}
+
+// Find PID that is LISTENING on a TCP port (best-effort)
 function findPidByPortSync(port: number): number | null {
   try {
     if (process.platform === "win32") {
-      // netstat -ano | findstr :27017
-      const res = spawnSync("cmd", ["/c", `netstat -ano | findstr :${port}`], {
-        encoding: "utf8",
-      });
+      const res = sh("cmd", ["/c", `netstat -ano | findstr :${port}`]);
       if (res.status === 0 && res.stdout) {
-        const lines = res.stdout
-          .split(/\r?\n/)
-          .map((l) => l.trim())
-          .filter(Boolean);
-        // pick a LISTENING line first; fallback to the last column PID on any match
-        const listening =
-          lines.find((l) => /\bLISTENING\b/i.test(l)) ?? lines[0];
-        if (listening) {
-          const parts = listening.split(/\s+/);
+        const line = res.stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean)[0];
+        if (line) {
+          const parts = line.split(/\s+/);
           const pid = Number(parts[parts.length - 1]);
           return Number.isFinite(pid) ? pid : null;
         }
       }
     } else {
-      // Prefer lsof: lsof -iTCP:27017 -sTCP:LISTEN -Pn -t
-      let res = spawnSync(
-        "lsof",
-        ["-iTCP:" + port, "-sTCP:LISTEN", "-Pn", "-t"],
-        { encoding: "utf8" }
-      );
+      // lsof is nicest if present
+      let res = sh("lsof", ["-iTCP:" + port, "-sTCP:LISTEN", "-Pn", "-t"]);
       if (res.status === 0 && res.stdout.trim()) {
         const pid = Number(res.stdout.trim().split(/\s+/)[0]);
         if (Number.isFinite(pid)) return pid;
       }
-      // Fallback to netstat (Linux/older macOS):
-      // netstat -lpn | grep :27017   (note: -p requires sudo on some systems; we parse if available)
-      res = spawnSync(
-        "bash",
-        ["-lc", `netstat -lpn 2>/dev/null | grep :${port} || true`],
-        { encoding: "utf8" }
-      );
+      // Fallback to netstat
+      res = sh("bash", ["-lc", `netstat -lpn 2>/dev/null | grep :${port} || true`]);
       if (res.status === 0 && res.stdout) {
-        const line = res.stdout
-          .split(/\n/)
-          .map((l) => l.trim())
-          .filter(Boolean)[0];
+        const line = res.stdout.split(/\n/).map(l => l.trim()).filter(Boolean)[0];
         if (line) {
-          // format example: tcp 0 0 127.0.0.1:27017 0.0.0.0:* LISTEN 12345/mongod
           const m = line.match(/\bLISTEN\b.*?(\d+)\/[^\s]+$/);
           if (m) {
             const pid = Number(m[1]);
@@ -147,49 +114,43 @@ function findPidByPortSync(port: number): number | null {
         }
       }
     }
-  } catch {
-    /* ignore */
-  }
+  } catch {}
   return null;
 }
 
 async function killPidGracefully(pid: number) {
   if (!pid || pid <= 0) return;
-
   if (process.platform === "win32") {
-    // Try a graceful close then force
-    spawnSync("taskkill", ["/PID", String(pid), "/T"], { stdio: "ignore" });
-    // give it a moment
+    sh("taskkill", ["/PID", String(pid), "/T"]);
     for (let i = 0; i < 10; i++) {
       await sleep(200);
-      const chk = spawnSync("tasklist", ["/FI", `PID eq ${pid}`], {
-        encoding: "utf8",
-      });
+      const chk = sh("tasklist", ["/FI", `PID eq ${pid}`]);
       if (!chk.stdout || !chk.stdout.includes(String(pid))) return;
     }
-    spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
-      stdio: "ignore",
-    });
+    sh("taskkill", ["/PID", String(pid), "/T", "/F"]);
   } else {
-    try {
-      process.kill(pid, "SIGTERM");
-    } catch {
-      /* ignore */
-    }
-    // wait up to ~2s
+    try { process.kill(pid, "SIGTERM"); } catch {}
     for (let i = 0; i < 10; i++) {
       await sleep(200);
-      try {
-        process.kill(pid, 0);
-      } catch {
-        return;
-      } // no longer running
+      try { process.kill(pid, 0); } catch { return; }
     }
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      /* ignore */
-    }
+    try { process.kill(pid, "SIGKILL"); } catch {}
+  }
+}
+
+function rmIfExists(p: string) {
+  try { fs.unlinkSync(p); } catch {}
+}
+
+function canWrite(dir: string): boolean {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const test = path.join(dir, `.touch-${process.pid}-${Date.now()}`);
+    fs.writeFileSync(test, "ok");
+    fs.unlinkSync(test);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -200,10 +161,7 @@ async function ensurePortFree(port: number) {
     const ownPid = Number(txt);
     if (Number.isFinite(ownPid)) {
       await killPidGracefully(ownPid);
-      // remove stale pidfile
-      try {
-        fs.unlinkSync(PID_FILE);
-      } catch {}
+      rmIfExists(PID_FILE);
     }
   }
 
@@ -211,53 +169,73 @@ async function ensurePortFree(port: number) {
   if (await portInUse(port)) {
     const pid = findPidByPortSync(port);
     if (pid) {
-      console.log(
-        `⚠️  Port ${port} is in use by PID ${pid}. Terminating it...`
-      );
+      console.log(`⚠️  Port ${port} is in use by PID ${pid}. Terminating it...`);
       await killPidGracefully(pid);
     } else {
-      console.log(
-        `⚠️  Port ${port} is in use by an unknown PID. Attempting to proceed after delay...`
-      );
+      console.log(`⚠️  Port ${port} is in use by an unknown PID. Waiting...`);
     }
 
-    // Wait for the port to be released
     const t0 = Date.now();
     while (await portInUse(port)) {
-      if (Date.now() - t0 > 10_000) {
-        throw new Error(
-          `Could not free port ${port}. Please close the process using it and retry.`
-        );
+      if (Date.now() - t0 > 15_000) {
+        throw new Error(`Could not free port ${port}. Close the process using it and retry.`);
       }
       await sleep(200);
     }
   }
 }
 
-// ---------- Start mongod ----------
-async function startMongod(port: number): Promise<number> {
+function ensureDataDirWritable() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(SOCK_DIR, { recursive: true });
 
+  // Make sure it’s writable by the current user
+  if (!canWrite(DATA_DIR)) {
+    // Best effort: relax perms for user; chown needs sudo so we only chmod here
+    try { fs.chmodSync(DATA_DIR, 0o700); } catch {}
+    if (!canWrite(DATA_DIR)) {
+      throw new Error(`Data dir not writable: ${DATA_DIR}`);
+    }
+  }
   // Ensure the log file exists
-  try {
-    fs.closeSync(fs.openSync(LOG_FILE, "a"));
-  } catch {}
+  try { fs.closeSync(fs.openSync(LOG_FILE, "a")); } catch {}
+}
 
+function buildArgsBase(useUnixSockets: boolean, useConfig: string | null): string[] {
   const args = [
-    "--replSet",
-    RS_NAME,
-    "--bind_ip",
-    "127.0.0.1",
-    "--port",
-    String(port),
-    "--dbpath",
-    DATA_DIR,
-    "--logpath",
-    LOG_FILE,
+    "--replSet", RS_NAME,
+    "--bind_ip", "127.0.0.1",
+    "--port", String(PORT),
+    "--dbpath", DATA_DIR,
+    "--logpath", LOG_FILE,
     "--logappend",
-    "--pidfilepath",
-    PID_FILE, // <— let mongod manage a real PID file
+    "--pidfilepath", PID_FILE,
   ];
+  if (useConfig) {
+    args.unshift("--config", useConfig);
+  }
+  if (useUnixSockets && process.platform !== "win32") {
+    // Always force Mongo’s Unix socket into our user-controlled dir
+    args.push("--unixSocketPrefix", SOCK_DIR);
+  }
+  return args;
+}
+
+function writeNoSockConfig() {
+  const yaml = [
+    "net:",
+    "  unixDomainSocket:",
+    "    enabled: false",
+    "", // newline at end
+  ].join("\n");
+  fs.writeFileSync(NO_SOCK_CONF, yaml);
+}
+
+async function startMongodOnce({ useUnixSockets, useNoSockConfig }:
+  { useUnixSockets: boolean; useNoSockConfig: boolean; }): Promise<number> {
+
+  const configPath = useNoSockConfig ? NO_SOCK_CONF : null;
+  const args = buildArgsBase(useUnixSockets, configPath);
 
   const child = spawn(MONGOD_BIN, args, {
     detached: true,
@@ -266,39 +244,28 @@ async function startMongod(port: number): Promise<number> {
   });
 
   if (!child.pid) {
-    throw new Error("Failed to spawn mongod. Check your MONGOD_BIN or PATH.");
+    throw new Error("Failed to spawn mongod. Check MONGOD_BIN or PATH.");
   }
-
   child.unref();
 
-  // Wait up to 12s for the port to open
+  // Wait up to 20s for the port to open
   const start = Date.now();
-  while (!(await portInUse(port))) {
-    if (Date.now() - start > 12_000) {
-      throw new Error(
-        `mongod did not open port ${port} in time. See log: ${LOG_FILE}`
-      );
+  while (!(await portInUse(PORT))) {
+    if (Date.now() - start > 20_000) {
+      throw new Error(`mongod did not open port ${PORT} in time. See log: ${LOG_FILE}`);
     }
     await sleep(200);
   }
 
-  // Prefer PID from pidfile (more accurate on Windows due to detached spawn)
   try {
     const pf = fs.readFileSync(PID_FILE, "utf8").trim();
     const realPid = Number(pf);
     if (Number.isFinite(realPid)) return realPid;
-  } catch {
-    /* ignore */
-  }
-
+  } catch {}
   return child.pid!;
 }
 
-// ---------- Ensure replica set initiated ----------
-async function ensureReplicaSet(
-  baseUri: string,
-  port: number
-): Promise<"initiated" | "already"> {
+async function ensureReplicaSet(baseUri: string, port: number): Promise<"initiated" | "already"> {
   const client = new MongoClient(baseUri, { directConnection: true });
   try {
     await client.connect();
@@ -318,36 +285,42 @@ async function ensureReplicaSet(
       },
     });
 
-    const start = Date.now();
-    while (true) {
+    const t0 = Date.now();
+    for (;;) {
       try {
         const status = await admin.command({ replSetGetStatus: 1 });
-        const primary = (status.members || []).find(
-          (m: any) => m.stateStr === "PRIMARY"
-        );
+        const primary = (status.members || []).find((m: any) => m.stateStr === "PRIMARY");
         if (primary) break;
-      } catch {
-        /* keep polling */
-      }
-      if (Date.now() - start > 20_000) {
+      } catch {}
+      if (Date.now() - t0 > 20_000) {
         throw new Error("Replica set did not become PRIMARY in time.");
       }
       await sleep(500);
     }
-
     return "initiated";
   } finally {
     await client.close().catch(() => {});
   }
 }
 
+function tailLogHint(lines = 60) {
+  try {
+    const txt = fs.readFileSync(LOG_FILE, "utf8");
+    const tail = txt.split(/\r?\n/).slice(-lines).join("\n");
+    console.error("\n--- mongod.log (tail) ---\n" + tail + "\n-------------------------\n");
+  } catch {}
+}
+
 // ---------- Main ----------
 async function main() {
   console.log(`🔎 Using mongod: ${MONGOD_BIN}`);
   console.log(`📁 Data dir    : ${DATA_DIR}`);
+  console.log(`📎 Socket dir  : ${SOCK_DIR} (forcing unix sockets here)`);
   console.log(`📝 Log file    : ${LOG_FILE}`);
   console.log(`🧩 RS name     : ${RS_NAME}`);
   console.log(`🔌 Port        : ${PORT}`);
+
+  ensureDataDirWritable();
 
   // Always free the default port before starting
   await ensurePortFree(PORT);
@@ -355,22 +328,44 @@ async function main() {
   const baseUri = `mongodb://127.0.0.1:${PORT}`;
   const rsUri = `${baseUri}/${DB_NAME}?replicaSet=${RS_NAME}`;
 
-  const pid = await startMongod(PORT);
-  console.log(`▶️  Started mongod (pid ${pid})`);
+  // First attempt: use Unix sockets, but in our own dir (never /tmp)
+  try {
+    const pid = await startMongodOnce({ useUnixSockets: true, useNoSockConfig: false });
+    console.log(`▶️  Started mongod (pid ${pid})`);
+    const rsState = await ensureReplicaSet(baseUri, PORT);
+    console.log(rsState === "initiated" ? "✅ Replica set initiated" : "✅ Replica set already configured");
+    console.log("\n🔗 Add this to your .env:");
+    console.log(`MONGODB_URI=${rsUri}\n`);
+    return;
+  } catch (e: any) {
+    console.warn(`⚠️  First start attempt failed: ${e?.message || e}`);
+    tailLogHint(60);
+  }
 
-  const rsState = await ensureReplicaSet(baseUri, PORT);
-  console.log(
-    rsState === "initiated"
-      ? "✅ Replica set initiated"
-      : "✅ Replica set already configured"
-  );
-
-  console.log("\n🔗 Add this to your .env:");
-  console.log(`MONGODB_URI=${rsUri}\n`);
+  // If first attempt failed, retry once with unix sockets disabled entirely
+  try {
+    console.log("🔁 Retrying with Unix domain sockets DISABLED…");
+    writeNoSockConfig();
+    rmIfExists(PID_FILE);
+    await ensurePortFree(PORT);
+    const pid = await startMongodOnce({ useUnixSockets: false, useNoSockConfig: true });
+    console.log(`▶️  Started mongod (pid ${pid}) [no unix socket]`);
+    const rsState = await ensureReplicaSet(baseUri, PORT);
+    console.log(rsState === "initiated" ? "✅ Replica set initiated" : "✅ Replica set already configured");
+    console.log("\n🔗 Add this to your .env:");
+    console.log(`MONGODB_URI=${rsUri}\n`);
+    return;
+  } catch (e: any) {
+    console.error("❌ setup-rs failed (retry also failed):", e?.message || e);
+    tailLogHint(120);
+    console.error(`   Check log file at: ${LOG_FILE}`);
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
-  console.error("❌ setup-rs failed:", err?.message || err);
+  console.error("❌ setup-rs failed (uncaught):", err?.message || err);
+  tailLogHint(120);
   console.error(`   Check log file at: ${LOG_FILE}`);
   process.exit(1);
 });

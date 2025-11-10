@@ -48,6 +48,7 @@ export async function fetchNextShifts(
  * Each item includes the normalized windows for general, deliverer, etc.
  */
 export async function fetchShiftWindows(logisticCenterId: string) {
+  console.log("hiiii")
   const res = await api.get("/shifts/windows/all", {
     params: { lc: logisticCenterId },
   });

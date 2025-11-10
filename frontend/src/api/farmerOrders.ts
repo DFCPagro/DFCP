@@ -333,6 +333,7 @@ export type FarmerOrder = {
   pictureUrl?: string;
   pickUpDate: string;
   shift: ShiftName;
+  category: string;
   farmerName: string;
   farmName: string;
   farmerId: string;

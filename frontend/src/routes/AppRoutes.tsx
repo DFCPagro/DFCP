@@ -1,14 +1,15 @@
 // src/routes/index.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, type ReactElement } from "react";
 import AuthGuard from "@/guards/AuthGuard";
 import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
 
-
-// Lazy imports...
+/* =========================
+ * Lazy imports (unchanged)
+ * ========================= */
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
@@ -61,30 +62,169 @@ const FarmerOrderReport = lazy(() => import("@/pages/FarmerOrderReport"));
 const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
 const QRExample = lazy(() => import("@/pages/QRExample"));
 
+/* =========================
+ * Types to keep TS happy
+ * ========================= */
+type Role =
+  | "admin"
+  | "farmer"
+  | "picker"
+  | "deliverer"
+  | "tManager"
+  | "industrialDeliverer"
+  | "fManager"
+  | "csManager"
+  | "opManager";
+
+type RouteItem = {
+  path: string;
+  element: ReactElement;
+  roles?: Role[];       // optional explicit allow list for RoleGuard
+  showHeader?: boolean; // AppShell override
+  showFooter?: boolean; // AppShell override
+};
+
+type RoleRoutes = Record<string, RouteItem[]>;
+
+/* =========================
+ * Route configs (DRY)
+ * ========================= */
+
+// Public (default chrome)
+const PUBLIC_ROUTES: RouteItem[] = [
+  { path: PATHS.home, element: <Home /> },
+  { path: PATHS.notFound, element: <NotFound /> },
+  { path: PATHS.MapExample, element: <MapPickerExamplePage /> },
+  { path: PATHS.QRExample, element: <QRExample /> },
+];
+
+// Public (no footer) – special shell props
+const PUBLIC_NO_FOOTER_ROUTES: RouteItem[] = [
+  // Logistic Center with its own layout props
+  { path: PATHS.logisticCenter, element: <LogisticCenter /> },
+];
+
+// Guest-only
+const GUEST_ROUTES: RouteItem[] = [
+  { path: PATHS.login, element: <Login /> },
+  { path: PATHS.register, element: <Register /> },
+];
+
+// Authenticated customer pages
+const CUSTOMER_ROUTES: RouteItem[] = [
+  { path: PATHS.jobs, element: <AvailabileJobs />, showFooter: true },
+  { path: PATHS.jobApplication, element: <JobApplication />, showFooter: true },
+  { path: PATHS.orders, element: <Orders />, showFooter: true },
+  { path: PATHS.profile, element: <Profile />, showFooter: true },
+  { path: PATHS.market, element: <Market />, showFooter: true },
+
+  // checkout has no footer
+  { path: PATHS.checkout, element: <Checkout />, showFooter: false },
+
+  // deliveryNote has no header
+  { path: PATHS.deliveryNote, element: <DeliveryNote />, showHeader: false },
+];
+
+// Authenticated + role-protected
+const ROLE_ROUTES: RoleRoutes = {
+  // Admin
+  admin: [
+    { path: PATHS.adminDashboard, element: <AdminDashboard /> },
+    { path: PATHS.cropHarvest, element: <CropHarvest /> },
+    { path: PATHS.JobAppReview, element: <JobAppReview /> },
+    { path: PATHS.PackageSizes, element: <PackageSizesPage /> },
+  ],
+
+  // Farmer
+  farmer: [
+    { path: PATHS.FarmerDashboard, element: <FarmerDashboard /> },
+    { path: PATHS.FarmerCropManagement, element: <FarmerCropManagement /> },
+    { path: PATHS.FarmerOrderReport, element: <FarmerOrderReport />, roles: ["farmer", "admin"] },
+    { path: "/farmer/farmerOrderForShift/:date/:shift", element: <FarmerOrderForShift /> },
+  ],
+
+  // Picker
+  picker: [
+    { path: PATHS.pickerDashboard, element: <PickerDashboard /> },
+    { path: PATHS.pickerTask, element: <PickTaskPage /> },
+    { path: PATHS.pickerSchedule, element: <PickerSchedule /> },
+  ],
+
+  // Deliverer
+  deliverer: [
+    { path: PATHS.driverSchedule, element: <DriverSchedule /> },
+  ],
+
+  // OP Manager
+  opManager: [
+    { path: PATHS.PickerTasksPage, element: <PickerTasks />, roles: ["opManager", "admin"] },
+  ],
+
+  // CS Manager
+  csManager: [
+    { path: PATHS.csManagerDashboard, element: <CSManagerDashboard />, roles: ["csManager", "admin"] },
+    { path: PATHS.csManagerOrders, element: <CSManagerOrdersPage />, roles: ["csManager", "admin"] },
+    { path: PATHS.csManagerShiftOrders, element: <CSManagerShiftOrders />, roles: ["csManager", "admin"] },
+  ],
+
+  // F Manager
+  fManager: [
+    { path: PATHS.fManagerDashboard, element: <FManagerDashboard /> },
+    { path: PATHS.fManagerItemManagement, element: <FManagerItemManagement /> },
+    { path: PATHS.fManagerCreateStock, element: <FManagerCreateStock /> },
+    { path: PATHS.fManagerShiftsFarmerOrder, element: <FManagerShiftsFarmerOrder /> },
+    { path: PATHS.fManagerViewFarmerOrders, element: <FManagerViewFarmerOrders /> },
+    { path: PATHS.fManagerViewFarmerList, element: <FManagerViewFarmerList /> },
+    // Keeping your admin ItemsManagment path accessible to fManager as it was unguarded in your file
+    { path: PATHS.ItemsManagment, element: <FManagerItemManagement />, roles: ["fManager"] },
+  ],
+
+  // Worker profile (multi-role)
+  worker: [
+    {
+      path: PATHS.workerProfile,
+      element: <WorkerProfile />,
+      roles: ["farmer", "picker", "deliverer", "tManager", "industrialDeliverer"],
+    },
+  ],
+};
+
+/* =========================
+ * Small render helpers
+ * ========================= */
+const renderSimpleRoutes = (routes: RouteItem[]) =>
+  routes.map(({ path, element }) => <Route key={path} path={path} element={element} />);
+
+const renderRoleProtectedRoutes = () =>
+  Object.entries(ROLE_ROUTES).flatMap(([role, routes]) =>
+    routes.map(({ path, element, roles }) => (
+      <Route
+        key={path}
+        path={path}
+        element={<RoleGuard allow={roles ?? [role as Role]}>{element}</RoleGuard>}
+      />
+    ))
+  );
+
+/* =========================
+ * Router Component
+ * ========================= */
 export default function AppRoutes() {
   return (
     <Suspense fallback={null}>
       <Routes>
         {/* --- Public, default chrome --- */}
-        <Route element={<AppShell />}>
-          <Route path={PATHS.home} element={<Home />} />
-          <Route path={PATHS.notFound} element={<NotFound />} />
+        <Route element={<AppShell />}>{renderSimpleRoutes(PUBLIC_ROUTES)}</Route>
 
-          <Route path={PATHS.MapExample} element={< MapPickerExamplePage />} />
-          <Route path={PATHS.QRExample} element={< QRExample />} />
-          <Route path={PATHS.FarmerOrderReport} element={< FarmerOrderReport farmerOrderId="66f2aa000000000000000008" />} />
-
-        </Route>
-
-        {/* --- Public, no Footer --- */}
+        {/* --- Public, no Footer (special shell props) --- */}
         <Route element={<AppShell px={0} py={0} maxW="container.md" />}>
-          <Route path={PATHS.logisticCenter} element={<LogisticCenter />} />
+          {renderSimpleRoutes(PUBLIC_NO_FOOTER_ROUTES)}
         </Route>
 
         {/* --- Guest-only --- */}
-        <Route element={<GuestGuard />}>
-          <Route
-            element={
+        <Route
+          element={
+            <GuestGuard>
               <AppShell
                 px={0}
                 py={0}
@@ -92,14 +232,13 @@ export default function AppRoutes() {
                 showFooter={false}
                 maxW="100hw"
               />
-            }
-          >
-            <Route path={PATHS.login} element={<Login />} />
-            <Route path={PATHS.register} element={<Register />} />
-          </Route>
+            </GuestGuard>
+          }
+        >
+          {renderSimpleRoutes(GUEST_ROUTES)}
         </Route>
 
-        {/* --- Authenticated, default chrome --- */}
+        {/* --- Authenticated, default chrome (role-protected inside) --- */}
         <Route
           element={
             <AuthGuard>
@@ -107,222 +246,7 @@ export default function AppRoutes() {
             </AuthGuard>
           }
         >
-          {/* --- Admin-only --- */}
-          <Route
-            path={PATHS.adminDashboard}
-            element={
-              <RoleGuard allow={["admin"]}>
-                <AdminDashboard />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.JobAppReview}
-            element={
-              <RoleGuard allow={["admin", "fManager"]}>
-                <JobAppReview />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.cropHarvest}
-            element={
-              <RoleGuard allow={["admin"]}>
-                <CropHarvest />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.ItemsManagment}
-            element={<FManagerItemManagement />}
-          />
-
-          {/* Package sizes */}
-          <Route
-            path={PATHS.PackageSizes}
-            element={
-              <RoleGuard allow={["admin", "tManager"]}>
-                <PackageSizesPage />
-              </RoleGuard>
-            }
-          />
-
-          {/* Worker routes */}
-          <Route
-            path={PATHS.workerProfile}
-            element={
-              <RoleGuard
-                allow={[
-                  "farmer",
-                  "picker",
-                  "deliverer",
-                  "tManager",
-                  "industrialDeliverer",
-                ]}
-              >
-                <WorkerProfile />
-              </RoleGuard>
-            }
-          />
-
-          {/* Driver-only */}
-          <Route
-            path={PATHS.driverSchedule}
-            element={
-              <RoleGuard allow={["deliverer"]}>
-                <DriverSchedule />
-              </RoleGuard>
-            }
-          />
-
-          {/* Picker-only */}
-          <Route
-            path={PATHS.pickerDashboard}
-            element={
-              <RoleGuard allow={["picker"]}>
-                <PickerDashboard />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.pickerTask}
-            element={
-              <RoleGuard allow={["picker"]}>
-                <PickTaskPage />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.pickerSchedule}
-            element={
-              <RoleGuard allow={["picker"]}>
-                <PickerSchedule />
-              </RoleGuard>
-            }
-          />
-
-          {/* Farmer-only */}
-          <Route
-            path={PATHS.FarmerDashboard}
-            element={
-              <RoleGuard allow={["farmer"]}>
-                <FarmerDashboard />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="/farmer/farmerOrderForShift/:date/:shift"
-            element={
-              <RoleGuard allow={["farmer"]}>
-                <FarmerOrderForShift />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.FarmerCropManagement}
-            element={
-              <RoleGuard allow={["farmer"]}>
-                <FarmerCropManagement />
-              </RoleGuard>
-            }
-          />
-
-          {/* CS Manager-only */}
-          <Route
-            path={PATHS.csManagerDashboard}
-            element={
-              <RoleGuard allow={["csManager", "admin"]}>
-                <CSManagerDashboard />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.csManagerOrders}
-            element={
-              <RoleGuard allow={["csManager", "admin"]}>
-                <CSManagerOrdersPage />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.csManagerShiftOrders}
-            element={
-              <RoleGuard allow={["csManager", "admin"]}>
-                <CSManagerShiftOrders />
-              </RoleGuard>
-            }
-          />
-
-          {/* OP Manager-only */}
-          <Route
-            path={PATHS.PickerTasksPage}
-            element={
-              <RoleGuard allow={["opManager", "admin"]}>
-                <PickerTasks  />
-              </RoleGuard>
-            }
-          />
-
-          {/* F Manager-only */}
-          <Route
-            path={PATHS.fManagerDashboard}
-            element={
-              <RoleGuard allow={["fManager"]}>
-                <FManagerDashboard />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.fManagerItemManagement}
-            element={
-              <RoleGuard allow={["fManager"]}>
-                <FManagerItemManagement />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.fManagerCreateStock}
-            element={
-              <RoleGuard allow={["fManager"]}>
-                <FManagerCreateStock />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.fManagerShiftsFarmerOrder}
-            element={
-              <RoleGuard allow={["fManager"]}>
-                <FManagerShiftsFarmerOrder />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.fManagerViewFarmerOrders}
-            element={
-              <RoleGuard allow={["fManager"]}>
-                <FManagerViewFarmerOrders />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path={PATHS.fManagerViewFarmerList}
-            element={
-              <RoleGuard allow={["fManager"]}>
-                <FManagerViewFarmerList />
-              </RoleGuard>
-            }
-          />
-        </Route>
-
-        {/* --- Authenticated, no FOOTER (customer checkout) --- */}
-        <Route
-          element={
-            <AuthGuard>
-              <AppShell showFooter={false} maxW="5xl" />
-            </AuthGuard>
-          }
-        >
-          <Route path={PATHS.checkout} element={<Checkout />} />
+          {renderRoleProtectedRoutes()}
         </Route>
 
         {/* --- Authenticated, yes FOOTER (customer pages) --- */}
@@ -333,14 +257,21 @@ export default function AppRoutes() {
             </AuthGuard>
           }
         >
-          <Route path={PATHS.jobs} element={<AvailabileJobs />} />
-          <Route path={PATHS.jobApplication} element={<JobApplication />} />
-          <Route path={PATHS.orders} element={<Orders />} />
-          <Route path={PATHS.profile} element={<Profile />} />
-          <Route path={PATHS.market} element={<Market />} />
+          {renderSimpleRoutes(CUSTOMER_ROUTES.filter(r => r.showFooter === true))}
         </Route>
 
-        {/* --- Authenticated, no HEADER --- */}
+        {/* --- Authenticated, no FOOTER (customer checkout) --- */}
+        <Route
+          element={
+            <AuthGuard>
+              <AppShell showFooter={false} maxW="5xl" />
+            </AuthGuard>
+          }
+        >
+          {renderSimpleRoutes(CUSTOMER_ROUTES.filter(r => r.showFooter === false))}
+        </Route>
+
+        {/* --- Authenticated, no HEADER (delivery note) --- */}
         <Route
           element={
             <AuthGuard>
@@ -348,7 +279,7 @@ export default function AppRoutes() {
             </AuthGuard>
           }
         >
-          <Route path={PATHS.deliveryNote} element={<DeliveryNote />} />
+          {renderSimpleRoutes(CUSTOMER_ROUTES.filter(r => r.showHeader === false))}
         </Route>
 
         {/* Fallback */}

@@ -1,69 +1,87 @@
-import * as React from "react"
-import { METRICS, TOLERANCE_PCT, type MetricKey } from "../constants/metrics"
-import { formatNum, safeNumber } from "../utils/numbers"
+// src/hooks/useFarmerOrders.ts
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  qkFarmerOrdersByShift,
+  getFarmerOrdersByShift,
+  getMyFarmerOrdersByShift,
+  getFarmerOrdersSummary,
+  advanceFarmerOrderStage,
+  updateFarmerOrderStatus,
+  getFarmerOrderPrintPayload,
+  initContainers,
+  patchContainerWeights,
+} from "@/api/farmerOrders";
 
-type ABC = { A: string; B: string; C: string; unit?: string }
+export function useFarmerOrdersSummary() {
+  return useQuery({
+    queryKey: ["farmerOrders", "summary"],
+    queryFn: getFarmerOrdersSummary,
+  });
+}
 
-export function useQualityStandards() {
-  // QS state
-  const [qsABC, setQsABC] = React.useState<Record<MetricKey, ABC>>(() => {
-    const seed: Record<MetricKey, ABC> = {} as any
-    METRICS.forEach((m) => {
-      seed[m.key] = {
-        A: m.type === "number" && Number.isFinite(m.seedA) ? String(m.seedA) : "",
-        B: "",
-        C: "",
-        unit: m.unit,
-      }
-    })
-    return seed
-  })
+export function useOrdersByShift(params: Parameters<typeof qkFarmerOrdersByShift>[0]) {
+  return useQuery({
+    queryKey: qkFarmerOrdersByShift(params),
+    queryFn: () => getFarmerOrdersByShift(params),
+    enabled: Boolean(params?.date && params?.shiftName),
+  });
+}
 
-  const [qsMeasured, setQsMeasured] = React.useState<Record<MetricKey, number | string>>(() => {
-    const seed: Record<MetricKey, number | string> = {} as any
-    METRICS.forEach((m) => {
-      seed[m.key] = m.type === "number" && Number.isFinite(m.seedA) ? Number(m.seedA) : ""
-    })
-    return seed
-  })
+export function useMyOrdersByShift(params: Parameters<typeof qkFarmerOrdersByShift>[0]) {
+  return useQuery({
+    queryKey: qkFarmerOrdersByShift(params),
+    queryFn: () => getMyFarmerOrdersByShift(params),
+    enabled: Boolean(params?.date && params?.shiftName),
+  });
+}
 
-  // helpers
-  function parseA(key: MetricKey): number | null {
-    const a = Number(qsABC[key]?.A)
-    return Number.isFinite(a) ? a : null
-  }
+export function useAdvanceStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof advanceFarmerOrderStage>[1] }) =>
+      advanceFarmerOrderStage(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["farmerOrders"] });
+    },
+  });
+}
 
-  function deviationInfo(key: MetricKey, val: number) {
-    const A = parseA(key) ?? 0
-    const lower = A * (1 - TOLERANCE_PCT / 100)
-    const upper = A * (1 + TOLERANCE_PCT / 100)
-    const out = Number(val) < lower || Number(val) > upper
-    const deviationPct = Math.min(100, Math.abs(((Number(val) - A) / (A || 1)) * 100))
-    return { out, lower: Number(formatNum(lower)), upper: Number(formatNum(upper)), deviationPct, A: Number(formatNum(A)) }
-  }
+export function useUpdateFarmerStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status, note }: { id: string; status: any; note?: string }) =>
+      updateFarmerOrderStatus(id, status, note),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["farmerOrders"] });
+    },
+  });
+}
 
-  const qualityWarnings = React.useMemo(() => {
-    const warns: string[] = []
-    METRICS.filter((m) => m.type === "number").forEach((m) => {
-      const v = Number(qsMeasured[m.key])
-      const A = parseA(m.key)
-      if (!Number.isFinite(v) || A == null || !Number.isFinite(A)) return
-      const { out } = deviationInfo(m.key, v)
-      if (out) {
-        warns.push(
-          `${m.label}: ${formatNum(v)}${m.unit ?? ""} deviates from A=${formatNum(A)}${m.unit ?? ""} by >${TOLERANCE_PCT}%`,
-        )
-      }
-    })
-    return warns
-  }, [qsMeasured, qsABC])
+export function usePrintPayload(farmerOrderId?: string) {
+  return useQuery({
+    queryKey: ["farmerOrders", "print", farmerOrderId],
+    queryFn: () => getFarmerOrderPrintPayload(farmerOrderId!),
+    enabled: !!farmerOrderId,
+  });
+}
 
-  const qualityDeviationCount = qualityWarnings.length
+export function useInitContainers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, count }: { id: string; count: number }) => initContainers(id, count),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ["farmerOrders", "print", id] });
+    },
+  });
+}
 
-  return {
-    qsABC, setQsABC,
-    qsMeasured, setQsMeasured,
-    parseA, deviationInfo, safeNumber,
-    qualityWarnings, qualityDeviationCount,
-  }
+export function usePatchContainerWeights() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, weights }: { id: string; weights: Array<{ containerId: string; weightKg: number }> }) =>
+      patchContainerWeights(id, weights),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ["farmerOrders", "print", id] });
+    },
+  });
 }

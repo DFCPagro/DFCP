@@ -1,4 +1,3 @@
-// src/pages/farmer/farmerOrderForShift/index.tsx
 import * as React from "react"
 import {
   Box,
@@ -19,6 +18,7 @@ import { useLocation, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { formatDMY } from "@/utils/date"
 import { api } from "@/api/config"
+import { fetchShiftWindows } from "@/api/shifts"
 
 /* ===========================
  * Local types for this page
@@ -65,34 +65,6 @@ type FarmerViewByShiftResponse = {
   }>
 }
 
-export type FarmerOrderForShiftItem = {
-  id: string
-  itemId: string
-  type: string
-  variety?: string
-  imageUrl?: string
-  forcastedQuantityKg: number
-  finalQuantityKg?: number | null
-  farmerReportUrl?: string
-  pickUpTime?: string | null
-  farmerName?: string
-  farmName?: string
-}
-
-export type FarmerOrderForShiftPayload = {
-  date: string
-  shift: ShiftKey
-  pickUpTime?: string | null
-  deliverer?: {
-    id: string
-    name: string
-    phone?: string
-    vehiclePlate?: string
-    company?: string
-  } | null
-  items: FarmerOrderForShiftItem[]
-}
-
 /* ===========================
  * API call (farmer view)
  * baseURL must include /api/v1 in api config.
@@ -103,7 +75,7 @@ async function fetchFarmerOrderForShift(
   date: string,
   shift: ShiftKey,
   opts?: { signal?: AbortSignal },
-): Promise<FarmerOrderForShiftPayload> {
+): Promise<FarmerViewByShiftResponse> {
   const sp = new URLSearchParams()
   sp.set("date", date)
   sp.set("shiftName", shift)
@@ -112,34 +84,47 @@ async function fetchFarmerOrderForShift(
     signal: opts?.signal,
   })
 
-  const pickUpTime = data.items.find((it) => it.pickUpTime)?.pickUpTime ?? null
+  return data
+}
 
-  return {
-    date: data.meta.date,
-    shift: data.meta.shiftName,
-    pickUpTime,
-    deliverer: null, // not provided to farmer in this endpoint
-    items: data.items.map((it) => ({
-      id: it.id,
-      itemId: it.itemId,
-      type: it.type,
-      variety: it.variety,
-      imageUrl: it.imageUrl,
-      forcastedQuantityKg: it.forcastedQuantityKg,
-      finalQuantityKg: it.finalQuantityKg ?? null,
-      farmerReportUrl: undefined,
-      pickUpTime: it.pickUpTime ?? null,
-      farmerName: it.farmerName,
-      farmName: it.farmName,
-    })),
+/* ===========================
+ * Helpers – countdown
+ * =========================== */
+
+/** Convert minutes since midnight to "HH:mm" */
+function minsToHHmm(mins: number) {
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${pad(h)}:${pad(m)}`
+}
+
+/** Combine ISO date (YYYY-MM-DD) and "HH:mm" into a Date in the local timezone */
+function combineDateTimeLocal(dateISO: string, hhmm: string): Date {
+  const [h, m] = hhmm.split(":").map((x) => parseInt(x, 10))
+  const d = new Date(dateISO + "T00:00:00")
+  d.setHours(h || 0, m || 0, 0, 0)
+  return d
+}
+
+function formatDuration(ms: number) {
+  const totalSeconds = Math.floor(Math.abs(ms) / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (n: number) => n.toString().padStart(2, "0")
+  if (days > 0) {
+    return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
   }
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
 }
 
 /* ===========================
  * Page
  * =========================== */
 export default function FarmerOrderForShift() {
-  const { state } = useLocation() as { state?: { group?: Partial<FarmerOrderForShiftPayload> } }
+  const { state } = useLocation() as { state?: { group?: Partial<{ date: string; shift: ShiftKey }> } }
   const params = useParams<{ date: string; shift: ShiftKey }>()
 
   // Resolve params/state for SSR-safe date/shift
@@ -151,24 +136,91 @@ export default function FarmerOrderForShift() {
 
   const shift = (state?.group?.shift as ShiftKey) || (params.shift as ShiftKey) || "morning"
 
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+  } = useQuery({
     queryKey: ["farmer-order-for-shift", dateISO, shift],
     queryFn: ({ signal }) => fetchFarmerOrderForShift(dateISO, shift, { signal }),
-    // Instant paint from navigation state if present, then refetch server truth
-    initialData: state?.group
-      ? ({
-          date: typeof state.group.date === "string" ? state.group.date : dateISO,
-          shift: (state.group.shift as ShiftKey) || shift,
-          pickUpTime: state.group.pickUpTime ?? null,
-          deliverer: null,
-          items: (state.group.items || []) as FarmerOrderForShiftItem[],
-        } as FarmerOrderForShiftPayload)
-      : undefined,
     refetchOnMount: true,
     refetchOnWindowFocus: false,
   })
 
-  const pickupTimeLabel = React.useMemo(() => (data?.pickUpTime ? data.pickUpTime : "TBD"), [data?.pickUpTime])
+  // Derive LC for shift APIs (prefer meta.lc, fallback to first item)
+  const logisticCenterId = React.useMemo(() => {
+    const lc = data?.meta?.lc || data?.items?.[0]?.logisticCenterId || ""
+    // DEBUG: make it clear in console when this value flips truthy
+    if (lc) console.debug("[FarmerOrderForShift] Resolved logisticCenterId:", lc)
+    return lc
+  }, [data?.meta?.lc, data?.items])
+
+  const windowsEnabled = !!logisticCenterId
+
+  // NOTE: If you don't see this being logged, `windowsEnabled` is false (no LC yet)
+  if (!windowsEnabled) {
+    console.debug("[FarmerOrderForShift] Shift windows query disabled (no logisticCenterId yet)")
+  }
+
+  // Fetch all shift windows for LC (to get the official start time of the selected shift)
+  const {
+    data: windows,
+    isLoading: isWindowsLoading,
+  } = useQuery({
+    enabled: windowsEnabled,
+    queryKey: ["shift-windows-all", logisticCenterId],
+    queryFn: async () => {
+      console.debug("[FarmerOrderForShift] Calling fetchShiftWindows for lc:", logisticCenterId)
+      const res = await fetchShiftWindows(logisticCenterId)
+      console.debug("[FarmerOrderForShift] Shift windows loaded:", res)
+      return res
+    },
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+  })
+
+  const currentShiftWindow = React.useMemo(() => {
+    if (!windows) return null
+    // windows is an array of { name, timezone, general: { startMin, endMin }, ... }
+    const row = (windows as any[]).find((w) => w.name === shift)
+    return row || null
+  }, [windows, shift])
+
+  // Build target start datetime:
+  // - Preferred: official general.startMin from /shifts/windows/all for this LC + dateISO
+  // - Fallback: API's pickUpTime per item if present (use the first item's pickUpTime)
+  const pickupTimeFromItems = React.useMemo(() => {
+    const it = data?.items?.find((x) => x.pickUpTime)
+    return it?.pickUpTime ?? null
+  }, [data?.items])
+
+  const targetStart = React.useMemo(() => {
+    if (currentShiftWindow?.general?.startMin != null) {
+      const hhmm = minsToHHmm(currentShiftWindow.general.startMin)
+      return combineDateTimeLocal(dateISO, hhmm)
+    }
+    if (pickupTimeFromItems) {
+      return combineDateTimeLocal(dateISO, pickupTimeFromItems)
+    }
+    return combineDateTimeLocal(dateISO, "00:00")
+  }, [currentShiftWindow, dateISO, pickupTimeFromItems])
+
+  const effectivePickupLabel = React.useMemo(() => {
+    if (currentShiftWindow?.general?.startMin != null) {
+      return minsToHHmm(currentShiftWindow.general.startMin)
+    }
+    return pickupTimeFromItems ?? "TBD"
+  }, [currentShiftWindow, pickupTimeFromItems])
+
+  // Live ticking countdown
+  const [now, setNow] = React.useState<Date>(() => new Date())
+  React.useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const diffMs = React.useMemo(() => targetStart.getTime() - now.getTime(), [targetStart, now])
+  const countdownText = React.useMemo(() => formatDuration(diffMs), [diffMs])
+  const countdownState = diffMs >= 0 ? "upcoming" : "past"
 
   return (
     <Box p={4}>
@@ -176,8 +228,25 @@ export default function FarmerOrderForShift() {
         <VStack align="start" gap={0}>
           <Heading size="md">Farmer Order For Shift</Heading>
           <Text color="fg.muted">
-            {formatDMY(dateISO)} · {shift.charAt(0).toUpperCase() + shift.slice(1)} · Pickup {pickupTimeLabel}
+            {formatDMY(dateISO)} · {shift.charAt(0).toUpperCase() + shift.slice(1)} · Pickup {effectivePickupLabel}
           </Text>
+
+          {/* Countdown (uses official shift windows when available) */}
+          <HStack mt="1" gap="2" alignItems="center">
+            <Text fontWeight="semibold">Countdown:</Text>
+            {isLoading || (windowsEnabled && isWindowsLoading) ? (
+              <Skeleton height="20px" width="140px" />
+            ) : (
+              <Badge
+                colorPalette={countdownState === "upcoming" ? "green" : "red"}
+                variant="subtle"
+                fontFamily="mono"
+                fontSize="sm"
+              >
+                {countdownState === "upcoming" ? `${countdownText} to start` : `${countdownText} since start`}
+              </Badge>
+            )}
+          </HStack>
         </VStack>
 
         {/* Deliverer (farmer endpoint doesn’t supply; keep placeholder) */}
@@ -185,24 +254,8 @@ export default function FarmerOrderForShift() {
           <Card.Body p={4}>
             {isLoading ? (
               <Skeleton height="24px" />
-            ) : data?.deliverer ? (
-              <HStack justifyContent="space-between" alignItems="center">
-                <HStack>
-                  <Avatar.Root>
-                    <Avatar.Fallback name={data.deliverer.name} />
-                  </Avatar.Root>
-                  <VStack align="start" gap={0}>
-                    <Text fontWeight="semibold">Assigned deliverer</Text>
-                    <Text>{data.deliverer.name}</Text>
-                    <HStack>
-                      {data.deliverer.phone ? <Badge>{data.deliverer.phone}</Badge> : null}
-                      {data.deliverer.vehiclePlate ? <Badge>{data.deliverer.vehiclePlate}</Badge> : null}
-                      {data.deliverer.company ? <Badge>{data.deliverer.company}</Badge> : null}
-                    </HStack>
-                  </VStack>
-                </HStack>
-              </HStack>
-            ) : (
+            ) : null}
+            {!isLoading && (
               <VStack align="start">
                 <Text fontWeight="semibold">Assigned deliverer</Text>
                 <Badge colorPalette="gray">Not assigned yet</Badge>
@@ -235,7 +288,8 @@ export default function FarmerOrderForShift() {
                       <Skeleton height="20px" />
                     </Table.Cell>
                   </Table.Row>
-                ) : (data?.items || []).map((it) => {
+                ) : (
+                  (data?.items || []).map((it) => {
                     const displayName = `${it.type}${it.variety ? ` ${it.variety}` : ""}`
                     return (
                       <Table.Row key={it.id}>
@@ -248,9 +302,11 @@ export default function FarmerOrderForShift() {
                             <VStack align="start" gap={0}>
                               <Text>{displayName}</Text>
                               {/* Optional subtext */}
-                              {(it.farmName || it.farmerName) ? (
+                              {it.farmName || it.farmerName ? (
                                 <Text fontSize="xs" color="fg.muted">
-                                  {it.farmName}{it.farmName && it.farmerName ? " · " : ""}{it.farmerName}
+                                  {it.farmName}
+                                  {it.farmName && it.farmerName ? " · " : ""}
+                                  {it.farmerName}
                                 </Text>
                               ) : null}
                             </VStack>
@@ -259,17 +315,18 @@ export default function FarmerOrderForShift() {
                         <Table.Cell>{it.forcastedQuantityKg}</Table.Cell>
                         <Table.Cell>{it.finalQuantityKg ?? "—"}</Table.Cell>
                         <Table.Cell textAlign="end">
-                          {it.farmerReportUrl ? (
-                            <Link href={it.farmerReportUrl} target="_blank" rel="noreferrer">
-                              Report
-                            </Link>
-                          ) : (
-                            <Text color="fg.muted">Report</Text>
-                          )}
+                          <Link
+                            href={`http://localhost:5173/farmer/farmer-order-report?id=${it.id}`}
+                            color="blue.500"
+                            fontWeight="medium"
+                          >
+                            Report
+                          </Link>
                         </Table.Cell>
                       </Table.Row>
                     )
-                  })}
+                  })
+                )}
               </Table.Body>
             </Table.Root>
           </Card.Body>
