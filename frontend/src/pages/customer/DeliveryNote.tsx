@@ -88,7 +88,7 @@ function normalizeStatus(s: string): UIStatus {
     case "ready_for_pickup":
       return "ready_for_pickUp";
     case "received":
-    case "recieved":
+    case "received":
       return "received";
     case "delivering":
     case "lc_to_customer":
@@ -280,7 +280,7 @@ export default function DeliveryNotePage() {
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(String(orderId));
-              } catch {}
+              } catch { }
             }}
           >
             <Copy size={16} />

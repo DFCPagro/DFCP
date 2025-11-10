@@ -1,0 +1,1773 @@
+[
+  {
+    "_id": "2ea3bb97363f6dd3e208ea7a",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "ad126949daa1c7dd61ffcc4c",
+    "type": "Tomato",
+    "variety": "Cherry",
+    "pictureUrl": "https://media.istockphoto.com/id/2159645736/photo/red-cherry-tomatoes-small-cocktail-tomatoes-in-a-wooden-bowl-on-linen.jpg?s=612x612&w=0&k=20&c=E85pmNf90Q2327ioimC40bkKOOLBuNy2HQ_HZAW9134=",
+    "farmerId": "66f2aa000000000000000008",
+    "farmerName": "Negev Sunrise Farm",
+    "farmName": "Negev Sunrise Farm",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "6f46c13100a115c6736dfcce",
+        "allocatedQuantityKg": 200.5
+      },
+      {
+        "orderId": "4b7842886be2190cdd477316",
+        "allocatedQuantityKg": 150.5
+      }
+    ],
+    "sumOrderedQuantityKg": 351.0,
+    "forcastedQuantityKg": 351.0,
+    "finalQuantityKg": 358.02,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.5,
+        "acidityPercentage": 0.5,
+        "pressure": 7.2,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.47,
+        "acidityPercentage": 0.5,
+        "pressure": 7.17,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "bb08348fe05ed2f85031edcc",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "db63c0177cfae45a8385313a",
+    "type": "Apple",
+    "variety": "Fuji",
+    "pictureUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+    "farmerId": "66f2aa00000000000000002a",
+    "farmerName": "Lahavim Valley Organics",
+    "farmName": "Lahavim Valley Organics",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "31aacbe147f158f015b18cff",
+        "allocatedQuantityKg": 217.5
+      },
+      {
+        "orderId": "70b13068e03a382c8306de53",
+        "allocatedQuantityKg": 163.5
+      }
+    ],
+    "sumOrderedQuantityKg": 381.0,
+    "forcastedQuantityKg": 381.0,
+    "finalQuantityKg": 388.62,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.55,
+        "acidityPercentage": 0.5,
+        "pressure": 7.25,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.52,
+        "acidityPercentage": 0.5,
+        "pressure": 7.22,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "72b97cad69e270e49c2e98a1",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "fa56428339a4f47db7d15600",
+    "type": "Cucumber",
+    "variety": "Persian",
+    "pictureUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+    "farmerId": "66f2aa00000000000000003f",
+    "farmerName": "Galilee Heights Produce",
+    "farmName": "Galilee Heights Produce",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "a3a9a822260eba10138a2a43",
+        "allocatedQuantityKg": 234.5
+      },
+      {
+        "orderId": "46861d45943466a8372a0f4f",
+        "allocatedQuantityKg": 176.5
+      }
+    ],
+    "sumOrderedQuantityKg": 411.0,
+    "forcastedQuantityKg": 411.0,
+    "finalQuantityKg": 419.22,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.6,
+        "acidityPercentage": 0.5,
+        "pressure": 7.3,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.57,
+        "acidityPercentage": 0.5,
+        "pressure": 7.27,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "bba4d642e4c71d8725f81e65",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "885df3d97431436c3a205ff3",
+    "type": "Carrot",
+    "variety": "Nantes",
+    "pictureUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+    "farmerId": "66f2aa000000000000000040",
+    "farmerName": "Coastal Plain Vineyards",
+    "farmName": "Coastal Plain Vineyards",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "2674b9cced2c49c404fc863b",
+        "allocatedQuantityKg": 251.5
+      },
+      {
+        "orderId": "f453a51fa986a15c504a736e",
+        "allocatedQuantityKg": 189.5
+      }
+    ],
+    "sumOrderedQuantityKg": 441.0,
+    "forcastedQuantityKg": 441.0,
+    "finalQuantityKg": 449.82,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.65,
+        "acidityPercentage": 0.5,
+        "pressure": 7.35,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.62,
+        "acidityPercentage": 0.5,
+        "pressure": 7.32,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "34f3fc06d70b90f94f933e0d",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "ad126949daa1c7dd61ffcc4c",
+    "type": "Tomato",
+    "variety": "Cherry",
+    "pictureUrl": "https://media.istockphoto.com/id/2159645736/photo/red-cherry-tomatoes-small-cocktail-tomatoes-in-a-wooden-bowl-on-linen.jpg?s=612x612&w=0&k=20&c=E85pmNf90Q2327ioimC40bkKOOLBuNy2HQ_HZAW9134=",
+    "farmerId": "66f2aa000000000000000041",
+    "farmerName": "Jordan Valley Dates",
+    "farmName": "Jordan Valley Dates",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "8f847f812b4620dd2bf45686",
+        "allocatedQuantityKg": 268.5
+      },
+      {
+        "orderId": "744736b5fc7c1e4597515d1a",
+        "allocatedQuantityKg": 202.5
+      }
+    ],
+    "sumOrderedQuantityKg": 471.0,
+    "forcastedQuantityKg": 471.0,
+    "finalQuantityKg": 480.42,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.7,
+        "acidityPercentage": 0.5,
+        "pressure": 7.4,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.67,
+        "acidityPercentage": 0.5,
+        "pressure": 7.37,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "6e678a8d3a0a944bd48332a4",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "db63c0177cfae45a8385313a",
+    "type": "Apple",
+    "variety": "Fuji",
+    "pictureUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+    "farmerId": "66f2aa000000000000000008",
+    "farmerName": "Negev Sunrise Farm",
+    "farmName": "Negev Sunrise Farm",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "4a0b0fd3dee049de6bb905d0",
+        "allocatedQuantityKg": 285.5
+      },
+      {
+        "orderId": "e456d490319da05f6f296e9a",
+        "allocatedQuantityKg": 215.5
+      }
+    ],
+    "sumOrderedQuantityKg": 501.0,
+    "forcastedQuantityKg": 501.0,
+    "finalQuantityKg": 511.02,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.75,
+        "acidityPercentage": 0.5,
+        "pressure": 7.45,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.72,
+        "acidityPercentage": 0.5,
+        "pressure": 7.42,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "8ccc0b7295b4a9582d6201d7",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "fa56428339a4f47db7d15600",
+    "type": "Cucumber",
+    "variety": "Persian",
+    "pictureUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+    "farmerId": "66f2aa00000000000000002a",
+    "farmerName": "Lahavim Valley Organics",
+    "farmName": "Lahavim Valley Organics",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "49c27cb636e50f8d518f206e",
+        "allocatedQuantityKg": 302.5
+      },
+      {
+        "orderId": "169a6b13ab9802b13b429eaf",
+        "allocatedQuantityKg": 228.5
+      }
+    ],
+    "sumOrderedQuantityKg": 531.0,
+    "forcastedQuantityKg": 531.0,
+    "finalQuantityKg": 541.62,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.8,
+        "acidityPercentage": 0.5,
+        "pressure": 7.5,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.77,
+        "acidityPercentage": 0.5,
+        "pressure": 7.47,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "c37f5cb9284755046767564e",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "885df3d97431436c3a205ff3",
+    "type": "Carrot",
+    "variety": "Nantes",
+    "pictureUrl": "https://vasilisgarden.com/cdn/shop/files/Carrot_Nantes-1.jpg?v=1731034608",
+    "farmerId": "66f2aa00000000000000003f",
+    "farmerName": "Galilee Heights Produce",
+    "farmName": "Galilee Heights Produce",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "928f5828ee2977e50fff56c0",
+        "allocatedQuantityKg": 319.5
+      },
+      {
+        "orderId": "9d8e3b0c4fa2716af503b107",
+        "allocatedQuantityKg": 241.5
+      }
+    ],
+    "sumOrderedQuantityKg": 561.0,
+    "forcastedQuantityKg": 561.0,
+    "finalQuantityKg": 572.22,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.85,
+        "acidityPercentage": 0.5,
+        "pressure": 7.55,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.82,
+        "acidityPercentage": 0.5,
+        "pressure": 7.52,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "bc9f159d36d390dd711518c5",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "ad126949daa1c7dd61ffcc4c",
+    "type": "Tomato",
+    "variety": "Cherry",
+    "pictureUrl": "https://media.istockphoto.com/id/2159645736/photo/red-cherry-tomatoes-small-cocktail-tomatoes-in-a-wooden-bowl-on-linen.jpg?s=612x612&w=0&k=20&c=E85pmNf90Q2327ioimC40bkKOOLBuNy2HQ_HZAW9134=",
+    "farmerId": "66f2aa000000000000000040",
+    "farmerName": "Coastal Plain Vineyards",
+    "farmName": "Coastal Plain Vineyards",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "acfe8aba0af525057ce357b6",
+        "allocatedQuantityKg": 336.5
+      },
+      {
+        "orderId": "7761d42d3baf4c80af24b8a3",
+        "allocatedQuantityKg": 254.5
+      }
+    ],
+    "sumOrderedQuantityKg": 591.0,
+    "forcastedQuantityKg": 591.0,
+    "finalQuantityKg": 602.82,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.9,
+        "acidityPercentage": 0.5,
+        "pressure": 7.6,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.87,
+        "acidityPercentage": 0.5,
+        "pressure": 7.57,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "3152b513bb8fb13bbf35fed3",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "db63c0177cfae45a8385313a",
+    "type": "Apple",
+    "variety": "Fuji",
+    "pictureUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Apfel-Fuji.jpg/1200px-Apfel-Fuji.jpg",
+    "farmerId": "66f2aa000000000000000041",
+    "farmerName": "Jordan Valley Dates",
+    "farmName": "Jordan Valley Dates",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "3e9b89c7ea383280f3f34987",
+        "allocatedQuantityKg": 353.5
+      },
+      {
+        "orderId": "eeec9c23159fe9029fe4c607",
+        "allocatedQuantityKg": 267.5
+      }
+    ],
+    "sumOrderedQuantityKg": 621.0,
+    "forcastedQuantityKg": 621.0,
+    "finalQuantityKg": 633.42,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.95,
+        "acidityPercentage": 0.5,
+        "pressure": 7.65,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.92,
+        "acidityPercentage": 0.5,
+        "pressure": 7.62,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  },
+  {
+    "_id": "a7ee78319c8d12dcd48e93f5",
+    "createdBy": "66f2aa000000000000000001",
+    "updatedBy": "66f2aa000000000000000001",
+    "itemId": "fa56428339a4f47db7d15600",
+    "type": "Cucumber",
+    "variety": "Persian",
+    "pictureUrl": "https://d3awvtnmmsvyot.cloudfront.net/api/file/xEDVluyRB0wOXtvkCZ6w/convert?fit=max&w=570&cache=true",
+    "farmerId": "66f2aa000000000000000008",
+    "farmerName": "Negev Sunrise Farm",
+    "farmName": "Negev Sunrise Farm",
+    "shift": "afternoon",
+    "pickUpDate": "2025-11-09",
+    "pickUpTime": null,
+    "logisticCenterId": "66e007000000000000000001",
+    "farmerStatus": "ok",
+    "orders": [
+      {
+        "orderId": "e3cc4542682dcf8a26bc563e",
+        "allocatedQuantityKg": 370.5
+      },
+      {
+        "orderId": "9c5b1de312edbebf7579cb00",
+        "allocatedQuantityKg": 280.5
+      }
+    ],
+    "sumOrderedQuantityKg": 651.0,
+    "forcastedQuantityKg": 651.0,
+    "finalQuantityKg": 664.02,
+    "containers": [],
+    "containerSnapshots": [],
+    "stageKey": "atWarehouse",
+    "stages": [
+      {
+        "key": "farmerAck",
+        "label": "Farmer Acknowledged",
+        "status": "done",
+        "expectedAt": "2025-11-08T10:00:00Z",
+        "startedAt": "2025-11-08T10:06:00Z",
+        "completedAt": "2025-11-08T10:12:00Z",
+        "timestamp": "2025-11-08T10:12:00Z",
+        "note": "Auto-completed"
+      },
+      {
+        "key": "farmerQSrep",
+        "label": "Farmer QS Report",
+        "status": "done",
+        "expectedAt": "2025-11-08T12:00:00Z",
+        "startedAt": "2025-11-08T12:12:00Z",
+        "completedAt": "2025-11-08T12:24:00Z",
+        "timestamp": "2025-11-08T12:24:00Z"
+      },
+      {
+        "key": "loadedToTruck",
+        "label": "Loaded to Truck",
+        "status": "done",
+        "expectedAt": "2025-11-08T21:00:00Z",
+        "startedAt": "2025-11-08T21:03:00Z",
+        "completedAt": "2025-11-08T21:10:12Z",
+        "timestamp": "2025-11-08T21:10:12Z"
+      },
+      {
+        "key": "inTransit",
+        "label": "In Transit",
+        "status": "done",
+        "expectedAt": "2025-11-08T22:00:00Z",
+        "startedAt": "2025-11-08T22:00:00Z",
+        "completedAt": "2025-11-08T23:15:00Z",
+        "timestamp": "2025-11-08T23:15:00Z"
+      },
+      {
+        "key": "received",
+        "label": "Received at LC",
+        "status": "done",
+        "expectedAt": "2025-11-08T23:30:00Z",
+        "startedAt": "2025-11-08T23:31:48Z",
+        "completedAt": "2025-11-08T23:45:00Z",
+        "timestamp": "2025-11-08T23:45:00Z"
+      },
+      {
+        "key": "inspection",
+        "label": "Inspection",
+        "status": "done",
+        "expectedAt": "2025-11-09T00:00:00Z",
+        "startedAt": "2025-11-09T00:06:00Z",
+        "completedAt": "2025-11-09T00:19:48Z",
+        "timestamp": "2025-11-09T00:19:48Z"
+      },
+      {
+        "key": "sorting",
+        "label": "Sorting",
+        "status": "done",
+        "expectedAt": "2025-11-09T01:00:00Z",
+        "startedAt": "2025-11-09T01:04:48Z",
+        "completedAt": "2025-11-09T02:19:48Z",
+        "timestamp": "2025-11-09T02:19:48Z"
+      },
+      {
+        "key": "atWarehouse",
+        "label": "At Warehouse",
+        "status": "current",
+        "expectedAt": "2025-11-09T03:00:00Z",
+        "startedAt": "2025-11-09T03:00:00Z",
+        "completedAt": "2025-11-09T03:15:00Z",
+        "timestamp": "2025-11-09T03:15:00Z",
+        "note": "Final stage"
+      }
+    ],
+    "farmersQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 13.0,
+        "acidityPercentage": 0.5,
+        "pressure": 7.7,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "inspectionQSreport": {
+      "overallGrade": "A",
+      "values": {
+        "brix": 12.97,
+        "acidityPercentage": 0.5,
+        "pressure": 7.67,
+        "colorPercentage": 90,
+        "weightPerUnitG": 800,
+        "diameterMM": 65,
+        "maxDefectRatioLengthDiameter": 2,
+        "rejectionRate": 1.5
+      }
+    },
+    "visualInspection": {
+      "status": "ok",
+      "note": "Clean; within temp range",
+      "checkedAt": "2025-11-09T09:40:00Z"
+    },
+    "inspectionStatus": "passed",
+    "historyAuditTrail": [
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "CREATE",
+        "note": "Seeded snapshot",
+        "timestamp": "2025-11-08T23:00:00Z",
+        "meta": {}
+      },
+      {
+        "userId": "66f2aa000000000000000001",
+        "action": "STAGE_SET_CURRENT",
+        "note": "Moved to final stage",
+        "timestamp": "2025-11-09T13:00:00Z",
+        "meta": {
+          "key": "atWarehouse"
+        }
+      }
+    ],
+    "createdAt": "2025-11-09T08:55:00Z",
+    "updatedAt": "2025-11-09T13:15:00Z"
+  }
+]

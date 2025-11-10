@@ -146,35 +146,56 @@ export async function getFarmerOrdersByShift(
 ): Promise<ShiftFarmerOrdersResponse> {
   // FAKE PATH (no network)
   if (params.fake) {
-    const { orders } = getFakeByShift({
-      date: params.date,
-      shiftName: params.shiftName as any, // "morning" | "afternoon" | "evening" | "night"
-      fakeNum: params.fakeNum ?? 12,
-    });
+    // const { orders } = getFakeByShift({
+    //   date: params.date,
+    //   shiftName: params.shiftName as any, // "morning" | "afternoon" | "evening" | "night"
+    //   fakeNum: params.fakeNum ?? 12,
+    // });
 
-    // Pagination (always compute page/limit as numbers)
-    const page = Number(params.page ?? 1);
-    const limit = Number(params.limit ?? orders.length);
-    const start = (page - 1) * limit;
-    const end = start + limit;
+    // // Pagination (always compute page/limit as numbers)
+    // const page = Number(params.page ?? 1);
+    // const limit = Number(params.limit ?? orders.length);
+    // const start = (page - 1) * limit;
+    // const end = start + limit;
 
-    const paged = orders.slice(start, end);
+    // const paged = orders.slice(start, end);
 
-    const fakeResponse: ShiftFarmerOrdersResponse = {
+    // const fakeResponse: ShiftFarmerOrdersResponse = {
+    //   meta: {
+    //     date: params.date,
+    //     shiftName: params.shiftName as any,
+    //     page,
+    //     limit,
+    //     total: orders.length,
+    //     pages: Math.max(1, Math.ceil(orders.length / Math.max(1, limit))),
+    //     problemCount: 0, // all OK in fake mode for now
+    //     // lc, tz can be added if you want
+    //   },
+    //   items: paged as any, // matches your item shape
+    // };
+    // console.log("[fakeResponse] :", fakeResponse);
+    // return fakeResponse;
+    const sp = new URLSearchParams();
+    sp.set("date", "2025-11-09"); // snapshot date on backend
+    sp.set("shiftName", "afternoon"); // snapshot shift on backend
+    if (params.page != null) sp.set("page", String(params.page));
+    if (params.limit != null) sp.set("limit", String(params.limit));
+
+    const { data } = await api.get<ShiftFarmerOrdersResponse>(
+      `${BASE}/by-shift?${sp.toString()}`,
+      { signal: opts?.signal }
+    );
+
+    // Force meta to reflect the caller's params (not the snapshot)
+    return {
+      ...data,
       meta: {
+        ...(data.meta ?? {}),
         date: params.date,
-        shiftName: params.shiftName as any,
-        page,
-        limit,
-        total: orders.length,
-        pages: Math.max(1, Math.ceil(orders.length / Math.max(1, limit))),
-        problemCount: 0, // all OK in fake mode for now
-        // lc, tz can be added if you want
+        shiftName:
+          params.shiftName as ShiftFarmerOrdersResponse["meta"]["shiftName"],
       },
-      items: paged as any, // matches your item shape
     };
-    console.log("[fakeResponse] :", fakeResponse);
-    return fakeResponse;
   }
 
   // REAL PATH (network)
@@ -199,7 +220,7 @@ export async function getFarmerOrdersByShift(
 
 /** Body for advancing a farmer order to a specific stage */
 export type AdvanceFarmerOrderStageBody = {
-  /** Target stage key (BE spelling preserved, e.g. "recieved") */
+  /** Target stage key (BE spelling preserved, e.g. "received") */
   key: FarmerOrderStageKey;
   /** Action verb required by BE contract */
   action: "setCurrent";

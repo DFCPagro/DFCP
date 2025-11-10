@@ -95,7 +95,7 @@ export const FARMER_ORDER_STAGES = [
   { key: "farmerQSrep", label: "Quality Check" }, // 2
   { key: "loadedToTruck", label: "Loaded to Truck" }, // 3
   { key: "inTransit", label: "In-Transit" }, // 4
-  { key: "recieved", label: "Received in LC" }, // 5 (BE spelling intentional)
+  { key: "received", label: "Received in LC" }, // 5 (BE spelling intentional)
   { key: "inspection", label: "Inspection" }, // 6
   { key: "sorting", label: "Sorting" }, // 7
   { key: "atWarehouse", label: "Warehouse" }, // 8
