@@ -39,7 +39,7 @@ export default function NavBar() {
         )}
 
         <CLink asChild _hover={{ textDecoration: "none" }}>
-          <RouterLink to="/"><CImage src={logo} alt="DFCP" h="8" objectFit="contain" /></RouterLink>
+          <RouterLink to="/market"><CImage src={logo} alt="DFCP" h="8" objectFit="contain" /></RouterLink>
         </CLink>
 
         {/* Right cluster */}

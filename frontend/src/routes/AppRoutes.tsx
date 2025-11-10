@@ -31,6 +31,7 @@ const FarmerDashboard = lazy(() => import("@/pages/farmer/FarmerDashboard"));
 const FarmerCropManagement = lazy(() => import("@/pages/farmer/FarmerCropManagement"));
 const FarmerOrderForShift = lazy(() => import("@/pages/farmer/farmerOrdersForShift"));
 
+
 // Picker pages
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
 const PickTaskPage = lazy(() => import("@/pages/picker/picker-task"));
@@ -48,6 +49,9 @@ const PickerTasks = lazy(() => import("@/pages/opManager/picker-tasksManagement"
 const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
 const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"));
 const CSManagerDashboard = lazy(() => import("@/pages/csManager/Dashboard"));
+const CSManagerCustomers = lazy(() => import("@/pages/csManager/Customers"));
+const CSManagerAnalytics = lazy(() => import("@/pages/csManager/Analytics"));
+const CSManagerReportsInbox = lazy(() => import("@/pages/csManager/Orders/ReportsInbox"));
 
 const FManagerDashboard = lazy(() => import("@/pages/fManager/Dashboard"));
 const FManagerItemManagement = lazy(() => import("@/pages/fManager/ItemManager"));
@@ -205,7 +209,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.FarmerDashboard}
             element={
-              <RoleGuard allow={["farmer"]}>
+              <RoleGuard allow={["farmer","admin"]}>
                 <FarmerDashboard />
               </RoleGuard>
             }
@@ -213,7 +217,7 @@ export default function AppRoutes() {
           <Route
             path="/farmer/farmerOrderForShift/:date/:shift"
             element={
-              <RoleGuard allow={["farmer"]}>
+              <RoleGuard allow={["farmer","admin"]}>
                 <FarmerOrderForShift />
               </RoleGuard>
             }
@@ -221,7 +225,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.FarmerCropManagement}
             element={
-              <RoleGuard allow={["farmer"]}>
+              <RoleGuard allow={["farmer","admin"]}>
                 <FarmerCropManagement />
               </RoleGuard>
             }
@@ -233,6 +237,22 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["csManager", "admin"]}>
                 <CSManagerDashboard />
+              </RoleGuard>
+            }
+          />  
+               <Route
+            path={PATHS.csManagerReportsInbox}
+            element={
+              <RoleGuard allow={["csManager", "admin"]}>
+                <CSManagerReportsInbox />
+              </RoleGuard>
+            }
+          />  
+              <Route
+            path={PATHS.csManagerCustomers}
+            element={
+              <RoleGuard allow={["csManager", "admin"]}>
+                <CSManagerCustomers />
               </RoleGuard>
             }
           />
@@ -252,6 +272,14 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
+                   <Route
+            path={PATHS.csManagerAnalytics}
+            element={
+              <RoleGuard allow={["csManager", "admin"]}>
+                <CSManagerAnalytics />
+              </RoleGuard>
+            }
+          />
 
           {/* OP Manager-only */}
           <Route
@@ -267,7 +295,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.fManagerDashboard}
             element={
-              <RoleGuard allow={["fManager"]}>
+              <RoleGuard allow={["fManager","admin"]}>
                 <FManagerDashboard />
               </RoleGuard>
             }
@@ -275,7 +303,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.fManagerItemManagement}
             element={
-              <RoleGuard allow={["fManager"]}>
+              <RoleGuard allow={["fManager","admin"]}>
                 <FManagerItemManagement />
               </RoleGuard>
             }
@@ -283,7 +311,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.fManagerCreateStock}
             element={
-              <RoleGuard allow={["fManager"]}>
+              <RoleGuard allow={["fManager","admin"]}>
                 <FManagerCreateStock />
               </RoleGuard>
             }
@@ -291,7 +319,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.fManagerShiftsFarmerOrder}
             element={
-              <RoleGuard allow={["fManager"]}>
+              <RoleGuard allow={["fManager","admin"]}>
                 <FManagerShiftsFarmerOrder />
               </RoleGuard>
             }
@@ -299,7 +327,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.fManagerViewFarmerOrders}
             element={
-              <RoleGuard allow={["fManager"]}>
+              <RoleGuard allow={["fManager","admin"]}>
                 <FManagerViewFarmerOrders />
               </RoleGuard>
             }
@@ -307,7 +335,7 @@ export default function AppRoutes() {
           <Route
             path={PATHS.fManagerViewFarmerList}
             element={
-              <RoleGuard allow={["fManager"]}>
+              <RoleGuard allow={["fManager","admin"]}>
                 <FManagerViewFarmerList />
               </RoleGuard>
             }

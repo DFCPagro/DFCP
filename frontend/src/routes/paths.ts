@@ -4,7 +4,7 @@ export const PATHS = {
   home: "/",
   login: "/login",
   register: "/register",
-  //dashboard: "/dashboard",
+  dashboard: "/dashboard",
 
   driverSchedule: "/driver-schedule",
   jobs: "/jobs",
@@ -59,6 +59,9 @@ export const PATHS = {
   csManagerDashboard: "/csManager/dashboard",
   csManagerOrders: "/csManager/orders",
   csManagerShiftOrders: "/csManager/shift-orders",
+  csManagerCustomers: "/csManager/customers",
+  csManagerAnalytics: "/csManager/analytics",
+  csManagerReportsInbox: "/csManager/reports-inbox",
 
   //fManager pages
   fManagerDashboard: "/fManager/dashboard",

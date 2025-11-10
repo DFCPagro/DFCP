@@ -15,7 +15,6 @@ import { AiTwotoneShop } from "react-icons/ai";
 
 /* ------------------------ Customer menu ------------------------ */
 export const noUserMenu: MenuRegistry["noUser"] = [
-  { type: "link", key: "home", label: "Home", path: P.home, exact: true },
   { type: "link", key: "login", label: "Login", path: P.login },
   { type: "link", key: "register", label: "Register", path: P.register },
 ] as const;
@@ -60,13 +59,8 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     label: "Dashboard",
     path: P.FarmerDashboard,
   },
-  { type: "link", key: "farmer-crops", label: "Crops", path: "/farmer/crops" },
-  {
-    type: "link",
-    key: "farmer-upcoming",
-    label: "Upcoming Deliveries",
-    path: P.FarmerOrdersForShift,
-  },
+
+
   {
     type: "link",
     key: "farmer-reports",
@@ -96,12 +90,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
         label: "CS-M Dashboard",
         path: P.csManagerDashboard,
       },
-      {
-        type: "link",
-        key: "CS-M-shift-orders",
-        label: "CS-M Shift Orders",
-        path: P.csManagerShiftOrders,
-      },
+     
       {
         type: "link",
         key: "CS-M-orders",
@@ -160,44 +149,23 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     key: "TManager",
     label: "T Manager WIP",
     children: [
-      { type: "link", key: "mgr-dashboard", label: "Dashboard", path: "#" },
-      { type: "link", key: "mgr-deliverers", label: "Deliverers", path: "#" },
-      { type: "link", key: "mgr-packages", label: "Packages", path: "#" },
-    ],
-  },
-
-  // Admin utilities
-  {
-    type: "group",
-    key: "admin-working-links",
-    label: "Working Links",
-    children: [
-      {
-        type: "link",
-        key: "admin-items-management",
-        label: "Manage Items",
-        path: P.ItemsManagment,
-      },
-      {
+   {
         type: "link",
         key: "admin-package-sizes",
         label: "Package Sizes",
         path: P.PackageSizes,
       },
-      {
-        type: "link",
-        key: "admin-expected-harvest",
-        label: "Expected Harvest",
-        path: P.cropHarvest,
-      },
-      {
-        type: "link",
-        key: "admin-job-review",
-        label: "Job Application Review",
-        path: P.JobAppReview,
-      },
     ],
   },
+    {
+    type: "link",
+    key: "admin-dashboard",
+    label: "Job Application Review",
+    path: P.JobAppReview,
+  },
+
+  // Admin utilities
+ 
 
   WORKER_MARKET_GROUP,
 ] as const;
@@ -224,7 +192,7 @@ const workFManager: ReadonlyArray<MenuItem> = [
   {
     type: "link",
     key: "admin-job-review",
-    label: "Job Application Review",
+    label: "Job Application",
     path: P.JobAppReview,
   },
   {
@@ -264,19 +232,19 @@ const workCSManager: ReadonlyArray<MenuItem> = [
     type: "link",
     key: "cs-customers",
     label: "Customers",
-    path: P.csManagerOrders,
+    path: P.csManagerCustomers,
   },
   {
     type: "link",
     key: "cs-reports",
     label: "Reports Inbox",
-    path: P.csManagerOrders,
+    path: P.csManagerReportsInbox,
   },
   {
     type: "link",
     key: "cs-analytics",
     label: "Analytics",
-    path: P.csManagerDashboard,
+    path: P.csManagerAnalytics,
   },
   WORKER_MARKET_GROUP,
 ] as const;
@@ -345,7 +313,7 @@ export function getMenuFor(mode: Mode, role?: string | null) {
 }
 
 export const DEFAULT_LANDINGS: Record<Mode, string> = {
-  noUser: P.home, // <— public landing
+  noUser: P.login, // <— public landing
   work: "/dashboard",
   customer: P.market,
   // (or a role-specific landing if you want later)

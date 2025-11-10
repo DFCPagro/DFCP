@@ -113,12 +113,7 @@ export default function AccountMenu() {
             ) : (
               <>
                 <Menu.Item value="region" onClick={handleRegion}>Change Region</Menu.Item>
-                {mode === "customer" && canWork && (
-                  <Menu.Item value="switch-work" onClick={switchToWork}>Switch to Work Mode</Menu.Item>
-                )}
-                {mode === "work" && (
-                  <Menu.Item value="switch-customer" onClick={switchToCustomer}>Switch to Customer Mode</Menu.Item>
-                )}
+               
                 <Menu.Separator />
                 <Menu.Item value="logout" onClick={handleLogout}>Logout</Menu.Item>
               </>

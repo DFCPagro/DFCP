@@ -150,7 +150,7 @@ export default function CreateStockPage() {
                         open
                         onOpenChange={setSummaryOpen}
                         context={submittedCtx}
-                        confirmNavigateTo="/dashboard"
+                        confirmNavigateTo="dashboard"
                       />
                     )}
                   </>
