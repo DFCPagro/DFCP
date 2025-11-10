@@ -173,52 +173,52 @@ async function seed() {
     console.log(`✅ Inserted ${inserted.length} orders (${ORDERS_PER_SHIFT} per shift × 3 shifts)`);
 
     // ---------------------------------------------------------
-    // Generate PickerTasks for the CURRENT shift only
-    // ---------------------------------------------------------
-    const current = windows[0]; // { ymd, shift }
-    const ADMIN_USER_ID =
-      process.env.ADMIN_USER_ID && Types.ObjectId.isValid(process.env.ADMIN_USER_ID)
-        ? new Types.ObjectId(process.env.ADMIN_USER_ID)
-        : new Types.ObjectId(); // fallback dummy
+// Generate PickerTasks for ALL three shifts and flip 7 per shift
+// ---------------------------------------------------------
+const ADMIN_USER_ID =
+  process.env.ADMIN_USER_ID && Types.ObjectId.isValid(process.env.ADMIN_USER_ID)
+    ? new Types.ObjectId(process.env.ADMIN_USER_ID)
+    : new Types.ObjectId(); // fallback dummy
 
-    console.log(
-      `🧰 Generating picker tasks for current shift ${current.ymd} ${current.shift} (LC=${LC_ID})`
+for (const win of windows) {
+  console.log(`🧰 Generating picker tasks for ${win.ymd} ${win.shift} (LC=${LC_ID})`);
+
+  // Keep new tasks OPEN (autoSetReady: false). We’ll flip exactly 7 below.
+  const genRes = await generatePickerTasksForShift({
+    logisticCenterId: LC_ID,
+    createdByUserId: ADMIN_USER_ID,
+    shiftName: win.shift,
+    shiftDate: win.ymd,
+    autoSetReady: false,
+  });
+
+  console.log(
+    `📋 ${win.ymd} ${win.shift}: created=${genRes.createdCount}, existed=${genRes.alreadyExisted}, ordersProcessed=${genRes.ordersProcessed}`
+  );
+
+  // Flip first 7 OPEN tasks to READY (stable order: priority desc, FIFO within priority)
+  const toReady = await PickerTaskModel.find({
+    logisticCenterId: new Types.ObjectId(LC_ID),
+    shiftName: win.shift,
+    shiftDate: win.ymd,
+    status: "open",
+  })
+    .sort({ priority: -1, createdAt: 1, _id: 1 })
+    .select({ _id: 1 })
+    .limit(7)
+    .lean()
+    .exec();
+
+  if (toReady.length > 0) {
+    await PickerTaskModel.updateMany(
+      { _id: { $in: toReady.map((t) => t._id) } },
+      { $set: { status: "ready" } }
     );
+  }
 
-    // create/refresh tasks (do NOT auto-set ready here; we’ll set only first 7 below)
-    const genRes = await generatePickerTasksForShift({
-      logisticCenterId: LC_ID,
-      createdByUserId: ADMIN_USER_ID,
-      shiftName: current.shift,
-      shiftDate: current.ymd,
-      autoSetReady: false,
-    });
+  console.log(`🚦 ${win.ymd} ${win.shift}: marked ${toReady.length} tasks as "ready"`);
+}
 
-    console.log(
-      `📋 PickerTasks: created=${genRes.createdCount}, existed=${genRes.alreadyExisted}, ordersProcessed=${genRes.ordersProcessed}`
-    );
-
-    // Flip first 7 to "ready"
-    const firstSeven = await PickerTaskModel.find({
-      logisticCenterId: new Types.ObjectId(LC_ID),
-      shiftName: current.shift,
-      shiftDate: current.ymd,
-    })
-      .sort({ createdAt: 1, _id: 1 })
-      .select({ _id: 1 })
-      .limit(7)
-      .lean()
-      .exec();
-
-    if (firstSeven.length) {
-      await PickerTaskModel.updateMany(
-        { _id: { $in: firstSeven.map((t) => t._id) } },
-        { $set: { status: "ready" } }
-      );
-      console.log(`🚦 Marked first ${firstSeven.length} picker tasks as "ready"`);
-    } else {
-      console.log("ℹ️ No picker tasks found to flip to ready.");
-    }
   } catch (err) {
     console.error("❌ Seed failed:", err);
     throw err;
