@@ -179,6 +179,7 @@ export async function postClaimFirstReadyTaskForCurrentShift(req: Request, res: 
       pickerUserId: new Types.ObjectId(String(pickerId)),
       // blockingStatuses: blocking, // ← uncomment if you want that policy
     });
+    console.log("postClaimFirstReadyTaskForCurrentShift result:", result);  
 
     if (!result.task) {
       return res.status(404).json({

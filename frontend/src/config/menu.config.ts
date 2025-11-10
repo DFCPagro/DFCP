@@ -159,7 +159,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
   },
     {
     type: "link",
-    key: "admin-dashboard",
+    key: "admin-jobApplication",
     label: "Job Application Review",
     path: P.JobAppReview,
   },
