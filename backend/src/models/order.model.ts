@@ -193,7 +193,7 @@ const OrderSchema = new Schema(
     stageKey: {
       type: String,
       enum: ORDER_STAGE_KEYS,        // e.g. "packing", "out_for_delivery"
-      default: "pending",
+      default: "confirmed",
       index: true,
     },
 

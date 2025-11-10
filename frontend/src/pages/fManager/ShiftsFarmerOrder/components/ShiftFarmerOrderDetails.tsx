@@ -26,7 +26,7 @@ import {
     type FarmerOrderStage,
     type FarmerOrderStageKey,
 } from "@/types/farmerOrders";
-import OrderAuditSection from "@/components/common/AuditSection";
+import AuditSection from "@/components/common/AuditSection";
 import { FarmerOrderTimeline } from "./FarmerOrderTimeline";
 
 /* --------------------------------- Props --------------------------------- */
@@ -655,10 +655,22 @@ export const ShiftFarmerOrderDetails = memo(function ShiftFarmerOrderDetails({
 
                                 {/* Audit section (as-is) */}
                                 <Box borderWidth="1px" borderRadius="xl" p={4} bg="bg.panel">
-                                    <Text fontSize="md" fontWeight="medium" mb={2}>
-                                        Audit
-                                    </Text>
-                                    <OrderAuditSection audit={((row as any).audit ?? (row as any).auditTrail ?? (row as any).historyAuditTrail ?? []) as any[]} />
+                                   <AuditSection
+  title="Audit Trail"
+  items={
+    ((row as any).audit ??
+      (row as any).auditTrail ??
+      (row as any).historyAuditTrail ??
+      []) as any[]
+  }
+  map={(ev: any) => ({
+    action: ev.action ?? ev.type ?? ev.event ?? "—",
+    note: ev.note ?? ev.message ?? "",
+    by: ev.by ?? ev.userName ?? ev.user ?? "system",
+    at: ev.at ?? ev.createdAt ?? ev.timestamp ?? new Date(),
+  })}
+/>
+
                                 </Box>
                             </Stack>
                         </Dialog.Body>
