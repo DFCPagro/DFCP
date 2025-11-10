@@ -15,10 +15,10 @@ export const DEFAULT_LANDINGS = {
 } as const;
 
 export function getDefaultLanding(role?: string | null) {
-  console.log("........................Entering");
+  //console.log("........................Entering");
   console.log("Role:", role);
   if (role === "customer") {
-    console.log("........................After customer check",DEFAULT_LANDINGS.customer);
+    console.log(".....After customer check",DEFAULT_LANDINGS.customer);
     return DEFAULT_LANDINGS.customer;
   }
  if (role && role in DEFAULT_LANDINGS) {

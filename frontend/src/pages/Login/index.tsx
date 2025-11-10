@@ -35,9 +35,11 @@ export default function Login() {
 
   const { mutate, isPending } = useMutation({
     mutationFn: (form: LoginForm) => loginApi(form),
-    onSuccess: ({ user, token, logisticCenterId }) => {
+    onSuccess: ({ user, token, logisticCenterId, mdCoins }) => {
       // setAuth is already called inside loginApi, but keeping this as a no-op safety
-      setAuth({ user, token, logisticCenterId });
+      setAuth({ user, token, logisticCenterId, mdCoins });
+
+      // 1) If redirected here, go back where they came from
 
       // 2) Nice toast
       toaster.create({ title: "Welcome back!", type: "success" });

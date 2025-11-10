@@ -100,6 +100,7 @@ export type PublicUser = {
   addresses: Address[];
   createdAt?: Date;
   updatedAt?: Date;
+  mdCoins?:number;
 };
 
 export function toPublicUser(u: any): PublicUser {
@@ -127,6 +128,7 @@ export async function getPublicUserById(id: string): Promise<PublicUser> {
 
 // ====== (user personal info ) ======
 import { Types } from "mongoose";
+import { get } from '../controllers/deliverer.controller';
 
 // For now, always pin LC to this id regardless of what the client sends.
 
@@ -244,6 +246,7 @@ export async function updateUserContact(
     email: updated.email,
     phone: updated.phone ?? null,
     birthday: updated.birthday ?? null,
+    
   };
 }
 
@@ -350,4 +353,39 @@ export async function removeAddress(
   }
 
   return updated.addresses ?? [];
+}
+
+
+export async function getMDCoins(userId: string): Promise<number> {
+  const user = await User.findById(asObjectId(userId)).select("mdCoins").lean();
+  if (!user) throw new Error("User not found");
+  return user.mdCoins ?? 0;
+}
+
+
+import mongoose from "mongoose";
+
+export async function updateMDCoins(userId: string, amount: number): Promise<number> {
+  // Validate inputs
+  if (!mongoose.isValidObjectId(userId)) {
+    throw new Error("Invalid user ID");
+  }
+  if (typeof amount !== "number" || !isFinite(amount)) {
+    throw new Error("Amount must be a finite number");
+  }
+
+  // Find the user
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // Calculate new mdCoins value (prevent going below zero)
+  const newMDCoins = Math.max(0, (user.mdCoins ?? 0) + amount);
+
+  // Only update if it actually changes
+  user.mdCoins = newMDCoins;
+  await user.save();
+
+  return newMDCoins;
 }

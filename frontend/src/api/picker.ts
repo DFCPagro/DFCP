@@ -10,7 +10,7 @@ export type PickerProfile = {
   email: string | null;
   level: number;
   xp: number;
-  coins: number;
+  mdCoins: number;
   site: string; // LC display name
 
   // mocked until backend provides
@@ -42,7 +42,7 @@ type ApiPickerMe = {
 /* --------------------------------- Mocks --------------------------------- */
 const MOCK_EXTRAS: Omit<
   PickerProfile,
-  "id" | "name" | "email" | "level" | "xp" | "coins" | "site"
+  "id" | "name" | "email" | "level" | "xp" | "mdCoins" | "site"
 > = {
   streakDays: 3,
   shift: { start: "08:00", end: "16:00" },

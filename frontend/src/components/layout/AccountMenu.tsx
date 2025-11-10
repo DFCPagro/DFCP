@@ -31,14 +31,7 @@ export default function AccountMenu() {
   const canWork = Boolean(role);
   const isGuest = !user || mode === "noUser";
 
-  const mdCoin =
-    Number(
-      (user as any)?.mdCoin ??
-      (user as any)?.mdcoin ??
-      (user as any)?.coins ??
-      (user as any)?.wallet?.mdc ??
-      0
-    ) || 0;
+  const mdCoins = useAuthStore((s) => s.mdCoins);
 
   const handleRegion = () =>
     toaster.create({ title: "Change Region", description: "Region picker will open here (wired in Step 5).", type: "info" });
@@ -83,7 +76,7 @@ export default function AccountMenu() {
                   <HoverCard.Trigger asChild>
                     <HStack gap={1}>
                       <Icon as={Coins} boxSize={4} />
-                      <Badge>{mdCoin}</Badge>
+                      <Badge>{mdCoins}</Badge>
                     </HStack>
                   </HoverCard.Trigger>
                   <HoverCard.Positioner>
@@ -92,7 +85,7 @@ export default function AccountMenu() {
                       <Text fontWeight="semibold" mb={2}>MD Coins</Text>
                       <HStack justify="space-between" mb={2}>
                         <Text>Balance</Text>
-                        <Badge>{mdCoin}</Badge>
+                        <Badge>{mdCoins}</Badge>
                       </HStack>
                       <Text fontSize="sm" color="fg.muted">
                         Earned from verified performance. Usable for discounts and in-app purchases.

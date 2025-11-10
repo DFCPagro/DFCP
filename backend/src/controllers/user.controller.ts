@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import ApiError from "../utils/ApiError";
 import { Role } from "../utils/constants";
+import mongoose from "mongoose";
 import {
   getUserAddresses,
   addUserAddress,
@@ -8,6 +9,7 @@ import {
  removeAddress,
   updateUserContact,
   getContactInfoByIdService,
+  getMDCoins
 } from "../services/user.service";
 
 const ADMIN_ROLES: Role[] = ["admin", "fManager", "tManager"] as const;
@@ -127,5 +129,20 @@ export async function deleteMyAddress(req: Request, res: Response) {
       e.message === "Unauthorized" ? 401 :
       /not found/i.test(e.message) ? 404 : 400;
     res.status(status).json({ error: e.message || "Failed to remove address" });
+  }
+}
+
+export async function getUserMDCoins(req: Request, res: Response) {
+  try {
+    const userId = authId(req);
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    const mdCoins = await getMDCoins(userId);
+    return res.json({ userId: userId, mdCoins });
+  } catch (err: any) {
+    console.error("getUserMDCoins error:", err);
+    return res.status(500).json({ error: err.message || "Failed to get MDCoins" });
   }
 }

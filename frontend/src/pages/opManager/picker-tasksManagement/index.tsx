@@ -100,13 +100,7 @@ export default function PickerTasksPage() {
       <Card.Header>
         <HStack justifyContent="space-between" alignItems="center">
           <Heading size="md">Picker Tasks — {subtitle}</Heading>
-          <Button
-            size="sm"
-            onClick={() => genAllM.mutate()}
-            loading={genAllM.isPending}
-          >
-            Pack (generate tasks for this shift)
-          </Button>
+       
         </HStack>
       </Card.Header>
 

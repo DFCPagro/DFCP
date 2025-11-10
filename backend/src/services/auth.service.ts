@@ -3,6 +3,7 @@ import ApiError from "../utils/ApiError";
 import { createUser, findUserByEmail } from "./user.service";
 import * as tokenService from "./token.service";
 import { Address } from "../models/user.model";
+import {getMDCoins} from "./user.service";
 
 /**
  * Register (create-only)
@@ -80,7 +81,7 @@ export async function login({
 
   const userId = String((user as any).id ?? (user as any)._id);
   const logisticCenterId = String((user as any).logisticCenterId);
-
+  const mdCoins = await getMDCoins(userId);
   const accessToken = tokenService.signAccessToken(userId, logisticCenterId);
   const refreshToken = tokenService.signRefreshToken(userId, logisticCenterId);
 
@@ -90,6 +91,7 @@ export async function login({
     logisticCenterId,
     accessToken,
     refreshToken,
+    mdCoins,
   };
 }
 

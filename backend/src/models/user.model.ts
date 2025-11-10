@@ -48,7 +48,7 @@ const UserSchema = new Schema(
     // ✅ ObjectId ref to LogisticCenter (singular name must match the model below)
     logisticCenterId: { type: Schema.Types.ObjectId, ref: "LogisticCenter", default: null },
 
-    coins: { type: Number, default: 0 },
+    mdCoins: { type: Number, default: 0 },
 
     addresses: {
       type: [AddressSchema],

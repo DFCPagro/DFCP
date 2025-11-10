@@ -22,12 +22,13 @@ type AuthState = {
   user: User | null;
   token: string | null;
   role: Role | null;
+  mdCoins: number | 0;
 
   /** The ONLY center identifier we store */
   logisticCenterId: string | null;
 
   // actions
-  setAuth: (payload: { user: User; token: string; logisticCenterId?: string | null }) => void;
+  setAuth: (payload: { user: User; token: string; logisticCenterId?: string | null , mdCoins: number | 0}) => void;
   setUser: (user: User | null) => void;
   setRole: (role: Role | null) => void;
   logout: () => void;
@@ -47,9 +48,10 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       role: null,
       logisticCenterId: null,
+      mdCoins: 0,
 
       /** Called after a successful login */
-      setAuth: ({ user, token, logisticCenterId }) => {
+      setAuth: ({ user, token, logisticCenterId, mdCoins }) => {
         // Prefer explicit arg if backend sent it at top level; otherwise pick from user
         const lc: string | null =
           (typeof logisticCenterId === "string" ? logisticCenterId : null) ??
@@ -61,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
           token,
           role: user?.role ?? null,
           logisticCenterId: lc,
+          mdCoins: mdCoins ?? 0,
         });
 
         // 🔗 Sync session mode + worker role

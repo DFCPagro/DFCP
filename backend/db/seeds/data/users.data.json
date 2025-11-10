@@ -8,6 +8,7 @@
     "activeStatus": true,
     "uid": "ADM-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 665,
     "addresses": [
       {
         "lnt": 34.781768,
@@ -32,6 +33,7 @@
     "activeStatus": true,
     "uid": "DLV-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 514,
     "addresses": [
       {
         "lnt": 35.21371,
@@ -56,6 +58,7 @@
     "activeStatus": true,
     "uid": "IDL-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 425,
     "addresses": [
       {
         "lnt": 34.989571,
@@ -80,6 +83,7 @@
     "activeStatus": true,
     "uid": "DMG-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 681,
     "addresses": [
       {
         "lnt": 34.886917,
@@ -104,6 +108,7 @@
     "activeStatus": true,
     "uid": "FMG-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 650,
     "addresses": [
       {
         "lnt": 34.799335,
@@ -128,6 +133,7 @@
     "activeStatus": true,
     "uid": "OPM-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 628,
     "addresses": [
       {
         "lnt": 34.75,
@@ -151,6 +157,7 @@
     "role": "customer",
     "activeStatus": true,
     "uid": "CNS-1",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 34.959,
@@ -169,6 +176,7 @@
     "activeStatus": true,
     "uid": "FMR-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 542,
     "addresses": [
       {
         "lnt": 34.7,
@@ -192,6 +200,7 @@
     "role": "customer",
     "activeStatus": true,
     "uid": "USR-1",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 34.9,
@@ -215,6 +224,7 @@
     "role": "customer",
     "activeStatus": true,
     "uid": "USR-2",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 35.0,
@@ -232,6 +242,7 @@
     "role": "customer",
     "activeStatus": true,
     "uid": "USR-3",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 34.77,
@@ -255,6 +266,7 @@
     "role": "customer",
     "activeStatus": true,
     "uid": "USR-4",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 34.98,
@@ -272,6 +284,7 @@
     "role": "customer",
     "activeStatus": true,
     "uid": "USR-5",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 35.1,
@@ -295,6 +308,7 @@
     "role": "customer",
     "activeStatus": true,
     "uid": "USR-6",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 35.1,
@@ -319,6 +333,7 @@
     "activeStatus": true,
     "uid": "FMR-2",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 504,
     "addresses": [
       {
         "label": "Home",
@@ -343,6 +358,7 @@
     "activeStatus": true,
     "uid": "PCK-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 34.789,
@@ -367,6 +383,7 @@
     "activeStatus": true,
     "uid": "PCK-2",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 420,
     "addresses": [
       {
         "lnt": 34.799,
@@ -391,6 +408,7 @@
     "activeStatus": true,
     "uid": "SRT-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 958,
     "addresses": [
       {
         "lnt": 34.781768,
@@ -415,6 +433,7 @@
     "activeStatus": true,
     "uid": "SRT-2",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 489,
     "addresses": [
       {
         "lnt": 34.8,
@@ -439,6 +458,7 @@
     "activeStatus": true,
     "uid": "csm-1",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 832,
     "addresses": [
       {
         "lnt": 34.8,
@@ -454,7 +474,6 @@
       }
     ]
   },
-  
   {
     "_id": "66f2aa00000000000000003f",
     "name": "David Tal",
@@ -464,6 +483,7 @@
     "activeStatus": true,
     "uid": "FMR-3",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 432,
     "addresses": [
       {
         "lnt": 35.539,
@@ -488,6 +508,7 @@
     "activeStatus": true,
     "uid": "FMR-4",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 430,
     "addresses": [
       {
         "lnt": 34.86,
@@ -496,8 +517,8 @@
         "logisticCenterId": "66e007000000000000000001"
       },
       {
-        "lnt": 34.90,
-        "alt": 32.30,
+        "lnt": 34.9,
+        "alt": 32.3,
         "address": "Netanya, Israel",
         "logisticCenterId": "66e007000000000000000001"
       }
@@ -512,10 +533,11 @@
     "activeStatus": true,
     "uid": "FMR-5",
     "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 495,
     "addresses": [
       {
         "lnt": 35.55,
-        "alt": 32.40,
+        "alt": 32.4,
         "address": "Beit She'an, Israel",
         "logisticCenterId": "66e007000000000000000001"
       },
@@ -527,5 +549,4 @@
       }
     ]
   }
-
 ]

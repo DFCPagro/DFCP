@@ -150,8 +150,7 @@ export async function getPickerProfile(userId: string) {
           phone: user.phone ?? null,
           role: user.role,
           logisticCenter: lc, // ✅ keep only this
-          mdCoints: user.mdCoints ?? 0,
-          coins: user.coins ?? 0,
+          mdCoins: user.mdCoins ?? 0,
           activeStatus: user.activeStatus ?? true,
         }
       : null,

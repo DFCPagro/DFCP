@@ -22,9 +22,9 @@ export async function register(req: Request, res: Response) {
  * Returns { name, role, accessToken, refreshToken }.
  */
 export async function login(req: Request, res: Response) {
-  const { name, role, accessToken, refreshToken, logisticCenterId } =
+  const { name, role, accessToken, refreshToken, logisticCenterId, mdCoins } =
     await loginSvc(req.body);
-  res.json({ name, role, logisticCenterId, accessToken, refreshToken });
+  res.json({ name, role,mdCoins, logisticCenterId, accessToken, refreshToken });
 }
 
 /**

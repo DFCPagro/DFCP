@@ -91,3 +91,9 @@ export async function getContactInfoById(id: string): Promise<ContactInfo> {
   const res = data?.data ?? data;
   return ContactInfoSchema.parse(res);
 }
+
+export async function getMdCoinsBalance(): Promise<number> {
+  const { data } = await api.get("/users/md-coins");
+  const balance = data?.data?.mdCoins ?? data?.mdCoins;
+  return typeof balance === "number" ? balance : 0;
+}

@@ -16,7 +16,7 @@ export type PickerProfile = {
   rank: string;
   level: number;
   xp: number;          // total XP (1000 per level)
-  coins: number;
+  mdCoins: number;
   streakDays: number;
   badges: string[];
 
@@ -42,7 +42,7 @@ export const fetchPickerProfile = async (): Promise<PickerProfile> => ({
   rank: "Gold III",
   level: 5,
   xp: 4320,
-  coins: 215,
+  mdCoins: 215,
   streakDays: 6,
   badges: ["Fast Starter", "Perfect SLA", "Zero Errors"],
 

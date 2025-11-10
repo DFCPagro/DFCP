@@ -48,6 +48,7 @@ export const loginApi = async (payload: LoginPayload): Promise<AuthResponse> => 
     token: data.accessToken,
     // You could also store refresh token if you plan to use it later
     logisticCenterId: data.logisticCenterId ?? null,
+    mdCoins: data.mdCoins ?? 0,
   };
 
   // ✅ Immediately sync into Zustand auth store
@@ -57,6 +58,7 @@ export const loginApi = async (payload: LoginPayload): Promise<AuthResponse> => 
       user,
       token: data.accessToken,
       logisticCenterId: data.logisticCenterId ?? null,
+      mdCoins: data.mdCoins ?? 0,
     });
 
   return response;
