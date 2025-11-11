@@ -125,7 +125,6 @@ export function OrdersTable({ items }: { items: any[] }) {
             <Table.ColumnHeader>Status/Stage</Table.ColumnHeader>
             <Table.ColumnHeader>Customer</Table.ColumnHeader>
             <Table.ColumnHeader>Address</Table.ColumnHeader>
-            <Table.ColumnHeader>Assigned delivery</Table.ColumnHeader>
             <Table.ColumnHeader>Created</Table.ColumnHeader>
             <Table.ColumnHeader textAlign="end">Total</Table.ColumnHeader>
             <Table.ColumnHeader />
@@ -167,14 +166,6 @@ export function OrdersTable({ items }: { items: any[] }) {
 
                   <Table.Cell title={o.deliveryAddress?.address || ""}>
                     {o.deliveryAddress?.address || "-"}
-                  </Table.Cell>
-
-                  <Table.Cell title={assignee.title}>
-                    {assignee.label ? (
-                      <Text>{assignee.label}</Text>
-                    ) : (
-                      <Badge colorPalette="gray">Unassigned yet</Badge>
-                    )}
                   </Table.Cell>
 
                   <Table.Cell>{fmtCreated(o.createdAt)}</Table.Cell>

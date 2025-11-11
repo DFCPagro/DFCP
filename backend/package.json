@@ -52,6 +52,7 @@
     "express-rate-limit": "^8.0.1",
     "express-validator": "^7.2.1",
     "fast-glob": "^3.3.3",
+    "framer-motion": "^12.23.24",
     "get-port": "^7.1.0",
     "helmet": "^8.1.0",
     "install": "^0.13.0",
