@@ -1,214 +1,405 @@
-"use client";
-
-import { useEffect, useState } from "react";
+/** @jsxImportSource @emotion/react */
+import { memo, useEffect, useMemo, useState } from "react";
 import {
-  Box, Grid, GridItem, HStack, IconButton, Text, Button, VStack, Badge,
+  Box,
+  HStack,
+  VStack,
+  Text,
+  Badge,
+  Button,
+  Card,
+  Separator,
+  Portal,
+  Tooltip,
 } from "@chakra-ui/react";
-import { MapPin, CircleX } from "lucide-react";
-import ItemList from "@/components/common/ItemList";
+import { MapPin, NotebookPen, OctagonAlert, List } from "lucide-react";
 import type { OrderRowAPI } from "@/types/orders";
-import OrderTimeline from "./OrderTimeline";
-import RouteLocationDialog, { type PointValue, type TravelMode } from "@/components/common/RouteLocationPicker";
 import {
-  STATUS_EMOJI, STATUS_LABEL, formatDeliveryTimeParts, normalizeStatus,
-  pickCurrency, pickDeliveryPoint, toItemRows, isOldStatus, type LatLng,
+  getEffectiveUIStatus,
+  normalizeStatus,
+  STATUS_LABEL,
+  isOldStatus,
+  pickDeliveryPoint,
+  toItemRows,
+  pickCurrency,
+  formatDeliveryTimeParts,
 } from "./helpers";
-import StyledIconButton from "@/components/ui/IconButton";
-import { Portal } from "@chakra-ui/react";
+import OrderTimeline from "./OrderTimeline";
+import ReportIssueDialog from "./ReportIssueDialog";
+import ItemList from "@/components/common/ItemList";
 
 type Props = {
-  order?: OrderRowAPI | null;
-  isOpen: boolean;
-  onToggleOpen: () => void;
-  onOpenMap: (pt: LatLng, onlyDelivery?: boolean) => void;
+  order: any;
+  isOpen: boolean | null; // controls ItemList visibility
+  onToggleOpen: () => void; // toggles ItemList
+  onOpenMap: (point?: { lat: number; lng: number; address?: string }) => void;
   onOpenNote: () => void;
+  onReportSubmit: (order: OrderRowAPI, payload: { subject: string; details: string }) => Promise<void> | void;
+  /** if true, the status timeline is open by default */
+  defaultTimelineOpen?: boolean;
 };
 
-const toPoint = (p: LatLng | PointValue, fallbackAddress = ""): PointValue =>
-  "address" in p ? p : { ...p, address: fallbackAddress };
+function statusToPalette(statusRaw: string): string {
+  const k = String(normalizeStatus(statusRaw));
+  switch (k) {
+    case "pending":
+    case "confirmed":
+    case "farmer":
+      return "purple";
+    case "intransit":
+    case "out_for_delivery":
+      return "cyan";
+    case "packing":
+    case "ready_for_pickup":
+      return "teal";
+    case "delivered":
+    case "received":
+      return "green";
+    case "cancelled":
+      return "gray";
+    case "problem":
+      return "red";
+    default:
+      return "gray";
+  }
+}
 
-export default function OrderCard({
-  order, isOpen, onToggleOpen, onOpenNote,
+function labelForStatus(s: string): string {
+  const k = String(normalizeStatus(s));
+  const m = (STATUS_LABEL as any) ?? {};
+  return m[k] ?? k.replace(/[_-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+}
+
+function canShowNote(stageKey: string): boolean {
+  const k = String(normalizeStatus(stageKey));
+  return k === "ready_for_pickup" || k === "out_for_delivery" || k === "delivered";
+}
+
+function OrderCardBase({
+  order,
+  isOpen,
+  onToggleOpen,
+  onOpenMap,
+  onOpenNote,
+  onReportSubmit,
+  defaultTimelineOpen = false,
 }: Props) {
-  if (!order) return null;
+  const [reportOpen, setReportOpen] = useState(false);
+  const [showTimeline, setShowTimeline] = useState<boolean>(defaultTimelineOpen); // toggled by clicking the status badge
 
-  const onlyDelivery = isOldStatus((order as any).stageKey);
-  const [timelineOpen, setTimelineOpen] = useState(!onlyDelivery);
-
-  // Map dialogs state
-  const [openPointView, setOpenPointView] = useState(false);
-  const [openRouteView, setOpenRouteView] = useState(false);
-
+  // If parent changes the default after mount (e.g., list moves sections), sync once.
   useEffect(() => {
-    setTimelineOpen(!onlyDelivery);
-  }, [onlyDelivery, order?.id]);
+    setShowTimeline(defaultTimelineOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultTimelineOpen]);
 
-  const ui = normalizeStatus((order as any).stageKey);
-  const emoji = STATUS_EMOJI[ui];
-  const statusLabel = STATUS_LABEL[ui];
-const SHOW_NOTE_STATES = new Set([
-  "ready_for_pickup",
-  "out_for_delivery",
-  "delivered",
-  "received",           // keep existing behavior
-]);
-const isNoteState = SHOW_NOTE_STATES.has(ui);
-const isReceived = new Set(["received", "delivered"]).has(ui);
-// utils (local to file is fine)
-const fallbackAddressFrom = (o: OrderRowAPI): string => {
-  const anyO = o as any;
-  if (anyO?.deliveryAddress?.address) return anyO.deliveryAddress.address;
-  if (typeof anyO?.address === "string") return anyO.address;
-  if (anyO?.dropoff?.address) return anyO.dropoff.address;
-  return "";
-};
+  const id = (order as any).id ?? (order as any).orderId ?? "—";
+  const createdAt = (order as any).createdAt ? new Date((order as any).createdAt) : null;
+  const customer = (order as any).customer ?? (order as any).user ?? {};
+  const customerName =
+    customer?.name ||
+    customer?.fullName ||
+    `${customer?.firstName ?? ""} ${customer?.lastName ?? ""}`.trim() ||
+    "Customer";
 
-// …
+  const items: any[] = Array.isArray((order as any).items) ? (order as any).items : [];
+  const itemRows = useMemo(() => toItemRows(items), [items]);
+  const currency = useMemo(() => pickCurrency(items) ?? "USD", [items]);
 
+  const total =
+    (order as any).total ??
+    (order as any).amount ??
+    (order as any).price ??
+    (order as any).totalPrice ??
+    null;
+  const itemsCount = itemRows.length;
 
-  const { date: deliveryDate, shift: deliveryShift } = formatDeliveryTimeParts(order);
+  const effectiveStatus: string = getEffectiveUIStatus(order);
+  const palette = statusToPalette(effectiveStatus);
+  const isDone = isOldStatus(effectiveStatus);
+  const isProblem = effectiveStatus === "problem";
+  const isDelivered = normalizeStatus(effectiveStatus) === "delivered";
 
-  // Order created datetime
-  const orderTime = order.createdAt ? (formatDeliveryTimeParts(order).date)+" " +new Date(order.createdAt).toLocaleTimeString([], {  hour: "2-digit", minute: "2-digit" }) : "";
+  // Delivery time parts (date + shift)
+  const { date: deliveryDateStr, shift: deliveryShift } = formatDeliveryTimeParts(order);
 
-
-  const currency = pickCurrency((order as any).items ?? []) ?? "$";
-  const rows = toItemRows((order as any).items ?? []).map((r: any) => ({ ...r, currencySymbol: currency }));
-
-const destLatLng = pickDeliveryPoint(order);
-const destPoint = destLatLng ? toPoint(destLatLng, fallbackAddressFrom(order)) : null;
-  const homePoint: PointValue = {
-    lat: 32.0853,
-    lng: 34.7818,
-    address: "Tel Aviv-Yafo, Israel",
-  };
+  const destinationPoint = useMemo(() => {
+    const p = pickDeliveryPoint(order);
+    if (!p) return undefined;
+    const addrAny: any = (order as any).deliveryAddress;
+    const address =
+      (typeof addrAny === "string" && addrAny) ||
+      addrAny?.address ||
+      addrAny?.label ||
+      `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`;
+    return { ...p, address };
+  }, [order]);
 
   return (
-    <Box borderWidth="1px" borderRadius="md" p={4}>
-      <Grid templateColumns={{ base: "1fr", md: "1fr auto 1fr" }} gap={3} alignItems="center">
-        <GridItem minW={0}>
-          <VStack align="start" gap={1}>
-            <HStack gap={2} maxW="100%">
-              <Text as="span" fontWeight="bold">Order time:</Text>
-              <Text as="span" maxW="70%" overflow="hidden" textOverflow="clip" whiteSpace="nowrap" title={orderTime}>
-                {orderTime}
-              </Text>
-            </HStack>
-
-            <HStack gap={2} maxW="100%">
-              <Text as="span" fontWeight="bold">Expected delivery:</Text>
-              <HStack as="span" maxW="70%" overflow="hidden" whiteSpace="nowrap"
-                title={`${deliveryDate}${deliveryShift ? ` ${deliveryShift}` : ""}`} gap={2}>
-                <Text as="span">{deliveryDate}</Text>
-                {!!deliveryShift && (
-                  <Badge as="span" variant="subtle" borderRadius="md" px="2" py="0.5" backgroundColor="pink">
-                    {deliveryShift}
-                  </Badge>
-                )}
-              </HStack>
-            </HStack>
-          </VStack>
-        </GridItem>
-
-        <GridItem justifySelf="center" zIndex={10}>
-          <HStack gap={3}>
-            <HStack gap={2}>
-              <Text
-                fontWeight="bold"
-                cursor="pointer"
-                role="button"
-                tabIndex={0}
-                onClick={(e) => { e.stopPropagation(); setTimelineOpen(v => !v); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTimelineOpen(v => !v); }
-                }}
-                title="Click to view status timeline"
-              >
-                Status
-              </Text>
-              <Text textTransform="capitalize">{statusLabel}</Text>
-              <Text as="span" fontSize="xl">{emoji}</Text>
-            </HStack>
-
-            <IconButton
-              aria-label="Open map"
-              size="sm"
-              variant="solid"
-              // enable even when no dest: show single-point view
-              onClick={(e) => {
-                e.stopPropagation();
-                if (destPoint) setOpenRouteView(true);
-                else setOpenPointView(true);
-              }}
-            >
-              <MapPin size={16} />
-            </IconButton>
-          </HStack>
-        </GridItem>
-<GridItem justifySelf="end">
-  <HStack gap={2}>
-    {isNoteState && (
-      <Button
-        onClick={onOpenNote}
-        aria-label={isReceived ? "Open invoice" : "Open delivery note"}
+    <>
+      <Card.Root
+        borderRadius="xl"
+        overflow="hidden"
+        _hover={{ transform: "translateY(-1px)" }}
+        transition="transform 120ms"
+        role="button"
+        tabIndex={0}
+        onClick={onToggleOpen} // click anywhere on card toggles ItemList
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggleOpen();
+          }
+        }}
       >
-        {isReceived ? "Invoice" : "Delivery Note"}
-      </Button>
-    )}
+        {/* Header */}
+        <Card.Header px={4} py={3}>
+          <HStack w="full" align="center" justify="space-between">
+            {/* Left info area (root handles click) */}
+            <VStack align="start" gap={1} minW={0}>
+              <HStack gap={2} minW={0}>
+                <Text
+                  fontWeight="semibold"
+                  maxW="240px"
+                  overflow="hidden"
+                  textOverflow="ellipsis"
+                  whiteSpace="nowrap"
+                >
+                  Order #{id}
+                </Text>
 
-    {isOpen ? (
-      <StyledIconButton aria-label="Close" variant="outline" onClick={onToggleOpen}>
-        <CircleX size={16} />
-      </StyledIconButton>
-    ) : (
-      <Button variant="outline" onClick={onToggleOpen}>Full order</Button>
-    )}
-  </HStack>
-</GridItem>
+                {/* Status badge toggles Timeline only */}
+                <Badge
+                  colorPalette={palette}
+                  variant="solid"
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation(); // prevent ItemList toggle
+                    setShowTimeline((v) => !v);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowTimeline((v) => !v);
+                    }
+                  }}
+                  cursor="pointer"
+                >
+                  {labelForStatus(effectiveStatus)}
+                </Badge>
 
-      </Grid>
+                {isDone ? <Badge colorPalette="gray" variant="subtle">Archived</Badge> : null}
+              </HStack>
 
-      {timelineOpen && (
-        <Box mt={3}>
-          <OrderTimeline stageKey={(order as any).stageKey} />
-        </Box>
-      )}
+              <HStack gap={3} fontSize="sm" color="fg.muted" wrap="wrap" minW={0}>
+                <Text
+                  maxW="200px"
+                  overflow="hidden"
+                  textOverflow="ellipsis"
+                  whiteSpace="nowrap"
+                  title={customerName}
+                >
+                  {customerName}
+                </Text>
 
-      {isOpen && (
-        <VStack align="stretch" mt={3} gap={3}>
-          {rows.length ? <ItemList items={rows} /> : <Text color="gray.600">No items attached.</Text>}
-        </VStack>
-      )}
+                {createdAt ? (
+                  <>
+                    <Separator orientation="vertical" />
+                    <Text title={createdAt.toLocaleString()}>{createdAt.toLocaleDateString()}</Text>
+                  </>
+                ) : null}
 
-      {/* View-only dialogs rendered outside the button */}
+                {typeof itemsCount === "number" ? (
+                  <>
+                    <Separator orientation="vertical" />
+                    <Text>{itemsCount} items</Text>
+                  </>
+                ) : null}
 
-<Portal  >
-  <RouteLocationDialog
-    open={openPointView}
-    onClose={() => setOpenPointView(false)}
-    mode="point"
-    viewMode="view"
-    countries="IL"
-    initialPoint={homePoint}
-    markerLabels={{ point: "H" }}
-    markerTitles={{ point: "Home" }}
-  />
-</Portal>
+                {typeof total === "number" ? (
+                  <>
+                    <Separator orientation="vertical" />
+                    <Text fontWeight="medium">
+                      {Number(total).toLocaleString(undefined, { style: "currency", currency })}
+                    </Text>
+                  </>
+                ) : null}
 
-<Portal>
-  <RouteLocationDialog
-    open={openRouteView}
-    onClose={() => setOpenRouteView(false)}
-    mode="route"
-    viewMode="view"
-    countries="IL"
-    initialTravelMode="DRIVING"
-    initialOrigin={homePoint}
-    initialDestination={destPoint ?? homePoint}
-    markerLabels={{ origin: "H", destination: "LG" }}
-    markerTitles={{ origin: "Home", destination: "Logistics Hub" }}
-  />
-</Portal>
-    </Box>
+                {/* Delivery date + shift */}
+                <>
+                  <Separator orientation="vertical" />
+                  <Text title={`Delivery ${deliveryDateStr}${deliveryShift ? ` • ${deliveryShift}` : ""}`}>
+                    Delivery {deliveryDateStr}
+                    {deliveryShift ? ` • ${deliveryShift}` : ""}
+                  </Text>
+                </>
+
+                {/* Always show destination address while card is closed (and open) */}
+                {destinationPoint?.address ? (
+                  <>
+                    <Separator orientation="vertical" />
+                    <HStack gap={1} minW={0}>
+                      <MapPin size={14} />
+                      <Text
+                        maxW={{ base: "180px", md: "260px" }}
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                        whiteSpace="nowrap"
+                        title={destinationPoint.address}
+                      >
+                        {destinationPoint.address}
+                      </Text>
+                    </HStack>
+                  </>
+                ) : null}
+              </HStack>
+            </VStack>
+
+            {/* Right-side controls — stop propagation so card doesn't toggle */}
+            <HStack gap={2} flexShrink={0}>
+              {/* Hide Report + Map when order is reported */}
+              {!isProblem && (
+                <>
+                  <Tooltip.Root openDelay={200}>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        colorPalette="red"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReportOpen(true);
+                        }}
+                      >
+                        <OctagonAlert size={16} style={{ marginRight: 6 }} />
+                        Report issue
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Portal>
+                      <Tooltip.Positioner>
+                        <Tooltip.Content>Report a problem with this order</Tooltip.Content>
+                      </Tooltip.Positioner>
+                    </Portal>
+                  </Tooltip.Root>
+
+                  <Tooltip.Root openDelay={200}>
+                    <Tooltip.Trigger asChild>
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenMap(destinationPoint);
+                        }}
+                        variant="solid"
+                        colorPalette="teal"
+                      >
+                        <MapPin size={16} style={{ marginRight: 6 }} />
+                        Map
+                      </Button>
+                    </Tooltip.Trigger>
+                    <Portal>
+                      <Tooltip.Positioner>
+                        <Tooltip.Content>{destinationPoint?.address ?? "Open map"}</Tooltip.Content>
+                      </Tooltip.Positioner>
+                    </Portal>
+                  </Tooltip.Root>
+                </>
+              )}
+
+              {/* Note/Invoice only for select stages */}
+              {canShowNote(effectiveStatus) && (
+                <Tooltip.Root openDelay={200}>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      size="sm"
+                      variant="solid"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenNote();
+                      }}
+                    >
+                      <NotebookPen size={16} style={{ marginRight: 6 }} />
+                      {isDelivered ? "Invoice" : "Delivery note"}
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Portal>
+                    <Tooltip.Positioner>
+                      <Tooltip.Content>{isDelivered ? "View invoice" : "View delivery note"}</Tooltip.Content>
+                    </Tooltip.Positioner>
+                  </Portal>
+                </Tooltip.Root>
+              )}
+            </HStack>
+          </HStack>
+        </Card.Header>
+
+        {/* Timeline toggled by status badge */}
+        {showTimeline && (
+          <>
+            <Separator />
+            <Card.Body px={4} py={3}>
+              <OrderTimeline stageKey={effectiveStatus} />
+            </Card.Body>
+          </>
+        )}
+
+        {/* Items list toggled by clicking the card (any non-button area) */}
+        {Boolean(isOpen) && (
+          <>
+            <Separator />
+            <Card.Body px={4} py={3}>
+              <HStack gap={2} mb={2}>
+                <List size={16} />
+                <Text fontWeight="semibold">Items</Text>
+                <Badge colorPalette="gray">{itemRows.length}</Badge>
+              </HStack>
+              <ItemList items={itemRows} />
+            </Card.Body>
+          </>
+        )}
+
+        {Boolean(isOpen) && (
+          <>
+            <Separator />
+            <Card.Footer px={4} py={3}>
+              <Box w="full">
+                <HStack wrap="wrap" gap={3} fontSize="sm">
+                  {"paymentMethod" in (order as any) ? (
+                    <Badge colorPalette="gray" variant="surface">
+                      Payment: {(order as any).paymentMethod}
+                    </Badge>
+                  ) : null}
+                  {"shippingMethod" in (order as any) ? (
+                    <Badge colorPalette="gray" variant="surface">
+                      Shipping: {(order as any).shippingMethod}
+                    </Badge>
+                  ) : null}
+                  {"priority" in (order as any) ? (
+                    <Badge colorPalette="orange" variant="surface">
+                      Priority: {(order as any).priority}
+                    </Badge>
+                  ) : null}
+                </HStack>
+              </Box>
+            </Card.Footer>
+          </>
+        )}
+      </Card.Root>
+
+      {/* Report dialog */}
+      <ReportIssueDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        orderId={id}
+        onSubmit={async ({ subject, details }) => {
+          await onReportSubmit(order as OrderRowAPI, { subject, details });
+          setReportOpen(false);
+        }}
+      />
+    </>
   );
 }
+
+export default memo(OrderCardBase);

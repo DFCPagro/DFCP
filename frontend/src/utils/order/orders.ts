@@ -2,7 +2,7 @@ import type { OrderRowAPI } from "@/types/orders";
 
 export type UIStatus =
   | "pending" | "accepted" | "farmer" | "farm_to_lc" | "logistic_center"
-  | "packed" | "ready_for_delivery" | "lc_to_customer" | "delivered" | "confirm_receiving";
+  | "packed" | "ready_for_delivery" | "lc_to_customer" | "delivered" | "confirm_receiving" | "problem";
 
 export type DateFilter = "ALL" | "WEEK" | "MONTH" | "CUSTOM";
 export type LatLng = { lat: number; lng: number };
@@ -18,6 +18,7 @@ export const STATUS_LABEL: Record<UIStatus, string> = {
   lc_to_customer: "delivering",
   delivered: "delivered",
   confirm_receiving: "confirm receiving",
+  problem: "problem",
 };
 
 export const STATUS_EMOJI: Record<UIStatus, string> = {
@@ -31,6 +32,7 @@ export const STATUS_EMOJI: Record<UIStatus, string> = {
   lc_to_customer: "🛵",
   delivered: "🏠",
   confirm_receiving: "🧾",
+  problem: "⚠️",
 };
 
 export const STATUS_OPTIONS: Array<"ALL" | UIStatus> = [
@@ -59,6 +61,7 @@ export function normalizeStatus(s: string): UIStatus {
     case "delivered": return "delivered";
     case "confirm_reciveing":
     case "confirm_receiving": return "confirm_receiving";
+    case "problem": return "problem";
     default: return "pending";
   }
 }

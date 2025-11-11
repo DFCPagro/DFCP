@@ -1,4 +1,3 @@
-// src/pages/orders/components/OrderTimeline.tsx
 "use client";
 
 import { HStack, VStack, Box, Text } from "@chakra-ui/react";
@@ -14,6 +13,7 @@ type Props = {
   size?: "sm" | "md";
 };
 
+/** Full flow, ending with "problem" */
 const FLOW: UIStatus[] = [
   "pending",
   "confirmed",
@@ -23,6 +23,7 @@ const FLOW: UIStatus[] = [
   "ready_for_pickup",
   "out_for_delivery",
   "delivered",
+  "problem",
 ];
 
 function mapStatus(s: string): UIStatus {
@@ -32,8 +33,11 @@ function mapStatus(s: string): UIStatus {
 
 export default function OrderTimeline({ stageKey, size = "md" }: Props) {
   const ui = mapStatus(stageKey);
-  const cancelled = ui === "cancelled";
-  const steps: UIStatus[] = cancelled ? ([...FLOW.slice(0, -1), "cancelled"] as UIStatus[]) : FLOW;
+  const isProblem = ui === "problem";
+
+  // If NOT problem, render the timeline excluding "problem"
+  // If problem, render full flow including "problem"
+  const steps: UIStatus[] = isProblem ? FLOW : (FLOW.slice(0, -1) as UIStatus[]);
   const currentIndex = steps.findIndex((x) => x === ui);
 
   const circle = size === "sm" ? "6" : "8";
@@ -43,13 +47,17 @@ export default function OrderTimeline({ stageKey, size = "md" }: Props) {
   return (
     <HStack align="center" gap={3} overflowX="auto">
       {steps.map((s, i) => {
-        const isCancel = s === "cancelled";
+        const atProblem = s === "problem";
         const active = i === currentIndex;
-        const done = currentIndex >= 0 && i < currentIndex && !isCancel && !cancelled;
 
-        const borderColor = isCancel ? "red.600" : active ? "teal.600" : done ? "teal.600" : "gray.400";
-        const fg = isCancel ? "red.600" : active ? "teal.700" : done ? "teal.700" : "gray.500";
-        const bg = isCancel ? "red.100" : active ? "teal.200" : done ? "teal.50" : "transparent";
+        // Progress logic:
+        // - For non-problem timelines: mark all prior steps as done.
+        // - For problem timelines: keep previous steps not-done to emphasize issue.
+        const done = !isProblem && currentIndex >= 0 && i < currentIndex;
+
+        const borderColor = atProblem ? "red.600" : active ? "teal.600" : done ? "teal.600" : "gray.400";
+        const fg = atProblem ? "red.600" : active ? "teal.700" : done ? "teal.700" : "gray.500";
+        const bg = atProblem ? "red.100" : active ? "teal.200" : done ? "teal.50" : "transparent";
 
         return (
           <HStack key={s} flex="0 0 auto" minW="max-content" gap={3}>
@@ -64,9 +72,9 @@ export default function OrderTimeline({ stageKey, size = "md" }: Props) {
                 color={fg}
                 borderColor={borderColor}
                 bg={bg}
-                boxShadow={active ? "0 0 0 3px rgba(59,130,246,0.35)" : "none"} // blue ring
+                boxShadow={active ? "0 0 0 3px rgba(59,130,246,0.35)" : "none"}
                 _dark={{
-                  bg: active ? "blue.400" : done ? "teal.900" : isCancel ? "red.900" : "transparent",
+                  bg: active ? "blue.400" : done ? "teal.900" : atProblem ? "red.900" : "transparent",
                   color: active ? "black" : undefined,
                   borderColor: active ? "blue.400" : borderColor,
                 }}
@@ -90,22 +98,23 @@ export default function OrderTimeline({ stageKey, size = "md" }: Props) {
                 w={`${connectorWidth}px`}
                 h="2px"
                 bg={
-                  cancelled
-                    ? "gray.300"
+                  isProblem
+                    ? "gray.300" // neutral connectors when in problem
                     : i < currentIndex
-                    ? "teal.500"           // done
+                    ? "teal.500"
                     : i === currentIndex
-                    ? "blue.500"           // active → next
+                    ? "blue.500"
                     : "gray.300"
                 }
                 _dark={{
-                  bg: cancelled
-                    ? "gray.600"
-                    : i < currentIndex
-                    ? "teal.600"
-                    : i === currentIndex
-                    ? "blue.400"
-                    : "gray.600",
+                  bg:
+                    isProblem
+                      ? "gray.600"
+                      : i < currentIndex
+                      ? "teal.600"
+                      : i === currentIndex
+                      ? "blue.400"
+                      : "gray.600",
                 }}
               />
             )}

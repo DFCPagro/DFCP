@@ -62,7 +62,8 @@ export default function Section<T>({
   const visible = showAll ? list : list.slice(0, previewCount);
 
   const A = accent;
-  const B = contrast || contrastOf(A);
+  // const B = contrast || contrastOf(A); // not used currently, keep for future contrast accents if needed
+  void contrastOf; void contrast; // silence TS when unused
 
   return (
     <Box borderRadius="2xl" bg="bg.canvas" p={{ base: 3, md: 4 }} shadow="lg">
@@ -85,7 +86,7 @@ export default function Section<T>({
             </Box>
           </HStack>
           {hasMore && onToggle && (
-            <Button size="sm" variant="solid" colorScheme="gray" onClick={onToggle}>
+            <Button size="sm" variant="solid" colorPalette="gray" onClick={onToggle}>
               {showAll ? "Show less" : "More"}
             </Button>
           )}
@@ -118,10 +119,6 @@ export default function Section<T>({
                 borderRadius="lg"
                 borderLeftWidth="4px"
                 borderLeftColor="green.700"
-
-
-
-
                 shadow="sm"
                 _hover={{ bg: "bg.subtle", transform: "translateX(2px)" }}
                 transition="background 0.15s ease, transform 0.15s ease"
@@ -138,11 +135,18 @@ export default function Section<T>({
                   opacity={0.9}
                 />
               )}
-
             </Box>
           ))}
         </VStack>
       )}
+
+      {!showAll && hasMore && onToggle ? (
+        <Box textAlign="center" mt={3}>
+          <Button size="sm" variant="outline" onClick={onToggle}>
+            Show all
+          </Button>
+        </Box>
+      ) : null}
     </Box>
   );
 }
