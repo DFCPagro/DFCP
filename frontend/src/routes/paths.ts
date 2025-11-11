@@ -39,6 +39,7 @@ export const PATHS = {
   cropHarvest: "/admin/crop-harvest",
   PackageSizes: "/admin/package-sizes",
   PickerTasksPage: "/admin/picker-tasks",
+  StatisticsAnalytics: "/admin/statistics-analytics",
 
   // driver pages
   shipments: "/shipments",

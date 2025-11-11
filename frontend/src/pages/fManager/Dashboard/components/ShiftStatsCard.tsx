@@ -59,7 +59,7 @@ function ShiftStatsCardBase({
   return (
     <Box borderWidth="1px" borderColor="border" rounded="lg" p="4" bg="bg" w="full">
       <Stack gap="4">
-        <Heading size="md">Shift Stats</Heading>
+        <Heading size="md">Farmer Orders</Heading>
 
         {loading ? (
           <Stack gap="2">

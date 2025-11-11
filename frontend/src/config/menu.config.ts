@@ -163,6 +163,12 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     label: "Job Application Review",
     path: P.JobAppReview,
   },
+  {
+    type: "link",
+    key: "statistics-analytics",
+    label: "Statistics & Analytics",
+    path: P.StatisticsAnalytics,
+  },
 
   // Admin utilities
  

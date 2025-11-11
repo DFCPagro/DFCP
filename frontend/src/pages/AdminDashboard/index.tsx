@@ -1,12 +1,6 @@
 // src/pages/adminDashboard/index.tsx
 import * as React from "react";
-import {
-  Box,
-  Stack,
-  Heading,
-  Separator,
-  SimpleGrid,
-} from "@chakra-ui/react";
+import { Box, Stack, Heading, Separator, SimpleGrid } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 
 // ---- Farmer (manager) bits
@@ -20,23 +14,15 @@ import { useCSShiftSummaries } from "@/pages/csManager/Dashboard/hooks/useCSShif
 // ---- routes
 import { PATHS } from "@/routes/paths";
 
+// ---- NEW: this-month stats row
+import ThisMonthStatsRow from "./components/ThisMonthStats";
+
 export default function AdminDashboardPage() {
   const nav = useNavigate();
 
-  // Farmer orders: current + next (from Farmer Manager)
-  const {
-    current,
-    next,
-    // missingShifts,  // available if you want to expose "Create Orders" from admin later
-    isLoading: fmLoading,
-    isFetching: fmFetching,
-  } = useManagerSummary();
+  const { current, next, isLoading: fmLoading, isFetching: fmFetching } = useManagerSummary();
 
-  // Customer orders: current + next N shifts (from CS Manager)
-  const {
-    rows: csRows,
-    isLoading: csLoading,
-  } = useCSShiftSummaries({ horizonShifts: 6 });
+  const { rows: csRows, isLoading: csLoading } = useCSShiftSummaries({ horizonShifts: 6 });
 
   const farmerLoading = fmLoading || fmFetching;
 
@@ -45,16 +31,15 @@ export default function AdminDashboardPage() {
       <Stack gap="6">
         <Heading size="lg">Admin Dashboard</Heading>
 
+        {/* --- This Month Stats (static for now) --- */}
+        <ThisMonthStatsRow />
+
         <Separator />
 
         {/* Two main focus areas side by side (stack on mobile) */}
         <SimpleGrid columns={{ base: 1, xl: 2 }} gap="6" alignItems="start">
           {/* ----- Farmer Orders (current & next) ----- */}
-          <ShiftStatsCard
-            current={current}
-            next={next}
-            loading={farmerLoading}
-          />
+          <ShiftStatsCard current={current} next={next} loading={farmerLoading} />
 
           {/* ----- Customer Orders (current + next 5) ----- */}
           <ShiftSummaryCard

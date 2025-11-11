@@ -45,6 +45,7 @@ const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const LogisticCenter = lazy(() => import("@/pages/LogisticCenter"));
 const PickerTasks = lazy(() => import("@/pages/opManager/picker-tasksManagement"));
+const StatisticsAnalytics = lazy(() => import("@/pages/Admin/StatisticsAnalytics"));
 
 const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
 const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"));
@@ -121,6 +122,14 @@ export default function AppRoutes() {
             }
           />
           <Route
+            path={PATHS.StatisticsAnalytics}
+            element={
+              <RoleGuard allow={["admin"]}>
+                <StatisticsAnalytics />
+              </RoleGuard>
+            }
+          />
+          <Route
             path={PATHS.JobAppReview}
             element={
               <RoleGuard allow={["admin", "fManager"]}>
@@ -128,6 +137,7 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
+          
           <Route
             path={PATHS.cropHarvest}
             element={
