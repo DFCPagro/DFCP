@@ -20,7 +20,10 @@ export function formatDMY(date: string | Date): string {
   return `${day}-${month}-${year}`;
 }
 
-// ---- append to date.ts ----
+/** Today as YYYY-MM-DD (local) */
+export function todayISO(): string {
+  return toISODate(new Date());
+}
 
 /** Convert a Date to YYYY-MM-DD (local) */
 export function toISODate(d: Date): string {
@@ -76,4 +79,14 @@ export function formatTimeHM(date?: string | Date): string {
 export function formatShiftLabel(shift?: string): string {
   if (!shift) return "";
   return shift.charAt(0).toUpperCase() + shift.slice(1);
+}
+
+
+export function getDayOfWeek(dateISO: string) {
+  try {
+    const date = new Date(dateISO);
+    return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
+  } catch {
+    return "";
+  }
 }

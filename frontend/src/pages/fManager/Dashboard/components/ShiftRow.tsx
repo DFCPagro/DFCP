@@ -1,29 +1,35 @@
 import { HStack, Text, Button, Badge } from "@chakra-ui/react";
-import type { ShiftEnum as Shift } from "@/types/shifts"; // new source of truth
+import type { ShiftEnum as Shift } from "@/types/shifts";
+
+// Helper → formats "2025-11-11" → "Tuesday"
+function getDayOfWeek(dateISO: string) {
+  try {
+    const date = new Date(dateISO);
+    return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
+  } catch {
+    return "";
+  }
+}
 
 export type ShiftRowProps =
   | {
-    variant: "create";
-    dateISO: string;
-    shift: Shift;  // <= lower-case union: "morning" | "afternoon" | ...
-    canAdd: boolean;
-    onAdd?: () => void;
-  }
+      variant: "create";
+      dateISO: string;
+      shift: Shift;
+      canAdd: boolean;
+      onAdd?: () => void;
+    }
   | {
-    variant: "stats";
-    dateISO: string;
-    shift: Shift;  // <= same
-    counts: { pending: number; ok: number; problem: number };
-    onView?: () => void;
-  };
+      variant: "stats";
+      dateISO: string;
+      shift: Shift;
+      counts: { pending: number; ok: number; problem: number };
+      onView?: () => void;
+    };
 
-/**
- * Shared row for manager dashboard shift lists.
- * - variant="create": shows [Add] button (enabled if canAdd=true).
- * - variant="stats": shows counts + [View] button.
- */
 export function ShiftRow(props: ShiftRowProps) {
   const { dateISO, shift } = props;
+  const dayName = getDayOfWeek(dateISO);
 
   return (
     <HStack
@@ -36,10 +42,10 @@ export function ShiftRow(props: ShiftRowProps) {
     >
       {/* Left side */}
       <Text fontSize="sm" fontWeight="medium">
-        {dateISO} · {shift.charAt(0).toUpperCase() + shift.slice(1)}
+        {dateISO} · {dayName} · {shift.charAt(0).toUpperCase() + shift.slice(1)}
       </Text>
 
-      {/* Right side depends on variant */}
+      {/* Right side */}
       {props.variant === "create" ? (
         <Button
           size="sm"

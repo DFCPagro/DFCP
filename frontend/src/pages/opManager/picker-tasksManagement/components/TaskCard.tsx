@@ -1,6 +1,8 @@
+// src/pages/opManager/picker-tasksManagement/components/TaskCard.tsx
 import * as React from "react";
 import { Card, HStack, Heading, Spinner, Alert, Text, Badge, Box, Table, Button } from "@chakra-ui/react";
 import type { PickerTask, PlanBox, PlanPiece, PickerTaskStatus } from "@/api/pickerTask";
+
 
 function fmtNum(n: any) {
   if (!Number.isFinite(n)) return "-";
@@ -10,19 +12,20 @@ function fmtNum(n: any) {
 function badgeColorForStatus(s?: PickerTaskStatus) {
   switch (s) {
     case "ready": return "green";
-    case "claimed": return "purple";
-    case "in_progress": return "orange";
+    case "claimed": return "teal";
+    case "in_progress": return "purple";
     case "open": return "gray";
     case "problem": return "red";
-    case "cancelled": return "gray";
+    case "cancelled": return "orange";
     case "done": return "blue";
     default: return "gray";
   }
 }
+  
 
 type Row = {
   key: string;
-  task: PickerTask;                // <-- keep a reference to the source task
+  task: PickerTask;
   status?: PickerTaskStatus;
   orderId: string;
   boxNo: number;
@@ -53,7 +56,7 @@ function flattenTasksToRows(tasks: PickerTask[]): Row[] {
     for (const b of boxes) {
       rows.push({
         key: `${t.orderId}_${b.boxNo}`,
-        task: t,                          // <-- store backref
+        task: t,
         status: t.status,
         orderId: t.orderId,
         boxNo: b.boxNo,
@@ -74,30 +77,31 @@ export default function TasksCard({
   countsByStatus,
   isLoading,
   errorMsg,
-  onView,                                  // <-- NEW optional prop
+  onView,
 }: {
   tasks: PickerTask[];
   total: number;
   countsByStatus?: Record<string, number>;
   isLoading?: boolean;
   errorMsg?: string | null;
-  onView?: (task: PickerTask) => void;     // <-- NEW
+  onView?: (task: PickerTask) => void;
 }) {
   const rows = React.useMemo(() => flattenTasksToRows(tasks || []), [tasks]);
+
+  // Build stat-cards array (Total, Problem, In progress, Open, Done)
+  const stats = React.useMemo(() => ([
+    { key: "total",       label: "Total",       value: total },
+    { key: "problem",     label: "Problem",     value: countsByStatus?.problem ?? 0 },
+    { key: "in_progress", label: "In progress", value: countsByStatus?.in_progress ?? 0 },
+    { key: "open",        label: "Open",        value: countsByStatus?.open ?? 0 },
+    { key: "done",        label: "Done",        value: countsByStatus?.done ?? 0 },
+  ]), [total, countsByStatus]);
 
   return (
     <Card.Root>
       <Card.Header>
-        <HStack justify="space-between" align="center">
+        <HStack justify="space-between" align="center" w="full">
           <Heading size="md">Picker Tasks</Heading>
-          <HStack>
-            {countsByStatus &&
-              Object.entries(countsByStatus).map(([k, v]) => (
-                <Badge key={k} variant="outline">
-                  {k}: {v}
-                </Badge>
-              ))}
-          </HStack>
         </HStack>
       </Card.Header>
 
@@ -110,6 +114,7 @@ export default function TasksCard({
           </Alert.Root>
         ) : (
           <>
+
             <Text mb={3}>
               Total tasks: <Badge>{total}</Badge>
             </Text>
@@ -126,7 +131,7 @@ export default function TasksCard({
                     <Table.ColumnHeader textAlign="end">Est Units</Table.ColumnHeader>
                     <Table.ColumnHeader textAlign="end">Liters</Table.ColumnHeader>
                     <Table.ColumnHeader>Contents</Table.ColumnHeader>
-                    <Table.ColumnHeader textAlign="end">Actions</Table.ColumnHeader> {/* <-- NEW */}
+                    <Table.ColumnHeader textAlign="end">Actions</Table.ColumnHeader>
                   </Table.Row>
                 </Table.Header>
 
@@ -134,7 +139,9 @@ export default function TasksCard({
                   {rows.map((r) => (
                     <Table.Row key={r.key}>
                       <Table.Cell>
-                        <Badge colorPalette={badgeColorForStatus(r.status)}>{r.status || "open"}</Badge>
+                        <Badge colorPalette={badgeColorForStatus(r.status)}>
+                          {r.status || "open"}
+                        </Badge>
                       </Table.Cell>
                       <Table.Cell>{r.orderId}</Table.Cell>
                       <Table.Cell textAlign="end">{r.boxNo}</Table.Cell>
