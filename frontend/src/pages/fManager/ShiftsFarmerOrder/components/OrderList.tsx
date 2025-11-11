@@ -11,126 +11,184 @@
 // TODO(UX): If you later standardize columns across flat/grouped modes,
 //           add a compact <Thead> here to match OrderRow's <Td>s for accessibility.
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import {
-    Box,
-    Stack,
-    HStack,
-    Text,
-    Badge,
-    Separator,
-    Table,
+  Box,
+  Stack,
+  HStack,
+  Text,
+  Badge,
+  Separator,
+  Table,
+  Image,
 } from "@chakra-ui/react";
 import { OrderRow } from "./OrderRow";
 import type { ShiftFarmerOrderItem } from "@/types/farmerOrders";
 
 export type OrderListProps = {
-    /** Flat orders array to group by itemId */
-    items: ShiftFarmerOrderItem[];
+  /** Flat orders array to group by itemId */
+  items: ShiftFarmerOrderItem[];
 
-    /** Optional override for group labels, given the group's rows */
-    renderGroupTitle?: (groupRows: ShiftFarmerOrderItem[]) => React.ReactNode;
+  /** Optional override for group labels, given the group's rows */
+  renderGroupTitle?: (groupRows: ShiftFarmerOrderItem[]) => React.ReactNode;
 };
 
-// src/pages/ShiftFarmerOrder/components/OrderList.tsx
-// (Use the fixed version I sent earlier, but remove expandedRowId state and the handleRowClick)
-
-
+// (Use the fixed version; no expandedRowId state or row click handler)
 export const OrderList = memo(function OrderList({
-    items,
-    renderGroupTitle,
+  items,
+  renderGroupTitle,
 }: OrderListProps) {
-    const groups = useMemo(() => groupByItemId(items), [items]);
+  const groups = useMemo(() => groupByItemId(items), [items]);
 
-    const sortedGroups = useMemo(() => {
-        return [...groups].sort((a, b) => {
-            const aHasProblem = groupHasProblem(a[1]);
-            const bHasProblem = groupHasProblem(b[1]);
-            if (aHasProblem && !bHasProblem) return -1;
-            if (!aHasProblem && bHasProblem) return 1;
-            const aLabel = computeGroupLabel(a[1]).toLowerCase();
-            const bLabel = computeGroupLabel(b[1]).toLowerCase();
-            return aLabel.localeCompare(bLabel);
-        });
-    }, [groups]);
+  const sortedGroups = useMemo(() => {
+    return [...groups].sort((a, b) => {
+      const aHasProblem = groupHasProblem(a[1]);
+      const bHasProblem = groupHasProblem(b[1]);
+      if (aHasProblem && !bHasProblem) return -1;
+      if (!aHasProblem && bHasProblem) return 1;
+      const aLabel = computeGroupLabel(a[1]).toLowerCase();
+      const bLabel = computeGroupLabel(b[1]).toLowerCase();
+      return aLabel.localeCompare(bLabel);
+    });
+  }, [groups]);
 
-    if (!items?.length) return null;
+  if (!items?.length) return null;
 
-    return (
-        <Stack gap={4}>
-            {sortedGroups.map(([itemId, rows]) => {
-                const hasProblem = groupHasProblem(rows);
-                const title = renderGroupTitle ? renderGroupTitle(rows) : computeGroupLabel(rows);
-                const sortedRows = sortRowsProblemFirstThenUpdatedDesc(rows);
+  return (
+    <Stack gap={4}>
+      {sortedGroups.map(([itemId, rows]) => {
+        const hasProblem = groupHasProblem(rows);
+        const title = renderGroupTitle ? renderGroupTitle(rows) : computeGroupLabel(rows);
+        const sortedRows = sortRowsProblemFirstThenUpdatedDesc(rows);
 
-                return (
-                    <Box key={itemId} borderWidth="1px" borderRadius="lg" p={3} bg="bg" borderColor="border">
-                        <HStack justify="space-between" align="center">
-                            <HStack gap={2}>
-                                <Text fontWeight="semibold" fontSize="lg">{title}</Text>
-                                <Badge variant="solid" colorPalette="blue">{sortedRows.length} orders</Badge>
-                                {hasProblem && <Badge variant="solid" colorPalette="red">problem</Badge>}
-                            </HStack>
-                        </HStack>
+        // Display the item image for the group header (uses `pictureUrl`)
+        const firstRow = rows[0] as any;
+        const img: string | undefined = firstRow?.pictureUrl;
+        const initials =
+          String(title ?? "")
+            .trim()
+            .slice(0, 2)
+            .toUpperCase() || "??";
 
-                        <Separator my={3} />
+        return (
+          <Box
+            key={itemId}
+            borderWidth="1px"
+            borderRadius="lg"
+            p={3}
+            bg="bg"
+            borderColor="border"
+          >
+            <HStack justifyContent="space-between" alignItems="center">
+              <HStack gap={3} alignItems="center">
+                {img ? (
+                  <Image
+                    src={img}
+                    alt={typeof title === "string" ? title : "Item image"}
+                    boxSize="36px"
+                    borderRadius="md"
+                    objectFit="cover"
+                    border="1px solid"
+                    borderColor="border"
+                  />
+                ) : (
+                  <Box
+                    boxSize="36px"
+                    borderRadius="md"
+                    bg="gray.200"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                    fontSize="xs"
+                    fontWeight="bold"
+                    color="gray.600"
+                  >
+                    {initials}
+                  </Box>
+                )}
 
-                        <Table.Root size="sm" variant="outline">
-                            <Table.Body>
-                                {sortedRows.map((row) => (
-                                    <OrderRow
-                                        key={(row as any)._id ?? `${(row as any).itemId ?? "item"}-${(row as any).farmerId ?? "farmer"}`}
-                                        row={row}
-                                        variant="grouped"
-                                    />
-                                ))}
-                            </Table.Body>
-                        </Table.Root>
-                    </Box>
-                );
-            })}
-        </Stack>
-    );
+                <Text fontWeight="semibold" fontSize="lg">
+                  {title}
+                </Text>
+
+                <Badge variant="solid" colorPalette="blue">
+                  {sortedRows.length} orders
+                </Badge>
+
+                {hasProblem && (
+                  <Badge variant="solid" colorPalette="red">
+                    problem
+                  </Badge>
+                )}
+              </HStack>
+            </HStack>
+
+            <Separator my={3} />
+
+            <Table.Root size="sm" variant="outline">
+              <Table.Body>
+                {sortedRows.map((row) => (
+                  <OrderRow
+                    key={
+                      (row as any)._id ??
+                      `${(row as any).itemId ?? "item"}-${
+                        (row as any).farmerId ?? "farmer"
+                      }`
+                    }
+                    row={row}
+                    variant="grouped"
+                  />
+                ))}
+              </Table.Body>
+            </Table.Root>
+          </Box>
+        );
+      })}
+    </Stack>
+  );
 });
-
 
 /* --------------------------------- helpers -------------------------------- */
 
 function groupByItemId(
-    items: ShiftFarmerOrderItem[]
+  items: ShiftFarmerOrderItem[],
 ): Map<string, ShiftFarmerOrderItem[]> {
-    const m = new Map<string, ShiftFarmerOrderItem[]>();
-    for (const it of items ?? []) {
-        const key = (it as any)?.itemId ?? "unknown";
-        if (!m.has(key)) m.set(key, []);
-        m.get(key)!.push(it);
-    }
-    return m;
+  const m = new Map<string, ShiftFarmerOrderItem[]>();
+  for (const it of items ?? []) {
+    const key = (it as any)?.itemId ?? "unknown";
+    if (!m.has(key)) m.set(key, []);
+    m.get(key)!.push(it);
+  }
+  return m;
 }
 
 function groupHasProblem(rows: ShiftFarmerOrderItem[]): boolean {
-    return rows.some((r) => ((r as any)?.farmerStatus ?? (r as any)?.status) === "problem");
+  return rows.some(
+    (r) => ((r as any)?.farmerStatus ?? (r as any)?.status) === "problem",
+  );
 }
 
 function toTime(s?: string | Date): number {
-    if (!s) return 0;
-    const t = typeof s === "string" ? Date.parse(s) : (s as Date).getTime?.();
-    return Number.isFinite(t as number) ? (t as number) : 0;
+  if (!s) return 0;
+  const t = typeof s === "string" ? Date.parse(s) : (s as Date).getTime?.();
+  return Number.isFinite(t as number) ? (t as number) : 0;
 }
 
 function sortRowsProblemFirstThenUpdatedDesc(
-    rows: ShiftFarmerOrderItem[]
+  rows: ShiftFarmerOrderItem[],
 ): ShiftFarmerOrderItem[] {
-    return [...rows].sort((a, b) => {
-        const aProblem = ((a as any)?.farmerStatus ?? (a as any)?.status) === "problem";
-        const bProblem = ((b as any)?.farmerStatus ?? (b as any)?.status) === "problem";
-        if (aProblem && !bProblem) return -1;
-        if (!aProblem && bProblem) return 1;
+  return [...rows].sort((a, b) => {
+    const aProblem =
+      ((a as any)?.farmerStatus ?? (a as any)?.status) === "problem";
+    const bProblem =
+      ((b as any)?.farmerStatus ?? (b as any)?.status) === "problem";
+    if (aProblem && !bProblem) return -1;
+    if (!aProblem && bProblem) return 1;
 
-        const aTime = toTime((a as any)?.updatedAt) || toTime((a as any)?.createdAt);
-        const bTime = toTime((b as any)?.updatedAt) || toTime((b as any)?.createdAt);
-        return bTime - aTime; // desc (newest first)
-    });
+    const aTime = toTime((a as any)?.updatedAt) || toTime((a as any)?.createdAt);
+    const bTime = toTime((b as any)?.updatedAt) || toTime((b as any)?.createdAt);
+    return bTime - aTime; // desc (newest first)
+  });
 }
 
 /**
@@ -138,22 +196,22 @@ function sortRowsProblemFirstThenUpdatedDesc(
  * Prefers itemDisplayName if present; otherwise falls back to a composited label.
  */
 function computeGroupLabel(rows: ShiftFarmerOrderItem[]): string {
-    const first = rows[0];
-    const byDisplay =
-        (first as any)?.itemDisplayName ||
-        (first as any)?.productName ||
-        undefined;
+  const first = rows[0] as any;
+  const byDisplay =
+    first?.itemDisplayName ||
+    first?.productName ||
+    undefined;
 
-    if (byDisplay) return String(byDisplay);
+  if (byDisplay) return String(byDisplay);
 
-    // Attempt compositing from optional fields commonly found in catalog-like data
-    const type = (first as any)?.type;
-    const variety = (first as any)?.variety;
-    const category = (first as any)?.category;
+  // Attempt compositing from optional fields commonly found in catalog-like data
+  const type = first?.type;
+  const variety = first?.variety;
+  const category = first?.category;
 
-    const parts = [category, type, variety].filter(Boolean);
-    if (parts.length) return parts.join(" · ");
+  const parts = [category, type, variety].filter(Boolean);
+  if (parts.length) return parts.join(" · ");
 
-    // Final fallback
-    return "Item " + ((first as any)?.itemId ?? "—");
+  // Final fallback
+  return "Item " + (first?.itemId ?? "—");
 }
