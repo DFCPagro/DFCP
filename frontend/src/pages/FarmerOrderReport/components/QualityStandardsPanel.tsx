@@ -10,171 +10,154 @@ import {
   Text,
 } from "@chakra-ui/react"
 
-// UPDATE PATH if your shared component lives elsewhere
-import QualityStandardsSection, {
-  type QualityStandards as QSABC,
-} from "@/components/common/items/QualityStandardsSection"
+import QualityStandardsSection from "@/components/common/items/QualityStandardsSection"
+import { Reveal } from "./Animated"
 
 /**
- * Panel goals:
- * 1) Show READ-ONLY Quality Standards examples (A/B/C) using the shared component
- *    — fields look normal (not muted), but cannot be edited.
- * 2) Show Measurements as a TABLE (single value per metric, NO A/B/C).
- *
- * Excluded everywhere: rejectionRate, maxDefectRatioLengthDiameter
+ * Local quality model independent from external types to avoid
+ * "Property 'measures' does not exist on type ..." errors.
  */
+type MetricKey = "moisture" | "brix" | "size" | "rejectionRate"
 
-// excluded keys
-const EXCLUDED: Array<keyof QSABC> = [
-  "maxDefectRatioLengthDiameter",
-  "rejectionRate",
-]
+type QS = {
+  grade: "A" | "B" | "C"
+  measures: Record<MetricKey, number>
+}
 
-// labels for rows in measured section
-const LABELS: Record<keyof QSABC, string> = {
-  brix: "brix",
-  acidityPercentage: "Acidity percentage",
-  pressure: "pressure",
-  colorDescription: "Color description",
-  colorPercentage: "Color Percentage",
-  weightPerUnit: "Weight per unit",
-  diameterMM: "Diameter MM",
-  qualityGrade: "Quality grade",
-  maxDefectRatioLengthDiameter: "Max defect eatio length diameter",
+type Measurements = Partial<Record<MetricKey, number | string>>
+
+const metricLabels: Record<MetricKey, string> = {
+  moisture: "Moisture %",
+  brix: "Brix %",
+  size: "Size / length diameter",
   rejectionRate: "Rejection rate",
 }
 
-// which metrics are free text
-const IS_TEXT: Partial<Record<keyof QSABC, boolean>> = {
-  colorDescription: true,
-  qualityGrade: true,
+// Demo data — A/B/C read-only
+const ABC: { a: QS; b: QS; c: QS } = {
+  a: {
+    grade: "A",
+    measures: { moisture: 10, brix: 12, size: 8, rejectionRate: 1 },
+  },
+  b: {
+    grade: "B",
+    measures: { moisture: 14, brix: 10, size: 7, rejectionRate: 2.5 },
+  },
+  c: {
+    grade: "C",
+    measures: { moisture: 18, brix: 8, size: 6, rejectionRate: 4 },
+  },
 }
 
-// units (shown as chips)
-const UNIT: Partial<Record<keyof QSABC, string>> = {
-  brix: "%",
-  acidityPercentage: "%",
-  pressure: "kg/cm²",
-  colorPercentage: "%",
-  weightPerUnit: "g",
-  diameterMM: "mm",
+type Props = {
+  readOnly?: boolean
 }
 
-type MeasuredValues = Partial<
-  Record<
-    Exclude<keyof QSABC, "maxDefectRatioLengthDiameter" | "rejectionRate">,
-    string
-  >
->
+export default function QualityStandardsPanel(props: Props) {
+  const [qsExample, setQsExample] = React.useState<QS | undefined>()
+  const [measured, setMeasured] = React.useState<Measurements | undefined>()
 
-export function QualityStandardsPanel() {
-  // READ-ONLY A/B/C examples to show in the common component
-  const [qsExample, setQsExample] = React.useState<QSABC | undefined>(undefined)
+  const metricKeys = React.useMemo(() => Object.keys(metricLabels) as MetricKey[], [])
 
-  // Product-level tolerance ratio (e.g., "0.02")
-  const [toleranceRatio, setToleranceRatio] = React.useState<string | null>("0.02")
-
-  // Actual measurements (single value per metric)
-  const [measured, setMeasured] = React.useState<MeasuredValues | undefined>({})
-
-  const metricKeys = React.useMemo(
-    () =>
-      (Object.keys(LABELS) as Array<keyof QSABC>).filter(
-        (k) => !EXCLUDED.includes(k),
-      ),
-    [],
+  const onChangeNumber = React.useCallback(
+    (key: MetricKey) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      const clean = e.currentTarget.value
+      setMeasured((prev) => ({ ...(prev ?? {}), [key]: clean }))
+    },
+    []
   )
 
-  const setTol = React.useCallback((v: string) => {
-    const t = v.trim()
-    setToleranceRatio(t.length ? t : null)
-  }, [])
-
-  const setMeasuredCell = React.useCallback(
-    (key: keyof MeasuredValues, val: string) => {
-      const next: MeasuredValues = { ...(measured ?? {}) }
-      const clean = val.trim()
-      if (!clean) {
-        delete next[key]
-      } else {
-        next[key] = clean
-      }
-      setMeasured(Object.keys(next).length ? next : undefined)
+  const onBlurFormat = React.useCallback(
+    (key: MetricKey) => (e: React.FocusEvent<HTMLInputElement>) => {
+      const raw = e.currentTarget.value
+      const clean = raw.trim()
+      setMeasured((prev) => {
+        const next = { ...(prev ?? {}) }
+        if (!clean) {
+          delete next[key]
+        } else {
+          next[key] = clean
+        }
+        return Object.keys(next).length ? next : undefined
+      })
     },
-    [measured],
+    []
   )
 
   return (
     <Stack gap="5">
       {/* 1) READ-ONLY A/B/C examples */}
-      <Card.Root variant="outline" overflow="hidden">
-        <Card.Body>
-          <QualityStandardsSection
-            value={qsExample}
-            onChange={setQsExample}
-            readOnly
-            tolerance={toleranceRatio ?? ""}
-            onChangeTolerance={setTol}
-          />
-        </Card.Body>
-      </Card.Root>
+      <Reveal>
+        <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
+          <Card.Body>
+            <QualityStandardsSection
+              // Pass as any to avoid coupling with external type definitions
+              value={(qsExample ?? ABC.a) as any}
+              onChange={(v: any) => setQsExample(v as QS)}
+              readOnly
+            />
+          </Card.Body>
+        </Card.Root>
+      </Reveal>
 
-      {/* 2) Measurements — TABLE (single value per metric) */}
-      <Card.Root variant="outline" overflow="hidden">
-        <Card.Body gap="3">
-          <Text fontSize="lg" fontWeight="semibold">
-            Measurements — Enter actual values
-          </Text>
+      {/* 2) Editable measurements grid */}
+      <Reveal>
+        <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
+          <Card.Header>
+            <HStack justify="space-between">
+              <Text fontWeight="semibold" color="fg.subtle">
+                Measurements — Enter actual values
+              </Text>
+              <Badge>Live</Badge>
+            </HStack>
+          </Card.Header>
 
-          <Box overflowX="auto" pt="1">
-            <Table.Root size="sm" variant="outline" minW="720px">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeader w="34%">Field</Table.ColumnHeader>
-                  <Table.ColumnHeader w="48%">Measured</Table.ColumnHeader>
-                  <Table.ColumnHeader w="18%">Unit</Table.ColumnHeader>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {metricKeys.map((key) => {
-                  const isText = !!IS_TEXT[key]
-                  const unit = isText ? undefined : UNIT[key]
-                  const value = (measured as any)?.[key] ?? ""
-                  return (
-                    <Table.Row key={String(key)}>
-                      <Table.Cell>
-                        <Text fontWeight="medium">{LABELS[key]}</Text>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Input
-                          size="sm"
-                          value={value}
-                          onChange={(e) =>
-                            setMeasuredCell(key as keyof MeasuredValues, e.target.value)
-                          }
-                          placeholder={isText ? "Enter text…" : "Enter value…"}
-                          inputMode={isText ? "text" : "decimal"}
-                        />
-                      </Table.Cell>
-                      <Table.Cell>
-                        {unit ? (
-                          <HStack>
-                            <Badge variant="subtle">{unit}</Badge>
-                          </HStack>
-                        ) : (
+          <Card.Body>
+            <Box overflowX="auto" pt="1">
+              <Table.Root size="sm" variant="outline" minW="720px">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeader w="34%">Field</Table.ColumnHeader>
+                    <Table.ColumnHeader w="48%">Measured</Table.ColumnHeader>
+                    <Table.ColumnHeader w="18%">Unit</Table.ColumnHeader>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {metricKeys.map((key) => {
+                    const label = metricLabels[key]
+                    return (
+                      <Table.Row key={key}>
+                        <Table.Cell>
+                          <Text>{label}</Text>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Input
+                            className="anim-scale-hover"
+                            size="sm"
+                            value={(measured?.[key] as string) ?? ""}
+                            onChange={onChangeNumber(key)}
+                            onBlur={onBlurFormat(key)}
+                            placeholder="Enter value"
+                          />
+                        </Table.Cell>
+                        <Table.Cell>
                           <Text color="fg.muted">—</Text>
-                        )}
-                      </Table.Cell>
-                    </Table.Row>
-                  )
-                })}
-              </Table.Body>
-            </Table.Root>
-          </Box>
-        </Card.Body>
-      </Card.Root>
+                        </Table.Cell>
+                      </Table.Row>
+                    )
+                  })}
+                </Table.Body>
+              </Table.Root>
+            </Box>
+          </Card.Body>
+
+          <Card.Footer>
+            <Text fontSize="xs" color="fg.muted">
+              Tip: fields left blank will be ignored.
+            </Text>
+          </Card.Footer>
+        </Card.Root>
+      </Reveal>
     </Stack>
   )
 }
-
-export default QualityStandardsPanel

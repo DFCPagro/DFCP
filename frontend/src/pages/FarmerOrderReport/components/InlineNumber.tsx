@@ -14,7 +14,8 @@ export function InlineNumber(props: {
   const { value, onValue, min = 0, max = 1_000_000, step = 0.1, size = "sm" } = props
   return (
     <NumberInput.Root
-      value={String(Number.isFinite(value) ? value : 0)}
+      className="anim-scale-hover"
+      value={String(value ?? "")}
       onValueChange={(d) => onValue(safeNumber(d.value))}
       min={min}
       max={max}

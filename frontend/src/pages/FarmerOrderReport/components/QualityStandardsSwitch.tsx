@@ -11,34 +11,30 @@ type Props = {
 
 /**
  * Chooses which quality standards UI to render based on category.
- * - "dairy" (or contains "dairy", "milk", "cheese", "yogurt") → DairyQualityStandardsPanel
- * - otherwise → default produce QualityStandardsPanel
- *
- * Panels themselves render:
- *  - read-only A/B/C example table (for reference)
- *  - measurement table (single values) for user input
+ * Uses subtle motion via Card hover and Reveal inside each panel.
  */
 export default function QualityStandardsSwitch({ category, readOnly }: Props) {
   const isDairy = useMemo(() => {
-    const c = String(category ?? "").toLowerCase()
-    return !!c && /(dairy|milk|cheese|yogurt|labneh|kefir)/i.test(c)
+    const c = (category ?? "").toLowerCase()
+    return !!c && /(dairy|milk|cheese|yogurt)/.test(c)
   }, [category])
 
   return (
-    <Card.Root variant="outline" overflow="hidden">
-      <Card.Body gap="4">
-        <Text fontSize="lg" fontWeight="semibold">
+    <Card.Root className="anim-pressable" variant="subtle">
+      <Card.Header>
+        <Text fontWeight="semibold" color="fg.subtle">
           Quality Standards {isDairy ? "— Dairy" : "— Produce"}
         </Text>
         <Separator />
         <Stack>
           {isDairy ? (
-            <DairyQualityStandardsPanel />
+            <DairyQualityStandardsPanel readOnly={readOnly} />
           ) : (
-            <QualityStandardsPanel />
+            <QualityStandardsPanel readOnly={readOnly} />
           )}
         </Stack>
-      </Card.Body>
+      </Card.Header>
+      <Card.Body />
     </Card.Root>
   )
 }

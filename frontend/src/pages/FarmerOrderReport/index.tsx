@@ -28,6 +28,8 @@ import { MonoToken } from "./components/MonoToken"
 import { StepPill } from "./components/StepPill"
 import QualityStandardsSwitch from "./components/QualityStandardsSwitch"
 
+import { Reveal } from "./components/Animated"
+
 // mock services (replace with real API when ready)
 import { mockMode, mockPayload, delay } from "./services/farmerOrders.mock"
 
@@ -260,354 +262,379 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
   return (
     <Stack gap="6" p={{ base: "3", md: "4" }} w="full" minW="0">
       {/* Header / Summary */}
-      <Card.Root variant="outline" overflow="hidden">
-        <Card.Body gap="4">
-          <HStack justifyContent="space-between" alignItems="flex-start" wrap="wrap" minW="0">
-            <VStack alignItems="flex-start" gap="2" minW="200px" flex="1" minWidth={0}>
-              <Text fontSize="xl" fontWeight="semibold">Farmer Order Report</Text>
-              <HStack gap="2" wrap="wrap">
-                <Badge>{(payload?.farmerOrder?._id ?? effectiveFoId) || "—"}</Badge>
-                <Tag.Root><Tag.Label>Shift: {payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
-                <Tag.Root><Tag.Label>Date: {payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
-              </HStack>
-              <Text color="fg.muted" lineClamp={1} minW="0">Pickup: {pickup}</Text>
-              <Text color="fg.muted" lineClamp={1} minW="0">Deliverer: {assignedName}</Text>
-              <Text color="fg.muted" fontSize="sm" title={typeof window !== "undefined" ? window.location.href : ""}>
-                URL-bound FO: {effectiveFoId || "not detected"}
-              </Text>
-            </VStack>
-
-            <HStack gap="4" alignItems="center" minW="260px" flexShrink={0}>
-              {payload?.farmerOrder?.pictureUrl ? (
-                <Image
-                  src={payload.farmerOrder.pictureUrl}
-                  alt={itemName}
-                  width="120px"
-                  height="120px"
-                  borderRadius="2xl"
-                  objectFit="cover"
-                />
-              ) : null}
-
-              <VStack alignItems="flex-end" minW="240px" gap="3">
-                <Stat.Root>
-                  <Stat.Label>Item</Stat.Label>
-                  <Stat.ValueText lineClamp={1} maxW="260px">{itemName}</Stat.ValueText>
-                </Stat.Root>
-                <Stat.Root>
-                  <Stat.Label>Ordered amount</Stat.Label>
-                  <Stat.ValueText>
-                    <FormatNumber value={orderedKg} maximumFractionDigits={2} /> kg
-                  </Stat.ValueText>
-                  <Text color="fg.muted" fontSize="sm">Quality grade: A</Text>
-                </Stat.Root>
+      <Reveal>
+        <Card.Root variant="outline" overflow="hidden" className="anim-pressable">
+          <Card.Body gap="4">
+            <HStack justifyContent="space-between" alignItems="flex-start" wrap="wrap" minW="0">
+              <VStack alignItems="flex-start" gap="2" minW="200px" flex="1" minWidth={0}>
+                <Text fontSize="xl" fontWeight="semibold">Farmer Order Report</Text>
+                <HStack gap="2" wrap="wrap">
+                  <Badge>{(payload?.farmerOrder?._id ?? effectiveFoId) || "—"}</Badge>
+                  <Tag.Root><Tag.Label>Shift: {payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
+                  <Tag.Root><Tag.Label>Date: {payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
+                </HStack>
+                <Text color="fg.muted" lineClamp={1} minW="0">Pickup: {pickup}</Text>
+                <Text color="fg.muted" lineClamp={1} minW="0">Deliverer: {assignedName}</Text>
+                <Text color="fg.muted" fontSize="sm" title={typeof window !== "undefined" ? window.location.href : ""}>
+                  URL-bound FO: {effectiveFoId || "not detected"}
+                </Text>
               </VStack>
-            </HStack>
-          </HStack>
 
-          <Separator />
+              <HStack gap="4" alignItems="center" minW="260px" flexShrink={0}>
+                {payload?.farmerOrder?.pictureUrl ? (
+                  <Image
+                    src={payload.farmerOrder.pictureUrl}
+                    alt={itemName}
+                    width="120px"
+                    height="120px"
+                    borderRadius="2xl"
+                    objectFit="cover"
+                    className="anim-float-hover"
+                  />
+                ) : null}
 
-          {/* Actions */}
-          <HStack gap="3" wrap="wrap">
-            <Button onClick={() => setOpenInit(true)} disabled={loading || !effectiveFoId}>
-              Create containers
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setOpenPreview(true)}
-              disabled={!(payload?.containerQrs?.length ?? 0)}
-            >
-              Preview & Print
-            </Button>
-            <Button onClick={load} variant="ghost" disabled={loading || !effectiveFoId}>
-              Re-fetch
-            </Button>
-          </HStack>
-
-          {/* Errors / loading */}
-          <Show when={!!error}>
-            <Alert.Root status="error" title="Error">
-              <Alert.Description asChild>
-                <span>{error}</span>
-              </Alert.Description>
-            </Alert.Root>
-          </Show>
-
-          <Show when={loading}>
-            <Progress.Root value={60} width="full" aria-label="Loading">
-              <Progress.Track>
-                <Progress.Range />
-              </Progress.Track>
-            </Progress.Root>
-          </Show>
-        </Card.Body>
-      </Card.Root>
-
-      {/* Step indicator */}
-      <Card.Root variant="subtle" overflow="hidden">
-        <Card.Body>
-          <HStack gap="3" wrap="wrap">
-            <StepPill active>1. Create containers</StepPill>
-            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>2. Weigh-in</StepPill>
-            <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>3. Print labels</StepPill>
-          </HStack>
-        </Card.Body>
-      </Card.Root>
-
-      {/* Order-level Quality Standards (switches by category) */}
-      <QualityStandardsSwitch category={category} />
-
-      {/* Containers – board */}
-      <Card.Root variant="outline" overflow="hidden">
-        <Card.Body gap="4" minW="0">
-          <HStack justifyContent="space-between" alignItems="center" wrap="wrap">
-            <Text fontSize="lg" fontWeight="semibold">Containers – Weigh-in</Text>
-            <HStack gap="3" wrap="wrap">
-              <Tag.Root>
-                <Tag.Label>
-                  Weighed total: <FormatNumber value={totalWeighedKg} maximumFractionDigits={2} /> kg
-                </Tag.Label>
-              </Tag.Root>
-              <Tag.Root>
-                <Tag.Label>
-                  Min allowed: <FormatNumber value={minAllowedTotal} maximumFractionDigits={2} /> kg
-                </Tag.Label>
-              </Tag.Root>
-
-              <Tooltip content={Object.keys(weightsDraft).length ? "Save all edited weights" : ""}>
-                <Button
-                  onClick={saveWeights}
-                  colorPalette="green"
-                  disabled={!Object.keys(weightsDraft).length || savingWeights}
-                  loading={savingWeights}
-                >
-                  Save weights
-                </Button>
-              </Tooltip>
-            </HStack>
-          </HStack>
-
-          <HStack gap="3" wrap="wrap" alignItems="center">
-            {/* Filter */}
-            <SegmentGroup.Root
-              size="sm"
-              value={qrFilter}
-              onValueChange={(e) => setQrFilter((e.value as any) ?? "pending")}
-            >
-              <SegmentGroup.Indicator />
-              <SegmentGroup.Items items={["pending", "weighed", "all"]} />
-            </SegmentGroup.Root>
-
-            {/* Size */}
-            <SegmentGroup.Root
-              size="sm"
-              value={qrCardSize}
-              onValueChange={(e) => setQrCardSize((e.value as any) ?? "md")}
-            >
-              <SegmentGroup.Indicator />
-              <SegmentGroup.Items items={["sm", "md", "lg", "xl"]} />
-            </SegmentGroup.Root>
-
-            <Box flex="1" />
-
-            <HStack gap="2" minW={{ base: "full", md: "420px" }} w={{ base: "full", md: "auto" }}>
-              <Input readOnly value={payload?.farmerOrderQR?.token ?? ""} placeholder="Farmer Order QR token" />
-              <Button onClick={() => setOpenPreview(true)} variant="subtle">
-                Show QRs
-              </Button>
-            </HStack>
-          </HStack>
-
-          {/* Empty state */}
-          <Show when={(payload?.containerQrs?.length ?? 0) === 0}>
-            <EmptyState.Root>
-              <EmptyState.Content>
-                <EmptyState.Indicator>
-                  <LuShoppingCart />
-                </EmptyState.Indicator>
-                <VStack textAlign="center">
-                  <EmptyState.Title>No containers yet</EmptyState.Title>
-                  <EmptyState.Description>
-                    Start by creating the number of containers to generate QR labels.
-                  </EmptyState.Description>
+                <VStack alignItems="flex-end" minW="240px" gap="3">
+                  <Stat.Root>
+                    <Stat.Label>Item</Stat.Label>
+                    <Stat.ValueText lineClamp={1} maxW="260px">{itemName}</Stat.ValueText>
+                  </Stat.Root>
+                  <Stat.Root>
+                    <Stat.Label>Ordered amount</Stat.Label>
+                    <Stat.ValueText>
+                      <FormatNumber value={orderedKg} maximumFractionDigits={2} /> kg
+                    </Stat.ValueText>
+                    <Text color="fg.muted" fontSize="sm">Quality grade: A</Text>
+                  </Stat.Root>
                 </VStack>
-                <Box>
-                  <Button onClick={() => setOpenInit(true)} colorPalette="primary" disabled={!effectiveFoId}>
-                    Create containers
-                  </Button>
-                </Box>
-              </EmptyState.Content>
-            </EmptyState.Root>
-          </Show>
-
-          {/* Board view */}
-          <Show when={(payload?.containerQrs?.length ?? 0) > 0}>
-            <Tabs.Root value={boardTab} onValueChange={(e) => setBoardTab(e.value as any)}>
-              <Tabs.List>
-                <Tabs.Trigger value="cards">Card view</Tabs.Trigger>
-                <Tabs.Trigger value="table">Table view</Tabs.Trigger>
-              </Tabs.List>
-            </Tabs.Root>
-
-            {/* Cards */}
-            <Show when={boardTab === "cards"}>
-              {(() => {
-                const qrPx = sizeCfg[qrCardSize].qr
-                return (
-                  <SimpleGrid minChildWidth={sizeCfg[qrCardSize].minCard} gap="4">
-                    {filteredQrs.map((q) => {
-                      const draft = weightsDraft[q.subjectId]
-                      const serverWeight =
-                        (payload?.farmerOrder?.containers ?? []).find((c) => c.containerId === q.subjectId)?.weightKg ?? 0
-                      const final = draft ?? serverWeight ?? 0
-                      const hasServerWeight = (serverWeight || 0) > 0
-                      const done = final > 0
-                      const edited = draft !== undefined && draft !== serverWeight
-
-                      return (
-                        <Card.Root
-                          key={q.subjectId}
-                          variant="elevated"
-                          _hover={{ shadow: "md" }}
-                          borderRadius="xl"
-                          h="full"
-                          role="group"
-                          overflow="hidden"
-                          minW="0"
-                        >
-                          <Card.Body gap="3" minW="0">
-                            {/* Header: id + status */}
-                            <HStack justifyContent="space-between" alignItems="center" minH="28px" minW="0">
-                              <Text fontWeight="semibold" fontSize="sm" title={q.subjectId} lineClamp={1} minW="0">
-                                {q.subjectId}
-                              </Text>
-                              <HStack gap="2" flexShrink={0}>
-                                {edited ? (
-                                  <Tag.Root colorPalette="yellow" variant="subtle" title="Edited locally; not saved">
-                                    <Tag.Label>edited</Tag.Label>
-                                  </Tag.Root>
-                                ) : null}
-                                <Tag.Root colorPalette={done ? "green" : hasServerWeight ? "blue" : "gray"} variant="subtle">
-                                  <Tag.Label>{done ? "set" : hasServerWeight ? "saved" : "pending"}</Tag.Label>
-                                </Tag.Root>
-                              </HStack>
-                            </HStack>
-
-                            {/* QR */}
-                            <Box display="grid" placeItems="center" py="2" bg="bg.subtle" borderRadius="lg">
-                              <QRCodeCanvas value={q.token} size={qrPx} />
-                            </Box>
-
-                            {/* Token */}
-                            <MonoToken token={q.token} />
-
-                            {/* Controls */}
-                            <Stack
-                              direction={{ base: "column", sm: "row" }}
-                              align={{ base: "stretch", sm: "center" }}
-                              justify="space-between"
-                              gap="2"
-                              minW="0"
-                            >
-                              <HStack gap="2" align="center" wrap="wrap" minW="0">
-                                <InlineWeightEditor
-                                  value={final}
-                                  onChange={(kg) =>
-                                    setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: kg }))
-                                  }
-                                />
-                                <Text color="fg.muted" flexShrink={0}>kg</Text>
-
-                                {/* quick bumps */}
-                                <HStack gap="1" wrap="wrap">
-                                  {([0.5, 1, 5] as const).map((b) => (
-                                    <Button
-                                      key={b}
-                                      size="xs"
-                                      variant="outline"
-                                      onClick={() =>
-                                        setWeightsDraft((prev) => ({
-                                          ...prev,
-                                          [q.subjectId]: round2(Math.max(0, (final || 0) + b)),
-                                        }))
-                                      }
-                                      title={`+${b} kg`}
-                                    >
-                                      +{b}
-                                    </Button>
-                                  ))}
-                                  <Button
-                                    size="xs"
-                                    variant="ghost"
-                                    onClick={() =>
-                                      setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: 0 }))
-                                    }
-                                    title="Set to 0"
-                                  >
-                                    Reset
-                                  </Button>
-                                </HStack>
-                              </HStack>
-                            </Stack>
-                          </Card.Body>
-                        </Card.Root>
-                      )
-                    })}
-                  </SimpleGrid>
-                )
-              })()}
-            </Show>
-
-            {/* Table */}
-            <Show when={boardTab === "table"}>
-              <Box overflowX="auto">
-                <Table.Root size="sm" width="full">
-                  <Table.Header>
-                    <Table.Row>
-                      <Table.ColumnHeader textAlign="start">Container</Table.ColumnHeader>
-                      <Table.ColumnHeader textAlign="start">QR token</Table.ColumnHeader>
-                      <Table.ColumnHeader textAlign="end">Weight (kg)</Table.ColumnHeader>
-                      <Table.ColumnHeader textAlign="end">Status</Table.ColumnHeader>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {(payload?.farmerOrder?.containers ?? []).map((c) => {
-                      const draft = weightsDraft[c.containerId]
-                      const finalWeight = draft ?? c.weightKg ?? 0
-                      const done = finalWeight > 0
-                      const token = payload?.containerQrs?.find((x) => x.subjectId === c.containerId)?.token ?? ""
-                      return (
-                        <Table.Row key={c.containerId}>
-                          <Table.Cell>{c.containerId}</Table.Cell>
-                          <Table.Cell>
-                            <MonoToken token={token} inline />
-                          </Table.Cell>
-                          <Table.Cell textAlign="end">
-                            <FormatNumber value={finalWeight} maximumFractionDigits={2} />
-                          </Table.Cell>
-                          <Table.Cell textAlign="end">
-                            {done ? <Badge colorPalette="green">set</Badge> : <Badge>pending</Badge>}
-                          </Table.Cell>
-                        </Table.Row>
-                      )
-                    })}
-                  </Table.Body>
-                </Table.Root>
-              </Box>
-            </Show>
+              </HStack>
+            </HStack>
 
             <Separator />
 
-            <Show when={!!underfillWarning}>
-              <Alert.Root status="warning" title="Under the allowed total">
+            {/* Actions */}
+            <HStack gap="3" wrap="wrap">
+              <Button onClick={() => setOpenInit(true)} disabled={loading || !effectiveFoId} className="anim-pressable">
+                Create containers
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setOpenPreview(true)}
+                disabled={!(payload?.containerQrs?.length ?? 0)}
+                className="anim-pressable"
+              >
+                Preview & Print
+              </Button>
+              <Button onClick={load} variant="ghost" disabled={loading || !effectiveFoId} className="anim-pressable">
+                Re-fetch
+              </Button>
+            </HStack>
+
+            {/* Errors / loading */}
+            <Show when={!!error}>
+              <Alert.Root status="error" title="Error">
                 <Alert.Description asChild>
-                  <span>{underfillWarning ?? ""}</span>
+                  <span>{error}</span>
                 </Alert.Description>
               </Alert.Root>
             </Show>
-          </Show>
-        </Card.Body>
-      </Card.Root>
+
+            <Show when={loading}>
+              <Progress.Root value={60} width="full" aria-label="Loading">
+                <Progress.Track>
+                  <Progress.Range />
+                </Progress.Track>
+              </Progress.Root>
+            </Show>
+          </Card.Body>
+        </Card.Root>
+      </Reveal>
+
+      {/* Step indicator */}
+      <Reveal>
+        <Card.Root variant="subtle" overflow="hidden" className="anim-pressable">
+          <Card.Body>
+            <HStack gap="3" wrap="wrap">
+              <StepPill active>1. Create containers</StepPill>
+              <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>2. Weigh-in</StepPill>
+              <StepPill active={!!(payload?.containerQrs?.length ?? 0)}>3. Print labels</StepPill>
+            </HStack>
+          </Card.Body>
+        </Card.Root>
+      </Reveal>
+
+      {/* Order-level Quality Standards (switches by category) */}
+      <Reveal>
+        <Card.Root className="anim-pressable" variant="subtle" overflow="hidden">
+          <Card.Body>
+            <QualityStandardsSwitch category={category} />
+          </Card.Body>
+        </Card.Root>
+      </Reveal>
+
+      {/* Containers – board */}
+      <Reveal>
+        <Card.Root variant="outline" overflow="hidden" className="anim-pressable">
+          <Card.Body gap="4" minW="0">
+            <HStack justifyContent="space-between" alignItems="center" wrap="wrap">
+              <Text fontSize="lg" fontWeight="semibold">Containers – Weigh-in</Text>
+              <HStack gap="3" wrap="wrap">
+                <Tag.Root>
+                  <Tag.Label>
+                    Weighed total: <FormatNumber value={totalWeighedKg} maximumFractionDigits={2} /> kg
+                  </Tag.Label>
+                </Tag.Root>
+                <Tag.Root>
+                  <Tag.Label>
+                    Min allowed: <FormatNumber value={minAllowedTotal} maximumFractionDigits={2} /> kg
+                  </Tag.Label>
+                </Tag.Root>
+
+                <Tooltip content={Object.keys(weightsDraft).length ? "Save all edited weights" : ""}>
+                  <Button
+                    onClick={saveWeights}
+                    colorPalette="green"
+                    disabled={!Object.keys(weightsDraft).length || savingWeights}
+                    loading={savingWeights}
+                    className="anim-pressable"
+                  >
+                    Save weights
+                  </Button>
+                </Tooltip>
+              </HStack>
+            </HStack>
+
+            <HStack gap="3" wrap="wrap" alignItems="center">
+              {/* Filter */}
+              <SegmentGroup.Root
+                size="sm"
+                value={qrFilter}
+                onValueChange={(e) => setQrFilter((e.value as any) ?? "pending")}
+                className="anim-scale-hover"
+              >
+                <SegmentGroup.Indicator />
+                <SegmentGroup.Items items={["pending", "weighed", "all"]} />
+              </SegmentGroup.Root>
+
+              {/* Size */}
+              <SegmentGroup.Root
+                size="sm"
+                value={qrCardSize}
+                onValueChange={(e) => setQrCardSize((e.value as any) ?? "md")}
+                className="anim-scale-hover"
+              >
+                <SegmentGroup.Indicator />
+                <SegmentGroup.Items items={["sm", "md", "lg", "xl"]} />
+              </SegmentGroup.Root>
+
+              <Box flex="1" />
+
+              <HStack gap="2" minW={{ base: "full", md: "420px" }} w={{ base: "full", md: "auto" }}>
+                <Input readOnly value={payload?.farmerOrderQR?.token ?? ""} placeholder="Farmer Order QR token" />
+                <Button onClick={() => setOpenPreview(true)} variant="subtle" className="anim-pressable">
+                  Show QRs
+                </Button>
+              </HStack>
+            </HStack>
+
+            {/* Empty state */}
+            <Show when={(payload?.containerQrs?.length ?? 0) === 0}>
+              <EmptyState.Root>
+                <EmptyState.Content>
+                  <EmptyState.Indicator>
+                    <LuShoppingCart />
+                  </EmptyState.Indicator>
+                  <VStack textAlign="center">
+                    <EmptyState.Title>No containers yet</EmptyState.Title>
+                    <EmptyState.Description>
+                      Start by creating the number of containers to generate QR labels.
+                    </EmptyState.Description>
+                  </VStack>
+                  <Box>
+                    <Button onClick={() => setOpenInit(true)} colorPalette="primary" disabled={!effectiveFoId} className="anim-pressable">
+                      Create containers
+                    </Button>
+                  </Box>
+                </EmptyState.Content>
+              </EmptyState.Root>
+            </Show>
+
+            {/* Board view */}
+            <Show when={(payload?.containerQrs?.length ?? 0) > 0}>
+              <Tabs.Root value={boardTab} onValueChange={(e) => setBoardTab(e.value as any)}>
+                <Tabs.List>
+                  <Tabs.Trigger value="cards">Card view</Tabs.Trigger>
+                  <Tabs.Trigger value="table">Table view</Tabs.Trigger>
+                </Tabs.List>
+              </Tabs.Root>
+
+              {/* Cards */}
+              <Show when={boardTab === "cards"}>
+                {(() => {
+                  const qrPx = sizeCfg[qrCardSize].qr
+                  return (
+                    <SimpleGrid minChildWidth={sizeCfg[qrCardSize].minCard} gap="4">
+                      {filteredQrs.map((q) => {
+                        const draft = weightsDraft[q.subjectId]
+                        const serverWeight =
+                          (payload?.farmerOrder?.containers ?? []).find((c) => c.containerId === q.subjectId)?.weightKg ?? 0
+                        const final = draft ?? serverWeight ?? 0
+                        const hasServerWeight = (serverWeight || 0) > 0
+                        const done = final > 0
+                        const edited = draft !== undefined && draft !== serverWeight
+
+                        return (
+                          <Card.Root
+                            key={q.subjectId}
+                            variant="elevated"
+                            _hover={{ shadow: "md" }}
+                            borderRadius="xl"
+                            h="full"
+                            role="group"
+                            overflow="hidden"
+                            minW="0"
+                            className="anim-pressable"
+                          >
+                            <Card.Body gap="3" minW="0">
+                              {/* Header: id + status */}
+                              <HStack justifyContent="space-between" alignItems="center" minH="28px" minW="0">
+                                <Text fontWeight="semibold" fontSize="sm" title={q.subjectId} lineClamp={1} minW="0">
+                                  {q.subjectId}
+                                </Text>
+                                <HStack gap="2" flexShrink={0}>
+                                  {edited ? (
+                                    <Tag.Root colorPalette="yellow" variant="subtle" title="Edited locally; not saved">
+                                      <Tag.Label>edited</Tag.Label>
+                                    </Tag.Root>
+                                  ) : null}
+                                  <Tag.Root colorPalette={done ? "green" : hasServerWeight ? "blue" : "gray"} variant="subtle">
+                                    <Tag.Label>{done ? "set" : hasServerWeight ? "saved" : "pending"}</Tag.Label>
+                                  </Tag.Root>
+                                </HStack>
+                              </HStack>
+
+                              {/* QR */}
+                              <Box display="grid" placeItems="center" py="2" bg="bg.subtle" borderRadius="lg">
+                                <QRCodeCanvas value={q.token} size={qrPx} />
+                              </Box>
+
+                              {/* Token (NO ANIMATION) */}
+                              <Box className="no-anim">
+                                <MonoToken token={q.token} />
+                              </Box>
+
+                              {/* Controls */}
+                              <Stack
+                                direction={{ base: "column", sm: "row" }}
+                                align={{ base: "stretch", sm: "center" }}
+                                justify="space-between"
+                                gap="2"
+                                minW="0"
+                              >
+                                <HStack gap="2" align="center" wrap="wrap" minW="0">
+                                  <InlineWeightEditor
+                                    value={final}
+                                    onChange={(kg) =>
+                                      setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: kg }))
+                                    }
+                                  />
+                                  <Text color="fg.muted" flexShrink={0}>kg</Text>
+
+                                  {/* quick bumps */}
+                                  <HStack gap="1" wrap="wrap">
+                                    {([0.5, 1, 5] as const).map((b) => (
+                                      <Button
+                                        key={b}
+                                        size="xs"
+                                        variant="outline"
+                                        onClick={() =>
+                                          setWeightsDraft((prev) => ({
+                                            ...prev,
+                                            [q.subjectId]: round2(Math.max(0, (final || 0) + b)),
+                                          }))
+                                        }
+                                        title={`+${b} kg`}
+                                        className="anim-pressable"
+                                      >
+                                        +{b}
+                                      </Button>
+                                    ))}
+                                    <Button
+                                      size="xs"
+                                      variant="ghost"
+                                      onClick={() =>
+                                        setWeightsDraft((prev) => ({ ...prev, [q.subjectId]: 0 }))
+                                      }
+                                      title="Set to 0"
+                                      className="anim-pressable"
+                                    >
+                                      Reset
+                                    </Button>
+                                  </HStack>
+                                </HStack>
+                              </Stack>
+                            </Card.Body>
+                          </Card.Root>
+                        )
+                      })}
+                    </SimpleGrid>
+                  )
+                })()}
+              </Show>
+
+              {/* Table */}
+              <Show when={boardTab === "table"}>
+                <Box overflowX="auto">
+                  <Table.Root size="sm" width="full">
+                    <Table.Header>
+                      <Table.Row>
+                        <Table.ColumnHeader textAlign="start">Container</Table.ColumnHeader>
+                        <Table.ColumnHeader textAlign="start">QR token</Table.ColumnHeader>
+                        <Table.ColumnHeader textAlign="end">Weight (kg)</Table.ColumnHeader>
+                        <Table.ColumnHeader textAlign="end">Status</Table.ColumnHeader>
+                      </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                      {(payload?.farmerOrder?.containers ?? []).map((c) => {
+                        const draft = weightsDraft[c.containerId]
+                        const finalWeight = draft ?? c.weightKg ?? 0
+                        const done = finalWeight > 0
+                        const token = payload?.containerQrs?.find((x) => x.subjectId === c.containerId)?.token ?? ""
+                        return (
+                          <Table.Row key={c.containerId}>
+                            <Table.Cell>{c.containerId}</Table.Cell>
+                            <Table.Cell>
+                              {/* NO ANIMATION around token/copy */}
+                              <Box className="no-anim">
+                                <MonoToken token={token} inline />
+                              </Box>
+                            </Table.Cell>
+                            <Table.Cell textAlign="end">
+                              <FormatNumber value={finalWeight} maximumFractionDigits={2} />
+                            </Table.Cell>
+                            <Table.Cell textAlign="end">
+                              {done ? <Badge colorPalette="green">set</Badge> : <Badge>pending</Badge>}
+                            </Table.Cell>
+                          </Table.Row>
+                        )
+                      })}
+                    </Table.Body>
+                  </Table.Root>
+                </Box>
+              </Show>
+
+              <Separator />
+
+              <Show when={!!underfillWarning}>
+                <Alert.Root status="warning" title="Under the allowed total">
+                  <Alert.Description asChild>
+                    <span>{underfillWarning ?? ""}</span>
+                  </Alert.Description>
+                </Alert.Root>
+              </Show>
+            </Show>
+          </Card.Body>
+        </Card.Root>
+      </Reveal>
 
       {/* Create containers dialog */}
       <Dialog.Root open={openInit} closeOnInteractOutside={false} closeOnEscape={false} onOpenChange={(e) => setOpenInit(e.open)}>
@@ -634,7 +661,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                 <Dialog.ActionTrigger asChild>
                   <Button variant="outline">Cancel</Button>
                 </Dialog.ActionTrigger>
-                <Button colorPalette="primary" onClick={onInitContainers} disabled={loading || Number(initCount) <= 0 || !effectiveFoId}>
+                <Button colorPalette="primary" onClick={onInitContainers} disabled={loading || Number(initCount) <= 0 || !effectiveFoId} className="anim-pressable">
                   Create & Continue
                 </Button>
               </Dialog.Footer>
@@ -723,6 +750,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                             overflow="hidden"
                             minW="0"
                             variant="subtle"
+                            className="anim-pressable"
                             css={{
                               breakInside: "avoid",
                               "@media print": {
@@ -736,7 +764,10 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                               <Box display="grid" placeItems="center" py="2">
                                 <QRCodeCanvas value={q.token} size={qrPx} />
                               </Box>
-                              <MonoToken token={q.token} />
+                              {/* NO ANIMATION around token/copy */}
+                              <Box className="no-anim">
+                                <MonoToken token={q.token} />
+                              </Box>
                             </Card.Body>
                           </Card.Root>
                         ))}
@@ -762,6 +793,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                     )
                   }
                   disabled={!payload?.containerQrs?.length}
+                  className="anim-pressable"
                 >
                   Silent Browser Print
                 </Button>
@@ -790,6 +822,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                     })
                   }
                   disabled={!payload?.containerQrs?.length}
+                  className="anim-pressable"
                 >
                   Open PDF in New Tab
                 </Button>
