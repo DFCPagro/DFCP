@@ -161,7 +161,6 @@ export function usePrevShiftOrders({
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error,
-    refetch: query.refetch,
   };
 }
 

@@ -63,9 +63,13 @@ function compactId(id?: string) {
 type StageVM = {
     key: FarmerOrderStageKey | string;
     label: string;
-    state?: "pending" | "current" | "done" | "problem";
+    status?: "pending" | "current" | "done" | "problem";
     at?: string | Date;
     by?: unknown;
+    expectedAt?: string | Date;
+    startedAt?: string | Date;
+    completedAt?: string | Date;
+    timestamp?: string | Date;
     note?: string;
 };
 
@@ -82,9 +86,11 @@ function deriveStagesVM(row: ShiftFarmerOrderItem): StageVM[] {
             return {
                 key: s.key,
                 label: s.label,
-                state: match?.state,
-                at: match?.at,
-                by: match?.by,
+                status: match?.status,
+                expectedAt: match?.expectedAt,
+                startedAt: match?.startedAt,
+                completedAt: match?.completedAt,
+                timestamp: match?.timestamp,
                 note: match?.note,
             };
         });
@@ -93,9 +99,11 @@ function deriveStagesVM(row: ShiftFarmerOrderItem): StageVM[] {
             .map((p) => ({
                 key: p.key,
                 label: labelByKey[p.key as keyof typeof labelByKey] ?? p.key,
-                state: p.state,
-                at: p.at,
-                by: p.by,
+                status: p?.status,
+                expectedAt: p?.expectedAt,
+                startedAt: p?.startedAt,
+                completedAt: p?.completedAt,
+                timestamp: p?.timestamp,
                 note: p.note,
             }));
         return [...known, ...unknowns];
@@ -353,13 +361,6 @@ function StagesSection({ row }: { row: ShiftFarmerOrderItem }) {
                 </Text>
             </HStack>
 
-            {/* Timeline (compact) */}
-            <Box mb={4}>
-                <FarmerOrderTimeline stages={row.stages as any} stageKey={row.stageKey ?? undefined} compact disableAdvance />
-            </Box>
-
-            <Separator my={3} />
-
             {/* Stage details */}
             <VStack align="stretch" gap={2}>
                 {stages.map((s, idx) => (
@@ -377,7 +378,7 @@ function StagesSection({ row }: { row: ShiftFarmerOrderItem }) {
                                 <Text fontSize="sm" color="fg.subtle">
                                     Status:
                                 </Text>
-                                <StatusBadge status={s.state} />
+                                <StatusBadge status={s.status} />
                             </HStack>
                             {s.note && (
                                 <Text mt={2} fontSize="sm" color="fg.muted" whiteSpace="pre-wrap">
@@ -390,7 +391,7 @@ function StagesSection({ row }: { row: ShiftFarmerOrderItem }) {
                                 <Text fontSize="sm" color="fg.subtle">
                                     Time:
                                 </Text>
-                                <Code fontSize="sm">{fmtDate(s.at as any)}</Code>
+                                <Code fontSize="sm">{fmtDate(s.timestamp as any)}</Code>
                             </HStack>
                             {s.by && (
                                 <HStack gap={2}>
@@ -554,55 +555,6 @@ function ContainersOrdersSection({ row }: { row: ShiftFarmerOrderItem }) {
                     </VStack>
                 </Box>
             )}
-
-            {hasOrders && (
-                <Box borderWidth="1px" borderRadius="xl" p={4} bg="bg.panel">
-                    <Text fontSize="md" fontWeight="medium" mb={3}>
-                        Linked Orders
-                    </Text>
-                    <Box overflowX="auto">
-                        <Table.Root size="sm" variant="outline">
-                            <Table.Header>
-                                <Table.Row>
-                                    <Table.ColumnHeader>Order #</Table.ColumnHeader>
-                                    <Table.ColumnHeader>Buyer</Table.ColumnHeader>
-                                    <Table.ColumnHeader textAlign="end">Qty (kg)</Table.ColumnHeader>
-                                    <Table.ColumnHeader>Status</Table.ColumnHeader>
-                                </Table.Row>
-                            </Table.Header>
-                            <Table.Body>
-                                {(row.orders as any[]).map((o, idx) => (
-                                    <Table.Row key={o._id ?? idx}>
-                                        <Table.Cell>
-                                            <HStack gap={2}>
-                                                <Code>{compactId(o._id)}</Code>
-                                                <IconButton
-                                                    aria-label="Open order"
-                                                    variant="ghost"
-                                                    size="xs"
-                                                    onClick={() => {
-                                                        // eslint-disable-next-line no-console
-                                                        console.log("open-order", o._id);
-                                                    }}
-                                                >
-                                                    <FiExternalLink />
-                                                </IconButton>
-                                            </HStack>
-                                        </Table.Cell>
-                                        <Table.Cell>{o.buyerName || "—"}</Table.Cell>
-                                        <Table.Cell textAlign="end">
-                                            {typeof o.quantityKg === "number" ? o.quantityKg : "—"}
-                                        </Table.Cell>
-                                        <Table.Cell>
-                                            <Badge variant="subtle">{o.status || "—"}</Badge>
-                                        </Table.Cell>
-                                    </Table.Row>
-                                ))}
-                            </Table.Body>
-                        </Table.Root>
-                    </Box>
-                </Box>
-            )}
         </Grid>
     );
 }
@@ -655,21 +607,21 @@ export const ShiftFarmerOrderDetails = memo(function ShiftFarmerOrderDetails({
 
                                 {/* Audit section (as-is) */}
                                 <Box borderWidth="1px" borderRadius="xl" p={4} bg="bg.panel">
-                                   <AuditSection
-  title="Audit Trail"
-  items={
-    ((row as any).audit ??
-      (row as any).auditTrail ??
-      (row as any).historyAuditTrail ??
-      []) as any[]
-  }
-  map={(ev: any) => ({
-    action: ev.action ?? ev.type ?? ev.event ?? "—",
-    note: ev.note ?? ev.message ?? "",
-    by: ev.by ?? ev.userName ?? ev.user ?? "system",
-    at: ev.at ?? ev.createdAt ?? ev.timestamp ?? new Date(),
-  })}
-/>
+                                    <AuditSection
+                                        title="Audit Trail"
+                                        items={
+                                            ((row as any).audit ??
+                                                (row as any).auditTrail ??
+                                                (row as any).historyAuditTrail ??
+                                                []) as any[]
+                                        }
+                                        map={(ev: any) => ({
+                                            action: ev.action ?? ev.type ?? ev.event ?? "—",
+                                            note: ev.note ?? ev.message ?? "",
+                                            by: ev.by ?? ev.userName ?? ev.user ?? "system",
+                                            at: ev.at ?? ev.createdAt ?? ev.timestamp ?? new Date(),
+                                        })}
+                                    />
 
                                 </Box>
                             </Stack>

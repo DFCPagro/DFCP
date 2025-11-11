@@ -19,9 +19,12 @@ export const StageStateEnum = z
   .catch("pending");
 export const FarmerOrderStageSchema = z.object({
   key: z.string(), // one of FARMER_ORDER_STAGE_KEYS
-  state: StageStateEnum.optional(), // for timeline UI
-  by: UserRefLoose.optional(),
-  at: IsoDateLike.optional(),
+  label: z.string().optional(),
+  status: StageStateEnum.optional(), // for timeline UI
+  expectedAt: IsoDateLike.optional(),
+  startedAt: IsoDateLike.optional(),
+  completedAt: IsoDateLike.optional(),
+  timestamp: IsoDateLike.optional(),
   note: z.string().optional(),
   meta: z.record(z.any()).optional(),
 });

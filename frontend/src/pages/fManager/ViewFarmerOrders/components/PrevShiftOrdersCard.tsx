@@ -34,7 +34,7 @@ export const PrevShiftOrdersCard = memo(function PrevShiftOrdersCard({
 }: PrevShiftOrdersCardProps) {
     const navigate = useNavigate();
 
-    const { data, isLoading, isFetching, error, refetch } = usePrevShiftOrders({
+    const { data, isLoading, isFetching, error } = usePrevShiftOrders({
         daysBack,
         fake,
         fakeNum,
@@ -82,20 +82,13 @@ export const PrevShiftOrdersCard = memo(function PrevShiftOrdersCard({
                     <Text fontSize="lg" fontWeight="semibold">
                         Previous Orders
                     </Text>
-                    {fake && (
-                        <Badge variant="surface" colorPalette="yellow" borderRadius="md">
-                            FAKE
-                        </Badge>
-                    )}
+
                     {isFetching && (
                         <Badge variant="surface" colorPalette="gray" borderRadius="md">
                             updating…
                         </Badge>
                     )}
                 </HStack>
-                <Button size="xs" variant="outline" onClick={() => refetch()}>
-                    Refresh
-                </Button>
             </HStack>
 
             {/* Loading */}
