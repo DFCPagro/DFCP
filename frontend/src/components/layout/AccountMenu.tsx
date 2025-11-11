@@ -70,6 +70,7 @@ export default function AccountMenu() {
   };
 
   const roleName = user?.role?.toLowerCase?.();
+  const userName = user?.name ?? "Guest";
   const roleAvatarSrc = roleName ? roleAvatarMap[roleName] : undefined;
 
   return (
@@ -86,7 +87,7 @@ export default function AccountMenu() {
             </Avatar.Root>
 
             <HStack gap={2} align="center">
-              <Text fontSize="sm">{user?.name ?? "Account"}</Text>
+              <Text fontSize="sm">{userName}</Text>
 
               {!isGuest && (
                 <HoverCard.Root openDelay={120} closeDelay={120}>
