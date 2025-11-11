@@ -5,17 +5,29 @@ export const getNextMonth = (y: number, m: number) =>
   m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };
 
 export const fmtTodayChip = (d: Date) =>
-  d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); // "Aug 20"
+  d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); // "Aug 20"
 
+// utils/date.ts
+export function formatDMY(
+  date?: string | Date | number | null,
+  opts: { fallback?: string; utc?: boolean } = {}
+): string {
+  const { fallback = "—", utc = false } = opts;
 
-export function formatDMY(date: string | Date): string {
-  const d = typeof date === "string" ? new Date(date) : date;
+  // Guard: empty input
+  if (date == null) return fallback;
 
-  if (isNaN(d.getTime())) return ""; // invalid date → empty string
+  // Normalize to Date
+  const d = date instanceof Date ? new Date(date.getTime()) : new Date(date);
+  if (Number.isNaN(d.getTime())) return fallback;
 
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0"); // 0-based
-  const year = d.getFullYear();
+  // Local vs UTC (optional)
+  const day = String(utc ? d.getUTCDate() : d.getDate()).padStart(2, "0");
+  const month = String((utc ? d.getUTCMonth() : d.getMonth()) + 1).padStart(
+    2,
+    "0"
+  );
+  const year = utc ? d.getUTCFullYear() : d.getFullYear();
 
   return `${day}-${month}-${year}`;
 }
@@ -47,7 +59,8 @@ export function derivePercent(
   expectedHarvest: string | null | undefined,
   now: Date = new Date()
 ): number | null {
-  if (!isISODateString(plantedOn!) || !isISODateString(expectedHarvest!)) return null;
+  if (!isISODateString(plantedOn!) || !isISODateString(expectedHarvest!))
+    return null;
 
   const start = new Date(plantedOn!);
   const end = new Date(expectedHarvest!);

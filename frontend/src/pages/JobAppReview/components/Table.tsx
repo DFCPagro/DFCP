@@ -107,12 +107,12 @@ export default function JobAppsTable({
             {/* Loading skeleton rows */}
             {isBusy && rows.length === 0
               ? Array.from({ length: 8 }).map((_, i) => (
-                  <Table.Row key={`sk-${i}`}>
-                    <Table.Cell colSpan={5}>
-                      <Box height="18px" bg="bg.muted" borderRadius="sm" />
-                    </Table.Cell>
-                  </Table.Row>
-                ))
+                <Table.Row key={`sk-${i}`}>
+                  <Table.Cell colSpan={5}>
+                    <Box height="18px" bg="bg.muted" borderRadius="sm" />
+                  </Table.Cell>
+                </Table.Row>
+              ))
               : null}
 
             {/* Data rows */}
@@ -146,6 +146,7 @@ export default function JobAppsTable({
                     </Badge>
                   </Table.Cell>
 
+
                   <Table.Cell>{formatDMY(row.createdAt)}</Table.Cell>
 
                   <Table.Cell textAlign="end">
@@ -169,12 +170,12 @@ export default function JobAppsTable({
                             <Menu.Content>
                               {nextOptions.map((opt) => (
                                 <Menu.Item
-                                    key={opt}
-                                    value={opt}                         // ✅ required in v3
-                                    onSelect={() => onChangeStatus(row.id, opt)}  // ✅ use onSelect
-                                    textTransform="capitalize"
-                                    >
-                                    {opt}
+                                  key={opt}
+                                  value={opt}                         // ✅ required in v3
+                                  onSelect={() => onChangeStatus(row.id, opt)}  // ✅ use onSelect
+                                  textTransform="capitalize"
+                                >
+                                  {opt}
                                 </Menu.Item>
 
                               ))}

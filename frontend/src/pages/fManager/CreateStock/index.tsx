@@ -18,9 +18,8 @@ import { ShiftEnum, IsoDateString } from "@/types/shifts";
 
 /* --- NEW: FAB + Dialog + types --- */
 import SubmittedOrdersFab from "./components/SubmittedOrdersFab";
-import SubmittedOrdersDialog, { type DemandStats } from "./components/SubmittedOrdersDialog";
-import type { SubmittedContext } from "./shared/submittedOrders.shared";
-
+import SubmittedOrdersDialog from "./components/SubmittedOrdersDialog";
+import { PATHS as P } from "@/routes/paths";
 /* ---------------------------------- helpers --------------------------------- */
 
 const SHIFTS: ShiftEnum[] = ["morning", "afternoon", "evening", "night"] as const;
@@ -89,20 +88,6 @@ export default function CreateStockPage() {
   }, [hasParams, dateParam, shift]);
 
 
-  // Live demand stats provider for the dialog (v1: safe no-op)
-  // If you have a demand map accessible here, return real numbers.
-  const getDemandStats = useMemo(
-    () =>
-    ((itemId: string, type?: string | null, variety?: string | null): DemandStats | undefined => {
-      // Example later:
-      // const key = `${itemId}__${type ?? ""}__${variety ?? ""}`;
-      // const d = demandMap.get(key);
-      // return d ? { demandKg: d.demandKg, committedKg: d.committedKg, remainingKg: d.remainingKg } : undefined;
-      return undefined;
-    }),
-    []
-  );
-
   return (
     <Box w="full">
       <Stack gap="4">
@@ -150,7 +135,7 @@ export default function CreateStockPage() {
                         open
                         onOpenChange={setSummaryOpen}
                         context={submittedCtx}
-                        confirmNavigateTo="dashboard"
+                        confirmNavigateTo={P.fManagerDashboard}
                       />
                     )}
                   </>

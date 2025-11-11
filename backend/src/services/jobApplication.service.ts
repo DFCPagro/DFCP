@@ -21,6 +21,7 @@ import {
   provisionIndustrialDeliverer,
   promoteUserRole,
 } from "../helpers/jobApplication.helpers";
+import type { Document } from "mongoose";
 
 /** =========================
  * Types
@@ -78,10 +79,7 @@ export interface UpdateMetaInput {
 
 export interface PublicJobApplicationDTO {
   id: string;
-  user:
-    | string
-    | { id: string; name?: string; email?: string; role?: string }
-    | undefined;
+  user: { id: string; name?: string; email?: string; role?: string };
   appliedRole: JobApplicationRole;
   logisticCenterId: string | null; // public as string|null
   status: JobApplicationStatus;
@@ -113,26 +111,31 @@ function canTransition(
   return allowed.includes(to);
 }
 
-/** Consistent public mapper */
+// Accept both a live Mongoose doc and a lean/plain object
+type JobAppDoc = JobApplicationBaseDoc & { userInfo?: any };
+type JobAppLean = Document<JobApplicationBase> & { userInfo?: any };
+
 export function toPublicJobApplication(
-  doc: JobApplicationBaseDoc & { userInfo?: any },
+  doc: JobAppDoc | JobAppLean,
   opts?: { includeUser?: boolean }
 ): PublicJobApplicationDTO {
+  const anyDoc = doc as any;
+
   const base: PublicJobApplicationDTO = {
-    id: String(doc._id),
-    user: String(doc.user),
-    appliedRole: doc.appliedRole as JobApplicationRole,
-    logisticCenterId: doc.logisticCenterId
-      ? String(doc.logisticCenterId)
+    id: String(anyDoc._id),
+    user: { id: String(anyDoc.user) },
+    appliedRole: anyDoc.appliedRole,
+    logisticCenterId: anyDoc.logisticCenterId
+      ? String(anyDoc.logisticCenterId)
       : null,
-    status: doc.status as JobApplicationStatus,
-    applicationData: (doc as any).applicationData,
-    createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt,
+    status: anyDoc.status,
+    applicationData: anyDoc.applicationData,
+    createdAt: anyDoc.createdAt,
+    updatedAt: anyDoc.updatedAt,
   };
 
-  if (opts?.includeUser && (doc as any).userInfo) {
-    const u = (doc as any).userInfo;
+  if (opts?.includeUser && anyDoc.userInfo) {
+    const u = anyDoc.userInfo;
     base.user = {
       id: String(u._id),
       name: u.name,
@@ -222,6 +225,8 @@ export async function createApplication(
         : null,
       status: "pending",
       applicationData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     return toPublicJobApplication(doc as JobApplicationBaseDoc);
@@ -292,7 +297,15 @@ export async function listApplications(
   }
 
   const q = JobApplication.find(query);
-  if (options.includeUser) q.populate("userInfo", "name email role");
+
+  // keep your populate, but make sure the overall result is lean
+  if (options.includeUser) {
+    q.populate({ path: "userInfo", select: "name email role" });
+  }
+
+  // ✅ convert query result to plain objects (no Mongoose internals)
+  // also keep virtuals (e.g., userInfo) and drop __v
+  q.lean({ virtuals: true, versionKey: false });
 
   const [items, total] = await Promise.all([
     q
@@ -304,10 +317,8 @@ export async function listApplications(
   ]);
 
   return {
-    items: items.map((d: any) =>
-      toPublicJobApplication(d as JobApplicationBaseDoc, {
-        includeUser: !!options.includeUser,
-      })
+    items: items.map((d) =>
+      toPublicJobApplication(d, { includeUser: !!options.includeUser })
     ),
     page,
     limit,

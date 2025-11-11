@@ -183,7 +183,7 @@ export default function Register() {
       try {
         const addr = await reverseGeocode(lat, lng);
         if (addr) setAddressText(addr);
-      } catch {}
+      } catch { }
 
       toaster.create({ type: "success", title: "Location detected" });
       clearErrorIfValid("address", true);
@@ -484,25 +484,30 @@ export default function Register() {
           <Field.Root invalid={!!errors.terms} required>
             <Checkbox.Root
               checked={agreeTerms}
-              onCheckedChange={(d) => {
-                const checked = typeof d.checked === "boolean" ? d.checked : false;
-                setAgreeTerms(checked);
-                clearErrorIfValid("terms", checked);
+              onCheckedChange={({ checked }) => {
+                const isChecked = checked === true;
+                setAgreeTerms(isChecked);
+                clearErrorIfValid("terms", isChecked);
               }}
             >
+
+              {/* Optional but recommended for form semantics */}
+              <Checkbox.HiddenInput name="agreeTerms" />
+
               <Checkbox.Control />
               <Checkbox.Label>
                 I agree to the{" "}
                 <CLink asChild color="blue.500" textDecoration="underline">
-                  <RouterLink to="/terms">Terms of Service</RouterLink>
+                  <RouterLink to="/terms" target="_blank" rel="noopener noreferrer">Terms of Service</RouterLink>
                 </CLink>{" "}
                 and{" "}
                 <CLink asChild color="blue.500" textDecoration="underline">
-                  <RouterLink to="/privacy">Privacy Policy</RouterLink>
+                  <RouterLink to="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</RouterLink>
                 </CLink>
                 .
               </Checkbox.Label>
             </Checkbox.Root>
+
             {errors.terms && <Field.ErrorText>{errors.terms}</Field.ErrorText>}
           </Field.Root>
 
