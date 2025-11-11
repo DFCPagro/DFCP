@@ -246,7 +246,13 @@ export const FarmerOrderDTOSchema = z.object({
   farmerId: z.string().min(1),
   farmerName: z.string().min(1),
   farmName: z.string().min(1),
-
+  farmLogo: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal("").transform(() => undefined))
+    .nullable()
+    .optional(),
   // Scheduling
   shift: ShiftEnum,
   pickUpDate: IsoDateString,
@@ -298,6 +304,12 @@ export const ShiftFarmerOrderItemSchema = z.object({
   _id: z.string(),
   farmerName: z.string().min(1),
   farmName: z.string().optional(),
+  farmLogo: z.string()
+    .url()
+    .optional()
+    .or(z.literal("").transform(() => undefined))
+    .nullable()
+    .optional(),
   type: z.string().optional(),
   variety: z.string().optional(),
   farmerStatus: FarmerOrderStatusEnum, // "ok" | "pending" | "problem"

@@ -13,6 +13,7 @@ import {
     Dialog,
     Menu,           // <-- add
     IconButton,
+    Image,
 } from "@chakra-ui/react";
 import type { ShiftFarmerOrderItem } from "@/types/farmerOrders";
 import { FarmerOrderTimeline } from "./FarmerOrderTimeline";
@@ -101,6 +102,15 @@ export const OrderRow = memo(function OrderRow({
         setViewOpen(true);
     };
 
+ const logo =
+    record?.farmLogo ?? (record as any)?.farmer?.farmLogo;
+
+  const initials = farmName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
     return (
         <Fragment>
             <Table.Row
@@ -111,16 +121,37 @@ export const OrderRow = memo(function OrderRow({
                 data-order-id={(record as any)._id}
             >
                 {/* Farmer / Farm */}
-                <Table.Cell>
-                    <VStack align="start" gap="0">
-                        <Text fontWeight="semibold">
-                            {(record as any)?.farmerName ?? (record as any)?.farmer?.name ?? "—"}
-                        </Text>
-                        <Text fontSize="sm" color="fg.muted">
-                            {farmName}
-                        </Text>
-                    </VStack>
-                </Table.Cell>
+ <Table.Cell>
+      <HStack alignItems="center" gap="2">
+        {logo ? (
+          <Image
+            src={logo}
+            alt={`${farmName} logo`}
+            boxSize="28px"
+            borderRadius="full"
+            objectFit="cover"
+          />
+        ) : (
+          <Box
+            boxSize="28px"
+            borderRadius="full"
+            bg="gray.200"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            fontSize="xs"
+            fontWeight="bold"
+            color="gray.700"
+          >
+            {initials}
+          </Box>
+        )}
+        <VStack alignItems="flex-start" gap="0">
+          <Text fontWeight="semibold">{farmName}</Text>
+        </VStack>
+      </HStack>
+    </Table.Cell>
+
 
                 {/* Forecasted */}
                 <Table.Cell>

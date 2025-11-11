@@ -36,6 +36,8 @@ import {
 } from "./farmerOrderStages.service";
 
 import type { AuthUser } from "./farmerOrderStages.service";
+import { getContactInfoByIdService } from ".//user.service";
+import { get } from "node:http";
 
 /* =============================
  * DTO and shaper (NEW)
@@ -85,10 +87,40 @@ const isYMD = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.tes
 const nonEmpty = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
 type UserCtx = { userId: Types.ObjectId; role: string; LogisticCenterId?: Types.ObjectId };
+export type ContactInfo = {
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  logisticCenterId: Types.ObjectId;
+  // added only for farmer role
+  farmName?: string | "Freshy Fresh";
+  farmLogo?: string;
+};
+
+// helper to resolve farmLogo
+async function resolveFarmLogo(farmerId: string, payloadLogo?: string | null) {
+  if (payloadLogo) return payloadLogo;
+
+  // try Farmer collection
+  try {
+    const farmerDoc = await Farmer.findById(farmerId, { farmLogo: 1 }).lean();
+    if (farmerDoc?.farmLogo) return farmerDoc.farmLogo;
+  } catch { /* ignore */ }
+
+  // try contact info service
+  try {
+    const ci = await getContactInfoByIdService(String(farmerId));
+    if (ci?.farmLogo) return ci.farmLogo;
+  } catch { /* ignore */ }
+
+  return null;
+}
 
 /* =============================
  * CREATE FarmerOrder (txn + FO QR)
  * ============================= */
+
 export interface CreateFarmerOrderPayload {
   itemId?: string;
   type?: string;
@@ -99,6 +131,7 @@ export interface CreateFarmerOrderPayload {
   farmerId?: string;
   farmerName?: string;
   farmName?: string;
+  farmLogo?: string
 
   shift?: Shift;
   pickUpDate?: string; // "YYYY-MM-DD"
@@ -208,6 +241,7 @@ export async function createFarmerOrderService(payload: CreateFarmerOrderPayload
     shift: payload.shift as "morning" | "afternoon" | "evening" | "night",
     pickUpDate: payload.pickUpDate!,
   });
+  const farmLogo = await resolveFarmLogo(String(payload.farmerId!), payload.farmLogo ?? null); // <-- await
 
   const session = await mongoose.startSession();
   try {
@@ -228,6 +262,7 @@ export async function createFarmerOrderService(payload: CreateFarmerOrderPayload
         farmerId: toOID(String(payload.farmerId)),
         farmerName: String(payload.farmerName),
         farmName: String(payload.farmName),
+        farmLogo,
 
         shift: payload.shift,
         pickUpDate: payload.pickUpDate,
@@ -864,6 +899,7 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
 
     farmerName: 1,
     farmName: 1,
+     farmLogo: 1, 
 
     shift: 1,
     pickUpDate: 1,
@@ -917,6 +953,7 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
       imageUrl: d.pictureUrl || "",
       farmerName: d.farmerName,
       farmName: d.farmName,
+      farmLogo: (d as any).farmLogo ?? null, 
       shift: d.shift,
       pickUpDate: d.pickUpDate,
       pickUpTime: d.pickUpTime || null,

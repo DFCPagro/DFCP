@@ -127,7 +127,7 @@ const FarmerOrderSchema = new Schema(
     },
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
-
+    farmLogo: { type: String, default: null },
     // planning / logistics
     shift: { type: String, enum: SHIFTS, required: true },
     pickUpDate: { type: String, required: true }, // "YYYY-MM-DD"

@@ -547,27 +547,47 @@ export async function addItemToAvailableMarketStock(params: {
     status: item.status ?? "active",
   };
 
-  // 7) Persist
-  const updated = await AvailableMarketStockModel.findByIdAndUpdate(
-    docId,
-    { $push: { items: payload } },
+  // 7) Persist — UPSERT by farmerOrderId to avoid duplicates
+if (payload.farmerOrderId) {
+  // Try update existing line matched by farmerOrderId
+  const updatedExisting = await AvailableMarketStockModel.findOneAndUpdate(
+    { _id: docId, "items.farmerOrderId": payload.farmerOrderId },
+    { $set: { "items.$": payload } },     // replace array element atomically
     { new: true }
   );
 
-  if (!updated) throw new Error(`Failed to update AvailableMarketStock ${docId}`);
+  if (updatedExisting) {
+    dbg("AMS addItem> updated existing line", {
+      farmerOrderId: payload.farmerOrderId.toString(),
+      unitMode,
+      pricePerKg,
+      pricePerUnit,
+    });
+    return updatedExisting;
+  }
+}
 
-  dbg("AMS addItem> saved", {
-    farmerOrderId: payload.farmerOrderId?.toString() ?? null,
-    unitMode,
-    pricePerKg,
-    pricePerUnit,
-    avgWeightPerUnitKg,
-    availableUnitsEstimate,
-    bundleWeightKg: payload.estimates.bundleWeightKg,
-    perBundlePrice: payload.estimates.perBundlePrice,
-  });
+// No existing line → push a new one
+const updated = await AvailableMarketStockModel.findByIdAndUpdate(
+  docId,
+  { $push: { items: payload } },
+  { new: true }
+);
 
-  return updated;
+if (!updated) throw new Error(`Failed to update AvailableMarketStock ${docId}`);
+
+dbg("AMS addItem> inserted new line", {
+  farmerOrderId: payload.farmerOrderId?.toString() ?? null,
+  unitMode,
+  pricePerKg,
+  pricePerUnit,
+  avgWeightPerUnitKg,
+  availableUnitsEstimate,
+  bundleWeightKg: payload.estimates.bundleWeightKg,
+  perBundlePrice: payload.estimates.perBundlePrice,
+});
+
+return updated;
 }
 
 
