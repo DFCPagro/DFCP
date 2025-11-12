@@ -16,7 +16,7 @@ import {
 } from "@/pages/JobApplication/components/validation";
 import { cap, normalizeWeekly } from "@/utils/schedule";
 import { mapLand } from "@/utils/landMapping";
-
+import { PATHS as p } from "@/routes/paths";
 
 export const roleImages: Record<string, string> = {
   deliverer:
@@ -126,7 +126,7 @@ export function useEmploymentApplication() {
         title: "Application submitted",
         description: "We’ll be in touch soon.",
       });
-      navigate(`/applications/${app.id}`);
+      navigate(p.market);
     },
     onError: (err: any) => {
       toaster.create({
