@@ -20,7 +20,7 @@ export default function PackagesSelector({
 }: Props) {
   return (
     <VStack align="stretch" gap={4}>
-      {title && <Heading size="sm">{title}</Heading>}
+      {title && <Heading size="lg">{title}</Heading>}
       <SizeStrip sizes={sizes} clickable onPickSize={onPickSize} />
       {showBoxes && (
         <>
@@ -31,7 +31,7 @@ export default function PackagesSelector({
               .map((no) => (
                 <Button
                   key={no}
-                  size="md"
+                  size="2xl"
                   variant="surface"
                   onClick={() => {
                     if (onPickBox) onPickBox(no)

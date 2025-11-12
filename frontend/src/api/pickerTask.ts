@@ -267,6 +267,6 @@ export type CompletePickerTaskResult = {
 /** POST /picker-task/:taskId/complete */
 export async function completePickerTask(taskId: string): Promise<CompletePickerTaskResult> {
   if (!taskId) throw new Error("taskId is required");
-  const res = await api.post(`/picker-task/${taskId}/complete`);
+  const res = await api.post(`/pickerTasks/${taskId}/complete`);
   return ensureData<CompletePickerTaskResult>(res, "Failed to complete picker task");
 }

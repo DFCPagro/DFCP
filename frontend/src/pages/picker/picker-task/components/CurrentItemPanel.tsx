@@ -1,4 +1,15 @@
-import { Card, Grid, VStack, HStack, Badge, Text, Image, Button, Input } from "@chakra-ui/react"
+import { useEffect } from "react"
+import {
+  Badge,
+  Button,
+  Card,
+  Grid,
+  HStack,
+  Image,
+  Input,
+  Text,
+  VStack,
+} from "@chakra-ui/react"
 import { type PlanPiece } from "@/api/pickerTask"
 
 /* Deterministic pseudo-random location from item id */
@@ -18,13 +29,18 @@ export type CurrentItemPanelProps = {
   curName: string
   curImg: string
   selectedBoxNo: number
+  SizeStrip: string
   arrivalConfirmed: boolean
+  /** Always present and validated as kilograms */
   isKg: boolean
   isKgValid: boolean
+  /** Unused when always in KG, kept for API compatibility */
   isUnitsValid: boolean
   weightInput: string
+  /** Unused when always in KG, kept for API compatibility */
   unitsInput: string
   setWeightInput: (v: string) => void
+  /** Unused when always in KG, kept for API compatibility */
   setUnitsInput: (v: string) => void
   onConfirmArrival: () => void
   onContinue: () => void
@@ -35,20 +51,21 @@ export default function CurrentItemPanel({
   curName,
   curImg,
   selectedBoxNo,
+  SizeStrip,
   arrivalConfirmed,
-  isKg,
+  isKg, // ignored; always KG mode
   isKgValid,
-  isUnitsValid,
+  isUnitsValid, // eslint-disable-line @typescript-eslint/no-unused-vars
   weightInput,
-  unitsInput,
+  unitsInput, // eslint-disable-line @typescript-eslint/no-unused-vars
   setWeightInput,
-  setUnitsInput,
+  setUnitsInput, // eslint-disable-line @typescript-eslint/no-unused-vars
   onConfirmArrival,
   onContinue,
 }: CurrentItemPanelProps) {
   if (!cur) {
     return (
-      <Card.Root rounded="2xl" borderWidth="1px">
+      <Card.Root borderWidth="1px" borderRadius="2xl">
         <Card.Body>
           <VStack align="start" gap={4}>
             <Text fontSize="lg">All pieces done for this box.</Text>
@@ -58,22 +75,26 @@ export default function CurrentItemPanel({
     )
   }
 
+  // Pre-fill the input with the backend estimate once arrival is confirmed
+  useEffect(() => {
+    if (arrivalConfirmed && (weightInput == null || weightInput === "")) {
+      const est = Math.round((cur.estWeightKgPiece ?? 0) * 100) / 100
+      if (est > 0) setWeightInput(String(est))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrivalConfirmed, cur.estWeightKgPiece])
+
   const loc = getLocation(cur.itemId)
 
   return (
-    <Card.Root rounded="2xl" borderWidth="1px">
+    <Card.Root borderWidth="1px" borderRadius="2xl">
       <Card.Header>
         <HStack justify="space-between" w="full">
           <HStack gap={3}>
             <Text as="h2" fontSize="lg" fontWeight="semibold">
               {curName}
             </Text>
-            <Badge size="lg" variant="outline">{`Box #${selectedBoxNo}`}</Badge>
-          </HStack>
-          <HStack gap={3}>
-            <Badge variant="surface">Zone {loc.zone}</Badge>
-            <Badge variant="surface">Shelf {loc.shelf}</Badge>
-            <Badge variant="surface">Bin {loc.bin}</Badge>
+            <Badge size="lg" variant="outline">{`Box #${selectedBoxNo} size #${SizeStrip}`}</Badge>
           </HStack>
         </HStack>
       </Card.Header>
@@ -81,75 +102,64 @@ export default function CurrentItemPanel({
       <Card.Body>
         <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6} alignItems="start">
           {/* Left: image */}
-          <Image src={curImg} alt={curName} rounded="lg" maxH="360px" w="100%" objectFit="cover" />
+          <Image src={curImg} alt={curName} borderRadius="lg" maxH="250px" objectFit="contain" />
 
           {/* Right: details, input, buttons */}
           <VStack align="stretch" gap={5}>
-            <HStack gap={6} wrap="wrap">
+            <HStack gap={3}>
+              <Badge variant="surface" size="lg">Zone {loc.zone}</Badge>
+              <Badge variant="surface" size="lg">Shelf {loc.shelf}</Badge>
+              <Badge variant="surface" size="lg">Bin {loc.bin}</Badge>
+            </HStack>
+
+            <HStack gap={6} flexWrap="wrap">
               <Badge size="lg" variant="surface" colorPalette="purple">
                 Piece: {cur.pieceType}
               </Badge>
               <Badge size="lg" variant="surface" colorPalette="teal">
                 Mode: {cur.mode}
               </Badge>
-              {cur.units != null && cur.mode !== "kg" && (
+              {cur.qtyKg != null && (
                 <Badge size="lg" variant="surface" colorPalette="purple">
-                  Required units: {cur.units}
+                  Required kg: {cur.qtyKg}
                 </Badge>
               )}
             </HStack>
 
             {/* Inputs appear only AFTER arrival is confirmed */}
             {arrivalConfirmed && (
-              <>
-                {isKg ? (
-                  <VStack align="stretch" gap={2}>
-                    <Text fontWeight="semibold">Enter measured weight</Text>
-                    <HStack gap={3} maxW="sm">
-                      <Input
-                        inputMode="decimal"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={weightInput}
-                        onChange={(e) => setWeightInput(e.target.value)}
-                        aria-label="Actual weight in kilograms"
-                      />
-                      <Text>kg</Text>
-                    </HStack>
-                    <Text color="fg.muted" fontSize="sm">
-                      Est kg/pc: {Math.round(cur.estWeightKgPiece * 100) / 100} • Liters: {Math.round(cur.liters * 10) / 10}
-                    </Text>
-                  </VStack>
-                ) : (
-                  <VStack align="stretch" gap={2}>
-                    <Text fontWeight="semibold">Enter picked units</Text>
-                    <HStack gap={3} maxW="sm">
-                      <Input
-                        inputMode="numeric"
-                        type="number"
-                        step="1"
-                        min="1"
-                        placeholder="0"
-                        value={unitsInput}
-                        onChange={(e) => setUnitsInput(e.target.value)}
-                        aria-label="Picked units"
-                      />
-                      <Text>units</Text>
-                    </HStack>
-                    <Text color="fg.muted" fontSize="sm">
-                      Target units: {cur.units ?? 1}
-                    </Text>
-                  </VStack>
-                )}
-              </>
+              <VStack align="stretch" gap={2}>
+                <Text fontWeight="semibold">Enter measured weight</Text>
+                <HStack gap={3} maxW="sm">
+                  <Input
+                    inputMode="decimal"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={weightInput}
+                    onChange={(e) => setWeightInput(e.target.value)}
+                    aria-label="Actual weight in kilograms"
+                  />
+                  <Text>kg</Text>
+                </HStack>
+                <Text color="fg.muted" fontSize="sm">
+                  Est kg/pc: {Math.round((cur.estWeightKgPiece ?? 0) * 100) / 100} • Liters: {Math.round((cur.liters ?? 0) * 10) / 10}
+                </Text>
+              </VStack>
             )}
 
-            {/* Right column buttons centered and mutually exclusive */}
-            <HStack gap={3} justify="center" align="center" minH="100px">
+            {/* Right column buttons */}
+            <HStack gap={3} minH="100px">
               {!arrivalConfirmed && (
-                <Button size="lg" variant="solid" colorPalette="blue" onClick={onConfirmArrival} rounded="full">
+                <Button
+                  alignSelf="flex-start"
+                  size="lg"
+                  variant="solid"
+                  colorPalette="blue"
+                  onClick={onConfirmArrival}
+                  borderRadius="full"
+                >
                   Confirm arrival
                 </Button>
               )}
@@ -158,8 +168,8 @@ export default function CurrentItemPanel({
                   size="lg"
                   colorPalette="teal"
                   onClick={onContinue}
-                  disabled={!(isKg ? isKgValid : isUnitsValid)}
-                  rounded="full"
+                  disabled={!isKgValid}
+                  borderRadius="full"
                 >
                   Confirm & Continue
                 </Button>

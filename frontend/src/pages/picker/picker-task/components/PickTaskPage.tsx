@@ -11,14 +11,13 @@ import {
   Badge,
   Separator,
   Spinner,
-  IconButton,
   Button,
 } from "@chakra-ui/react"
-import { ChevronDown, ChevronUp } from "lucide-react"
 import toast from "react-hot-toast"
 
 import { claimFirstReadyTaskForCurrentShift, type PickerTask, type PlanBox, type PlanPiece } from "@/api/pickerTask"
 import { getItemsCatalog } from "@/api/farmerInventory"
+import { completePickerTask } from "@/api/pickerTask"
 
 import HeaderBar from "@/pages/picker/picker-task/components/HeaderBar"
 import TimerPill from "@/pages/picker/picker-task/components/TimerPill"
@@ -73,6 +72,8 @@ export default function PickTaskPage() {
 
   // selection & progression
   const [selectedBoxNo, setSelectedBoxNo] = useState<number | null>(null)
+  // track selected box size separately from the SizeStrip component
+  const [selectedBoxSize, setSelectedBoxSize] = useState<SizeCode | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
 
   // inputs
@@ -114,6 +115,7 @@ export default function PickTaskPage() {
         setDeadline(Date.now() + prioMin * 60 * 1000)
 
         setSelectedBoxNo(null)
+        setSelectedBoxSize(null)
         setStepIndex(0)
 
         const list = await getItemsCatalog()
@@ -242,6 +244,7 @@ export default function PickTaskPage() {
         return
       }
       setSelectedBoxNo(target)
+      setSelectedBoxSize(sz)
       setStepIndex(0)
       setPhase("pick")
       setArrivalConfirmed(false)
@@ -299,6 +302,7 @@ export default function PickTaskPage() {
 
     toast.success(`Box #${selectedBoxNo ?? ""} completed. Select another package.`)
     setSelectedBoxNo(null)
+    setSelectedBoxSize(null)
     setStepIndex(0)
   }
 
@@ -333,60 +337,21 @@ export default function PickTaskPage() {
 
         <Grid templateColumns={{ base: "1fr", md: "repeat(12, 1fr)" }} gap={6}>
           <GridItem colSpan={{ base: 12, md: 12 }}>
-            <Card.Root rounded="2xl" borderWidth="1px">
-              <Card.Header>
-                <HStack justify="space-between" w="full">
-                  <Heading size="lg">Packages</Heading>
-                  <Text color="fg.muted">
+            <Card.Root rounded="2xl" borderWidth="1px" alignItems="center">
+              <Card.Header alignSelf={"flex-start"}>
+                <HStack justify="space-between" w="full" align="left" alignItems="left">
+                  <Text color="fg.muted" alignSelf={"flex-start"}>
                     {task.shiftDate} • {task.shiftName}
                   </Text>
                 </HStack>
               </Card.Header>
               <Card.Body>
                 {/* overall counts */}
-                <VStack align="stretch" gap={2} mb={3}>
-                  {(["Large", "Medium", "Small", "Unknown"] as const).map((t) => {
-                    const row =
-                      t === "Large"
-                        ? boxStats.Large
-                        : t === "Medium"
-                        ? boxStats.Medium
-                        : t === "Small"
-                        ? boxStats.Small
-                        : boxStats.Unknown
-                    if (!row.count) return null
-                    return (
-                      <HStack key={t} justify="space-between" wrap="wrap">
-                        <HStack gap={3}>
-                          <Badge variant="solid">{t}</Badge>
-                          <Text>x{row.count}</Text>
-                        </HStack>
-                        <HStack gap={3}>
-                          <Badge variant="subtle">boxes: [{row.boxNos.join(", ")}]</Badge>
-                          <Badge variant="surface">~{row.liters} L</Badge>
-                          <Badge variant="surface" colorPalette="teal">
-                            ~{row.kg} kg
-                          </Badge>
-                        </HStack>
-                      </HStack>
-                    )
-                  })}
-                </VStack>
 
-                <SizeStrip sizes={sizeCount} />
-
-                <Separator my={4} />
-                <HStack justify="space-between" w="full">
-                  <Text fontSize="md" color="fg.muted">
-                    Put these boxes on your cart. Then pick a size to start.
-                  </Text>
-                  <HStack>
-                    <Text color="fg.muted">Show items</Text>
-                    <IconButton aria-label="Toggle items" size="sm" variant="ghost" onClick={() => setCatalogOpen((v) => !v)}>
-                      {catalogOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    </IconButton>
-                  </HStack>
-                </HStack>
+                {/* <Text color="fg.muted">Show items</Text>
+                <IconButton aria-label="Toggle items" size="sm" variant="ghost" onClick={() => setCatalogOpen((v) => !v)}>
+                  {catalogOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </IconButton> */}
 
                 {catalogOpen && (
                   <>
@@ -423,7 +388,7 @@ export default function PickTaskPage() {
                 )}
               </Card.Body>
 
-              <Card.Footer>
+              <Card.Footer alignItems="center">
                 <PackagesSelector
                   title="Start picking with:"
                   sizes={sizeCount}
@@ -484,6 +449,9 @@ export default function PickTaskPage() {
                   onPickSize={(sz) => startWithSize(sz)}
                   onPickBox={(no) => {
                     setSelectedBoxNo(no)
+                    // infer size from selected box
+                    const bx = (task?.plan?.boxes ?? []).find((b) => b.boxNo === no)
+                    setSelectedBoxSize(mapBoxTypeToSizeCode(bx?.boxType))
                     setStepIndex(0)
                   }}
                   showBoxes
@@ -501,7 +469,18 @@ export default function PickTaskPage() {
                 <VStack align="start" gap={3}>
                   <Heading size="md">All packages completed</Heading>
                   <Text>Press Finish packing to complete the task.</Text>
-                  <Button colorPalette="teal" onClick={() => (window.location.href = "/picker/dashboard")}>
+                  <Button
+                    colorPalette="teal"
+                    onClick={async () => {
+                      try {
+                        await completePickerTask(task._id || "")
+                        toast.success("Task completed successfully.")
+                        window.location.href = "/picker/dashboard"
+                      } catch (e: any) {
+                        toast.error(e?.message || "Failed to complete the task.")
+                      }
+                    }}
+                  >
                     Finish packing
                   </Button>
                 </VStack>
@@ -518,6 +497,8 @@ export default function PickTaskPage() {
               curName={curName}
               curImg={curImg}
               selectedBoxNo={selectedBoxNo}
+              // match CurrentItemPanel prop name expected previously: SizeStrip
+              SizeStrip={selectedBoxSize || ""}
               arrivalConfirmed={arrivalConfirmed}
               isKg={!!isKg}
               isKgValid={!!isKgValid}

@@ -39,6 +39,8 @@ export default function SizeStrip({
 
   return (
     <Box
+minW="100vh"
+alignItems="center"
       rounded="xl"
       borderWidth="2px"
       borderColor={borderAccent ? "blackAlpha.600" : "blackAlpha.300"}
@@ -51,6 +53,8 @@ export default function SizeStrip({
           return (
             <Box
               key={sz}
+          h="full" w="full" 
+
               p={{ base: 4, md: 6 }}
               position="relative"
               cursor={clickable ? "pointer" : "default"}
@@ -66,9 +70,10 @@ export default function SizeStrip({
                   borderRightWidth="2px"
                   borderColor="blackAlpha.600"
                   _dark={{ borderColor: "whiteAlpha.400" }}
+                  h="full" w="full" 
                 />
               )}
-              <VStack gap={2}>
+              <VStack gap={2} h="full" w="full" align="center" justify="center">
                 <PkgGlyph />
                 <Text fontSize="xl" fontWeight="bold">
                   {label[sz]}
