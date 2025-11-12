@@ -4,8 +4,9 @@ import { Box, Stack, Heading, Separator, SimpleGrid } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 
 // ---- Farmer (manager) bits
-import { ShiftStatsCard } from "@/pages/fmanager/Dashboard/components/ShiftStatsCard";
-import { useManagerSummary } from "@/pages/fmanager/Dashboard/hooks/useManagerSummary";
+import { ShiftStatsCard } from "@/pages/fManager/Dashboard/components/ShiftStatsCard";
+// import { useManagerSummary } from "@/pages/fmanager/Dashboard/hooks/useManagerSummary";
+import { useManagerSummary } from "@/pages/fManager/Dashboard/hooks/useManagerSummary";
 
 // ---- Customer service bits
 import { ShiftSummaryCard } from "@/pages/csManager/Dashboard/components/ShiftSummaryCard";
