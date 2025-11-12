@@ -1,6 +1,7 @@
+// src/features/farmerOrderReport/FarmerOrderReport.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  Alert, Badge, Box, Button, Card, Dialog, EmptyState, Field, Fieldset, FormatNumber,
+  Alert, Badge, Box, Button, Card, Dialog, EmptyState, Field, FormatNumber,
   HStack, Image, Input, Portal, Progress, Separator, Show, Stack, Stat, Table, Tag, Text,
   Tabs, VStack, SegmentGroup, SimpleGrid, Wrap, WrapItem,
 } from "@chakra-ui/react"
@@ -13,9 +14,9 @@ import type { Container as FoContainer, ContainerQR, PrintPayload } from "@/api/
 // constants & utils
 import { TOLERANCE_PCT } from "./constants/metrics"
 import { sizeCfg, type QrCardSize } from "./constants/sizing"
-import { round2, safeNumber, formatNum } from "./utils/numbers"
+import { round2, formatNum } from "./utils/numbers"
 import { hashString } from "./utils/strings"
-import { getFarmerOrderIdFromUrl } from "./utils/url"
+import { getFarmerOrderIdFromUrl, getCategoryFromUrl } from "./utils/url"
 
 // printing
 import { generatePdfLabels } from "./printing/pdf"
@@ -27,14 +28,20 @@ import { InlineWeightEditor } from "./components/InlineWeightEditor"
 import { MonoToken } from "./components/MonoToken"
 import { StepPill } from "./components/StepPill"
 import QualityStandardsSwitch from "./components/QualityStandardsSwitch"
-
 import { Reveal } from "./components/Animated"
 
-// mock services (replace with real API when ready)
-import { mockMode, mockPayload, delay } from "./services/farmerOrders.mock"
+// dev helper for slight latency feel (optional)
+import { mockMode, delay } from "./services/farmerOrders.mock"
+
+// ✅ real API (load + weights)
+import {
+  getFarmerOrderPrintPayload,
+  patchContainerWeights,
+} from "@/api/farmerOrders"
 
 type Props = {
   farmerOrderId?: string
+  /** ignored for header now; we show pickup-time from the API instead */
   pickupAddress?: string
   assignedDeliverer?: string | null
 }
@@ -43,6 +50,9 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
   // Resolve FO id from props or URL
   const foIdFromUrl = useMemo(() => getFarmerOrderIdFromUrl(), [])
   const effectiveFoId = (farmerOrderId || foIdFromUrl || "").trim()
+
+  // Category from URL (sent as &category=fruit|vegetable|egg_dairy|other)
+  const urlCategory = useMemo(() => getCategoryFromUrl(), [])
 
   const [loading, setLoading] = useState(false)
   const [payload, setPayload] = useState<PrintPayload | null>(null)
@@ -115,41 +125,52 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
     return pool[hash % pool.length] + " (placeholder)"
   }, [assignedDeliverer, effectiveFoId])
 
-  const pickup = useMemo(() => {
-    if (pickupAddress && pickupAddress.trim().length) return pickupAddress
-    return (
-      payload?.farmerOrder?.pickupAddress ||
-      `${payload?.farmerOrder?.farmName ?? "Unknown farm"} (pickup point)`
-    )
-  }, [pickupAddress, payload?.farmerOrder?.pickupAddress, payload?.farmerOrder?.farmName])
+  // NEW: pickup-time (Asia/Jerusalem)
+  const pickupTimeText = useMemo(() => {
+    const raw = payload?.farmerOrder?.pickUpTime
+    if (!raw) return "-"
+    try {
+      const d = new Date(raw)
+      return d.toLocaleString("en-GB", {
+        timeZone: "Asia/Jerusalem",
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    } catch {
+      return String(raw)
+    }
+  }, [payload?.farmerOrder?.pickUpTime])
 
   const itemName = useMemo(() => {
     const fo = payload?.farmerOrder
     return (fo?.variety ? `${fo?.type ?? ""} ${fo?.variety}`.trim() : fo?.type) || "Unknown Item"
   }, [payload?.farmerOrder])
 
-  /** best-effort category detection */
+  /** Category resolution: URL param takes precedence; fall back to payload hints */
   const category = useMemo(() => {
+    const fromUrl = (urlCategory ?? "").toLowerCase()
+    if (fromUrl) return fromUrl
     const raw =
       (payload as any)?.farmerOrder?.category ??
       (payload as any)?.farmerOrder?.itemCategory ??
       (payload as any)?.farmerOrder?.type ??
       ""
     return String(raw ?? "").toLowerCase()
-  }, [payload])
+  }, [payload, urlCategory])
 
-  // -------- Load --------
+  // -------- Load (REAL API) --------
   const load = useCallback(async () => {
     if (!effectiveFoId) return
     setLoading(true)
     setError(null)
     try {
-      if (mockMode) {
-        await delay(150)
-        setPayload(mockPayload(effectiveFoId, 0))
-      } else {
-        // TODO real API
-      }
+      if (mockMode) await delay(150)
+      const data = await getFarmerOrderPrintPayload(effectiveFoId)
+      setPayload(data)
       setWeightsDraft({})
     } catch (e: any) {
       setError(e?.message || "Failed to load farmer order")
@@ -162,43 +183,65 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
     load()
   }, [load])
 
+  // -------- Create containers (STATIC / LOCAL ONLY) --------
   const onInitContainers = useCallback(async () => {
     const count = Number(initCount)
     if (!Number.isInteger(count) || count <= 0) return
     try {
       setLoading(true)
       setError(null)
-      if (mockMode) {
-        await delay(120)
-        setPayload((prev) => {
-          const base = prev ?? mockPayload(effectiveFoId, 0)
-          const start = (base.farmerOrder.containers?.length ?? 0) + 1
-          const newContainers: FoContainer[] = []
-          const newQrs: ContainerQR[] = []
-          for (let i = 0; i < count; i++) {
-            const seq = start + i
-            const cid = `${base.farmerOrder._id}_${seq}`
-            newContainers.push({ containerId: cid, weightKg: 0 })
-            newQrs.push({
-              token: `QR-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
-              sig: Math.random().toString(36).slice(2, 18),
-              scope: "container",
-              subjectType: "Container",
-              subjectId: cid,
-            })
-          }
-          return {
+      if (mockMode) await delay(120)
+
+      // build locally (NO API)
+      setPayload((prev) => {
+        const base: PrintPayload =
+          prev ??
+          ({
             farmerOrder: {
-              ...base.farmerOrder,
-              containers: [...(base.farmerOrder.containers ?? []), ...newContainers],
+              _id: effectiveFoId,
+              itemId: "",
+              type: "",
+              shift: "morning",
+              pickUpDate: "",
+              pickUpTime: "",
+              category: "",
+              farmerName: "",
+              farmName: "",
+              farmerId: "",
+              forcastedQuantityKg: 0,
+              containers: [],
             },
-            farmerOrderQR: base.farmerOrderQR,
-            containerQrs: [...(base.containerQrs ?? []), ...newQrs],
-          }
-        })
-      } else {
-        // TODO: API call -> initContainersForFarmerOrder
-      }
+            farmerOrderQR: { token: "", sig: "", scope: "farmer-order" },
+            containerQrs: [],
+          } as any)
+
+        const start = (base.farmerOrder.containers?.length ?? 0) + 1
+        const newContainers: FoContainer[] = []
+        const newQrs: ContainerQR[] = []
+
+        for (let i = 0; i < count; i++) {
+          const seq = start + i
+          const cid = `${base.farmerOrder._id}_${seq}`
+          newContainers.push({ containerId: cid, weightKg: 0 })
+          newQrs.push({
+            token: `QR-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+            sig: Math.random().toString(36).slice(2, 18),
+            scope: "container",
+            subjectType: "Container",
+            subjectId: cid,
+          })
+        }
+
+        return {
+          farmerOrder: {
+            ...base.farmerOrder,
+            containers: [...(base.farmerOrder.containers ?? []), ...newContainers],
+          },
+          farmerOrderQR: base.farmerOrderQR,
+          containerQrs: [...(base.containerQrs ?? []), ...newQrs],
+        }
+      })
+
       setOpenInit(false)
       setQrFilter("pending")
       setBoardTab("cards")
@@ -211,29 +254,19 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
     }
   }, [effectiveFoId, initCount])
 
+  // -------- Patch weights (REAL API) --------
   const putWeights = useCallback(
     async (weights: Record<string, number>) => {
       const list = Object.entries(weights).map(([containerId, weightKg]) => ({ containerId, weightKg }))
       if (!list.length) return
       setSavingWeights(true)
       try {
-        if (mockMode) {
-          await delay(120)
-          setPayload((prev) => {
-            if (!prev) return prev
-            return {
-              ...prev,
-              farmerOrder: {
-                ...prev.farmerOrder,
-                containers: (prev.farmerOrder.containers ?? []).map((c) =>
-                  weights[c.containerId] != null ? { ...c, weightKg: weights[c.containerId] } : c,
-                ),
-              },
-            }
-          })
-        } else {
-          // TODO: API call -> patchContainerWeights
-        }
+        await patchContainerWeights(effectiveFoId, list)
+
+        // re-fetch from server to reflect validation/rounding
+        const data = await getFarmerOrderPrintPayload(effectiveFoId)
+        setPayload(data)
+
         setWeightsDraft((prev) => {
           const copy = { ...prev }
           for (const k of Object.keys(weights)) delete copy[k]
@@ -273,7 +306,8 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                   <Tag.Root><Tag.Label>Shift: {payload?.farmerOrder?.shift ?? "-"}</Tag.Label></Tag.Root>
                   <Tag.Root><Tag.Label>Date: {payload?.farmerOrder?.pickUpDate ?? "-"}</Tag.Label></Tag.Root>
                 </HStack>
-                <Text color="fg.muted" lineClamp={1} minW="0">Pickup: {pickup}</Text>
+                {/* 🔁 CHANGED: show pickup-time from API instead of pickup address/string */}
+                <Text color="fg.muted" lineClamp={1} minW="0">Pickup time: {pickupTimeText}</Text>
                 <Text color="fg.muted" lineClamp={1} minW="0">Deliverer: {assignedName}</Text>
                 <Text color="fg.muted" fontSize="sm" title={typeof window !== "undefined" ? window.location.href : ""}>
                   URL-bound FO: {effectiveFoId || "not detected"}

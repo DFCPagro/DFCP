@@ -864,7 +864,9 @@ type BaseParams = {
   includeAudit?: boolean; // NEW: opt-in enrichment
 };
 
-export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerView?: boolean }) {
+export async function listFarmerOrdersForShift(
+  params: BaseParams & { forFarmerView?: boolean }
+) {
   const {
     logisticCenterId,
     date,
@@ -878,7 +880,12 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
     includeAudit = false, // NEW default false
   } = params;
 
-  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 }).lean().exec();
+  const cfg = await ShiftConfig.findOne(
+    { logisticCenterId },
+    { timezone: 1 }
+  )
+    .lean()
+    .exec();
   if (!cfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = cfg.timezone || "Asia/Jerusalem";
 
@@ -888,7 +895,9 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
     pickUpDate: date,
   };
   if (farmerStatus) q.farmerStatus = farmerStatus;
-  if (farmerId && Types.ObjectId.isValid(farmerId)) q.farmerId = new Types.ObjectId(farmerId);
+  if (farmerId && Types.ObjectId.isValid(farmerId)) {
+    q.farmerId = new Types.ObjectId(farmerId);
+  }
 
   const farmerProjection: Record<string, 1> = {
     _id: 1,
@@ -899,7 +908,7 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
 
     farmerName: 1,
     farmName: 1,
-     farmLogo: 1, 
+    farmLogo: 1,
 
     shift: 1,
     pickUpDate: 1,
@@ -923,37 +932,62 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
 
     createdAt: 1,
     updatedAt: 1,
-    // NOTE: we do not select audit trail in farmer view listing by default
+    // NOTE: no audit in farmer view listing by default
+    // category will be added via populate+flatten below
   };
 
   const projection =
     forFarmerView
       ? farmerProjection
       : Array.isArray(fields) && fields.length
-      ? fields.reduce((acc, f) => ((acc[f] = 1), acc), {} as Record<string, 1>)
+      ? (fields.reduce(
+          (acc, f) => ((acc[f] = 1), acc),
+          {} as Record<string, 1>
+        ) as any)
       : undefined;
 
-  const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
+  const safeLimit = Math.max(1, limit);
+  const safePage = Math.max(1, page);
+  const skip = (safePage - 1) * safeLimit;
 
-  const [docs, total, allForWindow] = await Promise.all([
-    FarmerOrder.find(q, projection).sort({ createdAt: -1 }).skip(skip).limit(limit).lean().exec(),
-    FarmerOrder.countDocuments(q),
+  // --- Fetch: populate Item.category and then flatten onto docs ---
+  const [rawDocs, total, allForWindow] = await Promise.all([
+    FarmerOrder.find(q, projection)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .populate({
+        path: "itemId",
+        select: "category", // only what we need
+        options: { lean: true },
+      })
+      .lean()
+      .exec(),
+    FarmerOrder.countDocuments(q).exec(),
     FarmerOrder.find(q, { _id: 1, stageKey: 1, stages: 1 }).lean().exec(),
   ]);
 
   const problemCount = allForWindow.filter((fo) => isFarmerOrderProblem(fo)).length;
 
-  // Farmer view: keep current mapping (fast)
+  // Flatten item.category -> doc.category, and normalize itemId back to ObjectId if you prefer
+  const docs = (rawDocs as any[]).map((d) => ({
+    ...d,
+    category: d.category ?? d?.itemId?.category ?? null,
+    itemId: d?.itemId?._id ?? d.itemId, // keep as ObjectId value (not populated object)
+  }));
+
+  // Farmer view: keep current mapping (fast), but provide itemCategory from flattened category
   if (forFarmerView) {
-    const itemsBase = docs.map((d) => ({
+    const itemsBase = docs.map((d: any) => ({
       id: String(d._id),
       itemId: String(d.itemId),
       type: d.type || "",
+      itemCategory: d.category ?? null, // <-- now filled from Item.category
       variety: d.variety || "",
       imageUrl: d.pictureUrl || "",
       farmerName: d.farmerName,
       farmName: d.farmName,
-      farmLogo: (d as any).farmLogo ?? null, 
+      farmLogo: d.farmLogo ?? null,
       shift: d.shift,
       pickUpDate: d.pickUpDate,
       pickUpTime: d.pickUpTime || null,
@@ -978,11 +1012,11 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
           date,
           shiftName,
           tz,
-          page,
-          limit,
+          page: safePage,
+          limit: safeLimit,
           total,
           problemCount,
-          pages: Math.ceil(total / Math.max(1, limit)),
+          pages: Math.ceil(total / safeLimit),
           scopedToFarmer: Boolean(farmerId),
           forFarmerView,
         },
@@ -990,18 +1024,16 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
       };
     }
 
-    // If audit requested for farmer listing (rare), shape each using original doc trail
+    // includeAudit path for farmer view
     const items = await Promise.all(
       itemsBase.map(async (x, idx) => {
-        const raw = docs[idx];
+        const raw = rawDocs[idx] as any; // use raw to pull audit from selection if present
         const audit = await normalizeAndEnrichAuditEntries(
-          ((raw as any).historyAuditTrail ??
-            (raw as any).audit ??
-            (raw as any).auditTrail ??
-            []) as any[]
+          (raw?.historyAuditTrail ?? raw?.audit ?? raw?.auditTrail ?? []) as any[]
         );
         return { ...x, audit };
-    }));
+      })
+    );
 
     return {
       meta: {
@@ -1009,11 +1041,11 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
         date,
         shiftName,
         tz,
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
         problemCount,
-        pages: Math.ceil(total / Math.max(1, limit)),
+        pages: Math.ceil(total / safeLimit),
         scopedToFarmer: Boolean(farmerId),
         forFarmerView,
       },
@@ -1029,20 +1061,22 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
         date,
         shiftName,
         tz,
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
         problemCount,
-        pages: Math.ceil(total / Math.max(1, limit)),
+        pages: Math.ceil(total / safeLimit),
         scopedToFarmer: Boolean(farmerId),
         forFarmerView,
       },
-      items: docs, // raw (fast)
+      items: docs, // raw with category flattened
     };
   }
 
-  // When requested, shape each doc with audit
-  const items = await Promise.all(docs.map((d) => shapeFarmerOrderDTO(d, { includeAudit: true })));
+  // includeAudit for manager/admin
+  const items = await Promise.all(
+    docs.map((d: any) => shapeFarmerOrderDTO(d, { includeAudit: true }))
+  );
 
   return {
     meta: {
@@ -1050,17 +1084,18 @@ export async function listFarmerOrdersForShift(params: BaseParams & { forFarmerV
       date,
       shiftName,
       tz,
-      page,
-      limit,
+      page: safePage,
+      limit: safeLimit,
       total,
       problemCount,
-      pages: Math.ceil(total / Math.max(1, limit)),
+      pages: Math.ceil(total / safeLimit),
       scopedToFarmer: Boolean(farmerId),
       forFarmerView,
     },
     items,
   };
 }
+
 
 /* =============================
  * LIST my FOs (farmer or admin/fManager)

@@ -352,18 +352,30 @@ export type FarmerOrder = {
   type: string;
   variety?: string;
   pictureUrl?: string;
+
+  /** ISO date string "YYYY-MM-DD" */
   pickUpDate: string;
+
+  /** NEW: ISO datetime string from the backend, e.g. "2025-11-13T00:30:00.000Z" */
+  pickUpTime?: string;
+
   shift: ShiftName;
   category: string;
   farmerName: string;
   farmName: string;
   farmerId: string;
   logisticCenterId?: string;
+
+  // quantities (BE may send any of these)
   sumOrderedQuantityKg?: number;
-  forcastedQuantityKg?: number;
-  forecastedQuantityKg?: number;
+  forcastedQuantityKg?: number;      // BE original spelling
+  forecastedQuantityKg?: number;      // alias some places may use
+
   containers?: Container[];
+
   farmerStatus?: "pending" | "ok" | "problem";
+
+  // legacy/optional
   pickupAddress?: string;
 };
 

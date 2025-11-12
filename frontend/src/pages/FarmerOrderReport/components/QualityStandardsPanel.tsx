@@ -1,3 +1,4 @@
+// src/features/farmerOrderReport/components/QualityStandardsPanel.tsx
 import * as React from "react"
 import {
   Badge,
@@ -14,38 +15,88 @@ import QualityStandardsSection from "@/components/common/items/QualityStandardsS
 import { Reveal } from "./Animated"
 
 /**
- * Local quality model independent from external types to avoid
- * "Property 'measures' does not exist on type ..." errors.
+ * We mirror the server-side QS keys the backend compares in
+ * recomputeInspectionStatus(), then **exclude**:
+ *  1) rejectionRate (%)
+ *  2) maxDefectRatioLengthDiameter (L/D)
+ *  3) quality grade (text) — not a numeric measure anyway
+ *
+ * Keys that remain editable:
+ *  - brix
+ *  - acidityPercentage
+ *  - pressure
+ *  - colorPercentage
+ *  - weightPerUnitG
+ *  - diameterMM
  */
-type MetricKey = "moisture" | "brix" | "size" | "rejectionRate"
+type MetricKey =
+  | "brix"
+  | "acidityPercentage"
+  | "pressure"
+  | "colorPercentage"
+  | "weightPerUnitG"
+  | "diameterMM"
 
+// Read-only example model for A/B/C shown at the top
 type QS = {
   grade: "A" | "B" | "C"
-  measures: Record<MetricKey, number>
+  measures: Partial<Record<MetricKey, number>>
 }
 
 type Measurements = Partial<Record<MetricKey, number | string>>
 
 const metricLabels: Record<MetricKey, string> = {
-  moisture: "Moisture %",
   brix: "Brix %",
-  size: "Size / length diameter",
-  rejectionRate: "Rejection rate",
+  acidityPercentage: "Acidity %",
+  pressure: "Pressure",
+  colorPercentage: "Color %",
+  weightPerUnitG: "Weight / unit (g)",
+  diameterMM: "Diameter (mm)",
 }
 
-// Demo data — A/B/C read-only
+const metricUnits: Partial<Record<MetricKey, string>> = {
+  brix: "%",
+  acidityPercentage: "%",
+  pressure: "", // unit depends on tool; left blank
+  colorPercentage: "%",
+  weightPerUnitG: "g",
+  diameterMM: "mm",
+}
+
+// Demo A/B/C — strictly read-only; NOT used for the input grid
 const ABC: { a: QS; b: QS; c: QS } = {
   a: {
     grade: "A",
-    measures: { moisture: 10, brix: 12, size: 8, rejectionRate: 1 },
+    measures: {
+      brix: 12,
+      acidityPercentage: 0.6,
+      pressure: 8,
+      colorPercentage: 90,
+      weightPerUnitG: 180,
+      diameterMM: 75,
+    },
   },
   b: {
     grade: "B",
-    measures: { moisture: 14, brix: 10, size: 7, rejectionRate: 2.5 },
+    measures: {
+      brix: 10,
+      acidityPercentage: 0.8,
+      pressure: 7,
+      colorPercentage: 80,
+      weightPerUnitG: 160,
+      diameterMM: 70,
+    },
   },
   c: {
     grade: "C",
-    measures: { moisture: 18, brix: 8, size: 6, rejectionRate: 4 },
+    measures: {
+      brix: 8,
+      acidityPercentage: 1.0,
+      pressure: 6,
+      colorPercentage: 70,
+      weightPerUnitG: 140,
+      diameterMM: 65,
+    },
   },
 }
 
@@ -53,16 +104,22 @@ type Props = {
   readOnly?: boolean
 }
 
-export default function QualityStandardsPanel(props: Props) {
-  const [qsExample, setQsExample] = React.useState<QS | undefined>()
+export default function QualityStandardsPanel({ readOnly }: Props) {
+  // selected example (for the READ-ONLY section); default to A
+  const [qsExample, setQsExample] = React.useState<QS | undefined>(undefined)
+
+  // local measurements state for the editable grid (values we capture now)
   const [measured, setMeasured] = React.useState<Measurements | undefined>()
 
-  const metricKeys = React.useMemo(() => Object.keys(metricLabels) as MetricKey[], [])
+  const metricKeys = React.useMemo(
+    () => Object.keys(metricLabels) as MetricKey[],
+    []
+  )
 
   const onChangeNumber = React.useCallback(
     (key: MetricKey) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const clean = e.currentTarget.value
-      setMeasured((prev) => ({ ...(prev ?? {}), [key]: clean }))
+      const val = e.currentTarget.value
+      setMeasured((prev) => ({ ...(prev ?? {}), [key]: val }))
     },
     []
   )
@@ -86,12 +143,12 @@ export default function QualityStandardsPanel(props: Props) {
 
   return (
     <Stack gap="5">
-      {/* 1) READ-ONLY A/B/C examples */}
+      {/* 1) READ-ONLY A/B/C preview (kept as-is; includes "grade" text and all metrics) */}
       <Reveal>
         <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
           <Card.Body>
             <QualityStandardsSection
-              // Pass as any to avoid coupling with external type definitions
+              // The common QS component might expect a richer shape; we only pass what we have.
               value={(qsExample ?? ABC.a) as any}
               onChange={(v: any) => setQsExample(v as QS)}
               readOnly
@@ -100,7 +157,7 @@ export default function QualityStandardsPanel(props: Props) {
         </Card.Root>
       </Reveal>
 
-      {/* 2) Editable measurements grid */}
+      {/* 2) Editable measurements grid (EXCLUDES: Rejection rate %, Max defect ratio (L/D), Quality grade) */}
       <Reveal>
         <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
           <Card.Header>
@@ -117,14 +174,15 @@ export default function QualityStandardsPanel(props: Props) {
               <Table.Root size="sm" variant="outline" minW="720px">
                 <Table.Header>
                   <Table.Row>
-                    <Table.ColumnHeader w="34%">Field</Table.ColumnHeader>
-                    <Table.ColumnHeader w="48%">Measured</Table.ColumnHeader>
-                    <Table.ColumnHeader w="18%">Unit</Table.ColumnHeader>
+                    <Table.ColumnHeader w="40%">Field</Table.ColumnHeader>
+                    <Table.ColumnHeader w="45%">Measured</Table.ColumnHeader>
+                    <Table.ColumnHeader w="15%">Unit</Table.ColumnHeader>
                   </Table.Row>
                 </Table.Header>
                 <Table.Body>
                   {metricKeys.map((key) => {
                     const label = metricLabels[key]
+                    const unit = metricUnits[key] ?? "—"
                     return (
                       <Table.Row key={key}>
                         <Table.Cell>
@@ -138,10 +196,11 @@ export default function QualityStandardsPanel(props: Props) {
                             onChange={onChangeNumber(key)}
                             onBlur={onBlurFormat(key)}
                             placeholder="Enter value"
+                            readOnly={readOnly}
                           />
                         </Table.Cell>
                         <Table.Cell>
-                          <Text color="fg.muted">—</Text>
+                          <Text color="fg.muted">{unit}</Text>
                         </Table.Cell>
                       </Table.Row>
                     )

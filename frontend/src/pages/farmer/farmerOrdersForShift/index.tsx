@@ -44,6 +44,7 @@ type FarmerViewByShiftResponse = {
     itemId: string
     type: string
     variety?: string
+    itemCategory: string
     imageUrl?: string
     farmerName: string
     farmName: string
@@ -316,7 +317,7 @@ export default function FarmerOrderForShift() {
                         <Table.Cell>{it.finalQuantityKg ?? "—"}</Table.Cell>
                         <Table.Cell textAlign="end">
                           <Link
-                            href={`http://localhost:5173/farmer/farmer-order-report?id=${it.id}`}
+                            href={`http://localhost:5173/farmer/farmer-order-report?id=${it.id}&category?=${it.itemCategory}`}
                             color="blue.500"
                             fontWeight="medium"
                           >
