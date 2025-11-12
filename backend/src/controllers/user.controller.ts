@@ -6,10 +6,10 @@ import {
   getUserAddresses,
   addUserAddress,
   getUserName,
- removeAddress,
+  removeAddress,
   updateUserContact,
   getContactInfoByIdService,
-  getMDCoins
+  getMDCoins,
 } from "../services/user.service";
 
 const ADMIN_ROLES: Role[] = ["admin", "fManager", "tManager"] as const;
@@ -20,30 +20,27 @@ function authId(req: Request): string {
   return String(id);
 }
 
-
-
-
 export async function getContactInfoById(req: Request, res: Response) {
   try {
     const requester = req.user as { _id: string; role: Role } | undefined;
     if (!requester) throw new ApiError(401, "Unauthorized");
 
     const isPrivileged = ADMIN_ROLES.includes(requester.role);
-    const requestedId = (req.params.id as string) || (req.query.id as string) || "";
+    const requestedId =
+      (req.params.id as string) || (req.query.id as string) || "";
 
     // Privileged can target others; everyone else gets self
-    const targetUserId = isPrivileged && requestedId ? requestedId : String(requester._id);
+    const targetUserId =
+      isPrivileged && requestedId ? requestedId : String(requester._id);
 
     const data = await getContactInfoByIdService(targetUserId);
     res.json({ data });
   } catch (e: any) {
     res
-    .status(e.message === "Unauthorized" ? 401 : 400)
-     .json({ error: e.message || "Failed to get addresses" });
+      .status(e.message === "Unauthorized" ? 401 : 400)
+      .json({ error: e.message || "Failed to get addresses" });
   }
 }
-
-
 
 export async function getMyAddresses(req: Request, res: Response) {
   try {
@@ -58,12 +55,11 @@ export async function getMyAddresses(req: Request, res: Response) {
 }
 
 export async function postNewAddress(req: Request, res: Response) {
-
   try {
     const userId = authId(req);
     console.log("postNewAddress body:", req.body);
-    const { lnt, alt, address } = req.body ?? {};
-    const data = await addUserAddress(userId, { lnt, alt, address });
+    const { lat, lng, address } = req.body ?? {};
+    const data = await addUserAddress(userId, { lat, lng, address });
 
     // NOTE: For now logisticCenterId is always set to DEFAULT_LC_ID inside the service.
     // TODO: Later compute closest LC from coordinates.
@@ -126,8 +122,11 @@ export async function deleteMyAddress(req: Request, res: Response) {
     res.json(data);
   } catch (e: any) {
     const status =
-      e.message === "Unauthorized" ? 401 :
-      /not found/i.test(e.message) ? 404 : 400;
+      e.message === "Unauthorized"
+        ? 401
+        : /not found/i.test(e.message)
+        ? 404
+        : 400;
     res.status(status).json({ error: e.message || "Failed to remove address" });
   }
 }
@@ -143,6 +142,8 @@ export async function getUserMDCoins(req: Request, res: Response) {
     return res.json({ userId: userId, mdCoins });
   } catch (err: any) {
     console.error("getUserMDCoins error:", err);
-    return res.status(500).json({ error: err.message || "Failed to get MDCoins" });
+    return res
+      .status(500)
+      .json({ error: err.message || "Failed to get MDCoins" });
   }
 }

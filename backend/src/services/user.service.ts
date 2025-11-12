@@ -11,7 +11,6 @@ export const DEFAULT_LC_ID = "66e007000000000000000001";
 
 export type LeanUser = Require_id<FlattenMaps<User>>;
 
-
 /**
  * Create a user document in the base User collection.
  * - Model expects `addresses: Address[]`.
@@ -100,7 +99,7 @@ export type PublicUser = {
   addresses: Address[];
   createdAt?: Date;
   updatedAt?: Date;
-  mdCoins?:number;
+  mdCoins?: number;
 };
 
 export function toPublicUser(u: any): PublicUser {
@@ -125,16 +124,15 @@ export async function getPublicUserById(id: string): Promise<PublicUser> {
   return toPublicUser(u); // u is plain/lean
 }
 
-
 // ====== (user personal info ) ======
 import { Types } from "mongoose";
-import { get } from '../controllers/deliverer.controller';
+import { get } from "../controllers/deliverer.controller";
 
 // For now, always pin LC to this id regardless of what the client sends.
 
 export type NewAddressInput = {
-  lnt: number; // longitude (kept as 'lnt' per your schema)
-  alt: number; // latitude  (kept as 'alt' per your schema)
+  lat: number; // longitude (kept as 'lnt' per your schema)
+  lng: number; // latitude  (kept as 'alt' per your schema)
   address: string;
   // logisticCenterId?: string; // intentionally ignored for now
 };
@@ -164,10 +162,10 @@ export async function getUserAddresses(userId: string) {
  * TODO: later compute the closest LC from (alt, lnt) and assign it here.
  */
 export async function addUserAddress(userId: string, payload: NewAddressInput) {
-  if (typeof payload?.lnt !== "number" || !isFinite(payload.lnt)) {
-    throw new Error("lnt (longitude) must be a finite number");
+  if (typeof payload?.lat !== "number" || !isFinite(payload.lat)) {
+    throw new Error("lat (longitude) must be a finite number");
   }
-  if (typeof payload?.alt !== "number" || !isFinite(payload.alt)) {
+  if (typeof payload?.lng !== "number" || !isFinite(payload.lng)) {
     throw new Error("alt (latitude) must be a finite number");
   }
   if (typeof payload?.address !== "string" || !payload.address.trim()) {
@@ -175,8 +173,8 @@ export async function addUserAddress(userId: string, payload: NewAddressInput) {
   }
 
   const addressDoc = {
-    lnt: payload.lnt,
-    alt: payload.alt,
+    lnt: payload.lat,
+    alt: payload.lng,
     address: payload.address.trim(),
     logisticCenterId: DEFAULT_LC_ID, // pinned LC for now
   };
@@ -246,7 +244,6 @@ export async function updateUserContact(
     email: updated.email,
     phone: updated.phone ?? null,
     birthday: updated.birthday ?? null,
-    
   };
 }
 
@@ -355,17 +352,18 @@ export async function removeAddress(
   return updated.addresses ?? [];
 }
 
-
 export async function getMDCoins(userId: string): Promise<number> {
   const user = await User.findById(asObjectId(userId)).select("mdCoins").lean();
   if (!user) throw new Error("User not found");
   return user.mdCoins ?? 0;
 }
 
-
 import mongoose from "mongoose";
 
-export async function updateMDCoins(userId: string, amount: number): Promise<number> {
+export async function updateMDCoins(
+  userId: string,
+  amount: number
+): Promise<number> {
   // Validate inputs
   if (!mongoose.isValidObjectId(userId)) {
     throw new Error("Invalid user ID");
