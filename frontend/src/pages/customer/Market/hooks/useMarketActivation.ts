@@ -6,7 +6,6 @@ import type { AvailableShiftFlat } from "@/types/market";
 /** LocalStorage key for persisted selection */
 const LS_KEY = "market.selection.v2";
 
-
 /**
  * We persist the full address snapshot (since your Address type has no `id`)
  * and the selected shift's `marketStockId`.
@@ -14,6 +13,7 @@ const LS_KEY = "market.selection.v2";
 export type MarketSelection = {
   address: Address;
   marketStockId: string;
+  timeSlot?: String;
 };
 
 export type UseMarketActivationOptions = {
@@ -24,7 +24,9 @@ export type UseMarketActivationOptions = {
   autoActivateOnMount?: boolean;
 
   /** If provided, use this to decide which shift is "first upcoming". (default: first in array) */
-  pickFirstUpcomingShift?: (shifts: AvailableShiftFlat[]) => AvailableShiftFlat | null;
+  pickFirstUpcomingShift?: (
+    shifts: AvailableShiftFlat[]
+  ) => AvailableShiftFlat | null;
 };
 
 export type UseMarketActivation = {
@@ -35,7 +37,7 @@ export type UseMarketActivation = {
   address: Address | null;
 
   /** Validated shift (matched by marketStockId) or null */
-  shift: AvailableShiftFlat  | null;
+  shift: AvailableShiftFlat | null;
 
   /** Raw persisted selection (if any) */
   selection: MarketSelection | null;
@@ -100,11 +102,12 @@ function sameAddress(a: Address, b: Address): boolean {
 }
 
 /* ------------------------------ Validation ------------------------------- */
-function defaultPickFirstUpcoming(shifts: AvailableShiftFlat[]): AvailableShiftFlat | null {
+function defaultPickFirstUpcoming(
+  shifts: AvailableShiftFlat[]
+): AvailableShiftFlat | null {
   // If your API already returns only future shifts sorted ascending, the first is enough.
   return shifts?.length ? shifts[0] : null;
 }
-
 
 async function validateSelection(
   selection: MarketSelection | null,
@@ -114,8 +117,7 @@ async function validateSelection(
 
   // 1) Validate address exists in the user's list (match by value, not id)
   const addresses = await getCustomerAddresses();
-  const addr =
-    addresses.find((a) => sameAddress(a, selection.address)) ?? null;
+  const addr = addresses.find((a) => sameAddress(a, selection.address)) ?? null;
 
   if (!addr) {
     return { address: null, shift: null };
@@ -135,7 +137,13 @@ async function validateSelection(
   const mapped: AvailableShiftFlat[] = (rows ?? [])
     .map((row: any) => {
       const k = String(row.shift ?? "").toLowerCase();
-      if (k !== "morning" && k !== "afternoon" && k !== "evening" && k !== "night") return null;
+      if (
+        k !== "morning" &&
+        k !== "afternoon" &&
+        k !== "evening" &&
+        k !== "night"
+      )
+        return null;
       const d = String(row.date ?? "").slice(0, 10);
       const id = String(row.marketStockId ?? row._id ?? "");
       if (!d || !id) return null;
@@ -143,15 +151,14 @@ async function validateSelection(
         shift: k as AvailableShiftFlat["shift"],
         date: d,
         marketStockId: id,
-        slotLabel: (row as any).deliverySlotLabel || undefined, // keep optional if BE adds later
+        slotLabel: (row as any).slotLabel || undefined, // keep optional if BE adds later
       } as AvailableShiftFlat;
     })
     .filter((x): x is AvailableShiftFlat => x !== null);
 
-  const found = mapped.find((s) => s.marketStockId === selection.marketStockId) ?? null;
+  const found =
+    mapped.find((s) => s.marketStockId === selection.marketStockId) ?? null;
   return { address: addr, shift: found };
-
-
 }
 
 /* ------------------------------- The hook -------------------------------- */
@@ -162,16 +169,19 @@ export function useMarketActivation(
   const optsRef = useRef<Required<UseMarketActivationOptions>>({
     keepInvalidInStorage: options.keepInvalidInStorage ?? false,
     autoActivateOnMount: options.autoActivateOnMount ?? true,
-    pickFirstUpcomingShift: options.pickFirstUpcomingShift ?? defaultPickFirstUpcoming,
+    pickFirstUpcomingShift:
+      options.pickFirstUpcomingShift ?? defaultPickFirstUpcoming,
   });
   optsRef.current = {
     keepInvalidInStorage: options.keepInvalidInStorage ?? false,
     autoActivateOnMount: options.autoActivateOnMount ?? true,
-    pickFirstUpcomingShift: options.pickFirstUpcomingShift ?? defaultPickFirstUpcoming,
+    pickFirstUpcomingShift:
+      options.pickFirstUpcomingShift ?? defaultPickFirstUpcoming,
   };
 
-
-  const [selection, setSelectionState] = useState<MarketSelection | null>(() => readSelection());
+  const [selection, setSelectionState] = useState<MarketSelection | null>(() =>
+    readSelection()
+  );
   const [address, setAddress] = useState<Address | null>(null);
   const [shift, setShift] = useState<AvailableShiftFlat | null>(null);
   const [isLoading, setLoading] = useState(false);
@@ -187,28 +197,25 @@ export function useMarketActivation(
     setError(null);
   }, []);
 
-  const runValidation = useCallback(
-    async (sel: MarketSelection | null) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await validateSelection(sel, optsRef.current);
-        setAddress(res.address);
-        setShift(res.shift);
+  const runValidation = useCallback(async (sel: MarketSelection | null) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await validateSelection(sel, optsRef.current);
+      setAddress(res.address);
+      setShift(res.shift);
 
-        const valid = !!(res.address && res.shift);
-        if (!valid && !optsRef.current.keepInvalidInStorage) {
-          writeSelection(null);
-          setSelectionState(null);
-        }
-      } catch (e: any) {
-        setError(e?.message ?? "Failed to validate market selection");
-      } finally {
-        setLoading(false);
+      const valid = !!(res.address && res.shift);
+      if (!valid && !optsRef.current.keepInvalidInStorage) {
+        writeSelection(null);
+        setSelectionState(null);
       }
-    },
-    []
-  );
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to validate market selection");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const setSelection = useCallback(
     async (next: MarketSelection) => {
@@ -245,7 +252,13 @@ export function useMarketActivation(
     const mapped: AvailableShiftFlat[] = (rows ?? [])
       .map((row: any) => {
         const k = String(row.shift ?? "").toLowerCase();
-        if (k !== "morning" && k !== "afternoon" && k !== "evening" && k !== "night") return null;
+        if (
+          k !== "morning" &&
+          k !== "afternoon" &&
+          k !== "evening" &&
+          k !== "night"
+        )
+          return null;
         const d = String(row.date ?? "").slice(0, 10);
         const id = String(row.marketStockId ?? row._id ?? "");
         if (!d || !id) return null;
@@ -258,8 +271,8 @@ export function useMarketActivation(
       })
       .filter((x): x is AvailableShiftFlat => x !== null);
 
-
-    const picker = optsRef.current.pickFirstUpcomingShift ?? defaultPickFirstUpcoming;
+    const picker =
+      optsRef.current.pickFirstUpcomingShift ?? defaultPickFirstUpcoming;
     const first = picker(mapped);
     if (!first) return false;
 
@@ -293,15 +306,13 @@ export function useMarketActivation(
   // NEW: If validation cleared an invalid saved selection, try auto-activate once.
   useEffect(() => {
     if (!optsRef.current.autoActivateOnMount) return;
-    if (isActive) return;                     // already active, nothing to do
-    if (selection !== null) return;           // still have a saved selection, don't auto-pick yet
+    if (isActive) return; // already active, nothing to do
+    if (selection !== null) return; // still have a saved selection, don't auto-pick yet
     // selection is null AND we're inactive -> try once
     void autoActivate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection, isActive]);
 
-  
- 
   return {
     isActive,
     address,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState ,useRef} from "react"
+import { useCallback, useEffect, useMemo, useState, useRef } from "react"
 import {
   Box,
   Button,
@@ -25,7 +25,7 @@ import {
   getCustomerAddresses,
 } from "@/api/market"
 import type { Address } from "@/types/address"
-import type { AvailableShiftFlat  } from "@/types/market"
+import type { AvailableShiftFlat } from "@/types/market"
 
 /* ---------------------------------- Types --------------------------------- */
 
@@ -40,7 +40,7 @@ export type AddressShiftDrawerProps = {
 
   /** Current, validated selection (active mode only) */
   currentAddress: Address | null
-  currentShift: AvailableShiftFlat  | null
+  currentShift: AvailableShiftFlat | null
 
   /** Called after user confirms "Change" (parent clears cart + selection + sets inactive) */
   onConfirmChange: () => Promise<void> | void
@@ -71,13 +71,13 @@ export default function AddressShiftDrawer({
     return idx >= 0 && idx < addresses.length ? addresses[idx] : null
   }, [selectedAddressIdx, addresses])
 
-    const [shifts, setShifts] = useState<AvailableShiftFlat[]>([])
+  const [shifts, setShifts] = useState<AvailableShiftFlat[]>([])
   const [shiftsLoading, setShiftsLoading] = useState(false)
   const [shiftsError, setShiftsError] = useState<string | null>(null)
   const [selectedMarketStockId, setSelectedMarketStockId] = useState<string>("")
 
   const selectedShift: AvailableShiftFlat | null = useMemo(() => {
-        if (!selectedMarketStockId) return null
+    if (!selectedMarketStockId) return null
     return shifts.find((s) => s.marketStockId === selectedMarketStockId) ?? null
   }, [selectedMarketStockId, shifts])
 
@@ -107,7 +107,7 @@ export default function AddressShiftDrawer({
       setAddresses(list ?? [])
       if ((list?.length ?? 0) === 0) {
         setSelectedAddressIdx("")
-      }   else {
+      } else {
         setSelectedAddressIdx((prev) => (prev === "" ? "0" : prev));
       }
 
@@ -136,7 +136,7 @@ export default function AddressShiftDrawer({
         console.log("[Shifts] raw:", raw);
 
         const mapped: AvailableShiftFlat[] = (raw ?? []).flatMap((row: any) => {
-          const key  = String(row.shift ?? row.key ?? row.shiftKey ?? "").toLowerCase();
+          const key = String(row.shift ?? row.key ?? row.shiftKey ?? "").toLowerCase();
           const date = String(row.date ?? row.availableDate ?? row.day ?? "").slice(0, 10);
           // prefer real id; otherwise synthesize a stable one so UI can select
           const realId =
@@ -180,15 +180,15 @@ export default function AddressShiftDrawer({
   /* ----------------------------- Effects & init ---------------------------- */
 
   // When drawer opens in picker mode, load address list once
-const didInitThisOpenRef = useRef(false); // <-- import/useRef at top
+  const didInitThisOpenRef = useRef(false); // <-- import/useRef at top
 
-useEffect(() => {
-  if (!isOpen) { didInitThisOpenRef.current = false; return; }
-  if (active) return;
-  if (didInitThisOpenRef.current) return;
-  didInitThisOpenRef.current = true;
-  loadAddresses();
-}, [isOpen, active, loadAddresses]);
+  useEffect(() => {
+    if (!isOpen) { didInitThisOpenRef.current = false; return; }
+    if (active) return;
+    if (didInitThisOpenRef.current) return;
+    didInitThisOpenRef.current = true;
+    loadAddresses();
+  }, [isOpen, active, loadAddresses]);
 
 
   // When drawer opens in picker mode, load addresses (and shifts for first addr)
@@ -367,7 +367,6 @@ useEffect(() => {
                                 key={`${a.address}-${idx}`}
                                 value={String(idx)}
                                 title={a.address || "—"}
-                                subtitle={formatCoords(a)}
                               />
                             ))}
                           </Stack>
@@ -409,7 +408,6 @@ useEffect(() => {
                                 key={s.marketStockId}
                                 value={s.marketStockId}
                                 title={formatShift(s)}
-                                subtitle={`Stock: ${s.marketStockId}`}
                               />
                             ))}
                           </Stack>
@@ -496,7 +494,7 @@ function formatShift(s: AvailableShiftFlat | null | undefined): string | undefin
   // If you want to append the slot label, uncomment:
   // const base = `${date}${date && key ? " • " : ""}${key}`;
   // return s.slotLabel ? `${base} (${s.slotLabel})` : base;
-  return `${date}${date && key ? " • " : ""}${key}`;
+  return `${date}${date && key ? " • " : ""}${key} , delivery time : ${s.slotLabel ?? "No slot"}`;
 }
 
 
@@ -507,8 +505,8 @@ function formatCoords(a: Address): string {
   return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
 }
 
-function RadioCard(props: { value: string; title?: string; subtitle?: string }) {
-  const { value, title, subtitle } = props
+function RadioCard(props: { value: string; title?: string; }) {
+  const { value, title } = props
   return (
     <RadioGroup.Item
       value={value}
@@ -523,11 +521,7 @@ function RadioCard(props: { value: string; title?: string; subtitle?: string }) 
         <RadioGroup.ItemIndicator mt="1" />
         <Stack gap="0">
           <Text fontWeight="medium">{title ?? "—"}</Text>
-          {subtitle ? (
-            <Text fontSize="sm" color="fg.muted">
-              {subtitle}
-            </Text>
-          ) : null}
+
         </Stack>
       </HStack>
       <RadioGroup.ItemHiddenInput />
