@@ -26,6 +26,7 @@ import { Play, Trophy, Coins, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import { PATHS } from "@/routes/paths";
 import { fetchPickerProfile, type PickerProfile } from "@/api/picker";
+import AccuracyProgress from "@/components/common/AccuracyProgress"
 
 const ACCENT = "teal";
 const PANEL_MAX_H = "calc(100vh - 180px)";
@@ -63,7 +64,6 @@ export default function WorkerProfile() {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       if (k === "g") navigate(PATHS.pickerDashboard);
-      if (k === "o") navigate(PATHS.orders);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -110,7 +110,7 @@ export default function WorkerProfile() {
                   <Badge variant="subtle" colorPalette="orange">
                     <HStack gap={1}>
                       <Icon as={Coins} boxSize={3.5} />
-                      <Text fontSize="xs">{profile.coins}</Text>
+                      <Text fontSize="xs">{profile.mdCoins}</Text>
                     </HStack>
                   </Badge>
                 </HStack>
@@ -120,8 +120,6 @@ export default function WorkerProfile() {
                 <HStack gap={2}>
                   <Kbd size="sm">G</Kbd>
                   <Text fontSize="xs" color="fg.muted">Start</Text>
-                  <Kbd size="sm">O</Kbd>
-                  <Text fontSize="xs" color="fg.muted">Orders</Text>
                 </HStack>
               </VStack>
             </HStack>
@@ -130,13 +128,10 @@ export default function WorkerProfile() {
               <Button size="sm" colorPalette={ACCENT} onClick={() => navigate(PATHS.pickerDashboard)}>
                 <HStack gap={1.5}><Icon as={Play} boxSize={4} /><Text>Start</Text></HStack>
               </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate(PATHS.orders)}>
-                Orders
-              </Button>
               <Button size="sm" variant="outline" onClick={() => navigate(SCHEDULE_PATH)}>
                 Schedule
               </Button>
-          
+
             </HStack>
           </HStack>
 
@@ -145,9 +140,11 @@ export default function WorkerProfile() {
               <Text fontSize="xs" color="fg.muted">Level progress</Text>
               <Text fontSize="xs" color="fg.muted">{profile.xp % 1000}/1000 XP</Text>
             </HStack>
-            <Progress.Root value={xpProgress} h="2" rounded="md">
-              <Progress.Track />
-              <Progress.Range />
+            <Progress.Root value={xpProgress} h="2" rounded="md" striped animated colorPalette={"purple"}
+              variant="outline">
+              <Progress.Track>
+                <Progress.Range />
+              </Progress.Track>
             </Progress.Root>
           </Box>
         </Card.Body>
@@ -194,10 +191,11 @@ export default function WorkerProfile() {
                             {profile.metrics.accuracy.toFixed(1)}%
                           </Badge>
                         </HStack>
-                        <Progress.Root value={profile.metrics.accuracy} max={100} h="2" rounded="sm">
-                          <Progress.Track />
-                          <Progress.Range />
-                        </Progress.Root>
+                        <AccuracyProgress
+                          value={profile.metrics.accuracy}
+                          thresholds={{ warn: 50, ok: 90 }}
+                          palettes={{ low: "yellow", mid: "blue", high: "green" }}
+                        />
                       </VStack>
                     </Card.Body>
                   </Card.Root>
@@ -233,7 +231,6 @@ export default function WorkerProfile() {
                   <Button size="sm" colorPalette={ACCENT} onClick={() => navigate(PATHS.pickerDashboard)}>
                     <HStack gap={1.5}><Icon as={Play} boxSize={4} /><Text>Start picking</Text></HStack>
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => navigate(PATHS.orders)}>My orders</Button>
                   <Button
                     size="sm"
                     disabled={saving}
@@ -303,10 +300,12 @@ export default function WorkerProfile() {
                                   <Badge variant="solid" colorPalette="green">+{q.reward} XP</Badge>
                                 </HStack>
                                 <Text fontSize="sm" color="fg.muted">{q.goal}</Text>
-                                <Progress.Root value={q.progress} h="2" rounded="sm">
-                                  <Progress.Track />
-                                  <Progress.Range />
-                                </Progress.Root>
+                                <AccuracyProgress
+                                  value={q.progress}
+                                  thresholds={{ warn: 50, ok: 90 }}
+                                  palettes={{ low: "yellow", mid: "blue", high: "green" }}
+                                />
+
                               </VStack>
                             </Card.Body>
                           </Card.Root>

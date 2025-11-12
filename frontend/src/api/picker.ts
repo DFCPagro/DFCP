@@ -17,7 +17,13 @@ export type PickerProfile = {
   streakDays: number;
   shift: { start: string; end: string };
   metrics: { accuracy: number; orders: number; lines: number; speed: number };
-  quests: Array<{ id: string; title: string; goal: string; progress: number; reward: number }>;
+  quests: Array<{
+    id: string;
+    title: string;
+    goal: string;
+    progress: number;
+    reward: number;
+  }>;
   achievements: Array<{ id: string; name: string; desc: string }>;
 };
 
@@ -29,11 +35,14 @@ type ApiPickerMe = {
   status?: "active" | "suspended" | "left";
   level?: number;
   xp?: number;
-  user?: { name?: string; email?: string | null; phone?: string | null };
+  user?: {
+    name?: string;
+    email?: string | null;
+    phone?: string | null;
+    mdCoins?: number;
+  };
   role?: string;
   logisticCenter?: { id?: string; name?: string; locationName?: string } | null;
-  mdCoins?: number;
-  coins?: number;
   activeStatus?: boolean;
   currentMonthSchedule?: unknown[];
   nextMonthSchedule?: unknown[];
@@ -48,9 +57,27 @@ const MOCK_EXTRAS: Omit<
   shift: { start: "08:00", end: "16:00" },
   metrics: { accuracy: 96.4, orders: 128, lines: 940, speed: 118 },
   quests: [
-    { id: "q1", title: "Warm-up", goal: "Pick 3 orders", progress: 66, reward: 25 },
-    { id: "q2", title: "Speedster", goal: "Maintain 110 l/hr", progress: 40, reward: 40 },
-    { id: "q3", title: "Zero mistakes", goal: "100% accuracy today", progress: 20, reward: 60 },
+    {
+      id: "q1",
+      title: "Warm-up",
+      goal: "Pick 3 orders",
+      progress: 66,
+      reward: 25,
+    },
+    {
+      id: "q2",
+      title: "Speedster",
+      goal: "Maintain 110 l/hr",
+      progress: 40,
+      reward: 40,
+    },
+    {
+      id: "q3",
+      title: "Zero mistakes",
+      goal: "100% accuracy today",
+      progress: 20,
+      reward: 60,
+    },
   ],
   achievements: [
     { id: "a1", name: "First shift", desc: "Completed first shift" },
@@ -65,14 +92,17 @@ const toNum = (v: unknown, d = 0) => {
 };
 
 function mapApiToProfile(row: ApiPickerMe): PickerProfile {
-  const site = row?.logisticCenter?.locationName || row?.logisticCenter?.name || "Logistics Center";
+  const site =
+    row?.logisticCenter?.locationName ||
+    row?.logisticCenter?.name ||
+    "Logistics Center";
   return {
     id: String(row?.userID ?? ""),
     name: row?.user?.name ?? row?.nickname ?? "Picker",
     email: row?.user?.email ?? null,
     level: toNum(row?.level, 1),
     xp: toNum(row?.xp, 0),
-    coins: toNum(row?.coins ?? row?.mdCoins, 0),
+    mdCoins: toNum(row.user?.mdCoins ?? 0, 0),
     site,
     ...MOCK_EXTRAS,
   };
@@ -99,7 +129,7 @@ export async function fetchPickerProfile(): Promise<PickerProfile> {
       email: "picker@example.com",
       level: 4,
       xp: 950,
-      coins: 0,
+      mdCoins: 420,
       site: "Zarzir Logistics Center",
       ...MOCK_EXTRAS,
     };

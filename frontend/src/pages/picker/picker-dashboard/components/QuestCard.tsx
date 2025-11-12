@@ -24,7 +24,7 @@ export default function QuestCard({ quest, timeLeftSec, onJoin }: { quest: Quest
           <HStack gap={2}>
             <Clock size={16} />
             <Text fontWeight="medium">
-              {quest.active ? `${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}` : "--:--"}
+              {quest.active ? `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}` : "--:--"}
             </Text>
           </HStack>
         </HStack>

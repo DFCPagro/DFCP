@@ -13,9 +13,10 @@ import {
  */
 
 export async function getMe(req: Request, res: Response) {
-  console.log("asdasd")
+  // console.log("asdasd")
   const userId = (req as any).user?.id || req.params.userId;
   const profile = await getPickerProfile(userId);
+  // console.log("profile:", profile);
   return res.json(profile);
 }
 
@@ -30,7 +31,7 @@ export async function patchMe(req: Request, res: Response) {
     logisticCenterId?: string;
   };
 
-  console.log("logisticCenterId:", logisticCenterId)
+  console.log("logisticCenterId:", logisticCenterId);
 
   try {
     const picker = await upsertCore(userId, { nickname, logisticCenterId });

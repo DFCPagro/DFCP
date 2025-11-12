@@ -28,9 +28,12 @@ export async function createPicker(params: {
   const { userId, nickname } = params;
 
   // minimal guard: ensure user exists and is role "picker"
-  const user = await User.findById(asObjectId(userId)).select("_id role").lean();
+  const user = await User.findById(asObjectId(userId))
+    .select("_id role")
+    .lean();
   if (!user) throw new Error("User not found");
-  if (user.role !== "picker") throw new Error('User role must be "picker" to create a Picker.');
+  if (user.role !== "picker")
+    throw new Error('User role must be "picker" to create a Picker.');
 
   return Picker.create({
     userId: asObjectId(userId),
@@ -50,7 +53,10 @@ export async function upsertCore(
   const uid = asObjectId(userId);
 
   // If caller wants to change LC, validate and update it on the User document
-  if (typeof payload.logisticCenterId === "string" && payload.logisticCenterId) {
+  if (
+    typeof payload.logisticCenterId === "string" &&
+    payload.logisticCenterId
+  ) {
     await ensureCenterExists(payload.logisticCenterId);
     await User.updateOne(
       { _id: uid },
@@ -104,16 +110,17 @@ export async function addXP(userId: string, delta: number) {
  * - Mirrors the shape you posted
  */
 export async function getPickerProfile(userId: string) {
-  const pickerDoc = await Picker.findOne({ userId: asObjectId(userId) })
-    .populate({
-      path: "user",
-      select: "name email phone role logisticCenterId mdCoints coins activeStatus",
-      populate: {
-        path: "logisticCenterId",
-        select: "logisticName location.name",
-        model: "LogisticCenter",
-      },
-    });
+  const pickerDoc = await Picker.findOne({
+    userId: asObjectId(userId),
+  }).populate({
+    path: "user",
+    select: "name email phone role logisticCenterId mdCoins coins activeStatus",
+    populate: {
+      path: "logisticCenterId",
+      select: "logisticName location.name",
+      model: "LogisticCenter",
+    },
+  });
 
   if (!pickerDoc) {
     return {
