@@ -63,11 +63,33 @@ export default function AccountMenu() {
   };
 
   const handleLogout = () => {
+  try {
+    // Clear app state
     resetForLogout(true);
     logout();
-    navigate(getDefaultLanding("noUser"));
+
+    // Clear browser storage
+    localStorage.clear();
+    sessionStorage.clear();
+
+    // Optional: clear cookies (if tokens stored there)
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c
+        .replace(/^ +/, "")
+        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+
+    // Navigate to a clean route (e.g., login or home)
+    navigate("/login", { replace: true });
+
+    // Notify user
     toaster.create({ title: "Logged out", type: "success" });
-  };
+  } catch (err) {
+    console.error("Logout error:", err);
+    toaster.create({ title: "Logout failed", description: "Please try again.", type: "error" });
+  }
+};
+
 
   const roleName = user?.role?.toLowerCase?.();
   const userName = user?.name ?? "Guest";
