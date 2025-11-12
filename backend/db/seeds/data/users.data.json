@@ -1,7 +1,7 @@
 [
   {
     "_id": "66f2aa000000000000000001",
-    "name": "Admin User",
+    "name": "David Mizrahi",
     "email": "admin@gmail.com",
     "password": "12345678",
     "role": "admin",
@@ -101,7 +101,7 @@
   },
   {
     "_id": "66f2aa000000000000000005",
-    "name": "Farm Manager",
+    "name": "Simba Reganamf",
     "email": "fmanager@gmail.com",
     "password": "12345678",
     "role": "fManager",

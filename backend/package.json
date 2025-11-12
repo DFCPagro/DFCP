@@ -26,7 +26,7 @@
     "seed:testorders": "ts-node db/seeds/dev/ordersForTesting.seed.ts",
     "seed:orders": "npx tsx db/seeds/dev/orders.seed.ts",
     "seed:farmerInventory": "ts-node db/seeds/dev/seed.farmerInventory.ts",
-    "seed:rebuild": "npm run seed:ams && npm run seed:farmerInventory",
+    "seed:rebuild": "npm run seed:ams && npm run seed:farmerInventory && npm run seed:orders",
     "docker:up": "docker compose -f ../docker-compose.dev.yml up -d",
     "docker:down": "docker compose -f ../docker-compose.dev.yml down",
     "docker:logs": "docker compose -f ../docker-compose.dev.yml logs -f backend mongo frontend",
