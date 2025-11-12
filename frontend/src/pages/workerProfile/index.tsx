@@ -262,7 +262,6 @@ export default function WorkerProfile() {
             <Card.Body p={4} maxH={PANEL_MAX_H} overflowY="auto">
               <SimpleGrid columns={{ base: 2 }} gap={3}>
                 <StatTile label="Orders" value={profile.metrics.orders} />
-                <StatTile label="Lines" value={profile.metrics.lines} />
                 <StatTile label="Speed" value={`${profile.metrics.speed} l/hr`} />
                 <StatTile label="Streak" value={`${profile.streakDays} days`} />
               </SimpleGrid>

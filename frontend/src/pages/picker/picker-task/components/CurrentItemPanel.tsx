@@ -129,7 +129,11 @@ export default function CurrentItemPanel({
             {/* Inputs appear only AFTER arrival is confirmed */}
             {arrivalConfirmed && (
               <VStack align="stretch" gap={2}>
-                <Text fontWeight="semibold">Enter measured weight</Text>
+                <Text fontSize="md" fontWeight="semibold">
+                  Units: {Math.round((cur.units ?? 0) * 100) / 100}
+                </Text>
+                <Text fontWeight="semibold">Enter measured weight </Text>
+
                 <HStack gap={3} maxW="sm">
                   <Input
                     inputMode="decimal"
@@ -144,7 +148,7 @@ export default function CurrentItemPanel({
                   <Text>kg</Text>
                 </HStack>
                 <Text color="fg.muted" fontSize="sm">
-                  Est kg/pc: {Math.round((cur.estWeightKgPiece ?? 0) * 100) / 100} • Liters: {Math.round((cur.liters ?? 0) * 10) / 10}
+                  KG: {Math.round((cur.estWeightKgPiece ?? 0) * 10) / 10} Units: {Math.round((cur.units ?? 0) * 100) / 100}
                 </Text>
               </VStack>
             )}
