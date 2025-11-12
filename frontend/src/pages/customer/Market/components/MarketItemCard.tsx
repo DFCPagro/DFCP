@@ -247,11 +247,11 @@ function MarketItemCardBase({
               ) : null}
             </Stack>
 
-            {/* {farmerIcon ? (
+             {farmerIcon ? (
               <Avatar.Root size="sm">
                 <Avatar.Image src={farmerIcon} alt={farmerName ?? "farmer"} />
               </Avatar.Root>
-            ) : null} */}
+            ) : null} 
           </HStack>
 
           {farmerName ? (
