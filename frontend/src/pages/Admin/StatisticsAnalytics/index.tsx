@@ -424,7 +424,7 @@ export function AIInsightsSidebar({
     if (!playing) return;
 
     if (prefersReduced) {
-      setCurrent(bullets.length - 1);
+      setCurrent(bullets.length);
       setTyped(bullets[bullets.length - 1]?.text ?? "");
       setPlaying(false);
       setCaretOn(false);
@@ -441,8 +441,9 @@ export function AIInsightsSidebar({
       if (i >= text.length) {
         window.clearInterval(timer);
         setTimeout(() => {
-          if (current < bullets.length - 1) setCurrent((b) => b + 1);
+          if (current < bullets.length - 1) {setCurrent((b) => b + 1);}
           else {
+            setCurrent(bullets.length); 
             setPlaying(false);
             setCaretOn(false);
           }
@@ -463,7 +464,7 @@ export function AIInsightsSidebar({
   const handleSkip = React.useCallback(() => {
     setPlaying(false);
     setCaretOn(false);
-    setCurrent(bullets.length - 1);
+    setCurrent(bullets.length);
     setTyped(bullets[bullets.length - 1]?.text ?? "");
   }, [bullets]);
 
@@ -483,7 +484,7 @@ export function AIInsightsSidebar({
         <HStack justifyContent="space-between">
           <HStack>
             <Icon as={TrendingUp} />
-            <Heading size="sm">AI Insights</Heading>
+            <Heading size="lg">AI Insights</Heading>
           </HStack>
           {playing ? (
             <Button size="xs" variant="solid" colorPalette="green" onClick={handleSkip}>
