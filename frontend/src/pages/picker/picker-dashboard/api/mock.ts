@@ -8,8 +8,7 @@ const r = (min: number, max: number) => Math.floor(Math.random() * (max - min + 
 export async function apiFetchStats(): Promise<PickerStats> {
   await delay(200);
   return {
-    coins: 240 + r(0, 60),
-    level: 7,
+ 
     ordersToday: r(10, 28),
     avgPickTimeMin: Number((6 + Math.random() * 4).toFixed(1)),
     streakDays: r(3, 14),

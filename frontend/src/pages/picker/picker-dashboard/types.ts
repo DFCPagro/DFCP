@@ -1,6 +1,5 @@
 export type PickerStats = {
-coins: number;
-level: number;
+
 ordersToday: number;
 avgPickTimeMin: number;
 streakDays: number;

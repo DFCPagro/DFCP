@@ -65,12 +65,9 @@ export default function AccountMenu() {
   const handleLogout = () => {
   try {
     // Clear app state
-    resetForLogout(true);
     logout();
 
-    // Clear browser storage
-    localStorage.clear();
-    sessionStorage.clear();
+    // Clear browser storage  
 
     // Optional: clear cookies (if tokens stored there)
     document.cookie.split(";").forEach((c) => {

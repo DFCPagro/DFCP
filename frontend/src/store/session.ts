@@ -123,6 +123,7 @@ export const useSessionStore = create<SessionState>((set, get) => {
         mode: "noUser",
         activeWorkerRole: null,
         region,
+        
       };
       set(next);
 

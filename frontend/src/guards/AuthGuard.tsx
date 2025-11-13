@@ -6,11 +6,13 @@ import { PATHS } from "@/routes/paths";
 type Props = { children?: ReactNode };
 
 export default function AuthGuard({ children }: Props) {
+  
   const token = useAuthStore((s) => s.token);
   const location = useLocation();
 
   if (!token) {
     return (
+      
       <Navigate
         to={PATHS.login}
         replace
@@ -18,6 +20,7 @@ export default function AuthGuard({ children }: Props) {
       />
     );
   }
+
 
   // supports both wrapper style <AuthGuard><Component/></AuthGuard>
   // and route-outlet style <Route element={<AuthGuard/>} />

@@ -18,6 +18,8 @@ import { toaster } from "@/components/ui/toaster";
 import type { FormEvent } from "react";
 import { PATHS } from "@/routes/paths";
 import { getDefaultLanding } from "@/config/nav.defaults";
+import  type {ColorMode}  from "../../components/ui/color-mode";
+import { useColorMode } from "../../components/ui/color-mode";
 //import loginLogo from "@/public/images/loginLogo.png";
 //import backgroundImgUrl from "@/public/images/loginBackground.png";
 
@@ -28,6 +30,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = (location.state as RouteState) ?? null;
+type ColorMode = "light" | "dark" | "system";
 
   const setAuth = useAuthStore((s) => s.setAuth);
   const [email, setEmail] = useState("");

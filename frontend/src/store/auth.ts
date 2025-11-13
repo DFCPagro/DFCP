@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { User, Role } from "../types/auth";
 import { useSessionStore } from "@/store/session";
+import { Theme } from "@chakra-ui/react";
 
 /** Treat anything that's not "customer" as a work role */
 const isWorkRole = (role: Role | null | undefined) => !!role && role !== "customer";

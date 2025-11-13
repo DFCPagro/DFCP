@@ -23,6 +23,7 @@ import type { CartLine } from "@/utils/market/marketCart.shared";
 import { Sparkles } from 'lucide-react';
 import { FiShoppingCart } from "react-icons/fi";
 import { Spacer } from "@chakra-ui/react";
+
 /* -------------------------------------------------------------------------- */
 /*                                   Props                                    */
 /* -------------------------------------------------------------------------- */
@@ -241,6 +242,7 @@ function CartDrawerBase({
   const handleCheckout = useCallback(() => {
     onCheckout?.();
     toaster.create({ title: "Proceeding to checkout", type: "info", duration: 2200 });
+    window.scrollTo(0, 0);
   }, [onCheckout]);
 
   return (
