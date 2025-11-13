@@ -17,6 +17,7 @@ import {
     Button,
     IconButton,
     Table,
+    Avatar,
 } from "@chakra-ui/react";
 import { FiX, FiExternalLink, FiCheckCircle, FiInfo, FiAlertTriangle } from "react-icons/fi";
 import {
@@ -27,8 +28,7 @@ import {
     type FarmerOrderStageKey,
 } from "@/types/farmerOrders";
 import AuditSection from "@/components/common/AuditSection";
-import { FarmerOrderTimeline } from "./FarmerOrderTimeline";
-
+import { formatDMY } from "@/utils/date";
 /* --------------------------------- Props --------------------------------- */
 
 export type ShiftFarmerOrderDetailsProps = {
@@ -125,8 +125,9 @@ function productLabel(row: ShiftFarmerOrderItem) {
 }
 
 function derivePictureUrl(row: ShiftFarmerOrderItem): string | undefined {
-    const url = row.pictureUrl?.trim();
+    const url = row.pictureUrl;
     if (!url) return undefined;
+    console.log("[derivePictureUrl] :", url);
     try {
         // rudimentary check
         const u = new URL(url);
@@ -162,6 +163,29 @@ type QSCompareVM = {
     };
 };
 
+function isSignificantDiff(a: unknown, b: unknown, tolerancePercent = 2): boolean {
+    // If both are null/undefined → no diff
+    if (a == null && b == null) return false;
+
+    // If both are numbers, use relative percent difference
+    if (typeof a === "number" && typeof b === "number") {
+        if (!isFinite(a) || !isFinite(b)) return false;
+
+        const maxAbs = Math.max(Math.abs(a), Math.abs(b));
+        if (maxAbs === 0) return false; // both 0
+
+        const diffPercent = (Math.abs(a - b) / maxAbs) * 100;
+        return diffPercent > tolerancePercent;
+    }
+
+    // If only one is defined (number or not) → definitely different
+    if (a == null || b == null) return true;
+
+    // Fallback for non-numeric values
+    return JSON.stringify(a) !== JSON.stringify(b);
+}
+
+
 function deriveQSComparison(row: ShiftFarmerOrderItem): QSCompareVM | null {
     const left = row.farmersQSreport;
     const right = row.inspectionQSreport;
@@ -180,17 +204,25 @@ function deriveQSComparison(row: ShiftFarmerOrderItem): QSCompareVM | null {
     Object.keys(leftGrades).forEach((k) => gradeKeys.add(k));
     Object.keys(rightGrades).forEach((k) => gradeKeys.add(k));
 
+
     const allKeys = new Set<string>([...Array.from(valueKeys), ...Array.from(gradeKeys)]);
 
     const rows: QSCompareRow[] = Array.from(allKeys).map((k) => {
+
         const farmer = leftValues[k];
         const inspection = rightValues[k];
         const farmerGrade = leftGrades[k];
         const inspectionGrade = rightGrades[k];
-        const differs =
+        const valueDiffers =
             (farmer !== undefined || inspection !== undefined) &&
-            JSON.stringify(farmer) !== JSON.stringify(inspection) ||
-            (!!farmerGrade || !!inspectionGrade) && farmerGrade !== inspectionGrade;
+            isSignificantDiff(farmer, inspection, 2); // 2% threshold
+
+        const gradeDiffers =
+            (!!farmerGrade || !!inspectionGrade) &&
+            farmerGrade !== inspectionGrade;
+
+        const differs = valueDiffers || gradeDiffers;
+
 
         return { key: k, farmer, inspection, farmerGrade, inspectionGrade, differs };
     });
@@ -247,6 +279,7 @@ function StatusBadge({ status }: { status?: string }) {
 
 function SummaryCard({ row }: { row: ShiftFarmerOrderItem }) {
     const imgUrl = derivePictureUrl(row);
+    const FLogo = row.farmLogo ?? undefined;
     const label = productLabel(row);
     const { inspectionStatus, visualInspection } = deriveInspectionBadges(row);
 
@@ -267,13 +300,7 @@ function SummaryCard({ row }: { row: ShiftFarmerOrderItem }) {
                     <Box w="72px" h="72px" borderRadius="lg" overflow="hidden" bg="bg.muted" flex="0 0 auto">
                         {imgUrl ? (
                             <Image alt={label} src={imgUrl} w="full" h="full" objectFit="cover" />
-                        ) : (
-                            <VStack w="full" h="full" align="center" justify="center">
-                                <Text fontSize="xs" color="fg.muted">
-                                    No Image
-                                </Text>
-                            </VStack>
-                        )}
+                        ) : null}
                     </Box>
                     <VStack align="flex-start" gap={1} minW={0}>
                         <Text fontSize="lg" fontWeight="semibold" lineClamp={1}>
@@ -304,9 +331,6 @@ function SummaryCard({ row }: { row: ShiftFarmerOrderItem }) {
                             <Text fontSize="sm" color="fg.subtle">
                                 Final: <Kbd>{fmtKg(row.finalQuantityKg)}</Kbd>
                             </Text>
-                            <Text fontSize="sm" color="fg.subtle">
-                                Orders Sum: <Kbd>{fmtKg(row.sumOrderedQuantityKg)}</Kbd>
-                            </Text>
                         </HStack>
                     </VStack>
                 </HStack>
@@ -314,17 +338,23 @@ function SummaryCard({ row }: { row: ShiftFarmerOrderItem }) {
 
             <GridItem>
                 <VStack align="flex-start" gap={1}>
-                    <Text fontSize="md" fontWeight="medium">
-                        Farmer
-                    </Text>
+                    <HStack wrap="wrap" gap={3}>
+                        <Text fontSize="md" fontWeight="medium">
+                            Farmer
+                        </Text>
+                        {FLogo &&
+                            <Avatar.Root size="sm">
+                                <Avatar.Image src={FLogo} alt={row.farmerName ?? "farmer"} />
+                            </Avatar.Root>
+                        }
+                    </HStack>
+
                     <HStack wrap="wrap" gap={3}>
                         <Badge variant="subtle">{row.farmerName || "—"}</Badge>
                         <Text color="fg.subtle">Farm:</Text>
                         <Badge variant="surface">{row.farmName || "—"}</Badge>
                     </HStack>
                     <HStack wrap="wrap" gap={3} mt={2}>
-                        <Text color="fg.subtle">FO ID:</Text>
-                        <Code>{compactId(row._id)}</Code>
                         {row.logisticCenterId && (
                             <>
                                 <Text color="fg.subtle">LC:</Text>
@@ -335,12 +365,12 @@ function SummaryCard({ row }: { row: ShiftFarmerOrderItem }) {
                     <HStack wrap="wrap" gap={3} mt={2}>
                         {row.createdAt && (
                             <Text color="fg.muted" fontSize="sm">
-                                Created: {fmtDate(row.createdAt)}
+                                Created: {formatDMY(row.createdAt)}
                             </Text>
                         )}
                         {row.updatedAt && (
                             <Text color="fg.muted" fontSize="sm">
-                                Updated: {fmtDate(row.updatedAt)}
+                                Updated: {formatDMY(row.updatedAt)}
                             </Text>
                         )}
                     </HStack>
@@ -413,6 +443,10 @@ function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
     const vm = useMemo(() => deriveQSComparison(row), [row]);
     if (!vm) return null;
 
+    const rowsWithoutRejectionRate = vm.rows.filter((r) => r.key !== "rejectionRate");
+
+    const lcRejectionRate =
+        vm.rows.map((r) => (r.key === "rejectionRate" ? r.inspection as number : null)).find((v) => v !== null) ?? null;
     return (
         <Box borderWidth="1px" borderRadius="xl" p={4} bg="bg.panel">
             <Text fontSize="md" fontWeight="medium" mb={3}>
@@ -431,18 +465,18 @@ function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
                 </HStack>
                 <Separator orientation="vertical" />
                 <HStack gap={2}>
-                    <Text color="fg.subtle">Farmer @</Text>
+                    <Text color="fg.subtle">Farmer :</Text>
                     <Code>{fmtDate(vm.meta.farmerAt as any)}</Code>
                 </HStack>
                 <HStack gap={2}>
-                    <Text color="fg.subtle">Inspection @</Text>
+                    <Text color="fg.subtle">Inspection at :</Text>
                     <Code>{fmtDate(vm.meta.inspectionAt as any)}</Code>
                 </HStack>
             </HStack>
 
             {/* Values comparison table */}
             <Box overflowX="auto">
-                <Table.Root size="sm" variant="outline">
+                <Table.Root size="sm" variant="outline" showColumnBorder>
                     <Table.Header>
                         <Table.Row>
                             <Table.ColumnHeader minW="200px">Metric</Table.ColumnHeader>
@@ -452,19 +486,19 @@ function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
                         </Table.Row>
                     </Table.Header>
                     <Table.Body>
-                        {vm.rows.map((r) => (
-                            <Table.Row key={r.key} bg={r.differs ? "bg.subtle" : undefined}>
+                        {rowsWithoutRejectionRate.map((r) => (
+                            <Table.Row key={r.key} >
                                 <Table.Cell>
                                     <Code>{r.key}</Code>
                                 </Table.Cell>
-                                <Table.Cell>
+                                <Table.Cell bg={r.differs ? "yellow.50" : undefined}>
                                     {r.farmer === undefined ? (
                                         <Text color="fg.muted">—</Text>
                                     ) : (
                                         <Text>{String(r.farmer)}</Text>
                                     )}
                                 </Table.Cell>
-                                <Table.Cell>
+                                <Table.Cell bg={r.differs ? "yellow.50" : undefined}>
                                     {r.inspection === undefined ? (
                                         <Text color="fg.muted">—</Text>
                                     ) : (
@@ -482,9 +516,20 @@ function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
                     </Table.Body>
                 </Table.Root>
             </Box>
+
+            {/* LC rejection rate summary */}
+            {lcRejectionRate !== null && (
+                <HStack mt={3}>
+                    <Text color="fg.subtle">LC rejectionRate:</Text>
+                    <Badge>
+                        {lcRejectionRate.toFixed(1)}%
+                    </Badge>
+                </HStack>
+            )}
         </Box>
     );
 }
+
 
 function VisualInspectionCard({ row }: { row: ShiftFarmerOrderItem }) {
     const vi = row.visualInspection;
@@ -597,13 +642,13 @@ export const ShiftFarmerOrderDetails = memo(function ShiftFarmerOrderDetails({
                             <Stack gap={4}>
                                 <SummaryCard row={row} />
 
-                                <StagesSection row={row} />
-
                                 <VisualInspectionCard row={row} />
 
                                 {qsExists && <QSCompareSection row={row} />}
 
                                 <ContainersOrdersSection row={row} />
+
+                                <StagesSection row={row} />
 
                                 {/* Audit section (as-is) */}
                                 <Box borderWidth="1px" borderRadius="xl" p={4} bg="bg.panel">
