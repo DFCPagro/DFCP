@@ -21,7 +21,6 @@ const PickerSchema = new Schema(
       unique: true,
     },
 
-    nickname: { type: String, trim: true, default: "" },
     status: { type: String, enum: pickerStatuses, default: "active" },
 
     gamification: { type: GamificationSchema, default: () => ({}) },

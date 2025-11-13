@@ -12,6 +12,7 @@ import {
 } from "@chakra-ui/react"
 
 import QualityStandardsSection from "@/components/common/items/QualityStandardsSection"
+import type { QualityStandards } from "@/components/common/items/QualityStandardsSection"
 import { Reveal } from "./Animated"
 
 /**
@@ -21,7 +22,7 @@ import { Reveal } from "./Animated"
  *  2) maxDefectRatioLengthDiameter (L/D)
  *  3) quality grade (text) — not a numeric measure anyway
  *
- * Keys that remain editable:
+ * Keys that remain editable in the measurements grid:
  *  - brix
  *  - acidityPercentage
  *  - pressure
@@ -36,12 +37,6 @@ type MetricKey =
   | "colorPercentage"
   | "weightPerUnitG"
   | "diameterMM"
-
-// Read-only example model for A/B/C shown at the top
-type QS = {
-  grade: "A" | "B" | "C"
-  measures: Partial<Record<MetricKey, number>>
-}
 
 type Measurements = Partial<Record<MetricKey, number | string>>
 
@@ -63,57 +58,61 @@ const metricUnits: Partial<Record<MetricKey, string>> = {
   diameterMM: "mm",
 }
 
-// Demo A/B/C — strictly read-only; NOT used for the input grid
-const ABC: { a: QS; b: QS; c: QS } = {
-  a: {
-    grade: "A",
-    measures: {
-      brix: 12,
-      acidityPercentage: 0.6,
-      pressure: 8,
-      colorPercentage: 90,
-      weightPerUnitG: 180,
-      diameterMM: 75,
-    },
-  },
-  b: {
-    grade: "B",
-    measures: {
-      brix: 10,
-      acidityPercentage: 0.8,
-      pressure: 7,
-      colorPercentage: 80,
-      weightPerUnitG: 160,
-      diameterMM: 70,
-    },
-  },
-  c: {
-    grade: "C",
-    measures: {
-      brix: 8,
-      acidityPercentage: 1.0,
-      pressure: 6,
-      colorPercentage: 70,
-      weightPerUnitG: 140,
-      diameterMM: 65,
-    },
-  },
-}
-
 type Props = {
   readOnly?: boolean
+  /** Full A/B/C quality standards object (what you PATCH to BE) */
+  value?: QualityStandards | undefined
+  onChange?: (next: QualityStandards | undefined) => void
+  /** Top-level product tolerance (e.g. "0.02") */
+  tolerance?: string | null
+  onChangeTolerance?: (next: string | null) => void
 }
 
-export default function QualityStandardsPanel({ readOnly }: Props) {
-  // selected example (for the READ-ONLY section); default to A
-  const [qsExample, setQsExample] = React.useState<QS | undefined>(undefined)
+export default function QualityStandardsPanel({
+  readOnly,
+  value,
+  onChange,
+  tolerance,
+  onChangeTolerance,
+}: Props) {
+  // Local bridge state so the panel can work both controlled & uncontrolled
+  const [localQS, setLocalQS] = React.useState<QualityStandards | undefined>(
+    value,
+  )
+  const [localTolerance, setLocalTolerance] = React.useState<string | null>(
+    tolerance ?? null,
+  )
+
+  React.useEffect(() => {
+    setLocalQS(value)
+  }, [value])
+
+  React.useEffect(() => {
+    setLocalTolerance(tolerance ?? null)
+  }, [tolerance])
+
+  const handleQSChange = React.useCallback(
+    (next: QualityStandards | undefined) => {
+      setLocalQS(next)
+      onChange?.(next)
+    },
+    [onChange],
+  )
+
+  const handleToleranceChange = React.useCallback(
+    (next: string | null) => {
+      setLocalTolerance(next)
+      onChangeTolerance?.(next)
+    },
+    [onChangeTolerance],
+  )
 
   // local measurements state for the editable grid (values we capture now)
   const [measured, setMeasured] = React.useState<Measurements | undefined>()
 
   const metricKeys = React.useMemo(
     () => Object.keys(metricLabels) as MetricKey[],
-    []
+    [],
   )
 
   const onChangeNumber = React.useCallback(
@@ -121,7 +120,7 @@ export default function QualityStandardsPanel({ readOnly }: Props) {
       const val = e.currentTarget.value
       setMeasured((prev) => ({ ...(prev ?? {}), [key]: val }))
     },
-    []
+    [],
   )
 
   const onBlurFormat = React.useCallback(
@@ -138,20 +137,21 @@ export default function QualityStandardsPanel({ readOnly }: Props) {
         return Object.keys(next).length ? next : undefined
       })
     },
-    []
+    [],
   )
 
   return (
     <Stack gap="5">
-      {/* 1) READ-ONLY A/B/C preview (kept as-is; includes "grade" text and all metrics) */}
+      {/* 1) A/B/C Quality Standards table (your example / config UI) */}
       <Reveal>
         <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
           <Card.Body>
             <QualityStandardsSection
-              // The common QS component might expect a richer shape; we only pass what we have.
-              value={(qsExample ?? ABC.a) as any}
-              onChange={(v: any) => setQsExample(v as QS)}
-              readOnly
+              value={localQS}
+              onChange={handleQSChange}
+              readOnly={readOnly}
+              tolerance={localTolerance}
+              onChangeTolerance={handleToleranceChange}
             />
           </Card.Body>
         </Card.Root>

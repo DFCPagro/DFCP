@@ -8,6 +8,7 @@ import { Item } from "../models/Item.model";
 import { Farmer } from "../models/farmer.model";
 import ShiftConfig from "../models/shiftConfig.model";
 import QRModel from "../models/QRModel.model";
+import ContainerOps from "../models/ContainerOps.model";
 
 import {
   getCurrentShift,
@@ -46,6 +47,15 @@ import { getContactInfoByIdService } from "./user.service";
 /* =============================
  * DTO and shaper
  * ============================= */
+
+interface UpdateQualityStandardsArgs {
+  orderId: string;
+  category?: string | null;
+  standards?: any; // QualityStandards from FE (A/B/C ranges, strings)
+  tolerance?: string | null;
+  user: AuthUser;
+}
+
 export type FarmerOrderDTO = {
   id: string;
   _id: string; // keep both for FE compatibility
@@ -376,6 +386,34 @@ export async function ensureFarmerOrderPrintPayloadService(args: {
     throw new ApiError(403, "Forbidden");
   }
 
+  // 🔍 pull real containers from ContainerOps
+  const containerOps = await ContainerOps.find(
+    { farmerOrderId: foId },
+    {
+      containerId: 1,
+      totalWeightKg: 1,
+      itemId: 1,
+      state: 1,
+      "location.area": 1,
+    }
+  )
+    .session(session)
+    .lean();
+
+  // Shape into the structure the FE expects
+  const containersForReport = containerOps.map((c) => ({
+    containerId: c.containerId,
+    weightKg: c.totalWeightKg ?? 0,
+    // optional extras if you want later:
+    // state: c.state,
+    // locationArea: c.location?.area ?? "intake",
+  }));
+
+  const foForReport: any = {
+    ...fo,
+    containers: containersForReport,
+  };
+
   const foQR = await ensureFarmerOrderToken({
     farmerOrderId: foId,
     createdBy: user.userId,
@@ -394,7 +432,7 @@ export async function ensureFarmerOrderPrintPayloadService(args: {
     .lean();
 
   return {
-    farmerOrder: fo, // caller can shape if needed
+    farmerOrder: foForReport, // 👈 now has containers: [{ containerId, weightKg }]
     farmerOrderQR: {
       token: foQR.token,
       sig: foQR.sig,
@@ -434,48 +472,65 @@ export async function initContainersForFarmerOrderService(args: {
       throw new ApiError(403, "Forbidden");
     }
 
-    const baseRawClaims = {
-      farmerOrderId: foId,
-      farmerDeliveryId: null,
-      containerId: null,
-      containerOpsId: null,
-      orderId: null,
-      packageId: null,
-      logisticsCenterId: fo.logisticCenterId
-        ? String(fo.logisticCenterId)
-        : null,
-      shelfId: null,
-      pickTaskId: null,
-      shift: fo.shift || null,
-      deliveryDate: fo.pickUpDate
-        ? new Date(`${fo.pickUpDate}T00:00:00Z`)
-        : null,
-    };
+    const lcId = fo.logisticCenterId as Types.ObjectId;
+    const itemId = fo.itemId as Types.ObjectId;
 
-    const newContainers: any[] = [];
+    const newContainerIds: string[] = [];
     const qrDocsToInsert: any[] = [];
 
     const nextIndexStart = (fo.containers?.length || 0) + 1;
+
     for (let i = 0; i < args.count; i++) {
       const seq = nextIndexStart + i;
       const containerId = `${foId.toString()}_${seq}`;
 
-      (fo.containers as any).push({
-        containerId,
-        farmerOrder: foId,
-        itemId: fo.itemId,
-        weightKg: 0,
-        stages: [],
-        warehouseSlot: {
-          shelfLocation: "",
-          zone: "",
-          location: "unknown",
-          timestamp: new Date(),
-        },
-      });
-      newContainers.push({ containerId });
+      // 1) Create ContainerOps
+      const [opsDoc] = await ContainerOps.create(
+        [
+          {
+            containerId,
+            farmerOrderId: foId,
+            itemId,
+            logisticCenterId: lcId,
+            // everything else uses ContainerOps defaults
+          },
+        ],
+        { session }
+      );
 
-      const claims = canonicalizeClaims({ ...baseRawClaims, containerId });
+      // 2) Link ContainerOps to FarmerOrder.containers (ObjectId ref)
+      (fo.containers as any).push(opsDoc._id);
+
+      // 3) Optionally: snapshot for UI
+      (fo.containerSnapshots as any).push({
+        containerOpsId: opsDoc._id,
+        containerId: opsDoc.containerId,
+        itemId: opsDoc.itemId,
+        state: opsDoc.state,
+        totalWeightKg: opsDoc.totalWeightKg,
+        locationArea: opsDoc.location.area,
+        capturedAt: new Date(),
+      });
+
+      // 4) Create QR for this container
+      const baseRawClaims = {
+        farmerOrderId: foId,
+        farmerDeliveryId: null,
+        containerId,
+        containerOpsId: opsDoc._id,
+        containerOpsDocId: opsDoc._id,
+        orderId: null,
+        packageId: null,
+        logisticsCenterId: lcId ? String(lcId) : null,
+        shelfId: null,
+        pickTaskId: null,
+        shift: fo.shift || null,
+        deliveryDate: fo.pickUpDate
+          ? new Date(`${fo.pickUpDate}T00:00:00Z`)
+          : null,
+      };
+
+      const claims = canonicalizeClaims(baseRawClaims);
       const token = `QR-${crypto.randomUUID()}`;
       const sig = signPayload({
         token,
@@ -500,18 +555,19 @@ export async function initContainersForFarmerOrderService(args: {
         expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
         scans: [],
       });
+
+      newContainerIds.push(containerId);
     }
 
     fo.updatedBy = args.user.userId;
     fo.updatedAt = new Date();
 
-    // 🔍 write audit via shared helper
-    pushHistoryAuditTrail(fo, {
-      userId: args.user.userId,
-      action: "CONTAINERS_INIT",
-      note: `+${newContainers.length} containers`,
-      meta: {},
-    });
+    fo.addAudit(
+      args.user.userId,
+      "CONTAINERS_INIT",
+      `+${newContainerIds.length} containers`,
+      { added: newContainerIds.length }
+    );
 
     await fo.save({ session });
 
@@ -520,10 +576,11 @@ export async function initContainersForFarmerOrderService(args: {
     }
 
     await session.commitTransaction();
+
     return {
       ok: true,
-      added: newContainers.length,
-      containerIds: newContainers.map((c) => c.containerId),
+      added: newContainerIds.length,
+      containerIds: newContainerIds, // these are the string ids like "<fo>_1"
     };
   } catch (e) {
     await session.abortTransaction();
@@ -1245,4 +1302,191 @@ export async function listMyFarmerOrdersService(
     const { __shiftOrd, _id, ...rest } = d;
     return { id, _id: id, ...rest } as FarmerOrderDTO;
   });
+}
+
+export async function patchContainerWeightsService(args: {
+  farmerOrderId: string;
+  weights: { containerId: string; weightKg: number }[];
+  user: { userId: Types.ObjectId; role: string };
+}) {
+  const { farmerOrderId, weights, user } = args;
+
+  if (!mongoose.isValidObjectId(farmerOrderId)) {
+    throw new ApiError(400, "Invalid farmerOrderId");
+  }
+
+  // normalize + validate weights
+  const normalized = (weights || [])
+    .map((w) => ({
+      containerId: String(w.containerId || "").trim(),
+      weightKg: Number(w.weightKg),
+    }))
+    .filter(
+      (w) => w.containerId && Number.isFinite(w.weightKg) && w.weightKg >= 0
+    );
+
+  if (!normalized.length) {
+    throw new ApiError(400, "No valid weights provided");
+  }
+
+  const foId = new Types.ObjectId(farmerOrderId);
+
+  // 1) load FO + auth
+  const fo = await FarmerOrder.findById(foId);
+  if (!fo) throw new ApiError(404, "FarmerOrder not found");
+
+  const isManager = ["admin", "fManager"].includes(user.role);
+  const isOwnerFarmer = String(fo.farmerId) === String(user.userId);
+  if (!isManager && !isOwnerFarmer) {
+    throw new ApiError(403, "Forbidden");
+  }
+
+  const containerIdSet = new Set(normalized.map((w) => w.containerId));
+
+  // 2) find ContainerOps docs for this FO + containerIds
+  const opsDocs = await ContainerOps.find({
+    farmerOrderId: foId,
+    containerId: { $in: Array.from(containerIdSet) },
+  }).exec();
+
+  if (!opsDocs.length) {
+    throw new ApiError(
+      400,
+      "No matching containerIds found for this FarmerOrder"
+    );
+  }
+
+  const byId = new Map(normalized.map((w) => [w.containerId, w.weightKg]));
+
+  const now = new Date();
+  let updatedCount = 0;
+
+  for (const doc of opsDocs) {
+    const weightKg = byId.get(doc.containerId);
+    if (weightKg == null) continue;
+
+    doc.totalWeightKg = weightKg;
+
+    // append to weightHistory
+    doc.weightHistory.push({
+      valueKg: weightKg,
+      at: now,
+      by: user.userId,
+    } as any);
+
+    updatedCount++;
+  }
+
+  // 3) save all containers
+  await Promise.all(opsDocs.map((d) => d.save()));
+
+  // 4) update snapshots on FarmerOrder (optional but useful for UI)
+  const snapshotIndex = new Map(
+    (fo.containerSnapshots as any[]).map(
+      (s: any, idx: number) => [s.containerId, idx] as const
+    )
+  );
+
+  for (const doc of opsDocs) {
+    const idx = snapshotIndex.get(doc.containerId);
+    if (idx != null) {
+      (fo.containerSnapshots as any)[idx].totalWeightKg = doc.totalWeightKg;
+      (fo.containerSnapshots as any)[idx].capturedAt = now;
+    } else {
+      (fo.containerSnapshots as any).push({
+        containerOpsId: doc._id,
+        containerId: doc.containerId,
+        itemId: doc.itemId,
+        state: doc.state,
+        totalWeightKg: doc.totalWeightKg,
+        locationArea: doc.location.area,
+        capturedAt: now,
+      });
+    }
+  }
+
+  fo.updatedBy = user.userId;
+  fo.updatedAt = now;
+  fo.addAudit(
+    user.userId,
+    "CONTAINER_WEIGHTS_PATCH",
+    `Updated ${updatedCount} container weights`,
+    {
+      containerIds: Array.from(containerIdSet),
+    }
+  );
+
+  await fo.save();
+
+  return {
+    ok: true,
+    updated: updatedCount,
+    containers: opsDocs.map((d) => ({
+      containerId: d.containerId,
+      totalWeightKg: d.totalWeightKg,
+    })),
+  };
+}
+
+/**
+ * Stores the *template* quality standards for this FarmerOrder.
+ * We don't use it inside recomputeInspectionStatus (that's for measured values),
+ * we just keep it as reference under farmersQSreport.template.
+ */
+export async function updateFarmerOrderQualityStandardsService(
+  args: UpdateQualityStandardsArgs
+) {
+  const { orderId, category, standards, tolerance, user } = args;
+
+  if (!mongoose.isValidObjectId(orderId)) {
+    const e: any = new Error("BadRequest");
+    e.name = "BadRequest";
+    e.details = ["Invalid farmer order id"];
+    throw e;
+  }
+
+  const order = await FarmerOrder.findById(orderId);
+  if (!order) {
+    const e: any = new Error("NotFound");
+    e.name = "NotFound";
+    e.details = ["Farmer order not found"];
+    throw e;
+  }
+
+  // permissions: manager/admin can always update; farmer only for own orders
+  const role = String(user.role).toLowerCase();
+  const isManagerOrAdmin = role === "fmanager" || role === "admin";
+  const isOwnerFarmer =
+    role === "farmer" && String(order.farmerId) === String(user.id);
+
+  if (!isManagerOrAdmin && !isOwnerFarmer) {
+    const e: any = new Error("Forbidden");
+    e.name = "Forbidden";
+    e.details = [
+      `Not allowed to update quality standards`,
+      { role: user.role, userId: user.id, orderFarmerId: order.farmerId },
+    ];
+    throw e;
+  }
+
+  // we store the *template* under farmersQSreport.template to not clash with numeric "values"
+  const prev = (order as any).farmersQSreport ?? {};
+  (order as any).farmersQSreport = {
+    ...prev,
+    template: standards ?? null,
+    templateCategory: category ?? null,
+    templateTolerance: tolerance ?? null,
+  };
+
+  order.updatedBy = toOID(user.id);
+  order.updatedAt = new Date();
+
+  order.addAudit(order.updatedBy as any, "QUALITY_TEMPLATE_UPDATE", "", {
+    category,
+    tolerance,
+  });
+
+  await order.save();
+  const json = order.toJSON();
+  return await shapeFarmerOrderDTO(json, { includeAudit: true });
 }

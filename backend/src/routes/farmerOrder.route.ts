@@ -9,6 +9,7 @@ import {
   updateContainerWeights,
   listMyOrders,
   getFarmerOrderAndQrs,
+  updateQualityStandards
 } from "../controllers/farmerOrder.controller";
 // import { listMyOrders, getOrderAndQrs } from "../controllers/ops.controller";
 import { authenticate, authorize } from "../middlewares/auth";
@@ -61,6 +62,7 @@ router.post(
   FARMER,
   initContainersForFarmerOrder
 );
+
 router.patch(
   "/:id/containers/weights",
   authenticate,
@@ -69,3 +71,10 @@ router.patch(
 );
 
 export default router;
+
+router.patch(
+  "/:id/quality-standards",
+  authenticate,
+  FARMER,
+  updateQualityStandards
+);

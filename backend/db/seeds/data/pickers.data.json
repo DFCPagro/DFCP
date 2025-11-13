@@ -2,14 +2,12 @@
   {
     "userId": "66f2aa00000000000000002b",
     "logisticCenterId": "66e007000000000000000001",
-    "nickname": "Avi",
     "xp": 120,
     "status": "active"
   },
   {
     "userId": "66f2aa00000000000000002c",
     "logisticCenterId": "66e007000000000000000001",
-    "nickname": "Rina",
     "xp": 420,
     "status": "active"
   }
