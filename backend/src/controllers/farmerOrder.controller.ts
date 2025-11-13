@@ -12,6 +12,7 @@ import {
   ensureFarmerOrderPrintPayloadService,
   initContainersForFarmerOrderService,
   patchContainerWeightsService,
+  updateFarmerOrderQualityStandardsService
 } from "../services/farmerOrder.service";
 
 import type { AuthUser } from "../services/farmerOrderStages.service";
@@ -379,6 +380,44 @@ export async function getFarmerOrderAndQrs(req: Request, res: Response) {
     if (err?.status === 403 || err?.name === "Forbidden")
       return res.status(403).json({ error: "Forbidden" });
     console.error("getFarmerOrderAndQrs error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+
+/**
+ * PATCH /api/farmer-orders/:id/quality-standards
+ * body: { category?, standards?, tolerance? }
+ *
+ * Stores A/B/C quality-standard template for this FO under farmersQSreport.template.
+ */
+export async function updateQualityStandards(req: Request, res: Response) {
+  try {
+    const user = (req as any).user as AuthUser | undefined;
+    if (!user?.id) return res.status(401).json({ error: "Unauthorized" });
+
+    const orderId = String(req.params.id || "");
+    const { category, standards, tolerance } = req.body ?? {};
+
+    const data = await updateFarmerOrderQualityStandardsService({
+      orderId,
+      category,
+      standards,
+      tolerance: tolerance ?? null,
+      user,
+    });
+
+    return res.status(200).json({ data });
+  } catch (err: any) {
+    if (err?.name === "BadRequest")
+      return res
+        .status(400)
+        .json({ error: "Validation failed", details: err.details });
+    if (err?.name === "Forbidden")
+      return res.status(403).json({ error: "Forbidden", details: err.details });
+    if (err?.name === "NotFound")
+      return res.status(404).json({ error: "Not Found", details: err.details });
+    console.error("FarmerOrder.updateQualityStandards error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }

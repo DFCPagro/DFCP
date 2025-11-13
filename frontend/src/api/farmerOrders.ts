@@ -19,6 +19,16 @@ import type {
 import type { FarmerViewByShiftResponse } from "@/pages/farmer/farmerOrder.type";
 // NEW: fake helpers (no network)
 import { getFakeByShift } from "./fakes/farmerOrders.fake";
+import type { QualityStandards } from "@/components/common/items/QualityStandardsSection";
+import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandards";
+
+
+export type UpdateQualityStandardsPayload = {
+  category?: string | null;
+  standards?: QualityStandards | DairyQualityStandards | undefined;
+  tolerance?: string | null;
+};
+
 
 /* -------------------------------- Constants ------------------------------- */
 
@@ -425,6 +435,17 @@ export async function patchContainerWeights(
   const { data } = await api.patch(
     `${BASE}/${encodeURIComponent(farmerOrderId)}/containers/weights`,
     { weights }
+  );
+  return (data as any)?.data ?? data;
+}
+
+export async function updateFarmerOrderQualityStandards(
+  farmerOrderId: string,
+  payload: UpdateQualityStandardsPayload
+) {
+  const { data } = await api.patch(
+    `${BASE}/${encodeURIComponent(farmerOrderId)}/quality-standards`,
+    payload
   );
   return (data as any)?.data ?? data;
 }

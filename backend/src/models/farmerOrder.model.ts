@@ -17,8 +17,6 @@ import {
 } from "./shared/stage.types";
 import { buildFarmerOrderDefaultStages } from "./shared/stage.utils";
 import { AuditEntrySchema } from "./shared/audit.schema";
-// ⛔ Removed: embedded ContainerSchema (we now reference ContainerOps)
-// import { ContainerSchema } from "./shared/container.schema";
 
 // ---------- enums ----------
 export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;

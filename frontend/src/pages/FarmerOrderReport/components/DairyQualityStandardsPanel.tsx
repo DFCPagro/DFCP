@@ -10,6 +10,7 @@ import {
   Text,
 } from "@chakra-ui/react"
 import DairyQualityStandardsSection from "@/components/common/items/DairyQualityStandards"
+import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandards"
 import { Reveal } from "./Animated"
 
 /**
@@ -43,22 +44,43 @@ const metricLabels: Record<MetricKey, string> = {
 
 type Props = {
   readOnly?: boolean
+  /** A-grade dairy quality standards (what you PATCH to BE) */
+  value?: DairyQualityStandards | undefined
+  onChange?: (next: DairyQualityStandards | undefined) => void
 }
 
-export default function DairyQualityStandardsPanel(props: Props) {
-  // We keep an internal shape that matches our grid needs.
-  // The external shared component is typed as `any` to prevent type coupling.
-  const [qsExample, setQsExample] = React.useState<any | undefined>()
+export default function DairyQualityStandardsPanel({
+  readOnly,
+  value,
+  onChange,
+}: Props) {
+  // Bridge state so this panel can be used controlled or uncontrolled
+  const [localQS, setLocalQS] = React.useState<DairyQualityStandards | undefined>(
+    value,
+  )
+
   const [measured, setMeasured] = React.useState<Measurements | undefined>()
 
-  const metricKeys = React.useMemo(() => Object.keys(metricLabels) as MetricKey[], [])
+  React.useEffect(() => {
+    setLocalQS(value)
+  }, [value])
+
+  const metricKeys = React.useMemo(
+    () => Object.keys(metricLabels) as MetricKey[],
+    [],
+  )
+
+  const handleQSChange = (next: DairyQualityStandards | undefined) => {
+    setLocalQS(next)
+    onChange?.(next)
+  }
 
   const onChangeNumber = React.useCallback(
     (key: MetricKey) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const clean = e.currentTarget.value
       setMeasured((prev) => ({ ...(prev ?? {}), [key]: clean }))
     },
-    []
+    [],
   )
 
   const onBlurFormat = React.useCallback(
@@ -75,19 +97,19 @@ export default function DairyQualityStandardsPanel(props: Props) {
         return Object.keys(next).length ? next : undefined
       })
     },
-    []
+    [],
   )
 
   return (
     <Stack gap="5">
-      {/* 1) READ-ONLY examples */}
+      {/* 1) READ-ONLY / CONFIG A-grade table (kept) */}
       <Reveal>
         <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
           <Card.Body>
             <DairyQualityStandardsSection
-              value={qsExample as any}
-              onChange={(v: any) => setQsExample(v)}
-              readOnly
+              value={localQS}
+              onChange={handleQSChange}
+              readOnly={readOnly}
             />
           </Card.Body>
         </Card.Root>
@@ -131,6 +153,7 @@ export default function DairyQualityStandardsPanel(props: Props) {
                             onChange={onChangeNumber(key)}
                             onBlur={onBlurFormat(key)}
                             placeholder="Enter value"
+                            readOnly={readOnly}
                           />
                         </Table.Cell>
                         <Table.Cell>

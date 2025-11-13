@@ -36,6 +36,7 @@ import { mockMode, delay } from "./services/farmerOrders.mock"
 // ✅ real API (load + weights)
 import {
   getFarmerOrderPrintPayload,
+  initContainers,
   patchContainerWeights,
 } from "@/api/farmerOrders"
 
@@ -72,6 +73,9 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
   const [weightsDraft, setWeightsDraft] = useState<Record<string, number>>({})
   const [savingWeights, setSavingWeights] = useState(false)
 
+  // NEW: track newly created container IDs for preview filtering
+  const [newContainerIds, setNewContainerIds] = useState<string[] | null>(null)
+
   // -------- Derived values --------
   const orderedKg = useMemo(() => {
     const fo = payload?.farmerOrder
@@ -88,6 +92,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
       (sum, c) => sum + (Number(c.weightKg) || 0),
       0,
     )
+    
     const draftAdded = Object.entries(weightsDraft).reduce(
       (sum, [, v]) => sum + (Number(v) || 0),
       0,
@@ -172,6 +177,8 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
       const data = await getFarmerOrderPrintPayload(effectiveFoId)
       setPayload(data)
       setWeightsDraft({})
+      // when reloading explicitly, forget "new only" filter
+      setNewContainerIds(null)
     } catch (e: any) {
       setError(e?.message || "Failed to load farmer order")
     } finally {
@@ -183,76 +190,50 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
     load()
   }, [load])
 
-  // -------- Create containers (STATIC / LOCAL ONLY) --------
+  // -------- Create containers (REAL API, preview new only) --------
   const onInitContainers = useCallback(async () => {
     const count = Number(initCount)
     if (!Number.isInteger(count) || count <= 0) return
+
     try {
       setLoading(true)
       setError(null)
-      if (mockMode) await delay(120)
 
-      // build locally (NO API)
-      setPayload((prev) => {
-        const base: PrintPayload =
-          prev ??
-          ({
-            farmerOrder: {
-              _id: effectiveFoId,
-              itemId: "",
-              type: "",
-              shift: "morning",
-              pickUpDate: "",
-              pickUpTime: "",
-              category: "",
-              farmerName: "",
-              farmName: "",
-              farmerId: "",
-              forcastedQuantityKg: 0,
-              containers: [],
-            },
-            farmerOrderQR: { token: "", sig: "", scope: "farmer-order" },
-            containerQrs: [],
-          } as any)
+      // 1) call backend to create containers + QRs
+      const initRes = await initContainers(effectiveFoId, count)
+      const newIds = initRes.containerIds ?? []
+      if (!newIds.length) throw new Error("No containers were created")
 
-        const start = (base.farmerOrder.containers?.length ?? 0) + 1
-        const newContainers: FoContainer[] = []
-        const newQrs: ContainerQR[] = []
+      // 2) get fresh full payload (all containers + QRs)
+      const fullPayload = await getFarmerOrderPrintPayload(effectiveFoId)
+      setPayload(fullPayload)
 
-        for (let i = 0; i < count; i++) {
-          const seq = start + i
-          const cid = `${base.farmerOrder._id}_${seq}`
-          newContainers.push({ containerId: cid, weightKg: 0 })
-          newQrs.push({
-            token: `QR-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
-            sig: Math.random().toString(36).slice(2, 18),
-            scope: "container",
-            subjectType: "Container",
-            subjectId: cid,
-          })
-        }
+      // 3) remember which containers are "new" for preview filtering
+      setNewContainerIds(newIds)
 
-        return {
-          farmerOrder: {
-            ...base.farmerOrder,
-            containers: [...(base.farmerOrder.containers ?? []), ...newContainers],
-          },
-          farmerOrderQR: base.farmerOrderQR,
-          containerQrs: [...(base.containerQrs ?? []), ...newQrs],
-        }
-      })
-
+      // 4) open preview
       setOpenInit(false)
       setQrFilter("pending")
       setBoardTab("cards")
       setOpenPreview(true)
     } catch (e: any) {
+      console.error("onInitContainers failed", e)
       setError(e?.message || "Failed to initialize containers")
     } finally {
       setLoading(false)
       setInitCount(0)
     }
   }, [effectiveFoId, initCount])
+
+  // QRs to show in PREVIEW (only new ones if present, otherwise all)
+  const previewQrs: ContainerQR[] = useMemo(() => {
+    const all = payload?.containerQrs ?? []
+    if (newContainerIds && newContainerIds.length) {
+      const set = new Set(newContainerIds)
+      return all.filter(q => set.has(q.subjectId))
+    }
+    return all
+  }, [payload?.containerQrs, newContainerIds])
 
   // -------- Patch weights (REAL API) --------
   const putWeights = useCallback(
@@ -757,7 +738,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                       </WrapItem>
                       <WrapItem>
                         <Tag.Root>
-                          <Tag.Label>{payload?.containerQrs?.length ?? 0} containers</Tag.Label>
+                          <Tag.Label>{previewQrs.length} containers</Tag.Label>
                         </Tag.Root>
                       </WrapItem>
                     </Wrap>
@@ -778,7 +759,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                         gap="4"
                         css={{ "@media print": { gap: "8px" } }}
                       >
-                        {(payload?.containerQrs ?? []).map((q) => (
+                        {previewQrs.map((q) => (
                           <Card.Root
                             key={q.subjectId}
                             overflow="hidden"
@@ -820,13 +801,13 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                   variant="subtle"
                   onClick={() =>
                     printInHiddenFrameQRCards(
-                      (payload?.containerQrs ?? []).map(q => ({ subjectId: q.subjectId, token: q.token })),
+                      previewQrs.map(q => ({ subjectId: q.subjectId, token: q.token })),
                       `Containers for FO ${payload?.farmerOrder?._id ?? ""}`,
                       sizeCfg[qrCardSize].qr,
                       4
                     )
                   }
-                  disabled={!payload?.containerQrs?.length}
+                  disabled={!previewQrs.length}
                   className="anim-pressable"
                 >
                   Silent Browser Print
@@ -837,7 +818,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                   colorPalette="primary"
                   onClick={() =>
                     generatePdfLabels({
-                      qrs: (payload?.containerQrs ?? []).map(q => ({ subjectId: q.subjectId, token: q.token })),
+                      qrs: previewQrs.map(q => ({ subjectId: q.subjectId, token: q.token })),
                       title: `Containers for FO ${payload?.farmerOrder?._id ?? ""}`,
                       fileBase: `FO-${payload?.farmerOrder?._id ?? "labels"}`,
                       cols: 4,
@@ -855,7 +836,7 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
                       openMode: "tab",
                     })
                   }
-                  disabled={!payload?.containerQrs?.length}
+                  disabled={!previewQrs.length}
                   className="anim-pressable"
                 >
                   Open PDF in New Tab

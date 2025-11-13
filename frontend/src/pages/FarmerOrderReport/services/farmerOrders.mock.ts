@@ -1,6 +1,6 @@
 import type { Container as FoContainer, ContainerQR, FarmerOrder, PrintPayload } from "@/api/farmerOrders"
 
-export const mockMode = true
+export const mockMode = false
 
 export function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
