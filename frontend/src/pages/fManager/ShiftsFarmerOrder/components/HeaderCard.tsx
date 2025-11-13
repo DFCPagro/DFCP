@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useEffect } from "react";
 import {
     Box,
     Card,
@@ -13,7 +13,8 @@ import {
     Tooltip,
 } from "@chakra-ui/react";
 import { FiCalendar, FiClock } from "react-icons/fi";
-
+import type { ShiftFarmerOrdersQuery } from "@/types/farmerOrders";
+import { fetchShiftWindowsByName, type ShiftName } from "@/api/shifts";
 export type HeaderCardProps = {
     /** ISO date string (YYYY-MM-DD) */
     date: string;
@@ -53,6 +54,20 @@ function formatDateLabel(dateISO: string, tz?: string) {
     }
 }
 
+// Assuming something like:
+// async function fetchShiftWindowsByName(name: ShiftName): Promise<ShiftWindows | null> { ... }
+
+type ShiftName = "morning" | "afternoon" | "evening" | "night";
+
+async function getShiftWindow(shiftName: ShiftName) {
+    const windows = await fetchShiftWindowsByName(shiftName);
+
+    if (!windows?.general) return "";
+
+    return `${windows.general.start} to ${windows.general.end}`;
+}
+
+
 export const HeaderCard = memo(function HeaderCard({
     date,
     shiftName,
@@ -63,8 +78,31 @@ export const HeaderCard = memo(function HeaderCard({
     totalCount,
     lcName,
 }: HeaderCardProps) {
+    const [shiftTime, setShiftTime] = useState<string>("");
+
     const dateLabel = useMemo(() => formatDateLabel(date, tz), [date, tz]);
     const shiftLabel = useMemo(() => titleCase(shiftName), [shiftName]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        (async () => {
+            try {
+                const windowLabel = await getShiftWindow(shiftName as ShiftName);
+                if (!cancelled) {
+                    setShiftTime(windowLabel);
+                }
+            } catch (err) {
+                console.error("Failed to fetch shift window", err);
+                if (!cancelled) setShiftTime("");
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [shiftName]);
+
 
     const totals = useMemo(
         () => ({
@@ -101,7 +139,7 @@ export const HeaderCard = memo(function HeaderCard({
                             <Separator orientation="vertical" />
                             <HStack gap={1} align="center">
                                 <FiClock aria-hidden />
-                                <Text fontWeight="medium">{shiftLabel || "—"}</Text>
+                                <Text fontWeight="medium">{shiftTime || "—"}</Text>
                             </HStack>
                             {tz ? (
                                 <>

@@ -19,6 +19,7 @@ import type {
 import type { FarmerViewByShiftResponse } from "@/pages/farmer/farmerOrder.type";
 // NEW: fake helpers (no network)
 import { getFakeByShift } from "./fakes/farmerOrders.fake";
+import { get } from "mongoose";
 
 /* -------------------------------- Constants ------------------------------- */
 
@@ -42,6 +43,19 @@ export const qkFarmerOrdersByShift = (
     p.fake ? String(p.fakeNum ?? 12) : "n/a",
   ] as const;
 
+function getShiftWindow(shiftName: ShiftFarmerOrdersQuery["shiftName"]) {
+  const shiftWindows: Record<
+    ShiftFarmerOrdersQuery["shiftName"],
+    { start: string; end: string }
+  > = {
+    morning: { start: "08:00", end: "12:00" },
+    afternoon: { start: "12:00", end: "16:00" },
+    evening: { start: "16:00", end: "20:00" },
+    night: { start: "20:00", end: "00:00" },
+  };
+
+  return shiftWindows[shiftName];
+}
 /* ------------------------------- Summary API ------------------------------ */
 
 /**
@@ -146,35 +160,6 @@ export async function getFarmerOrdersByShift(
 ): Promise<ShiftFarmerOrdersResponse> {
   // FAKE PATH (no network)
   if (params.fake) {
-    // const { orders } = getFakeByShift({
-    //   date: params.date,
-    //   shiftName: params.shiftName as any, // "morning" | "afternoon" | "evening" | "night"
-    //   fakeNum: params.fakeNum ?? 12,
-    // });
-
-    // // Pagination (always compute page/limit as numbers)
-    // const page = Number(params.page ?? 1);
-    // const limit = Number(params.limit ?? orders.length);
-    // const start = (page - 1) * limit;
-    // const end = start + limit;
-
-    // const paged = orders.slice(start, end);
-
-    // const fakeResponse: ShiftFarmerOrdersResponse = {
-    //   meta: {
-    //     date: params.date,
-    //     shiftName: params.shiftName as any,
-    //     page,
-    //     limit,
-    //     total: orders.length,
-    //     pages: Math.max(1, Math.ceil(orders.length / Math.max(1, limit))),
-    //     problemCount: 0, // all OK in fake mode for now
-    //     // lc, tz can be added if you want
-    //   },
-    //   items: paged as any, // matches your item shape
-    // };
-    // console.log("[fakeResponse] :", fakeResponse);
-    // return fakeResponse;
     const sp = new URLSearchParams();
     sp.set("date", "2025-11-09"); // snapshot date on backend
     sp.set("shiftName", "afternoon"); // snapshot shift on backend
@@ -194,6 +179,7 @@ export async function getFarmerOrdersByShift(
         date: params.date,
         shiftName:
           params.shiftName as ShiftFarmerOrdersResponse["meta"]["shiftName"],
+        shiftWindow: getShiftWindow(params.shiftName),
       },
     };
   }
@@ -368,8 +354,8 @@ export type FarmerOrder = {
 
   // quantities (BE may send any of these)
   sumOrderedQuantityKg?: number;
-  forcastedQuantityKg?: number;      // BE original spelling
-  forecastedQuantityKg?: number;      // alias some places may use
+  forcastedQuantityKg?: number; // BE original spelling
+  forecastedQuantityKg?: number; // alias some places may use
 
   containers?: Container[];
 

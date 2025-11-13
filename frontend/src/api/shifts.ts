@@ -47,10 +47,15 @@ export async function fetchNextShifts(
  * Get all shift windows for a given logistic center.
  * Each item includes the normalized windows for general, deliverer, etc.
  */
-export async function fetchShiftWindows(logisticCenterId: string) {
-  console.log("hiiii")
-  const res = await api.get("/shifts/windows/all", {
-    params: { lc: logisticCenterId },
+export async function fetchShiftWindows() {
+  const res = await api.get("/shifts/windows/all");
+  if (!res.data) throw new Error("Failed to load shift windows");
+  return res.data;
+}
+
+export async function fetchShiftWindowsByName(name: ShiftName) {
+  const res = await api.get("/shifts/windows", {
+    params: { name },
   });
   if (!res.data) throw new Error("Failed to load shift windows");
   return res.data;

@@ -6,15 +6,9 @@ import * as ctrl from "../controllers/shiftConfig.controller";
 
 const router = Router();
 
-
-router.get("/windows", authenticate, ...v.windowsQuery, validate, ctrl.getShiftWindowsController);
-router.get("/windows/all", authenticate, ...v.listAllQuery, validate, ctrl.listShiftWindowsByLCController);
-router.get(
-  "/next",
-  authenticate,
-  v.nextQuery,
-  ctrl.getNextShiftsController
-);
-router.get("/current",  ctrl.getCurrentShiftController);
+router.get("/windows", authenticate, ctrl.getShiftWindowsController);
+router.get("/windows/all", authenticate, ctrl.listShiftWindowsByLCController);
+router.get("/next", authenticate, v.nextQuery, ctrl.getNextShiftsController);
+router.get("/current", ctrl.getCurrentShiftController);
 
 export default router;

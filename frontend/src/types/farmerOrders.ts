@@ -304,7 +304,8 @@ export const ShiftFarmerOrderItemSchema = z.object({
   _id: z.string(),
   farmerName: z.string().min(1),
   farmName: z.string().optional(),
-  farmLogo: z.string()
+  farmLogo: z
+    .string()
     .url()
     .optional()
     .or(z.literal("").transform(() => undefined))
@@ -360,11 +361,17 @@ export const ShiftFarmerOrderItemSchema = z.object({
 });
 export type ShiftFarmerOrderItem = z.infer<typeof ShiftFarmerOrderItemSchema>;
 
+export const ShiftWindowSchema = z.object({
+  start: z.string().min(1), // e.g., "morning"
+  end: z.string().min(1), // e.g., "afternoon"
+});
+export type ShiftWindow = z.infer<typeof ShiftWindowSchema>;
 /** Meta for the response. Counts will be computed client-side. */
 export const ShiftFarmerOrdersResponseMetaSchema = z.object({
   lc: z.string().optional(), // inferred from token server-side; may be echoed
   date: IsoDateString,
   shiftName: ShiftEnum,
+  shiftWindow: ShiftWindowSchema.optional(),
   tz: z.string().optional(), // e.g., "Asia/Jerusalem"
   // pagination fields optional for future use
   page: z.number().int().min(1).optional(),
