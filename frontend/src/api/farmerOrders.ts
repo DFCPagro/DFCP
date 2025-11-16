@@ -17,15 +17,19 @@ import type {
   FarmerOrderStatus,
 } from "@/types/farmerOrders";
 import type { FarmerViewByShiftResponse } from "@/pages/farmer/farmerOrder.type";
-// NEW: fake helpers (no network)
 import { getFakeByShift } from "./fakes/farmerOrders.fake";
 import { get } from "mongoose";
 import type { QualityStandards } from "@/components/common/items/QualityStandardsSection";
-import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandards";
+import type {
+  DairyQualityMeasurements,
+  QualityMeasurements,
+} from "@/types/items";
+import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandardsTable";
 
 export type UpdateQualityStandardsPayload = {
   category?: string | null;
-  standards?: QualityStandards | DairyQualityStandards | undefined;
+  // keep it simple: we accept the flat measurements object from the form
+  standards?: any;
   tolerance?: string | null;
 };
 
@@ -371,6 +375,16 @@ export type FarmerOrder = {
 
   // legacy/optional
   pickupAddress?: string;
+  qualityStandards?: QualityMeasurements | null;
+
+  /** Per-order flat QS for dairy/eggs (if you use it) */
+  qualityStandardsDairy?: DairyQualityMeasurements | null;
+
+  /** Whether these were copied from item or custom-edited */
+  qualityStandardsType?: "default" | "custom" | null;
+
+  /** Per-order tolerance saved on the FO */
+  qualityTolerance?: string | null;
 };
 
 export type PrintPayload = {

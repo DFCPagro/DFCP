@@ -39,6 +39,7 @@ import {
   initContainers,
   patchContainerWeights,
 } from "@/api/farmerOrders"
+import type { DairyQualityMeasurements, QualityMeasurements } from "@/types/items"
 
 type Props = {
   farmerOrderId?: string
@@ -166,6 +167,29 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
       ""
     return String(raw ?? "").toLowerCase()
   }, [payload, urlCategory])
+
+  const isDairyCategory = useMemo(() => {
+  const c = (category ?? "").toLowerCase()
+  return !!c && /(dairy|milk|cheese|yogurt|egg)/.test(c)
+}, [category])
+
+const initialProduceMeasurements: QualityMeasurements | undefined =
+  !isDairyCategory
+    ? ((payload?.farmerOrder as any)?.qualityStandards ?? undefined)
+    : undefined
+
+const initialDairyMeasurements: DairyQualityMeasurements | undefined =
+  isDairyCategory
+    ? (
+        (payload?.farmerOrder as any)?.dairyQualityStandards ??
+        (payload?.farmerOrder as any)?.qualityStandardsDairy ??
+        undefined
+      )
+    : undefined
+
+const initialTolerance: string | null =
+  (payload?.farmerOrder as any)?.qualityTolerance ?? null
+
 
   // -------- Load (REAL API) --------
   const load = useCallback(async () => {
@@ -381,7 +405,14 @@ export default function FarmerOrderReport({ farmerOrderId, pickupAddress, assign
       <Reveal>
         <Card.Root className="anim-pressable" variant="subtle" overflow="hidden">
           <Card.Body>
-            <QualityStandardsSwitch category={category} />
+<QualityStandardsSwitch
+        category={category}
+        farmerOrderId={effectiveFoId}
+        initialMeasurements={initialProduceMeasurements}
+        initialDairyMeasurements={initialDairyMeasurements}
+        initialTolerance={initialTolerance}
+      />
+
           </Card.Body>
         </Card.Root>
       </Reveal>

@@ -414,6 +414,8 @@ export async function updateQualityStandards(req: Request, res: Response) {
     const orderId = String(req.params.id || "");
     const { category, standards, tolerance } = req.body ?? {};
 
+    console.log("Incoming standards payload:", standards);
+
     const data = await updateFarmerOrderQualityStandardsService({
       orderId,
       category,
@@ -432,6 +434,7 @@ export async function updateQualityStandards(req: Request, res: Response) {
       return res.status(403).json({ error: "Forbidden", details: err.details });
     if (err?.name === "NotFound")
       return res.status(404).json({ error: "Not Found", details: err.details });
+
     console.error("FarmerOrder.updateQualityStandards error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }

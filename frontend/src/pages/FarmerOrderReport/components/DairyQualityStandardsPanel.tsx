@@ -1,7 +1,9 @@
+// src/features/farmerOrderReport/components/DairyQualityStandardsPanel.tsx
 import * as React from "react"
 import {
   Badge,
   Box,
+  Button,
   Card,
   HStack,
   Input,
@@ -9,13 +11,14 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react"
-import DairyQualityStandardsSection from "@/components/common/items/DairyQualityStandards"
-import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandards"
+
+import DairyQualityStandardsSection from "@/components/common/items/DairyQualityStandardsTable"
+import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandardsTable"
 import { Reveal } from "./Animated"
+import type { DairyQualityMeasurements } from "@/types/items"
 
 /**
- * Local metric model (decoupled from external DairyQualityStandards type)
- * to avoid TS errors like "Property 'measures' does not exist on type ...".
+ * Keys for measured dairy metrics
  */
 type MetricKey =
   | "fat"
@@ -27,8 +30,6 @@ type MetricKey =
   | "ph"
   | "somaticCellCount"
   | "bacterialCount"
-
-type Measurements = Partial<Record<MetricKey, number | string>>
 
 const metricLabels: Record<MetricKey, string> = {
   fat: "Fat %",
@@ -44,26 +45,48 @@ const metricLabels: Record<MetricKey, string> = {
 
 type Props = {
   readOnly?: boolean
-  /** A-grade dairy quality standards (what you PATCH to BE) */
+  /** A-grade dairy quality standards config (example table at top) */
   value?: DairyQualityStandards | undefined
   onChange?: (next: DairyQualityStandards | undefined) => void
+
+  /** Measured per-order dairy values (what packing sends / BE stores) */
+  initialMeasurements?: DairyQualityMeasurements | undefined
+
+  /** Called when user clicks "Save quality standards" */
+  onSave?: (payload: {
+    measurements: DairyQualityMeasurements | undefined
+    tolerance: string | null
+  }) => void
+
+  /** Loading state for save button */
+  isSaving?: boolean
 }
 
 export default function DairyQualityStandardsPanel({
   readOnly,
   value,
   onChange,
+  initialMeasurements,
+  onSave,
+  isSaving,
 }: Props) {
-  // Bridge state so this panel can be used controlled or uncontrolled
+  // Bridge so we can keep A-grade config in sync (read-only table)
   const [localQS, setLocalQS] = React.useState<DairyQualityStandards | undefined>(
     value,
   )
 
-  const [measured, setMeasured] = React.useState<Measurements | undefined>()
+  // 🔑 This is what powers the form (pre-filled & editable)
+  const [measured, setMeasured] =
+    React.useState<DairyQualityMeasurements | undefined>(initialMeasurements)
 
   React.useEffect(() => {
     setLocalQS(value)
   }, [value])
+
+  // 🔑 When backend changes / FO refetched, update default form values
+  React.useEffect(() => {
+    setMeasured(initialMeasurements)
+  }, [initialMeasurements])
 
   const metricKeys = React.useMemo(
     () => Object.keys(metricLabels) as MetricKey[],
@@ -88,11 +111,11 @@ export default function DairyQualityStandardsPanel({
       const raw = e.currentTarget.value
       const clean = raw.trim()
       setMeasured((prev) => {
-        const next = { ...(prev ?? {}) }
+        const next: DairyQualityMeasurements = { ...(prev ?? {}) }
         if (!clean) {
-          delete next[key]
+          delete (next as any)[key]
         } else {
-          next[key] = clean
+          ;(next as any)[key] = clean
         }
         return Object.keys(next).length ? next : undefined
       })
@@ -100,24 +123,45 @@ export default function DairyQualityStandardsPanel({
     [],
   )
 
+  const disabled = !!readOnly
+  const canSave =
+    !disabled && !!onSave && !!measured && Object.keys(measured).length > 0
+
+  const handleSaveClick = () => {
+    if (!onSave || !canSave) return
+    onSave({
+      measurements: measured,
+      // if you later add per-order dairy tolerance, pass it here instead of null
+      tolerance: null,
+    })
+  }
+
   return (
     <Stack gap="5">
-      {/* 1) READ-ONLY / CONFIG A-grade table (kept) */}
+      {/* 1) READ-ONLY / CONFIG A-grade table (kept, untouched) */}
       <Reveal>
-        <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
+        <Card.Root
+          className="anim-pressable"
+          variant="outline"
+          overflow="hidden"
+        >
           <Card.Body>
             <DairyQualityStandardsSection
               value={localQS}
               onChange={handleQSChange}
-              readOnly={readOnly}
+              readOnly={true}
             />
           </Card.Body>
         </Card.Root>
       </Reveal>
 
-      {/* 2) Editable measurements grid */}
+      {/* 2) Editable measurements grid + Save button (new behaviour) */}
       <Reveal>
-        <Card.Root className="anim-pressable" variant="outline" overflow="hidden">
+        <Card.Root
+          className="anim-pressable"
+          variant="outline"
+          overflow="hidden"
+        >
           <Card.Header>
             <HStack justify="space-between">
               <Text fontWeight="semibold" color="fg.subtle">
@@ -140,6 +184,7 @@ export default function DairyQualityStandardsPanel({
                 <Table.Body>
                   {metricKeys.map((key) => {
                     const label = metricLabels[key]
+                    const val = (measured?.[key] as string) ?? ""
                     return (
                       <Table.Row key={key}>
                         <Table.Cell>
@@ -149,11 +194,11 @@ export default function DairyQualityStandardsPanel({
                           <Input
                             className="anim-scale-hover"
                             size="sm"
-                            value={(measured?.[key] as string) ?? ""}
+                            value={val}
                             onChange={onChangeNumber(key)}
                             onBlur={onBlurFormat(key)}
                             placeholder="Enter value"
-                            readOnly={readOnly}
+                            readOnly={disabled}
                           />
                         </Table.Cell>
                         <Table.Cell>
@@ -168,9 +213,20 @@ export default function DairyQualityStandardsPanel({
           </Card.Body>
 
           <Card.Footer>
-            <Text fontSize="xs" color="fg.muted">
-              Tip: fields left blank will be ignored.
-            </Text>
+            <HStack justify="space-between" w="full" gap="3" wrap="wrap">
+              <Text fontSize="xs" color="fg.muted">
+                Tip: fields left blank will be ignored.
+              </Text>
+              <Button
+                size="sm"
+                colorPalette="green"
+                onClick={handleSaveClick}
+                disabled={!canSave}
+                loading={!!isSaving}
+              >
+                Save quality standards
+              </Button>
+            </HStack>
           </Card.Footer>
         </Card.Root>
       </Reveal>
