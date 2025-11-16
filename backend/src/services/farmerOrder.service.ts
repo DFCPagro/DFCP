@@ -647,7 +647,7 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
         displayName,
         imageUrl,
         category,
-        pricePerUnit,
+
         originalCommittedQuantityKg: committedKg,
         currentAvailableQuantityKg: committedKg,
         farmerOrderId: String(order._id),
