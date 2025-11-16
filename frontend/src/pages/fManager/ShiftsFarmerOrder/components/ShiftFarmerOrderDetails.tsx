@@ -137,6 +137,7 @@ function derivePictureUrl(row: ShiftFarmerOrderItem): string | undefined {
     }
 }
 
+
 function deriveInspectionBadges(row: ShiftFarmerOrderItem) {
     const ins = row.inspectionStatus as "pending" | "passed" | "failed" | undefined;
     const vi = row.visualInspection?.status as "ok" | "problem" | "pending" | undefined;
@@ -380,64 +381,90 @@ function SummaryCard({ row }: { row: ShiftFarmerOrderItem }) {
     );
 }
 
+
+
+
+// optional helper if you want consistent fallback
+function formatMaybeDate(value?: string | Date | null) {
+    if (!value) return "-";
+
+    const d = typeof value === "string" ? new Date(value) : value;
+    if (isNaN(d.getTime())) return "-";
+
+    // Local time, HH:MM (e.g. 12:30)
+    return d.toLocaleTimeString("he-IL", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+
 function StagesSection({ row }: { row: ShiftFarmerOrderItem }) {
-    const stages = useMemo(() => deriveStagesVM(row), [row]);
+    const stages = useMemo(() => deriveStagesVM(row), [row])
+
+    if (!stages || stages.length === 0) {
+        return (
+            <Box borderWidth="1px" borderRadius="xl" p={4} bg="bg.panel">
+                <Text fontSize="md" fontWeight="medium" mb={2}>
+                    Stages
+                </Text>
+                <Text fontSize="sm" color="fg.subtle">
+                    No stages data available.
+                </Text>
+            </Box>
+        )
+    }
 
     return (
         <Box borderWidth="1px" borderRadius="xl" p={4} bg="bg.panel">
-            <HStack justify="space-between" align="center" mb={3}>
+            <HStack justifyContent="space-between" alignItems="center" mb={3}>
                 <Text fontSize="md" fontWeight="medium">
                     Stages
                 </Text>
             </HStack>
 
-            {/* Stage details */}
-            <VStack align="stretch" gap={2}>
-                {stages.map((s, idx) => (
-                    <HStack
-                        key={`${s.key}-${idx}`}
-                        justify="space-between"
-                        align="flex-start"
-                        borderWidth="1px"
-                        borderRadius="lg"
-                        p={3}
-                    >
-                        <VStack align="flex-start" gap={0}>
-                            <Text fontWeight="medium">{s.label}</Text>
-                            <HStack gap={2} mt={1}>
-                                <Text fontSize="sm" color="fg.subtle">
-                                    Status:
-                                </Text>
+            <Table.Root size="sm" variant="outline" showColumnBorder>
+                <Table.Header>
+                    <Table.Row>
+                        <Table.ColumnHeader>Stage</Table.ColumnHeader>
+                        <Table.ColumnHeader>Start time</Table.ColumnHeader>
+                        <Table.ColumnHeader>Completed time</Table.ColumnHeader>
+                        <Table.ColumnHeader>Expected time</Table.ColumnHeader>
+                        <Table.ColumnHeader>Status</Table.ColumnHeader>
+                    </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                    {stages.map((s) => (
+                        <Table.Row key={s.key}>
+                            <Table.Cell>
+                                <Text fontWeight="medium">{s.label}</Text>
+                            </Table.Cell>
+                            <Table.Cell>
+                                <Code fontSize="xs">
+                                    {formatMaybeDate((s as any).startedAt)}
+                                </Code>
+                            </Table.Cell>
+                            <Table.Cell>
+                                <Code fontSize="xs">
+                                    {formatMaybeDate((s as any).completedAt)}
+                                </Code>
+                            </Table.Cell>
+                            <Table.Cell>
+                                <Code fontSize="xs">
+                                    {formatMaybeDate((s as any).expectedAt)}
+                                </Code>
+                            </Table.Cell>
+                            <Table.Cell>
                                 <StatusBadge status={s.status} />
-                            </HStack>
-                            {s.note && (
-                                <Text mt={2} fontSize="sm" color="fg.muted" whiteSpace="pre-wrap">
-                                    {s.note}
-                                </Text>
-                            )}
-                        </VStack>
-                        <VStack align="flex-end" gap={1} minW="220px">
-                            <HStack gap={2}>
-                                <Text fontSize="sm" color="fg.subtle">
-                                    Time:
-                                </Text>
-                                <Code fontSize="sm">{fmtDate(s.timestamp as any)}</Code>
-                            </HStack>
-                            {s.by && (
-                                <HStack gap={2}>
-                                    <Text fontSize="sm" color="fg.subtle">
-                                        By:
-                                    </Text>
-                                    <Code fontSize="sm">{typeof s.by === "string" ? compactId(s.by) : "user"}</Code>
-                                </HStack>
-                            )}
-                        </VStack>
-                    </HStack>
-                ))}
-            </VStack>
+                            </Table.Cell>
+                        </Table.Row>
+                    ))}
+                </Table.Body>
+            </Table.Root>
         </Box>
-    );
+    )
 }
+
 
 function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
     const vm = useMemo(() => deriveQSComparison(row), [row]);

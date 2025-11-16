@@ -15,6 +15,8 @@ import {
 import { FiCalendar, FiClock } from "react-icons/fi";
 import type { ShiftFarmerOrdersQuery } from "@/types/farmerOrders";
 import { fetchShiftWindowsByName, type ShiftName } from "@/api/shifts";
+import { StatCardsRow } from "./StatusStats";
+
 export type HeaderCardProps = {
     /** ISO date string (YYYY-MM-DD) */
     date: string;
@@ -57,14 +59,12 @@ function formatDateLabel(dateISO: string, tz?: string) {
 // Assuming something like:
 // async function fetchShiftWindowsByName(name: ShiftName): Promise<ShiftWindows | null> { ... }
 
-type ShiftName = "morning" | "afternoon" | "evening" | "night";
-
 async function getShiftWindow(shiftName: ShiftName) {
     const windows = await fetchShiftWindowsByName(shiftName);
 
     if (!windows?.general) return "";
 
-    return `${windows.general.start} to ${windows.general.end}`;
+    return `${shiftName} ${windows.general.start} to ${windows.general.end}`;
 }
 
 
@@ -160,12 +160,12 @@ export const HeaderCard = memo(function HeaderCard({
             </CardHeader>
 
             <CardBody pt={2}>
-                <HStack gap={3} wrap="wrap">
-                    <StatPill label="Total" value={totals.total} palette="gray" />
-                    <StatPill label="OK" value={totals.ok} palette="green" ariaLabel="OK farmer orders" />
-                    <StatPill label="Pending" value={totals.pending} palette="yellow" ariaLabel="Pending farmer orders" />
-                    <StatPill label="Problem" value={totals.problem} palette="red" ariaLabel="Problem farmer orders" />
-                </HStack>
+                <Stack gap={3} wrap="wrap" direction="row" >
+                    <StatCardsRow label="Total" value={totals.total} palette="gray" />
+                    <StatCardsRow label="OK" value={totals.ok} palette="green" sub="OK farmer orders" />
+                    <StatCardsRow label="Pending" value={totals.pending} palette="yellow" sub="Pending farmer orders" />
+                    <StatCardsRow label="Problem" value={totals.problem} palette="red" sub="Problem farmer orders" />
+                </Stack>
             </CardBody>
         </Card.Root>
     );
@@ -188,12 +188,10 @@ function StatPill({ label, value, palette, ariaLabel }: StatPillProps) {
             px={3}
             py={1.5}
             bg="bg.subtle"
+            background={palette}
         >
-            <HStack gap={2} align="center">
-                <Badge variant="solid" colorPalette={palette}>
-                    {label}
-                </Badge>
-                <Text fontWeight="semibold">{value}</Text>
+            <HStack gap={2} align="center" >
+                <Text fontWeight="semibold">{label} :{value}</Text>
             </HStack>
         </Box>
     );
