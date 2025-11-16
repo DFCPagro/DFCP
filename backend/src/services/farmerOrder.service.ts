@@ -972,9 +972,8 @@ export async function listFarmerOrdersForShift(
     pickUpDate: date,
   };
   if (farmerStatus) q.farmerStatus = farmerStatus;
-  if (farmerId && Types.ObjectId.isValid(farmerId)) {
+  if (farmerId && Types.ObjectId.isValid(farmerId))
     q.farmerId = new Types.ObjectId(farmerId);
-  }
 
   const farmerProjection: Record<string, 1> = {
     _id: 1,
@@ -1009,37 +1008,25 @@ export async function listFarmerOrdersForShift(
 
     createdAt: 1,
     updatedAt: 1,
-    // NOTE: no audit in farmer view listing by default
-    // category will be added via populate+flatten below
+    // NOTE: we do not select audit trail in farmer view listing by default
   };
 
   const projection = forFarmerView
     ? farmerProjection
     : Array.isArray(fields) && fields.length
-    ? (fields.reduce(
-        (acc, f) => ((acc[f] = 1), acc),
-        {} as Record<string, 1>
-      ) as any)
+    ? fields.reduce((acc, f) => ((acc[f] = 1), acc), {} as Record<string, 1>)
     : undefined;
 
-  const safeLimit = Math.max(1, limit);
-  const safePage = Math.max(1, page);
-  const skip = (safePage - 1) * safeLimit;
+  const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
 
-  // --- Fetch: populate Item.category and then flatten onto docs ---
-  const [rawDocs, total, allForWindow] = await Promise.all([
+  const [docs, total, allForWindow] = await Promise.all([
     FarmerOrder.find(q, projection)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(safeLimit)
-      .populate({
-        path: "itemId",
-        select: "category", // only what we need
-        options: { lean: true },
-      })
+      .limit(limit)
       .lean()
       .exec(),
-    FarmerOrder.countDocuments(q).exec(),
+    FarmerOrder.countDocuments(q),
     FarmerOrder.find(q, { _id: 1, stageKey: 1, stages: 1 }).lean().exec(),
   ]);
 
@@ -1047,34 +1034,17 @@ export async function listFarmerOrdersForShift(
     isFarmerOrderProblem(fo)
   ).length;
 
-  // Flatten item.category -> doc.category, and normalize itemId back to ObjectId if you prefer
-  const docs = (rawDocs as any[]).map((d) => ({
-    ...d,
-    category: d.category ?? d?.itemId?.category ?? null,
-    itemId: d?.itemId?._id ?? d.itemId, // keep as ObjectId value (not populated object)
-  }));
-
-  console.log(
-    "[listFarmerOrdersForShift] sample docs:",
-    docs.slice(0, 9).map((d) => ({
-      _id: d._id,
-      itemId: d.itemId,
-      type: d.type,
-      variety: d.variety,
-    }))
-  );
-  // Farmer view: keep current mapping (fast), but provide itemCategory from flattened category
+  // Farmer view: keep current mapping (fast)
   if (forFarmerView) {
-    const itemsBase = docs.map((d: any) => ({
+    const itemsBase = docs.map((d) => ({
       id: String(d._id),
       itemId: String(d.itemId),
       type: d.type || "",
-      itemCategory: d.category ?? null, // <-- now filled from Item.category
       variety: d.variety || "",
       imageUrl: d.pictureUrl || "",
       farmerName: d.farmerName,
       farmName: d.farmName,
-      farmLogo: d.farmLogo ?? null,
+      farmLogo: (d as any).farmLogo ?? null,
       shift: d.shift,
       pickUpDate: d.pickUpDate,
       pickUpTime: d.pickUpTime || null,
@@ -1099,11 +1069,11 @@ export async function listFarmerOrdersForShift(
           date,
           shiftName,
           tz,
-          page: safePage,
-          limit: safeLimit,
+          page,
+          limit,
           total,
           problemCount,
-          pages: Math.ceil(total / safeLimit),
+          pages: Math.ceil(total / Math.max(1, limit)),
           scopedToFarmer: Boolean(farmerId),
           forFarmerView,
         },
@@ -1111,14 +1081,14 @@ export async function listFarmerOrdersForShift(
       };
     }
 
-    // includeAudit path for farmer view
+    // If audit requested for farmer listing (rare), shape each using original doc trail
     const items = await Promise.all(
       itemsBase.map(async (x, idx) => {
-        const raw = rawDocs[idx] as any; // use raw to pull audit from selection if present
+        const raw = docs[idx];
         const audit = await normalizeAndEnrichAuditEntries(
-          (raw?.historyAuditTrail ??
-            raw?.audit ??
-            raw?.auditTrail ??
+          ((raw as any).historyAuditTrail ??
+            (raw as any).audit ??
+            (raw as any).auditTrail ??
             []) as any[]
         );
         return { ...x, audit };
@@ -1131,11 +1101,11 @@ export async function listFarmerOrdersForShift(
         date,
         shiftName,
         tz,
-        page: safePage,
-        limit: safeLimit,
+        page,
+        limit,
         total,
         problemCount,
-        pages: Math.ceil(total / safeLimit),
+        pages: Math.ceil(total / Math.max(1, limit)),
         scopedToFarmer: Boolean(farmerId),
         forFarmerView,
       },
@@ -1151,21 +1121,21 @@ export async function listFarmerOrdersForShift(
         date,
         shiftName,
         tz,
-        page: safePage,
-        limit: safeLimit,
+        page,
+        limit,
         total,
         problemCount,
-        pages: Math.ceil(total / safeLimit),
+        pages: Math.ceil(total / Math.max(1, limit)),
         scopedToFarmer: Boolean(farmerId),
         forFarmerView,
       },
-      items: docs, // raw with category flattened
+      items: docs, // raw (fast)
     };
   }
 
-  // includeAudit for manager/admin
+  // When requested, shape each doc with audit
   const items = await Promise.all(
-    docs.map((d: any) => shapeFarmerOrderDTO(d, { includeAudit: true }))
+    docs.map((d) => shapeFarmerOrderDTO(d, { includeAudit: true }))
   );
 
   return {
@@ -1174,11 +1144,11 @@ export async function listFarmerOrdersForShift(
       date,
       shiftName,
       tz,
-      page: safePage,
-      limit: safeLimit,
+      page,
+      limit,
       total,
       problemCount,
-      pages: Math.ceil(total / safeLimit),
+      pages: Math.ceil(total / Math.max(1, limit)),
       scopedToFarmer: Boolean(farmerId),
       forFarmerView,
     },
