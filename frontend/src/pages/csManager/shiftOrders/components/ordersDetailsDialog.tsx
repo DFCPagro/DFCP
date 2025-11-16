@@ -369,7 +369,10 @@ export default function OrdersDetailsDialog({
                   </Box>
 
                   {/* AUDIT */}
-                  <OrderAuditSection audit={audit} />
+                  <OrderAuditSection
+  items={audit}
+  title="Order history"
+/>
 
                   {/* PACK / CLOSE */}
                   {!packOpen ? (

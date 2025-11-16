@@ -3,7 +3,7 @@
 // -------- Stage status values (shared across entities) --------
 export const STAGE_STATUSES = [
   "pending",
-  "ok",
+  
   "current",
   "done",
   "problem",

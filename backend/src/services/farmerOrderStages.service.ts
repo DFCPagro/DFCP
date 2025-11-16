@@ -4,7 +4,7 @@ import FarmerOrder from "../models/farmerOrder.model";
 import {
   FARMER_ORDER_STAGE_LABELS,
   FARMER_ORDER_STAGE_KEYS,
-  FarmerOrderStageKey,
+  type FarmerOrderStageKey,
 } from "../models/shared/stage.types";
 
 export interface AuthUser {
@@ -17,9 +17,9 @@ export interface AuthUser {
 const toOID = (v: string | Types.ObjectId) =>
   v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
 
-/* -----------------------------------------------------------------------------
- * helpers
- * -------------------------------------------------------------------------- */
+/* ----------------------------------------------------------------------------- */
+/* helpers */
+/* -------------------------------------------------------------------------- */
 
 /** true if the *current* stage is marked "problem" */
 export function isFarmerOrderProblem(doc: {
@@ -87,16 +87,17 @@ export function initFarmerOrderStagesAndAudit(
 
   foDoc.farmerStatus = "pending"; // legacy snapshot
 
+  // relies on FarmerOrder model having addAudit instance method
   foDoc.addAudit(
     createdBy,
     "FARMER_ORDER_CREATED",
     "Farmer order created",
-    {}
+    { stageKey: firstKey }
   );
 }
 
-/* -----------------------------------------------------------------------------
- * Manager/admin manual stage control
+/* ----------------------------------------------------------------------------- */
+/* Manager/admin manual stage control
  *
  * PATCH /farmer-orders/:id/stage
  * body: { key, action: "setCurrent"|"ok"|"done"|"problem", note? }
@@ -141,8 +142,6 @@ export async function updateFarmerOrderStageService(
     e.details = ["Only fManager or admin can update farmer order stages"];
     throw e;
   }
-  
-
 
   // --- load FarmerOrder
   const fo = await FarmerOrder.findById(farmerOrderId);
@@ -152,25 +151,26 @@ export async function updateFarmerOrderStageService(
     e.details = ["Farmer order not found"];
     throw e;
   }
-  if (["fManager", "admin"].includes(user.role)) {
+
+  // --- LC restriction
   if (
-    !user.logisticCenterId ||
-    String(fo.logisticCenterId) !== String(user.logisticCenterId)
+    ["fManager", "admin"].includes(user.role) &&
+    (!user.logisticCenterId ||
+      String((fo as any).logisticCenterId) !== String(user.logisticCenterId))
   ) {
     const e: any = new Error("Forbidden");
     e.name = "Forbidden";
     e.details = ["You cannot update orders from another LC"];
     throw e;
   }
-}
 
   // If we're doing a forward action (not "problem"), ensure pipeline not halted
   if (action !== "problem") {
     ensurePipelineOpen(fo);
   }
 
-  fo.updatedBy = toOID(user.id);
-  fo.updatedAt = new Date();
+  (fo as any).updatedBy = toOID(user.id);
+  (fo as any).updatedAt = new Date();
 
   const stageKey = key as FarmerOrderStageKey;
 
@@ -188,11 +188,11 @@ export async function updateFarmerOrderStageService(
   switch (action) {
     case "setCurrent": {
       // Your FarmerOrder model already has instance method setStageCurrent(key, userId, {note})
-      fo.setStageCurrent(stageKey, fo.updatedBy as any, { note });
-      fo.stageKey = stageKey;
+      (fo as any).setStageCurrent(stageKey, (fo as any).updatedBy, { note });
+      (fo as any).stageKey = stageKey;
 
-      fo.addAudit(
-        fo.updatedBy as any,
+      (fo as any).addAudit(
+        (fo as any).updatedBy,
         "STAGE_SET_CURRENT",
         note ?? "",
         { key: stageKey, byRole: user.role }
@@ -202,10 +202,10 @@ export async function updateFarmerOrderStageService(
 
     case "ok": {
       // markStageOk(key, userId, {note})
-      fo.markStageOk(stageKey, fo.updatedBy as any, { note });
+      (fo as any).markStageOk(stageKey, (fo as any).updatedBy, { note });
 
-      fo.addAudit(
-        fo.updatedBy as any,
+      (fo as any).addAudit(
+        (fo as any).updatedBy,
         "STAGE_SET_OK",
         note ?? "",
         { key: stageKey, byRole: user.role }
@@ -215,10 +215,10 @@ export async function updateFarmerOrderStageService(
 
     case "done": {
       // markStageDone(key, userId, {note})
-      fo.markStageDone(stageKey, fo.updatedBy as any, { note });
+      (fo as any).markStageDone(stageKey, (fo as any).updatedBy, { note });
 
-      fo.addAudit(
-        fo.updatedBy as any,
+      (fo as any).addAudit(
+        (fo as any).updatedBy,
         "STAGE_MARK_DONE",
         note ?? "",
         { key: stageKey, byRole: user.role }
@@ -235,10 +235,10 @@ export async function updateFarmerOrderStageService(
       if (!st.startedAt) st.startedAt = now;
       if (note) st.note = note;
 
-      fo.stageKey = stageKey;
+      (fo as any).stageKey = stageKey;
 
-      fo.addAudit(
-        fo.updatedBy as any,
+      (fo as any).addAudit(
+        (fo as any).updatedBy,
         "STAGE_SET_PROBLEM",
         note ?? "",
         { key: stageKey, byRole: user.role }

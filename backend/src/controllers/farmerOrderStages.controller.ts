@@ -2,7 +2,7 @@
 import type { Request, Response } from "express";
 import {
   updateFarmerOrderStageService,
-  AuthUser,
+  type AuthUser,
 } from "../services/farmerOrderStages.service";
 
 /**
@@ -12,10 +12,20 @@ import {
  */
 export async function patchFarmerOrderStage(req: Request, res: Response) {
   try {
-    const user = (req as any).user as AuthUser | undefined;
-    if (!user?.id) {
+    const rawUser = (req as any).user; // Mongoose User doc from authenticate
+
+    if (!rawUser?._id) {
       return res.status(401).json({ error: "Unauthorized" });
     }
+
+    const user: AuthUser = {
+      id: String(rawUser._id),
+      role: rawUser.role,
+      logisticCenterId: rawUser.logisticCenterId
+        ? String(rawUser.logisticCenterId)
+        : undefined,
+      name: rawUser.name,
+    };
 
     const farmerOrderId = req.params.id;
     const { key, action, note } = req.body ?? {};

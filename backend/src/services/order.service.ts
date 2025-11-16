@@ -1,3 +1,4 @@
+// src/services/order.service.ts
 import mongoose, { Types } from "mongoose";
 import Order from "../models/order.model";
 import { AvailableMarketStockModel } from "../models/availableMarketStock.model";
@@ -17,7 +18,6 @@ import {
 } from "./availableMarketStock.service";
 
 import {
-  ORDER_STAGE_DEFS,
   ORDER_STAGE_KEYS,
   ORDER_STAGE_LABELS,
   OrderStageKey,
@@ -26,6 +26,12 @@ import ApiError from "@/utils/ApiError";
 import ContainerOps from "@/models/ContainerOps.model";
 import Shelf from "@/models/Shelf.model";
 import Item from "@/models/Item.model";
+
+// 🔸 shared audit helper
+import { pushHistoryAuditTrail } from "./auditTrail.service";
+
+// 🔸 use the centralized stage machine
+import { updateOrderStageStatusSystem } from "./orderStages.service";
 
 type ShiftName = "morning" | "afternoon" | "evening" | "night";
 
@@ -56,67 +62,26 @@ function isOrderProblem(order: {
 }
 
 /**
- * Ensure order.stages[] has an entry for a given stage key.
- * If missing, create one with default "pending".
- * Returns a mutable reference.
+ * Only emits an ORDER_CREATED audit entry.
+ * Stage changes are handled by orderStages.service.
  */
-function ensureStageEntry(orderDoc: any, key: OrderStageKey) {
-  if (!Array.isArray(orderDoc.stages)) {
-    orderDoc.stages = [];
-  }
-  let st = orderDoc.stages.find((s: any) => s?.key === key);
-  if (!st) {
-    st = {
-      key,
-      label: ORDER_STAGE_LABELS[key] || key,
-      status: "pending",
-      expectedAt: null,
-      startedAt: null,
-      completedAt: null,
-      timestamp: new Date(),
-      note: "",
-    };
-    orderDoc.stages.push(st);
-  }
-  return st;
-}
-
-/**
- * On order creation we want:
- * - stageKey = "pending"
- * - stages[0] for "pending" with status "current"
- * - audit "ORDER_CREATED"
- *
- * NOTE: we do NOT close any previous stage here because it's the first stage.
- */
-function initOrderStagesAndAudit(
+function addOrderCreatedAudit(
   orderDoc: any,
   customerOID: Types.ObjectId,
   itemsCount: number
 ) {
   const now = new Date();
-  const firstStageKey: OrderStageKey = "pending";
-
-  // stageKey
-  orderDoc.stageKey = firstStageKey;
-
-  // make sure we have that stage in .stages and mark it current
-  const st = ensureStageEntry(orderDoc, firstStageKey);
-  st.status = "current";
-  st.timestamp = now;
-
-  if (!st.startedAt) st.startedAt = now;
-  // completedAt stays null
-
-  // audit
-  orderDoc.addAudit(customerOID, "ORDER_CREATED", "Customer placed an order", {
-    itemsCount,
+  pushHistoryAuditTrail(orderDoc, {
+    userId: customerOID,
+    action: "ORDER_CREATED",
+    note: "Customer placed an order",
+    meta: { itemsCount },
+    timestamp: now,
   });
 }
 
 /** ------------------------ legacy / normalization helpers ------------------------ */
 
-// you already have this type in your codebase; repeating here for clarity
 type AmsLine = {
   farmerOrderId?: Types.ObjectId | null;
   pricePerKg?: number; // authoritative price per KG from AMS
@@ -137,21 +102,8 @@ const isLegacyItem = (it: any): boolean =>
 
 /**
  * Make sure an AMS line is usable for unit-mode items.
- *
- * What we enforce here:
- * - If this line can be ordered by units (unitMode === "unit" or "mixed"),
- *   then line.estimates.avgWeightPerUnitKg MUST exist and be > 0.
- *
- * We do NOT try to "guess" the avg here because your current AmsLine
- * doesn't carry alternative weight fields (like avgWeightPerUnitGr).
- * So: AMS generation / seeding MUST populate estimates.avgWeightPerUnitKg.
- *
- * If it's missing, we throw *here*, once, with a clear message.
- * After this point, normalizeItem() can assume it's valid and doesn't have
- * to throw per-item anymore.
  */
 function ensureAmsLineEstimatesAndValidate(line: AmsLine, foIdForMsg: string) {
-  // always ensure estimates object exists so we don't do ?. all over later
   if (!line.estimates) {
     line.estimates = {};
   }
@@ -174,19 +126,14 @@ function ensureAmsLineEstimatesAndValidate(line: AmsLine, foIdForMsg: string) {
     }
   }
 
-  // also normalize sdKg to at least be a number or undefined
   const sd = line.estimates.sdKg;
   if (!Number.isFinite(sd) || (sd as number) < 0) {
-    // it's fine if sdKg is missing; we won't throw
-    // just leave it undefined
     delete (line.estimates as any).sdKg;
   }
 }
 
 /**
  * prefer payload snapshot, fall back to AMS estimates
- * at this point, after ensureAmsLineEstimatesAndValidate,
- * line.estimates.avgWeightPerUnitKg SHOULD exist (for unit/mixed)
  */
 function resolveAvgPerUnit(it: any, amsLine?: AmsLine): number {
   const fromPayload = it?.estimatesSnapshot?.avgWeightPerUnitKg;
@@ -204,11 +151,6 @@ function resolveAvgPerUnit(it: any, amsLine?: AmsLine): number {
 
 /**
  * normalize any item into { unitMode, quantityKg, units, avg }
- *
- * IMPORTANT DIFFERENCE:
- * - We REMOVED the internal "throw if units>0 but no avg" block.
- *   That check moved to ensureAmsLineEstimatesAndValidate().
- *   So normalizeItem becomes pure normalization.
  */
 function normalizeItem(it: any, amsLine?: AmsLine) {
   if (isLegacyItem(it)) {
@@ -223,7 +165,7 @@ function normalizeItem(it: any, amsLine?: AmsLine) {
     const unitMode = (it as any).unitMode ?? "kg";
     const quantityKg = Math.max(0, Number((it as any).quantityKg) || 0);
     const units = Math.max(0, Number((it as any).units) || 0);
-    const avg = resolveAvgPerUnit(it, amsLine); // will be >0 for unit/mixed because of earlier validation
+    const avg = resolveAvgPerUnit(it, amsLine);
 
     return { unitMode, quantityKg, units, avg };
   }
@@ -245,7 +187,6 @@ function deriveUnitPrice(
 ) {
   if (!Number.isFinite(pricePerKg) || !(pricePerKg! > 0)) return null;
   if (!Number.isFinite(avgKg) || !(avgKg! > 0)) return null;
-  // round to cents for display
   return Math.round(pricePerKg! * avgKg! * 100) / 100;
 }
 
@@ -273,7 +214,7 @@ export async function createOrderForCustomer(
         items: 1,
         availableShift: 1,
       })
-        .lean(false) // keep mongoose doc instances
+        .lean(false)
         .session(session);
 
       if (!ams) {
@@ -282,7 +223,6 @@ export async function createOrderForCustomer(
         throw err;
       }
 
-      // Build quick lookup by farmerOrderId (FO-centric; no subdoc _id)
       const itemsArr: AmsLine[] = Array.isArray((ams as any).items)
         ? ((ams as any).items as any)
         : [];
@@ -293,14 +233,11 @@ export async function createOrderForCustomer(
         const foIdStr = line?.farmerOrderId ? String(line.farmerOrderId) : "";
         if (!foIdStr) continue;
 
-        // 🔥 critical step:
-        // make sure AMS line is valid for unit/mixed
         ensureAmsLineEstimatesAndValidate(line, foIdStr);
-
         byFO.set(foIdStr, line);
       }
 
-      // 2) Reserve AMS inventory (kg and/or units) — once per requested item
+      // 2) Reserve AMS inventory (kg and/or units)
       for (const it of payload.items) {
         const foId = String((it as any).farmerOrderId || "");
         const line = byFO.get(foId);
@@ -316,10 +253,8 @@ export async function createOrderForCustomer(
           throw err;
         }
 
-        // normalize with validated AMS line
         const n = normalizeItem(it, line);
 
-        // must actually order something
         if (!(n.quantityKg > 0 || n.units > 0)) {
           const err: any = new Error(
             `Invalid item quantities for item ${(it as any).itemId}`
@@ -328,7 +263,6 @@ export async function createOrderForCustomer(
           throw err;
         }
 
-        // Reserve kg if needed
         if (n.quantityKg > 0) {
           const kg = Math.round(n.quantityKg * 1000) / 1000;
           await adjustAvailableKgByFOAtomic({
@@ -340,7 +274,6 @@ export async function createOrderForCustomer(
           });
         }
 
-        // Reserve units if needed
         if (n.units > 0) {
           await adjustAvailableUnitsByFOAtomic({
             docId: amsOID.toString(),
@@ -355,8 +288,6 @@ export async function createOrderForCustomer(
       // 3) Create Order (items snapshot normalized)
       const orderPayload: any = {
         customerId: customerOID,
-
-        // map to AddressSchema shape in your model
         deliveryAddress: {
           address: payload.deliveryAddress.address,
           lnt: payload.deliveryAddress.lnt,
@@ -377,17 +308,14 @@ export async function createOrderForCustomer(
         items: (payload.items as any[]).map((it) => {
           const foIdStr = String((it as any).farmerOrderId);
           const line = byFO.get(foIdStr);
-
           const n = normalizeItem(it, line);
 
-          // authoritative pricePerKg:
           const pricePerKg = Number.isFinite(line?.pricePerKg)
             ? Number(line?.pricePerKg)
             : Number.isFinite((it as any).pricePerKg)
             ? Number((it as any).pricePerKg)
             : 0;
 
-          // build snapshot to store on the order item
           const snapshot: any = {};
           const snapAvg = n.avg || line?.estimates?.avgWeightPerUnitKg;
           if (Number.isFinite(snapAvg) && (snapAvg as number) > 0) {
@@ -437,11 +365,10 @@ export async function createOrderForCustomer(
         }),
       };
 
-      // 4) Persist order (so we can run doc methods)
       const created = await Order.create([orderPayload], { session });
       orderDoc = created[0];
 
-      // 5) Link FarmerOrders with estimated kg for this order
+      // 4) Link FarmerOrders with estimated kg for this order
       for (const it of payload.items as any[]) {
         const foIdStr = String((it as any).farmerOrderId);
         const line = byFO.get(foIdStr);
@@ -457,17 +384,17 @@ export async function createOrderForCustomer(
         );
       }
 
-      // 6) Init stageKey/stages and add audit "ORDER_CREATED"
-      initOrderStagesAndAudit(orderDoc, customerOID, payload.items.length);
+      // 5) Emit ORDER_CREATED audit (no stage changes here)
+      addOrderCreatedAudit(orderDoc, customerOID, payload.items.length);
 
-      // 7) Save orderDoc with stages + audit
+      // 6) Save orderDoc with audit
       await orderDoc.save({ session });
 
-      // 8) Mint (or reuse) an order token/QR inside the same txn
+      // 7) Mint order QR inside the same txn
       const qrDoc = await ensureOrderToken({
         orderId: orderDoc._id,
         createdBy: customerOID,
-        ttlSeconds: 24 * 60 * 60, // 24h
+        ttlSeconds: 24 * 60 * 60,
         usagePolicy: "multi-use",
         issuer: customerOID,
         session,
@@ -476,7 +403,22 @@ export async function createOrderForCustomer(
       orderQR = { token: qrDoc.token, sig: qrDoc.sig, scope: qrDoc.scope };
     });
 
-    // committed
+    // 🔸 After successful transaction, move pipeline pending → confirmed
+    // One call with stageKey "pending" + action "ok":
+    // - marks "pending" done
+    // - auto-advances to "confirmed" as current
+    try {
+      await updateOrderStageStatusSystem({
+        orderId: String(orderDoc._id),
+        stageKey: "pending",
+        action: "ok",
+        note: "Auto-confirm after successful creation",
+      });
+    } catch (e) {
+      // Don't break order creation if stage auto-advance fails
+      console.error("Auto-confirm stage failed for order", orderDoc?._id, e);
+    }
+
     return {
       order: orderDoc.toJSON(),
       orderQR,
@@ -488,7 +430,8 @@ export async function createOrderForCustomer(
 
 /** ============================================================================
  * LIST latest orders for a customer
- * ============================================================================ */
+ * ============================================================================
+ */
 export async function listOrdersForCustomer(userId: IdLike, limit = 15) {
   const customerOID = toOID(userId);
 
@@ -503,7 +446,8 @@ export async function listOrdersForCustomer(userId: IdLike, limit = 15) {
 
 /** ============================================================================
  * SUMMARY for dashboard (current + next shifts)
- * ============================================================================ */
+ * ============================================================================
+ */
 
 type OrdersSummaryParams = {
   logisticCenterId: string;
@@ -511,8 +455,8 @@ type OrdersSummaryParams = {
 };
 
 type SummaryEntry = {
-  date: string; // yyyy-LL-dd in LC tz
-  shiftName: "morning" | "afternoon" | "evening" | "night";
+  date: string;
+  shiftName: ShiftName;
   orderIds: string[];
   count: number;
   problemCount: number;
@@ -529,7 +473,6 @@ const dayRangeUtc = (tz: string, ymd: string) => {
 export async function ordersSummarry(params: OrdersSummaryParams) {
   const { logisticCenterId, count = 5 } = params;
 
-  // find timezone for LC
   const anyCfg = await ShiftConfig.findOne(
     { logisticCenterId },
     { timezone: 1 }
@@ -541,10 +484,8 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
     throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = anyCfg.timezone || "Asia/Jerusalem";
 
-  // current shift (name) in tz
   const currentShiftName = await getCurrentShift();
 
-  // helper: summarize a (date, shiftName) window
   async function summarizeWindow(dateStr: string, shiftName: ShiftName) {
     const { startUTC, endUTC } = dayRangeUtc(tz, dateStr);
     const docs = await Order.find(
@@ -571,7 +512,6 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
   }
 
   if (currentShiftName === "none") {
-    // no active shift now — still return next N shifts only
     const nextShifts = await getNextAvailableShifts({
       logisticCenterId,
       count,
@@ -589,13 +529,9 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
     };
   }
 
-  // we DO have an active shift
   const todayYmd = DateTime.now().setZone(tz).toFormat("yyyy-LL-dd");
-
-  // next N shifts after now
   const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
 
-  // build the 1 (current) + N (next) targets
   const targets: Array<{ date: string; name: ShiftName }> = [
     { date: todayYmd, name: currentShiftName as ShiftName },
     ...nextShifts.map((s) => ({ date: s.date, name: s.name as ShiftName })),
@@ -616,15 +552,16 @@ export async function ordersSummarry(params: OrdersSummaryParams) {
 
 /** ============================================================================
  * LIST orders for a given shift+date (CS manager screen)
- * ============================================================================ */
+ * ============================================================================
+ */
 export async function listOrdersForShift(params: {
   logisticCenterId: string;
-  date: string; // yyyy-LL-dd in LC timezone
+  date: string;
   shiftName: ShiftName;
-  status?: string; // kept for backward compat in callers, but no longer used to filter "problem"
-  page?: number; // default 1
-  limit?: number; // default 50
-  fields?: string[]; // optional projection
+  status?: string;
+  page?: number;
+  limit?: number;
+  fields?: string[];
 }) {
   const {
     logisticCenterId,
@@ -636,7 +573,6 @@ export async function listOrdersForShift(params: {
     fields,
   } = params;
 
-  // Resolve timezone for this LC (same approach as summary)
   const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
     .lean()
     .exec();
@@ -644,7 +580,6 @@ export async function listOrdersForShift(params: {
     throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = cfg.timezone || "Asia/Jerusalem";
 
-  // Convert date (in LC tz) to UTC day window
   const start = DateTime.fromFormat(date, "yyyy-LL-dd", { zone: tz }).startOf(
     "day"
   );
@@ -661,10 +596,6 @@ export async function listOrdersForShift(params: {
     },
   };
 
-  // NOTE: you used to filter by `status`; now there's no `status` field on Order.
-  // We keep `status` param for backward compat, but it's ignored here.
-  // (If later you want "problemOnly", do that at controller level w/ isOrderProblem.)
-
   const projection =
     Array.isArray(fields) && fields.length
       ? fields.reduce((acc, f) => ((acc[f] = 1), acc), {} as Record<string, 1>)
@@ -672,7 +603,6 @@ export async function listOrdersForShift(params: {
 
   const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
 
-  // Fetch paged orders
   const [items, total, allForWindow] = await Promise.all([
     Order.find(q, projection)
       .sort({ createdAt: -1 })
@@ -681,7 +611,6 @@ export async function listOrdersForShift(params: {
       .lean()
       .exec(),
     Order.countDocuments(q),
-    // we'll reuse this to compute problemCount
     Order.find(q, { _id: 1, stageKey: 1, stages: 1 }).lean().exec(),
   ]);
 
@@ -703,7 +632,6 @@ export async function listOrdersForShift(params: {
   };
 }
 
-
 /**
  * Convert a single order line into required weight (kg),
  * respecting the user's chosen mode (kg or unit).
@@ -714,7 +642,6 @@ async function requiredKgForLine(it: any): Promise<number> {
   const qtyKg = Number(it.quantityKg ?? 0);
   const units = Number(it.units ?? 0);
 
-  // use snapshot avgWeightPerUnitKg if available
   const snapshotAvgKg =
     it.estimatesSnapshot?.avgWeightPerUnitKg != null
       ? Number(it.estimatesSnapshot.avgWeightPerUnitKg)
@@ -722,7 +649,6 @@ async function requiredKgForLine(it: any): Promise<number> {
 
   let avgKg = snapshotAvgKg;
 
-  // fallback: get from Item if not present
   if (avgKg == null) {
     const item = await Item.findById(it.itemId, {
       avgWeightPerUnitGr: 1,
@@ -740,12 +666,14 @@ async function requiredKgForLine(it: any): Promise<number> {
 
   if (mode === "unit") {
     if (avgKg == null) {
-      throw new ApiError(422, `Missing avgWeightPerUnit for unit-mode item: ${it.name || it.itemId}`);
+      throw new ApiError(
+        422,
+        `Missing avgWeightPerUnit for unit-mode item: ${it.name || it.itemId}`
+      );
     }
     return Math.max(0, units * avgKg);
   }
 
-  // fallback — mixed or undefined (prefer whichever field was actually filled)
   if (qtyKg > 0) return qtyKg;
   if (units > 0 && avgKg != null) return units * avgKg;
 
@@ -754,10 +682,12 @@ async function requiredKgForLine(it: any): Promise<number> {
 
 /**
  * Check if ALL items of an Order can be fully picked from **picker** shelves.
- * Counts ONLY what’s physically on picker shelves.
  */
-export async function canFulfillOrderFromPickerShelves(orderId: string | Types.ObjectId) {
-  const _id = typeof orderId === "string" ? new Types.ObjectId(orderId) : orderId;
+export async function canFulfillOrderFromPickerShelves(
+  orderId: string | Types.ObjectId
+) {
+  const _id =
+    typeof orderId === "string" ? new Types.ObjectId(orderId) : orderId;
   const order = await Order.findById(_id).lean();
   if (!order) throw new ApiError(404, "Order not found");
 
@@ -765,7 +695,6 @@ export async function canFulfillOrderFromPickerShelves(orderId: string | Types.O
     throw new ApiError(400, "Order has no items");
   }
 
-  // Build requirements from order lines
   const requirements = [];
   for (const line of order.items) {
     const requiredKg = await requiredKgForLine(line);
@@ -776,15 +705,17 @@ export async function canFulfillOrderFromPickerShelves(orderId: string | Types.O
     });
   }
 
-  const itemIds = [...new Set(requirements.map(r => r.itemId))]
+  const itemIds = [...new Set(requirements.map((r) => r.itemId))]
     .filter(Boolean)
-    .map(id => new Types.ObjectId(id));
+    .map((id) => new Types.ObjectId(id));
 
   if (itemIds.length === 0) {
-    return { ok: true, summary: { totalRequired: 0, totalAvailable: 0, totalShort: 0 } };
+    return {
+      ok: true,
+      summary: { totalRequired: 0, totalAvailable: 0, totalShort: 0 },
+    };
   }
 
-  // Aggregate weights on picker shelves only
   const pickerAvailability = await ContainerOps.aggregate([
     { $match: { itemId: { $in: itemIds } } },
     { $unwind: "$distributedWeights" },
@@ -801,7 +732,9 @@ export async function canFulfillOrderFromPickerShelves(orderId: string | Types.O
     {
       $group: {
         _id: "$itemId",
-        totalAvailableKg: { $sum: { $toDouble: "$distributedWeights.weightKg" } },
+        totalAvailableKg: {
+          $sum: { $toDouble: "$distributedWeights.weightKg" },
+        },
       },
     },
   ]);

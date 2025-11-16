@@ -1,10 +1,7 @@
 // src/services/farmerOrder.service.ts
 import crypto from "node:crypto";
 import mongoose, { Types } from "mongoose";
-import {
-  normalizeAndEnrichAuditEntries,
-  type AuditEvent,
-} from "../utils/audit.utils";
+import { DateTime } from "luxon";
 
 import { FarmerOrder } from "../models/farmerOrder.model";
 import { Item } from "../models/Item.model";
@@ -12,25 +9,21 @@ import { Farmer } from "../models/farmer.model";
 import ShiftConfig from "../models/shiftConfig.model";
 import QRModel from "../models/QRModel.model";
 
-import { DateTime } from "luxon";
 import {
   getCurrentShift,
   getNextAvailableShifts,
   getShiftConfigByKey,
 } from "./shiftConfig.service";
-
 import {
   addItemToAvailableMarketStock,
   findOrCreateAvailableMarketStock,
 } from "./availableMarketStock.service";
-
 import { ensureFarmerOrderToken, signPayload } from "./ops.service";
 import ApiError from "../utils/ApiError";
 import { canonicalizeClaims } from "../utils/canonicalizeClaims";
 
 import {
   FARMER_ORDER_STAGE_KEYS,
-  FARMER_ORDER_STAGE_LABELS,
   FarmerOrderStageKey,
 } from "../models/shared/stage.types";
 
@@ -39,15 +32,19 @@ import {
   isFarmerOrderProblem,
   ensureFOStageEntry,
   initFarmerOrderStagesAndAudit,
-  ensurePipelineOpen,
 } from "./farmerOrderStages.service";
 
 import type { AuthUser } from "./farmerOrderStages.service";
-import { getContactInfoByIdService } from ".//user.service";
-import { get } from "node:http";
+
+import {
+  normalizeAndEnrichAuditEntries,
+  type AuditEvent,
+} from "../utils/audit.utils";
+import { pushHistoryAuditTrail } from "./auditTrail.service";
+import { getContactInfoByIdService } from "./user.service";
 
 /* =============================
- * DTO and shaper (NEW)
+ * DTO and shaper
  * ============================= */
 export type FarmerOrderDTO = {
   id: string;
@@ -105,6 +102,7 @@ type UserCtx = {
   role: string;
   LogisticCenterId?: Types.ObjectId;
 };
+
 export type ContactInfo = {
   name: string;
   email: string;
@@ -205,7 +203,7 @@ async function autoOkOrdersForShiftViaService(opts: {
   ).lean();
 
   for (const o of orders) {
-    const actingUser = { id: String(o.farmerId), role: "farmer" } as any;
+    const actingUser = { id: String(o.farmerId), role: "farmer" } as AuthUser;
     try {
       await updateFarmerStatusService({
         orderId: String(o._id),
@@ -223,6 +221,7 @@ export async function createFarmerOrderService(
   payload: CreateFarmerOrderPayload,
   user: AuthUser
 ) {
+  // ACL: only fManager/admin
   if (!["fManager", "admin"].includes(user.role)) {
     const e: any = new Error("Forbidden");
     e.name = "Forbidden";
@@ -230,6 +229,7 @@ export async function createFarmerOrderService(
     throw e;
   }
 
+  // Validate inputs
   const errors: string[] = [];
   const pictureUrlRaw = payload.pictureUrl ?? payload.pictureURL;
 
@@ -267,13 +267,14 @@ export async function createFarmerOrderService(
     logisticCenterId: user.logisticCenterId
       ? String(user.logisticCenterId)
       : STATIC_LC_ID,
-    shift: payload.shift as "morning" | "afternoon" | "evening" | "night",
+    shift: payload.shift as Shift,
     pickUpDate: payload.pickUpDate!,
   });
+
   const farmLogo = await resolveFarmLogo(
     String(payload.farmerId!),
     payload.farmLogo ?? null
-  ); // <-- await
+  );
 
   const session = await mongoose.startSession();
   try {
@@ -298,7 +299,7 @@ export async function createFarmerOrderService(
 
         shift: payload.shift,
         pickUpDate: payload.pickUpDate,
-        pickUpTime: pickUpTime,
+        pickUpTime,
         logisticCenterId: toOID(
           user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID
         ),
@@ -319,6 +320,7 @@ export async function createFarmerOrderService(
         historyAuditTrail: [],
       });
 
+      // This will also push an audit entry via pushHistoryAuditTrail
       initFarmerOrderStagesAndAudit(doc, createdBy);
 
       await doc.validate();
@@ -344,7 +346,7 @@ export async function createFarmerOrderService(
         user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID
       ),
       date: payload.pickUpDate!,
-      shift: payload.shift as "morning" | "afternoon" | "evening" | "night",
+      shift: payload.shift as Shift,
       excludedFarmerIds: EXCLUDED_FARMER_IDS,
     });
 
@@ -501,12 +503,16 @@ export async function initContainersForFarmerOrderService(args: {
     }
 
     fo.updatedBy = args.user.userId;
-    fo.addAudit(
-      args.user.userId,
-      "CONTAINERS_INIT",
-      `+${newContainers.length} containers`,
-      {}
-    );
+    fo.updatedAt = new Date();
+
+    // 🔍 write audit via shared helper
+    pushHistoryAuditTrail(fo, {
+      userId: args.user.userId,
+      action: "CONTAINERS_INIT",
+      note: `+${newContainers.length} containers`,
+      meta: {},
+    });
+
     await fo.save({ session });
 
     if (qrDocsToInsert.length > 0) {
@@ -574,13 +580,18 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
   order.updatedAt = new Date();
   order.farmerStatus = status;
 
+  // ---------- STATUS: ok ----------
   if (status === "ok") {
     order.markStageOk("farmerAck", order.updatedBy as any, {
       note: note ?? "",
     });
-    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
-      newStatus: "ok",
-      byRole: role,
+
+    // audit status update
+    pushHistoryAuditTrail(order, {
+      userId: order.updatedBy as any,
+      action: "FARMER_STATUS_UPDATE",
+      note: note ?? "",
+      meta: { newStatus: "ok", byRole: role },
     });
 
     const itemDoc: any = await Item.findById(order.itemId).lean();
@@ -588,16 +599,6 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       const e: any = new Error("BadRequest");
       e.name = "BadRequest";
       e.details = ["Referenced item not found"];
-      throw e;
-    }
-
-    const pricePerUnit = Number(
-      itemDoc?.price?.a ?? (itemDoc as any)?.priceA ?? itemDoc?.price?.kg ?? NaN
-    );
-    if (!Number.isFinite(pricePerUnit) || pricePerUnit < 0) {
-      const e: any = new Error("BadRequest");
-      e.name = "BadRequest";
-      e.details = ["Item.price.a (per KG) is required and must be >= 0"];
       throw e;
     }
 
@@ -647,7 +648,6 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
         displayName,
         imageUrl,
         category,
-
         originalCommittedQuantityKg: committedKg,
         currentAvailableQuantityKg: committedKg,
         farmerOrderId: String(order._id),
@@ -658,20 +658,6 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
         status: "active",
       },
     });
-
-    order.addAudit(order.updatedBy as any, "AVAILABLE_STOCK_UPSERT", "", {
-      LCid: order.logisticCenterId,
-      date: order.pickUpDate,
-      shift: order.shift,
-      itemId: order.itemId,
-      farmerId: order.farmerId,
-      qtyForecast:
-        (order as any).forcastedQuantityKg ??
-        (order as any).forecastedQuantityKg ??
-        (order as any).sumOrderedQuantityKg ??
-        0,
-    });
-
     order.markStageDone("farmerAck", order.updatedBy as any, {
       note: "Farmer approved; moved to QS",
     });
@@ -679,7 +665,10 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       note: "Quality check in progress",
     });
     order.stageKey = "farmerQSrep";
-  } else if (status === "problem") {
+  }
+
+  // ---------- STATUS: problem ----------
+  else if (status === "problem") {
     for (const s of (order.stages as any[]) ?? []) {
       if (s?.status === "current") {
         s.status = "pending";
@@ -698,22 +687,31 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
     if (note) st.note = note;
 
     order.stageKey = "farmerAck";
-    order.addAudit(
-      order.updatedBy as any,
-      "PIPELINE_HALT",
-      note ?? "Farmer reported problem",
-      {
-        byRole: role,
-      }
-    );
-    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
-      newStatus: "problem",
-      byRole: role,
+
+    // pipeline halt audit
+    pushHistoryAuditTrail(order, {
+      userId: order.updatedBy as any,
+      action: "PIPELINE_HALT",
+      note: note ?? "Farmer reported problem",
+      meta: { byRole: role },
     });
-  } else {
-    order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
-      newStatus: "pending",
-      byRole: role,
+
+    // status update audit
+    pushHistoryAuditTrail(order, {
+      userId: order.updatedBy as any,
+      action: "FARMER_STATUS_UPDATE",
+      note: note ?? "",
+      meta: { newStatus: "problem", byRole: role },
+    });
+  }
+
+  // ---------- STATUS: pending or other ----------
+  else {
+    pushHistoryAuditTrail(order, {
+      userId: order.updatedBy as any,
+      action: "FARMER_STATUS_UPDATE",
+      note: note ?? "",
+      meta: { newStatus: "pending", byRole: role },
     });
   }
 
@@ -758,7 +756,7 @@ export async function addOrderIdToFarmerOrder(
   fo.updatedAt = new Date();
 
   await fo.save({ session: opts?.session });
-  // lightweight: no audit enrichment by default
+  // lightweight: no audit enrichment by default here
   return fo.toJSON() as any as FarmerOrderDTO;
 }
 
@@ -798,7 +796,7 @@ export async function adjustFarmerOrderAllocatedKg(
   fo.updatedAt = new Date();
 
   await fo.save({ session: opts?.session });
-  // lightweight: no audit enrichment by default
+  // lightweight: no audit enrichment by default here
   return fo.toJSON() as any as FarmerOrderDTO;
 }
 
@@ -923,7 +921,11 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
         .exec();
 
       const base = summarize(docs);
-      return { date: t.date, shiftName: t.name, ...base } as FOSummaryEntry;
+      return {
+        date: t.date,
+        shiftName: t.name,
+        ...base,
+      } as FOSummaryEntry;
     })
   );
 
@@ -940,7 +942,7 @@ type BaseParams = {
   limit?: number;
   fields?: string[];
   farmerId?: string;
-  includeAudit?: boolean; // NEW: opt-in enrichment
+  includeAudit?: boolean;
 };
 
 export async function listFarmerOrdersForShift(
@@ -956,7 +958,7 @@ export async function listFarmerOrdersForShift(
     fields,
     farmerId,
     forFarmerView = false,
-    includeAudit = false, // NEW default false
+    includeAudit = false,
   } = params;
 
   const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
@@ -1008,7 +1010,6 @@ export async function listFarmerOrdersForShift(
 
     createdAt: 1,
     updatedAt: 1,
-    // NOTE: we do not select audit trail in farmer view listing by default
   };
 
   const projection = forFarmerView
@@ -1019,11 +1020,11 @@ export async function listFarmerOrdersForShift(
 
   const skip = (Math.max(1, page) - 1) * Math.max(1, limit);
 
-  const [docs, total, allForWindow] = await Promise.all([
+  const [rawDocs, total, allForWindow] = await Promise.all([
     FarmerOrder.find(q, projection)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(limit)
+      .limit(safeLimit)
       .lean()
       .exec(),
     FarmerOrder.countDocuments(q),
@@ -1034,12 +1035,18 @@ export async function listFarmerOrdersForShift(
     isFarmerOrderProblem(fo)
   ).length;
 
-  // Farmer view: keep current mapping (fast)
+  const docs = (rawDocs as any[]).map((d) => ({
+    ...d,
+    category: d.category ?? d?.itemId?.category ?? null,
+    itemId: d?.itemId?._id ?? d.itemId,
+  }));
+
   if (forFarmerView) {
     const itemsBase = docs.map((d) => ({
       id: String(d._id),
       itemId: String(d.itemId),
       type: d.type || "",
+      itemCategory: d.category ?? null,
       variety: d.variety || "",
       imageUrl: d.pictureUrl || "",
       farmerName: d.farmerName,
@@ -1081,14 +1088,13 @@ export async function listFarmerOrdersForShift(
       };
     }
 
-    // If audit requested for farmer listing (rare), shape each using original doc trail
     const items = await Promise.all(
       itemsBase.map(async (x, idx) => {
-        const raw = docs[idx];
+        const raw = rawDocs[idx] as any;
         const audit = await normalizeAndEnrichAuditEntries(
-          ((raw as any).historyAuditTrail ??
-            (raw as any).audit ??
-            (raw as any).auditTrail ??
+          (raw?.historyAuditTrail ??
+            raw?.audit ??
+            raw?.auditTrail ??
             []) as any[]
         );
         return { ...x, audit };
@@ -1113,7 +1119,6 @@ export async function listFarmerOrdersForShift(
     };
   }
 
-  // Manager/admin listing path
   if (!includeAudit) {
     return {
       meta: {
@@ -1129,11 +1134,10 @@ export async function listFarmerOrdersForShift(
         scopedToFarmer: Boolean(farmerId),
         forFarmerView,
       },
-      items: docs, // raw (fast)
+      items: docs,
     };
   }
 
-  // When requested, shape each doc with audit
   const items = await Promise.all(
     docs.map((d) => shapeFarmerOrderDTO(d, { includeAudit: true }))
   );

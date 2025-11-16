@@ -36,7 +36,7 @@ const StageActionSchema = z
   .default("ok");
 
 const BodySchema = z.object({
-  stageKey: StageKeySchema,          // refine removed
+  stageKey: StageKeySchema,
   action: StageActionSchema,
   note: z.string().max(500).optional(),
 });
@@ -48,15 +48,27 @@ export async function postUpdateOrderStage(
 ) {
   try {
     const orderId = req.params.orderId?.trim();
-    if (!orderId) return res.status(400).json({ error: "BadRequest", details: ["Missing :orderId"] });
+    if (!orderId) {
+      return res
+        .status(400)
+        .json({ error: "BadRequest", details: ["Missing :orderId"] });
+    }
 
     const parsed = BodySchema.parse(req.body);
 
+    const rawUser = (req as any).user; // Mongoose User doc from authenticate
+    if (!rawUser?._id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Normalize for service
     const user = {
-      _id: (req as any).user?._id,
-      role: (req as any).user?.role,
-      logisticCenterId: (req as any).user?.logisticCenterId,
-      name: (req as any).user?.name,
+      id: String(rawUser._id),
+      role: rawUser.role,
+      logisticCenterId: rawUser.logisticCenterId
+        ? String(rawUser.logisticCenterId)
+        : undefined,
+      name: rawUser.name,
     };
 
     const updated = await updateOrderStageStatusService({
@@ -70,7 +82,9 @@ export async function postUpdateOrderStage(
     return res.status(200).json({ data: updated });
   } catch (err: any) {
     if (err?.name === "ZodError") {
-      return res.status(400).json({ error: "ValidationError", details: err.issues });
+      return res
+        .status(400)
+        .json({ error: "ValidationError", details: err.issues });
     }
     return next(err);
   }

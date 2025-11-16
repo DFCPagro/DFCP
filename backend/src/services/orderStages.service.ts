@@ -1,6 +1,6 @@
 // src/services/orderStages.service.ts
 import mongoose, { Types } from "mongoose";
-import Order from "../models/order.model"; // <-- adjust import if needed
+import Order from "../models/order.model";
 import {
   ORDER_STAGE_KEYS,
   ORDER_STAGE_LABELS,
@@ -8,8 +8,10 @@ import {
 } from "../models/shared/stage.types";
 import { buildStageEntry } from "../models/shared/stage.utils";
 
-export type StageAction = "setCurrent" | "ok" | "done" | "problem" | "cancel";
+// 🔸 Shared audit helper
+import { pushHistoryAuditTrail } from "./auditTrail.service";
 
+export type StageAction = "setCurrent" | "ok" | "done" | "problem" | "cancel";
 
 export interface UpdateStageArgs {
   orderId: string;
@@ -18,7 +20,7 @@ export interface UpdateStageArgs {
   note?: string;
   user: {
     _id: Types.ObjectId | string;
-    role: string; // "admin" | "csManager"
+    role: string; // "admin" | "csManager" | "tManager"
     logisticCenterId?: string;
     name?: string;
   };
@@ -114,7 +116,7 @@ function applyStageTransition(
     if (!stage.startedAt) stage.startedAt = now;
     if (note) stage.note = note;
 
-    orderDoc.status = "problem";
+    // no dedicated status field on Order, we use stageKey+stage.status
     orderDoc.stageKey = stageKey;
     return;
   }
@@ -129,7 +131,6 @@ function applyStageTransition(
     canceledStage.note = note || canceledStage.note;
 
     orderDoc.stageKey = "canceled";
-    orderDoc.status = "canceled";
     return;
   }
 
@@ -150,15 +151,6 @@ function applyStageTransition(
       // No next means this was the end of the normal journey:
       // usually stageKey === "received"
       orderDoc.stageKey = stageKey;
-      if (stageKey === "received") {
-        orderDoc.status = "completed";
-      }
-    }
-
-    // If the order was marked problem earlier and we progressed,
-    // we can clear that sticky label.
-    if (orderDoc.status === "problem") {
-      orderDoc.status = "pending";
     }
     return;
   }
@@ -215,17 +207,18 @@ export async function updateOrderStageStatusService(args: UpdateStageArgs) {
   // 5. mutate timeline
   applyStageTransition(orderDoc, { stageKey, action, note });
 
-  // 6. audit
+  // 6. audit (shared helper)
   const actorId = new Types.ObjectId(user._id);
   const meta: Record<string, any> = { stageKey, action };
   if (note) meta.note = note;
 
-  orderDoc.addAudit(
-    actorId,
-    "ORDER_STAGE_UPDATED",
-    `Stage '${stageKey}' ${action}`,
-    meta
-  );
+  pushHistoryAuditTrail(orderDoc, {
+    userId: actorId,
+    action: "ORDER_STAGE_UPDATED",
+    note: `Stage '${stageKey}' ${action}`,
+    meta,
+    timestamp: new Date(),
+  });
 
   // 7. save
   orderDoc.updatedAt = new Date();
@@ -263,12 +256,13 @@ export async function updateOrderStageStatusSystem(args: {
 
   const sysUserId = new Types.ObjectId("000000000000000000000000");
 
-  orderDoc.addAudit(
-    sysUserId,
-    "ORDER_STAGE_UPDATED_SYSTEM",
-    `System stage '${stageKey}' ${action}`,
-    { stageKey, action, note }
-  );
+  pushHistoryAuditTrail(orderDoc, {
+    userId: sysUserId,
+    action: "ORDER_STAGE_UPDATED_SYSTEM",
+    note: `System stage '${stageKey}' ${action}`,
+    meta: { stageKey, action, note },
+    timestamp: new Date(),
+  });
 
   orderDoc.updatedAt = new Date();
   await orderDoc.save();

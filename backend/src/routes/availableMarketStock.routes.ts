@@ -6,7 +6,7 @@ import { authenticate, authorize } from "../middlewares/auth";
 const router = Router();
 
 // Create/find doc for LC + date + shift
-router.post("/available-stock/init", authenticate, authorize("fManager"), ctrl.initDoc);
+router.post("/available-stock/init", authenticate, authorize("fManager", "admin"), ctrl.initDoc);
 
 // Read by LC + date + shift
 router.get("/available-stock", authenticate, ctrl.getDoc);
