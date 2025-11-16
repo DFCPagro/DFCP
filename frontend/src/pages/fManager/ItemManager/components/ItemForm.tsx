@@ -16,7 +16,7 @@ import ImagePreview from "./form/sections/ImagePreview";
 import PriceFields from "./form/sections/PriceFields";
 import QualityStandardsSection, {
   type QualityStandards,
-} from "../../../../components/common/items/QualityStandardsSection";
+} from "../../../../components/common/items/QualityStandardsTable";
 import {
   normalizeFormDefaults,
   useItemFormState,
@@ -25,7 +25,7 @@ import ItemsPackingSection from "./form/sections/itemPacking";
 import SellModesSection from "./form/sections/sellModeSection";
 import DairyQualityStandardsSection, {
   type DairyQualityStandards,
-} from "@/components/common/items/DairyQualityStandards";
+} from "@/components/common/items/DairyQualityStandardsTable";
 
 type Props = {
   defaultValues?: Partial<ItemFormValues>;

@@ -1,4 +1,3 @@
-// src/models/farmerOrder.model.ts
 import {
   Schema,
   model,
@@ -17,6 +16,11 @@ import {
 } from "./shared/stage.types";
 import { buildFarmerOrderDefaultStages } from "./shared/stage.utils";
 import { AuditEntrySchema } from "./shared/audit.schema";
+
+// 🔹 NEW: quality standards schemas
+import QualityStandardsSchema from "./shared/qualityStandards.schema";
+import { QualityStandardsEggDairySchema } from "./shared/qualityStandardsEggDairy.schema";
+
 
 // ---------- enums ----------
 export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
@@ -126,10 +130,11 @@ const FarmerOrderSchema = new Schema(
     farmerName: { type: String, required: true, trim: true },
     farmName: { type: String, required: true, trim: true },
     farmLogo: { type: String, default: null },
+
     // planning / logistics
     shift: { type: String, enum: SHIFTS, required: true },
     pickUpDate: { type: String, required: true }, // "YYYY-MM-DD"
-    pickUpTime: { type: Date, required: false }, 
+    pickUpTime: { type: Date, required: false },
     logisticCenterId: {
       type: Schema.Types.ObjectId,
       ref: "LogisticCenter",
@@ -216,7 +221,26 @@ const FarmerOrderSchema = new Schema(
       ],
     },
 
-    // --- QS reports ---
+    // --- per-order quality standards / templates ---
+    // (copied/edited from Item.qualityStandards)
+    qualityStandards: {
+  type: Schema.Types.Mixed,
+  default: undefined,
+},
+
+// For eggs / dairy items (category: egg_dairy / dairy)
+dairyQualityStandards: {
+  type: Schema.Types.Mixed,
+  default: undefined,
+},
+
+    // Per-order QS tolerance ratio (e.g. "0.02")
+    qualityTolerance: {
+      type: String,
+      default: null,
+    },
+
+    // --- QS reports (actual measured values) ---
     farmersQSreport: {
       type: Schema.Types.Mixed, // keep original type if QSReportSchema not required here
       default: undefined,
@@ -503,8 +527,8 @@ FarmerOrderSchema.methods.recomputeInspectionStatus = function (
   ];
 
   const within2Percent = (a: number, b: number) => {
-    const A = Number(a),
-      B = Number(b);
+    const A = Number(a);
+    const B = Number(b);
     if (!Number.isFinite(A) || !Number.isFinite(B)) return true; // ignore non-finite
     const denom = Math.max(Math.abs(A), Math.abs(B), 1e-9); // avoid divide-by-zero
     return Math.abs(A - B) / denom <= 0.02; // 2% relative tolerance

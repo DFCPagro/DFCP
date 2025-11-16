@@ -1,17 +1,24 @@
+// src/features/farmerOrderReport/components/QualityStandardsSwitch.tsx
 import {
   Card,
   Separator,
   Stack,
   Text,
-  Button,
   HStack,
   Alert,
 } from "@chakra-ui/react"
+import { useMemo, useState, useCallback, useEffect } from "react"
+
 import QualityStandardsPanel from "./QualityStandardsPanel"
 import DairyQualityStandardsPanel from "./DairyQualityStandardsPanel"
-import { useMemo, useState, useCallback } from "react"
-import type { QualityStandards } from "@/components/common/items/QualityStandardsSection"
-import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandards"
+
+import type { QualityStandards } from "@/components/common/items/QualityStandardsTable"
+import type { DairyQualityStandards } from "@/components/common/items/DairyQualityStandardsTable"
+import type {
+  QualityMeasurements,
+  DairyQualityMeasurements,
+} from "@/types/items"
+
 import { updateFarmerOrderQualityStandards } from "@/api/farmerOrders"
 
 type Props = {
@@ -20,6 +27,14 @@ type Props = {
   readOnly?: boolean
   /** FO id so we can PATCH /quality-standards */
   farmerOrderId?: string
+
+  /** Existing per-order produce QS (flat measurements) */
+  initialMeasurements?: QualityMeasurements
+  /** Existing per-order dairy QS (flat measurements) */
+  initialDairyMeasurements?: DairyQualityMeasurements
+
+  /** Existing per-order tolerance stored on the FO */
+  initialTolerance?: string | null
 }
 
 /**
@@ -30,43 +45,94 @@ export default function QualityStandardsSwitch({
   category,
   readOnly,
   farmerOrderId,
+  initialMeasurements,
+  initialDairyMeasurements,
+  initialTolerance,
 }: Props) {
   const isDairy = useMemo(() => {
     const c = (category ?? "").toLowerCase()
-    return !!c && /(dairy|milk|cheese|yogurt)/.test(c)
+    return !!c && /(dairy|milk|cheese|yogurt|egg)/.test(c)
   }, [category])
 
-  // Local state – in a richer setup you could hydrate this from the BE
-  const [produceStandards, setProduceStandards] = useState<QualityStandards | undefined>()
-  const [produceTolerance, setProduceTolerance] = useState<string | null>(null)
-  const [dairyStandards, setDairyStandards] = useState<DairyQualityStandards | undefined>()
+  // Local state – QS config (A/B/C) for produce + tolerance
+  const [produceStandards, setProduceStandards] =
+    useState<QualityStandards | undefined>()
+  const [produceTolerance, setProduceTolerance] = useState<string | null>(
+    initialTolerance ?? null,
+  )
+
+  // QS config (if any) for dairy
+  const [dairyStandards, setDairyStandards] =
+    useState<DairyQualityStandards | undefined>()
 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
-  const onSave = useCallback(async () => {
-    if (!farmerOrderId) return
-    setSaving(true)
-    setSaveError(null)
-    setSaveSuccess(false)
-    try {
-      const standards = isDairy ? dairyStandards : produceStandards
-      const tolerance = isDairy ? null : produceTolerance
+  useEffect(() => {
+    setProduceTolerance(initialTolerance ?? null)
+  }, [initialTolerance])
 
-      await updateFarmerOrderQualityStandards(farmerOrderId, {
-        category,
-        standards,
-        tolerance,
-      })
+  // ---------- SAVE: Produce / non-dairy ----------
+  const onSaveProduce = useCallback(
+    async (payload: {
+      standards: QualityMeasurements | undefined
+      measurements: QualityMeasurements | undefined
+      tolerance: string | null
+    }) => {
+      if (!farmerOrderId) return
 
-      setSaveSuccess(true)
-    } catch (e: any) {
-      setSaveError(e?.message || "Failed to save quality standards")
-    } finally {
-      setSaving(false)
-    }
-  }, [farmerOrderId, isDairy, dairyStandards, produceStandards, produceTolerance, category])
+      setSaving(true)
+      setSaveError(null)
+      setSaveSuccess(false)
+
+      try {
+        await updateFarmerOrderQualityStandards(farmerOrderId, {
+          category,
+          standards: payload.standards,
+          // backend currently only expects tolerance for produce
+          tolerance: isDairy ? null : payload.tolerance,
+        })
+
+        setSaveSuccess(true)
+      } catch (e: any) {
+        setSaveError(e?.message || "Failed to save quality standards")
+      } finally {
+        setSaving(false)
+      }
+    },
+    [farmerOrderId, category, isDairy],
+  )
+
+  // ---------- SAVE: Dairy ----------
+  const onSaveDairy = useCallback(
+    async (payload: {
+      measurements: DairyQualityMeasurements | undefined
+      tolerance: string | null
+    }) => {
+      if (!farmerOrderId) return
+
+      setSaving(true)
+      setSaveError(null)
+      setSaveSuccess(false)
+
+      try {
+        await updateFarmerOrderQualityStandards(farmerOrderId, {
+          category,
+          standards: payload.measurements,
+          // no separate tolerance for dairy (yet)
+          tolerance: null,
+        })
+
+        setSaveSuccess(true)
+      } catch (e: any) {
+        setSaveError(e?.message || "Failed to save quality standards")
+      } finally {
+        setSaving(false)
+      }
+    },
+    [farmerOrderId, category],
+  )
 
   return (
     <Card.Root className="anim-pressable" variant="subtle">
@@ -75,40 +141,32 @@ export default function QualityStandardsSwitch({
           <Text fontWeight="semibold" color="fg.subtle">
             Quality Standards {isDairy ? "— Dairy" : "— Produce"}
           </Text>
-
-          <HStack gap="2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onSave}
-              disabled={readOnly || !farmerOrderId || saving}
-              loading={saving}
-              className="anim-pressable"
-            >
-              Save quality standards
-            </Button>
-          </HStack>
         </HStack>
 
         <Separator />
 
         <Stack mt="3">
           {isDairy ? (
-            // In your actual DairyQualityStandardsPanel, make sure it accepts value/onChange/readOnly
             <DairyQualityStandardsPanel
               value={dairyStandards}
               onChange={setDairyStandards}
               readOnly={readOnly}
+              // 🔑 these are the defaults from the farmer order
+              initialMeasurements={initialDairyMeasurements}
+              onSave={onSaveDairy}
+              isSaving={saving}
             />
           ) : (
-            // In your QualityStandardsPanel, make sure it accepts tolerance + callbacks
             <QualityStandardsPanel
               readOnly={readOnly}
-              // ↓ you’ll need to extend QualityStandardsPanel to accept these three props
               value={produceStandards}
               onChange={setProduceStandards}
               tolerance={produceTolerance}
               onChangeTolerance={setProduceTolerance}
+              onSave={onSaveProduce}
+              isSaving={saving}
+              // 🔑 defaults for produce
+              initialMeasurements={initialMeasurements}
             />
           )}
         </Stack>

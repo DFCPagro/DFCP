@@ -98,3 +98,28 @@ export type ItemsListResponse = {
   total: number;
   pages: number;
 };
+
+
+export type QualityMeasurements = {
+  brix?: string
+  acidityPercentage?: string
+  pressure?: string
+  colorDescription?: string
+  colorPercentage?: string
+  weightPerUnitG?: string
+  diameterMM?: string
+}
+
+// ⬇️ ADD THIS
+export type DairyQualityMeasurements = {
+  fat?: string
+  protein?: string
+  lactose?: string
+  snf?: string
+  freezingPoint?: string
+  density?: string
+  ph?: string
+  somaticCellCount?: string
+  bacterialCount?: string
+}
+

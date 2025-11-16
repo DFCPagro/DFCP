@@ -45,13 +45,33 @@ import ContainerOps from "@/models/ContainerOps.model";
 // ============================
 // Update Quality Standards (template) for a FarmerOrder
 // ============================
-interface UpdateQualityStandardsArgs {
+type UpdateQualityStandardsArgs = {
   orderId: string;
   category?: string | null;
-  standards?: any;          // QualityStandards from FE (A/B/C ranges, strings)
+  standards?: any;
   tolerance?: string | null;
   user: AuthUser;
-}
+};
+
+export type ABCDTO = {
+  A?: string | null;
+  B?: string | null;
+  C?: string | null;
+};
+
+// Non-dairy quality standards (fruit/veg, etc.)
+// You can tighten this later if you want.
+export type QualityStandardsDTO = {
+  [metric: string]: ABCDTO | any;
+};
+
+// Dairy / egg quality standards
+export type DairyQualityStandardsDTO = {
+  freshnessDays?: number | null;
+  grade?: string | null; // e.g. "A", "B", "C"
+  fatPercentage?: number | null;
+  [key: string]: any;
+};
 
 /* =============================
  * DTO and shaper 
@@ -60,28 +80,73 @@ interface UpdateQualityStandardsArgs {
 export type FarmerOrderDTO = {
   id: string;
   _id: string; // keep both for FE compatibility
-  // ...rest of FO fields are passed through
-  audit?: AuditEvent[]; // normalized + enriched for FE
+
+  // ✅ new per-order QS fields
+  qualityStandards?: QualityStandardsDTO | null;
+  dairyQualityStandards?: DairyQualityStandardsDTO | null;
+  qualityTolerance?: string | null;
+
+  // existing QS reports
+  farmersQSreport?: any;
+  inspectionQSreport?: any;
+  inspectionStatus?: "pending" | "passed" | "failed";
+
+  // normalized + enriched for FE
+  audit?: AuditEvent[];
+
+  // keep it open so spreading `raw` doesn't break TS
+  [key: string]: any;
 };
 
-async function shapeFarmerOrderDTO(raw: any, opts?: { includeAudit?: boolean }): Promise<FarmerOrderDTO> {
+
+export async function shapeFarmerOrderDTO(
+  raw: any,
+  opts?: { includeAudit?: boolean }
+): Promise<FarmerOrderDTO> {
   const includeAudit = !!opts?.includeAudit;
 
   const id = String(raw._id ?? raw.id);
-  const dto: any = { ...raw, id, _id: id };
+
+  // Start from plain object (handles Mongoose docs + lean docs)
+  const base =
+    typeof raw.toObject === "function" ? raw.toObject({ virtuals: true }) : raw;
+
+  const dto: FarmerOrderDTO = {
+    ...base,
+    id,
+    _id: id,
+
+    // ✅ make sure these are always present with sane defaults
+    qualityStandards: base.qualityStandards ?? null,
+    dairyQualityStandards: base.dairyQualityStandards ?? null,
+    qualityTolerance:
+      typeof base.qualityTolerance === "string"
+        ? base.qualityTolerance
+        : base.qualityTolerance ?? null,
+
+    farmersQSreport: base.farmersQSreport ?? null,
+    inspectionQSreport: base.inspectionQSreport ?? null,
+    inspectionStatus: base.inspectionStatus ?? "pending",
+  };
+
+  // optional cleanup
+  delete (dto as any).__v;
 
   if (includeAudit) {
     const rawTrail =
-      (raw.historyAuditTrail as any[]) ??
-      (raw.audit as any[]) ??
-      (raw.auditTrail as any[]) ??
+      (base.historyAuditTrail as any[]) ??
+      (base.audit as any[]) ??
+      (base.auditTrail as any[]) ??
       [];
-    dto.audit = await normalizeAndEnrichAuditEntries(Array.isArray(rawTrail) ? rawTrail : []);
-    // If you want to hide raw trail from FE:
-    // delete dto.historyAuditTrail;
+
+    dto.audit = await normalizeAndEnrichAuditEntries(
+      Array.isArray(rawTrail) ? rawTrail : []
+    );
+    // If you don’t want to leak the raw trail:
+    // delete (dto as any).historyAuditTrail;
   }
 
-  return dto as FarmerOrderDTO;
+  return dto;
 }
 
 /* =============================
@@ -367,11 +432,10 @@ export async function ensureFarmerOrderPrintPayloadService(args: {
     .session(session)
     .lean();
 
-  // Shape into the structure the FE expects
   const containersForReport = containerOps.map((c) => ({
     containerId: c.containerId,
     weightKg: c.totalWeightKg ?? 0,
-    // optional extras if you want later:
+    // you can add state/location if needed:
     // state: c.state,
     // locationArea: c.location?.area ?? "intake",
   }));
@@ -380,6 +444,24 @@ export async function ensureFarmerOrderPrintPayloadService(args: {
     ...fo,
     containers: containersForReport,
   };
+
+  // 🧀 Decide which quality standards to expose (dairy vs non-dairy)
+  const typeLower = (fo.type || "").toString().trim().toLowerCase();
+  const isDairyOrEgg =
+    typeLower === "dairy" ||
+    typeLower === "egg" ||
+    typeLower === "eggs";
+
+  // Attach both raw fields in case FE wants them
+  foForReport.qualityStandardsDefault = fo.qualityStandards ?? null;
+  foForReport.qualityStandardsDairy = fo.dairyQualityStandards ?? null;
+
+  // And expose a unified "qualityStandards" the FE can just consume
+  foForReport.qualityStandards = isDairyOrEgg
+    ? fo.dairyQualityStandards ?? null
+    : fo.qualityStandards ?? null;
+
+  foForReport.qualityStandardsType = isDairyOrEgg ? "dairy" : "default";
 
   const foQR = await ensureFarmerOrderToken({
     farmerOrderId: foId,
@@ -398,8 +480,10 @@ export async function ensureFarmerOrderPrintPayloadService(args: {
     .session(session)
     .lean();
 
+  console.log("foForReport: ", foForReport);
+
   return {
-    farmerOrder: foForReport, // 👈 now has containers: [{ containerId, weightKg }]
+    farmerOrder: foForReport,
     farmerOrderQR: {
       token: foQR.token,
       sig: foQR.sig,
@@ -414,7 +498,6 @@ export async function ensureFarmerOrderPrintPayloadService(args: {
     })),
   };
 }
-
 
 /* =============================
  * INIT containers (+ QR each) — txn
@@ -1378,8 +1461,9 @@ export async function patchContainerWeightsService(args: {
  * We don't use it inside recomputeInspectionStatus (that's for measured values),
  * we just keep it as reference under farmersQSreport.template.
  */
+
 export async function updateFarmerOrderQualityStandardsService(
-  args: UpdateQualityStandardsArgs
+  args: UpdateQualityStandardsArgs,
 ) {
   const { orderId, category, standards, tolerance, user } = args;
 
@@ -1401,7 +1485,8 @@ export async function updateFarmerOrderQualityStandardsService(
   // permissions: manager/admin can always update; farmer only for own orders
   const role = String(user.role).toLowerCase();
   const isManagerOrAdmin = role === "fmanager" || role === "admin";
-  const isOwnerFarmer = role === "farmer" && String(order.farmerId) === String(user.id);
+  const isOwnerFarmer =
+    role === "farmer" && String(order.farmerId) === String(user.id);
 
   if (!isManagerOrAdmin && !isOwnerFarmer) {
     const e: any = new Error("Forbidden");
@@ -1413,24 +1498,36 @@ export async function updateFarmerOrderQualityStandardsService(
     throw e;
   }
 
-  // we store the *template* under farmersQSreport.template to not clash with numeric "values"
-  const prev = (order as any).farmersQSreport ?? {};
-  (order as any).farmersQSreport = {
-    ...prev,
-    template: standards ?? null,
-    templateCategory: category ?? null,
-    templateTolerance: tolerance ?? null,
-  };
+  // decide which bucket to write to based on category
+  const cat = (category ?? "").toLowerCase();
+  const isDairyOrEgg =
+    cat === "egg_dairy" ||
+    cat === "dairy" ||
+    cat === "egg" ||
+    cat === "eggs";
+
+  if (isDairyOrEgg) {
+    (order as any).dairyQualityStandards = standards ?? null;
+  } else {
+    (order as any).qualityStandards = standards ?? null;
+  }
+
+  // optional: keep tolerance in a separate field if you want it
+  (order as any).qualityTolerance = tolerance ?? null;
+
+  // 🔥 DO NOT TOUCH farmersQSreport here
+  // (order as any).farmersQSreport = ...  ❌  <- removed
 
   order.updatedBy = toOID(user.id);
   order.updatedAt = new Date();
 
-  order.addAudit(order.updatedBy as any, "QUALITY_TEMPLATE_UPDATE", "", {
+  order.addAudit(order.updatedBy as any, "QUALITY_STANDARDS_UPDATE", "", {
     category,
     tolerance,
   });
 
   await order.save();
   const json = order.toJSON();
+
   return await shapeFarmerOrderDTO(json, { includeAudit: true });
 }
