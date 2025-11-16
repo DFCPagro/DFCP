@@ -205,6 +205,7 @@ function DimensionsInput({
 }
 
 // ————— Field renderer —————
+// ————— Field renderer —————
 function RenderField({
   f,
   values,
@@ -222,16 +223,10 @@ function RenderField({
 
   // Hide Agreement Percentage for farmer and set a default so it still submits
   if (name === "agreementPercentage") {
-    if (values[name] == null) onChange(name, 60);
-    return null; // don't render the input
-  }
-
-  // Hide derived Vehicle Capacity (kg)
-  if (name === "vehicleCapacityKg") {
     return null;
   }
 
-  // Special-case: vehicle capacity unit (kg/t) dropdown
+  // Special case: vehicleCapacityUnit (kg / t) as select
   if (name === "vehicleCapacityUnit") {
     const unitOptions = createListCollection({
       items: [
@@ -251,21 +246,14 @@ function RenderField({
             collection={unitOptions}
             value={[u]}
             onValueChange={(e) => {
-              const nextUnit = (e.value[0] ?? u) as "kg" | "t";
+              const nextUnit = (e.value[0] as "kg" | "t") ?? u;
               onChange(name, nextUnit);
-              // recompute derived kg using current numeric value
-              const val = values["vehicleCapacityValue"];
-              const kg =
-                typeof val === "number"
-                  ? val * (nextUnit === "t" ? 1000 : 1)
-                  : undefined;
-              onChange("vehicleCapacityKg", kg);
             }}
           >
             <Select.HiddenSelect />
             <Select.Control>
               <Select.Trigger>
-                <Select.ValueText placeholder="Select unit" />
+                <Select.ValueText placeholder={f.help ?? "Select unit"} />
               </Select.Trigger>
               <Select.IndicatorGroup>
                 <Select.Indicator />
@@ -293,6 +281,7 @@ function RenderField({
     );
   }
 
+  // Generic dimensions field (your existing implementation)
   if (f.type === "dimensions") {
     return (
       <Box gridColumn={spanToGrid(f.colSpan)}>
@@ -312,6 +301,66 @@ function RenderField({
     );
   }
 
+  // NEW: generic select support (e.g. vehicleType dropdown)
+  if (f.type === "select") {
+    const options = (f.options ?? []).map((o) => ({
+      label: o.label,
+      value: o.value,
+    }));
+
+    const collection = createListCollection({ items: options });
+    const current = values[name];
+
+    return (
+      <Box gridColumn={spanToGrid(f.colSpan)}>
+        <Field.Root invalid={Boolean(error)}>
+          <Field.Label htmlFor={name}>{f.label}</Field.Label>
+
+          <Select.Root
+            id={name}
+            name={name}
+            collection={collection}
+            value={current ? [current] : []}
+            onValueChange={(e) => {
+              const next = e.value[0] ?? "";
+              onChange(name, next);
+            }}
+          >
+            <Select.HiddenSelect />
+            <Select.Control>
+              <Select.Trigger>
+                <Select.ValueText
+                  placeholder={f.help ?? "Select option"}
+                />
+              </Select.Trigger>
+              <Select.IndicatorGroup>
+                <Select.Indicator />
+                <Select.ClearTrigger />
+              </Select.IndicatorGroup>
+            </Select.Control>
+            <Select.Positioner>
+              <Select.Content>
+                {collection.items.map((item) => (
+                  <Select.Item key={item.value} item={item}>
+                    {item.label}
+                    <Select.ItemIndicator />
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Positioner>
+          </Select.Root>
+
+          {error && (
+            <Text mt={1} fontSize="sm" color="red.500">
+              {error}
+            </Text>
+          )}
+        </Field.Root>
+      </Box>
+    );
+  }
+
+  // Default: checkbox / input
   return (
     <Box gridColumn={spanToGrid(f.colSpan)}>
       <Field.Root invalid={Boolean(error)}>
@@ -354,24 +403,12 @@ function RenderField({
               onChange(name, next);
 
               if (name === "vehicleCapacityValue") {
-                const unit = (values["vehicleCapacityUnit"] ?? "kg") as
-                  | "kg"
-                  | "t";
-                const kg =
-                  typeof next === "number"
-                    ? next * (unit === "t" ? 1000 : 1)
-                    : undefined;
-                onChange("vehicleCapacityKg", kg);
+                // You can hook live computation here if needed
               }
             }}
           />
         )}
 
-        {f.help && !isCheckbox && (
-          <Text mt={1} fontSize="sm" color="fg.muted">
-            {f.help}
-          </Text>
-        )}
         {error && (
           <Text mt={1} fontSize="sm" color="red.500">
             {error}
@@ -381,6 +418,7 @@ function RenderField({
     </Box>
   );
 }
+
 
 function spanToGrid(span?: { base?: number; md?: number; lg?: number }) {
   if (!span) return undefined;

@@ -115,7 +115,7 @@ export default function Footer() {
               fontSize="lg"
               _hover={{ textDecoration: "none" }}
             >
-              <RouterLink to="/">
+              <RouterLink to="/market">
                 <Image
                   src={Logo}
                   alt="DFCP Logo"

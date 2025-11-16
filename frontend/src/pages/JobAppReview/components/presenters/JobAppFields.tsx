@@ -63,12 +63,21 @@ function formatValue(
   switch (t) {
     case "checkbox":
       return (value as boolean) ? "Yes" : "No";
+
     case "number":
       return String(value);
+
     case "email":
     case "tel":
     case "text":
       return String(value);
+
+    case "select": {
+      // Show the label from options if possible; fall back to the raw value
+      const opt = field.options?.find((o) => o.value === value);
+      return opt?.label ?? String(value);
+    }
+
     case "dimensions": {
       // Expecting an object like { height, length, width } in cm/m/in per RoleField.unit
       const v = value as any;
@@ -79,10 +88,12 @@ function formatValue(
       if (typeof v?.width === "number") parts.push(`${v.width}${unit}`);
       return parts.length ? parts.join(" × ") : empty;
     }
+
     default:
       return String(value);
   }
 }
+
 
 function groupFieldsByStep(roleDef: RoleDef) {
   // Build step order from stepsMeta if provided

@@ -21,7 +21,7 @@ export default function NotFound() {
       </Text>
 
       <Button asChild colorScheme="teal" variant="solid">
-        <Link to="/">Go to Home</Link>
+        <Link to="/market">Go to Home</Link>
       </Button>
     </Box>
   );

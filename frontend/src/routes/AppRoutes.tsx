@@ -6,10 +6,9 @@ import GuestGuard from "@/guards/GuestGuard";
 import RoleGuard from "@/guards/RoleGuard";
 import { PATHS } from "./paths";
 import AppShell from "@/components/layout/AppShell";
-
+import { useAuthStore } from "@/store/auth";
 
 // Lazy imports...
-const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
 
@@ -28,9 +27,12 @@ const Market = lazy(() => import("@/pages/customer/Market"));
 
 // Farmer pages
 const FarmerDashboard = lazy(() => import("@/pages/farmer/FarmerDashboard"));
-const FarmerCropManagement = lazy(() => import("@/pages/farmer/FarmerCropManagement"));
-const FarmerOrderForShift = lazy(() => import("@/pages/farmer/farmerOrdersForShift"));
-
+const FarmerCropManagement = lazy(
+  () => import("@/pages/farmer/FarmerCropManagement")
+);
+const FarmerOrderForShift = lazy(
+  () => import("@/pages/farmer/farmerOrdersForShift")
+);
 
 // Picker pages
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
@@ -44,33 +46,72 @@ const JobAppReview = lazy(() => import("@/pages/JobAppReview"));
 const CropHarvest = lazy(() => import("@/pages/AdminExpectedHarvest"));
 const PackageSizesPage = lazy(() => import("@/pages/packageSizes"));
 const LogisticCenter = lazy(() => import("@/pages/LogisticCenter"));
-const PickerTasks = lazy(() => import("@/pages/opManager/picker-tasksManagement"));
-const StatisticsAnalytics = lazy(() => import("@/pages/Admin/StatisticsAnalytics"));
+const PickerTasks = lazy(
+  () => import("@/pages/opManager/picker-tasksManagement")
+);
+const StatisticsAnalytics = lazy(
+  () => import("@/pages/Admin/StatisticsAnalytics")
+);
 
 const CSManagerOrdersPage = lazy(() => import("@/pages/csManager/Orders"));
-const CSManagerShiftOrders = lazy(() => import("@/pages/csManager/shiftOrders"));
-const CSManagerDashboard = lazy(() => import("@/pages/csManager/Dashboard"));
-const CSManagerCustomers = lazy(() => import("@/pages/csManager/Customers"));
-const CSManagerAnalytics = lazy(() => import("@/pages/csManager/Analytics"));
-const CSManagerReportsInbox = lazy(() => import("@/pages/csManager/Orders/ReportsInbox"));
+const CSManagerShiftOrders = lazy(
+  () => import("@/pages/csManager/shiftOrders")
+);
+const CSManagerDashboard = lazy(
+  () => import("@/pages/csManager/Dashboard")
+);
+const CSManagerCustomers = lazy(
+  () => import("@/pages/csManager/Customers")
+);
+const CSManagerAnalytics = lazy(
+  () => import("@/pages/csManager/Analytics")
+);
+const CSManagerReportsInbox = lazy(
+  () => import("@/pages/csManager/Orders/ReportsInbox")
+);
 
 const FManagerDashboard = lazy(() => import("@/pages/fManager/Dashboard"));
-const FManagerItemManagement = lazy(() => import("@/pages/fManager/ItemManager"));
-const FManagerCreateStock = lazy(() => import("@/pages/fManager/CreateStock"));
-const FManagerShiftsFarmerOrder = lazy(() => import("@/pages/fManager/ShiftsFarmerOrder"));
-const FManagerViewFarmerOrders = lazy(() => import("@/pages/fManager/ViewFarmerOrders"));
-const FManagerViewFarmerList = lazy(() => import("@/pages/fManager/FarmerList"));
-const FarmerOrderReport = lazy(() => import("@/pages/FarmerOrderReport"));
+const FManagerItemManagement = lazy(
+  () => import("@/pages/fManager/ItemManager")
+);
+const FManagerCreateStock = lazy(
+  () => import("@/pages/fManager/CreateStock")
+);
+const FManagerShiftsFarmerOrder = lazy(
+  () => import("@/pages/fManager/ShiftsFarmerOrder")
+);
+const FManagerViewFarmerOrders = lazy(
+  () => import("@/pages/fManager/ViewFarmerOrders")
+);
+const FManagerViewFarmerList = lazy(
+  () => import("@/pages/fManager/FarmerList")
+);
+const FarmerOrderReport = lazy(
+  () => import("@/pages/FarmerOrderReport")
+);
 
 // Misc / Example
-const MapPickerExamplePage = lazy(() => import("@/pages/MapExampleUsage"));
+const MapPickerExamplePage = lazy(
+  () => import("@/pages/MapExampleUsage")
+);
 const QRExample = lazy(() => import("@/pages/QRExample"));
+
 function ScrollToTopOnMount() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-
   return null;
+}
+
+// Landing: if logged in → Market, else → Login
+function LandingRedirect() {
+  const token = useAuthStore((s) => s.token);
+
+  if (token) {
+    return <Navigate to={PATHS.market} replace />;
+  }
+
+  return <Navigate to={PATHS.login} replace />;
 }
 
 export default function AppRoutes() {
@@ -79,46 +120,91 @@ export default function AppRoutes() {
       <Routes>
         {/* --- Public, default chrome --- */}
         <Route element={<AppShell />}>
-          <Route path={PATHS.home} element={<><Home /><ScrollToTopOnMount /></>} />
-          <Route path={PATHS.notFound} element={<><NotFound /><ScrollToTopOnMount/></>} />
+          {/* Home becomes a redirect to Market/Login */}
+          <Route path={PATHS.home} element={<LandingRedirect />} />
 
-          <Route path={PATHS.MapExample} element={<>< MapPickerExamplePage /><ScrollToTopOnMount/></>} />
-          <Route path={PATHS.QRExample} element={< QRExample />} />
-          <Route path={PATHS.FarmerOrderReport} element={<>< FarmerOrderReport /><ScrollToTopOnMount/></>} />
+          <Route
+            path={PATHS.notFound}
+            element={
+              <>
+                <NotFound />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
 
+          <Route
+            path={PATHS.MapExample}
+            element={
+              <>
+                <MapPickerExamplePage />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
+          <Route path={PATHS.QRExample} element={<QRExample />} />
+          <Route
+            path={PATHS.FarmerOrderReport}
+            element={
+              <>
+                <FarmerOrderReport />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
         </Route>
 
         {/* --- Public, no Footer --- */}
-      {/* --- Public, no Footer --- */}
-<Route element={<AppShell px={0} py={0} maxW="container.md" />}>
-  <Route
-    path={PATHS.logisticCenter}
-    element={
-      <>
-        <ScrollToTopOnMount />
-        <LogisticCenter />
-      </>
-    }
-  />
-</Route>
-
+        <Route
+          element={
+            <AppShell px={0} py={0} maxW="container.md" />
+          }
+        >
+          <Route
+            path={PATHS.logisticCenter}
+            element={
+              <>
+                <ScrollToTopOnMount />
+                <LogisticCenter />
+              </>
+            }
+          />
+        </Route>
 
         {/* --- Guest-only --- */}
         <Route element={<GuestGuard />}>
           <Route
-            element={<>
-              <AppShell
-                px={0}
-                py={0}
-                addSurroundingGap={true}
-                showFooter={false}
-                maxW="100hw"
-              />
-              <ScrollToTopOnMount/></>
+            element={
+              <>
+                <AppShell
+                  px={0}
+                  py={0}
+                  addSurroundingGap={true}
+                  showFooter={false}
+                  maxW="100hw"
+                />
+                <ScrollToTopOnMount />
+              </>
             }
           >
-            <Route path={PATHS.login} element={<><Login /><ScrollToTopOnMount/></>} />
-            <Route path={PATHS.register} element={<><Register /><ScrollToTopOnMount/></>} />
+            <Route
+              path={PATHS.login}
+              element={
+                <>
+                  <Login />
+                  <ScrollToTopOnMount />
+                </>
+              }
+            />
+            <Route
+              path={PATHS.register}
+              element={
+                <>
+                  <Register />
+                  <ScrollToTopOnMount />
+                </>
+              }
+            />
           </Route>
         </Route>
 
@@ -127,7 +213,7 @@ export default function AppRoutes() {
           element={
             <AuthGuard>
               <AppShell />
-              <ScrollToTopOnMount/>
+              <ScrollToTopOnMount />
             </AuthGuard>
           }
         >
@@ -136,7 +222,7 @@ export default function AppRoutes() {
             path={PATHS.adminDashboard}
             element={
               <RoleGuard allow={["admin"]}>
-                <ScrollToTopOnMount/>
+                <ScrollToTopOnMount />
                 <AdminDashboard />
               </RoleGuard>
             }
@@ -146,8 +232,7 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["admin"]}>
                 <StatisticsAnalytics />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -156,19 +241,17 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["admin", "fManager"]}>
                 <JobAppReview />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
-          
+
           <Route
             path={PATHS.cropHarvest}
             element={
               <RoleGuard allow={["admin"]}>
                 <CropHarvest />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -183,8 +266,7 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["admin", "tManager"]}>
                 <PackageSizesPage />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -202,8 +284,7 @@ export default function AppRoutes() {
                   "industrialDeliverer",
                 ]}
               >
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
                 <WorkerProfile />
               </RoleGuard>
             }
@@ -215,8 +296,7 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["deliverer"]}>
                 <DriverSchedule />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -227,8 +307,7 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["picker"]}>
                 <PickerDashboard />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -237,8 +316,7 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["picker"]}>
                 <PickTaskPage />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -247,8 +325,7 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["picker"]}>
                 <PickerSchedule />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -257,30 +334,27 @@ export default function AppRoutes() {
           <Route
             path={PATHS.FarmerDashboard}
             element={
-              <RoleGuard allow={["farmer","admin"]}>
+              <RoleGuard allow={["farmer", "admin"]}>
                 <FarmerDashboard />
-                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
           <Route
             path="/farmer/farmerOrderForShift/:date/:shift"
             element={
-              <RoleGuard allow={["farmer","admin"]}>
+              <RoleGuard allow={["farmer", "admin"]}>
                 <FarmerOrderForShift />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
           <Route
             path={PATHS.FarmerCropManagement}
             element={
-              <RoleGuard allow={["farmer","admin"]}>
+              <RoleGuard allow={["farmer", "admin"]}>
                 <FarmerCropManagement />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -291,28 +365,25 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["csManager", "admin"]}>
                 <CSManagerDashboard />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
-          />  
-               <Route
+          />
+          <Route
             path={PATHS.csManagerReportsInbox}
             element={
               <RoleGuard allow={["csManager", "admin"]}>
                 <CSManagerReportsInbox />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
-          />  
-              <Route
+          />
+          <Route
             path={PATHS.csManagerCustomers}
             element={
               <RoleGuard allow={["csManager", "admin"]}>
                 <CSManagerCustomers />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -321,8 +392,7 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["csManager", "admin"]}>
                 <CSManagerOrdersPage />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -331,18 +401,16 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["csManager", "admin"]}>
                 <CSManagerShiftOrders />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
-                   <Route
+          <Route
             path={PATHS.csManagerAnalytics}
             element={
               <RoleGuard allow={["csManager", "admin"]}>
                 <CSManagerAnalytics />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -352,11 +420,8 @@ export default function AppRoutes() {
             path={PATHS.PickerTasksPage}
             element={
               <RoleGuard allow={["opManager", "admin"]}>
-                <PickerTasks 
-                  
-                />
-                                <ScrollToTopOnMount/>
-
+                <PickerTasks />
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -365,60 +430,54 @@ export default function AppRoutes() {
           <Route
             path={PATHS.fManagerDashboard}
             element={
-              <RoleGuard allow={["fManager","admin"]}>
+              <RoleGuard allow={["fManager", "admin"]}>
                 <FManagerDashboard />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
           <Route
             path={PATHS.fManagerItemManagement}
             element={
-              <RoleGuard allow={["fManager","admin"]}>
+              <RoleGuard allow={["fManager", "admin"]}>
                 <FManagerItemManagement />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
           <Route
             path={PATHS.fManagerCreateStock}
             element={
-              <RoleGuard allow={["fManager","admin"]}>
+              <RoleGuard allow={["fManager", "admin"]}>
                 <FManagerCreateStock />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
           <Route
             path={PATHS.fManagerShiftsFarmerOrder}
             element={
-              <RoleGuard allow={["fManager","admin"]}>
+              <RoleGuard allow={["fManager", "admin"]}>
                 <FManagerShiftsFarmerOrder />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
           <Route
             path={PATHS.fManagerViewFarmerOrders}
             element={
-              <RoleGuard allow={["fManager","admin"]}>
+              <RoleGuard allow={["fManager", "admin"]}>
                 <FManagerViewFarmerOrders />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
           <Route
             path={PATHS.fManagerViewFarmerList}
             element={
-              <RoleGuard allow={["fManager","admin"]}>
+              <RoleGuard allow={["fManager", "admin"]}>
                 <FManagerViewFarmerList />
-                                <ScrollToTopOnMount/>
-
+                <ScrollToTopOnMount />
               </RoleGuard>
             }
           />
@@ -429,13 +488,19 @@ export default function AppRoutes() {
           element={
             <AuthGuard>
               <AppShell showFooter={false} maxW="5xl" />
-                              <ScrollToTopOnMount/>
-
+              <ScrollToTopOnMount />
             </AuthGuard>
           }
         >
-          <Route path={PATHS.checkout} element={<><Checkout />                <ScrollToTopOnMount/>
-</>} />
+          <Route
+            path={PATHS.checkout}
+            element={
+              <>
+                <Checkout />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
         </Route>
 
         {/* --- Authenticated, yes FOOTER (customer pages) --- */}
@@ -443,33 +508,87 @@ export default function AppRoutes() {
           element={
             <AuthGuard>
               <AppShell showFooter={true} />
-                              <ScrollToTopOnMount/>
-
+              <ScrollToTopOnMount />
             </AuthGuard>
           }
         >
-          <Route path={PATHS.jobs} element={<><AvailabileJobs />                <ScrollToTopOnMount/></>
-} />
-          <Route path={PATHS.jobApplication} element={<><JobApplication /> <ScrollToTopOnMount/></>} />
-          <Route path={PATHS.orders} element={<><Orders /> <ScrollToTopOnMount/></>} />
-          <Route path={PATHS.profile} element={<><Profile /> <ScrollToTopOnMount/></>} />
-          <Route path={PATHS.market} element={<><Market /> <ScrollToTopOnMount/></>} />
+          <Route
+            path={PATHS.jobs}
+            element={
+              <>
+                <AvailabileJobs />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
+          <Route
+            path={PATHS.jobApplication}
+            element={
+              <>
+                <JobApplication />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
+          <Route
+            path={PATHS.orders}
+            element={
+              <>
+                <Orders />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
+          <Route
+            path={PATHS.profile}
+            element={
+              <>
+                <Profile />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
+          <Route
+            path={PATHS.market}
+            element={
+              <>
+                <Market />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
         </Route>
 
-        {/* --- Authenticated, no HEADER --- */}
+        {/* --- Authenticated, no HEADER (delivery note) --- */}
         <Route
           element={
             <AuthGuard>
               <AppShell showHeader={false} />
-                              <ScrollToTopOnMount/>
+              <ScrollToTopOnMount />
             </AuthGuard>
           }
         >
-          <Route path={PATHS.deliveryNote} element={<><DeliveryNote /> <ScrollToTopOnMount/></>} />
+          <Route
+            path={PATHS.deliveryNote}
+            element={
+              <>
+                <DeliveryNote />
+                <ScrollToTopOnMount />
+              </>
+            }
+          />
         </Route>
 
         {/* Fallback */}
-        <Route path="*" element={<><Navigate to={PATHS.notFound} replace /> <ScrollToTopOnMount/></>} />
+        <Route
+          path="*"
+          element={
+            <>
+              <Navigate to={PATHS.notFound} replace />
+              <ScrollToTopOnMount />
+            </>
+          }
+        />
       </Routes>
     </Suspense>
   );

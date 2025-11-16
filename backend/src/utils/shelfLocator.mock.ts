@@ -5,7 +5,8 @@ export type ShelfLocation = {
   shelfId: string;
   zone: string;      // A-D
   aisle: string;     // 1-3
-  level: string;     // 1-3
+row:Number;
+col:Number;
   slot: string;      // 1-3
   slotId: string;    // "A-1-2-3" (zone-aisle-level-slot)
   containerOpsId: string;
@@ -14,7 +15,8 @@ export type ShelfLocation = {
 
 const ZONES = ["A", "B", "C", "D"] as const;
 const AISLES = ["1", "2", "3"] as const;
-const LEVELS = ["1", "2", "3"] as const;
+const ROW = [1, 2, 3] as const;
+const COL = [1, 2, 3] as const;
 const SLOTS  = ["1", "2", "3"] as const;
 
 function pick<T>(arr: readonly T[]): T {
@@ -38,20 +40,25 @@ export const ShelfLocatorMock = {
     logisticCenterId: string;
   }): Promise<ShelfLocation> {
     const zone = pick(ZONES);
+    const row = pick(ROW);
+    const col = pick(COL);
+    
+    
     const aisle = pick(AISLES);
-    const level = pick(LEVELS);
+
     const slot = pick(SLOTS);
 
     const shelfId = newId();
     const containerOpsId = newId();
-    const slotId = `${zone}-${aisle}-${level}-${slot}`;
+    const slotId = `${zone}-${aisle}-${ROW}-${COL}-${slot}`;
     const containerQr = `QR:${containerOpsId}`;
 
     return {
       shelfId,
       zone,
       aisle,
-      level,
+row,
+col,
       slot,
       slotId,
       containerOpsId,
@@ -76,10 +83,11 @@ export const ShelfLocatorMock = {
     const containerOpsId = m[1];
     const zone = pick(ZONES);
     const aisle = pick(AISLES);
-    const level = pick(LEVELS);
+    const row  = pick(ROW);
+const col  = pick(COL);
     const slot = pick(SLOTS);
     const shelfId = newId();
-    const slotId = `${zone}-${aisle}-${level}-${slot}`;
+    const slotId = `${zone}-${aisle}-${row}-${col}-${slot}`;
 
     return { ok: true, containerOpsId, shelfId, slotId };
   },

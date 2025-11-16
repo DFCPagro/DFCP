@@ -12,7 +12,7 @@ export default function HeaderBar({ orderId, priority, phase, overall }: Props) 
     <Box mb={5} p={4} rounded="2xl" borderWidth="1px" bg="bg.muted" _dark={{ bg: "gray.800" }}>
       <HStack justify="space-between" align="center" wrap="wrap" gap={4}>
         <HStack gap={4}>
-          <Heading size="lg">Order {orderId}</Heading>
+          <Heading size="lg">Order </Heading>
           <Badge size="lg" variant="solid" colorPalette={priority > 0 ? "red" : "blue"}>
             {priority > 0 ? "RUSH" : "NORMAL"}
           </Badge>

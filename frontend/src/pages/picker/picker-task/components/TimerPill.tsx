@@ -9,8 +9,9 @@ export default function TimerPill({ priority, timeLabel }: Props) {
   return (
     <Box
       position="fixed"
-      top="20"
       right="6"
+      top="32"
+
       zIndex="modal"
       bg="white"
       _dark={{ bg: "gray.900" }}

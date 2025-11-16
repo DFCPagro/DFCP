@@ -162,7 +162,7 @@ export function useEmploymentApplication() {
       return;
     }
 
-    const applicationData: Record<string, unknown> = { ...fields };
+const applicationData: Record<string, unknown> = { ...fields };
 
     if (role!.includeSchedule) {
       const weekly = normalizeWeekly(scheduleMask);
@@ -203,19 +203,24 @@ export function useEmploymentApplication() {
       }
     }
 
-    if (
-      role!.name.toLowerCase() === "deliverer" ||
-      role!.name.toLowerCase() === "industrialdeliverer"
-    ) {
-      const val = (fields as any)?.vehicleCapacityValue;
-      const unit = (fields as any)?.vehicleCapacityUnit ?? "kg";
-      if (typeof val === "number") {
-        (applicationData as any).vehicleCapacityKg =
-          val * (unit === "t" ? 1000 : 1);
-      }
-      delete (applicationData as any).vehicleCapacityValue;
-      delete (applicationData as any).vehicleCapacityUnit;
-    }
+   if (
+  role!.name.toLowerCase() === "deliverer" ||
+  role!.name.toLowerCase() === "industrialdeliverer"
+) {
+  const rawVal = (fields as any)?.vehicleCapacityValue;
+  const unit = (fields as any)?.vehicleCapacityUnit ?? "kg";
+
+  const val =
+    rawVal === "" || rawVal == null ? undefined : Number(rawVal);
+
+  if (typeof val === "number" && !Number.isNaN(val)) {
+    (applicationData as any).vehicleCapacityKg =
+      val * (unit === "t" ? 1000 : 1);
+  }
+
+  delete (applicationData as any).vehicleCapacityValue;
+  delete (applicationData as any).vehicleCapacityUnit;
+}
 
     [
       "Sunday",

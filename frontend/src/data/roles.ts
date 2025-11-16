@@ -5,9 +5,18 @@ export type FieldType =
   | "tel"
   | "number"
   | "checkbox"
-  | "dimensions";
+  | "dimensions"
+  | "select";
+
+
 
 type ColSpan = { base?: number; md?: number; lg?: number };
+
+export type SelectOption = {
+  label: string;
+  value: string;
+};
+
 
 export type RoleField = {
   label: string;
@@ -29,6 +38,8 @@ export type RoleField = {
 
   /** dimensions-only options */
   unit?: "cm" | "m" | "in";
+  /** select-only options */
+  options?: SelectOption[]; // ← NEW
 };
 
 // We keep StepMeta but use it as section meta (title/help/order)
@@ -47,10 +58,23 @@ export type RoleDef = {
   fields: RoleField[];
   stepsMeta?: StepMeta[]; // acts as section metadata
 };
+export const VEHICLE_TYPE_OPTIONS: SelectOption[] = [
+  { label: "Bicycle", value: "bicycle" },
+  { label: "Motorbike / Scooter", value: "motorbike" },
+  { label: "Small Car", value: "small_car" },
+  { label: "Family Car / Sedan", value: "sedan" },
+  { label: "SUV / Crossover", value: "suv" },
+  { label: "Van", value: "van" },
+  { label: "Refrigerated Van", value: "refrigerated_van" },
+  { label: "Pickup Truck", value: "pickup" },
+  { label: "Light Truck (up to 3.5t)", value: "truck_3_5t" },
+  { label: "Medium Truck (up to 7.5t)", value: "truck_7_5t" },
+  { label: "Heavy / Semi Trailer", value: "heavy_truck" },
+];
 
 export const RolesTable: readonly RoleDef[] = [
   {
-    name: "deliverer",
+     name: "deliverer",
     description: "Responsible for transporting shipments.",
     includeSchedule: true,
     includeLand: false,
@@ -61,10 +85,20 @@ export const RolesTable: readonly RoleDef[] = [
     ],
     fields: [
       // Vehicle
-      { label: "Vehicle Make",   type: "text",   step: "vehicle" },
-      { label: "Vehicle Model",  type: "text",   step: "vehicle" },
-      { label: "Vehicle Type",   type: "text",   step: "vehicle" },
-      { label: "Vehicle Year",   type: "number", step: "vehicle", colSpan: { md: 1 } },
+      { label: "Vehicle Make",   name: "vehicleMake",  type: "text",   step: "vehicle" },
+      { label: "Vehicle Model",  name: "vehicleModel", type: "text",   step: "vehicle" },
+
+      // ↓ changed to dropdown
+      {
+        label: "Vehicle Type",
+        name: "vehicleType",
+        type: "select",
+        step: "vehicle",
+        options: VEHICLE_TYPE_OPTIONS,
+        help: "Choose the main vehicle you will use for deliveries.",
+      },
+
+      { label: "Vehicle Year",   name: "vehicleYear",  type: "number", step: "vehicle", colSpan: { md: 1 } },
 
       // Cargo dimensions
       {
@@ -78,22 +112,60 @@ export const RolesTable: readonly RoleDef[] = [
       },
 
       // line 1 (full width)
-      { label: "Vehicle Capacity (L)", name: "vehicleCapacityLiters", type: "number", step: "vehicle", stepAttr: "0.1", min: "0", colSpan: { base: 1, md: 2 } },
+      {
+        label: "Vehicle Capacity (L)",
+        name: "vehicleCapacityLiters",
+        type: "number",
+        step: "vehicle",
+        stepAttr: "0.1",
+        min: "0",
+        colSpan: { base: 1, md: 2 },
+      },
 
       // line 2 (two columns side-by-side)
-      { label: "Vehicle Weight Capacity", name: "vehicleCapacityValue", type: "number", step: "vehicle", stepAttr: "0.1", min: "0" }, // spans 1 col by default
-      { label: "Weight Unit", name: "vehicleCapacityUnit", type: "text", step: "vehicle", help: "Choose kg or t" },       // spans 1 col by default
+      {
+        label: "Vehicle Weight Capacity",
+        name: "vehicleCapacityValue",
+        type: "number",
+        step: "vehicle",
+        stepAttr: "0.1",
+        min: "0",
+      },
+      {
+        label: "Weight Unit",
+        name: "vehicleCapacityUnit",
+        type: "text",
+        step: "vehicle",
+        help: "Choose kg or t",
+      },
 
       // hidden computed (still hidden)
-      { label: "Capacity (kg, computed)", name: "vehicleCapacityKg", type: "number", step: "vehicle", colSpan: { base: 0 } },
+      {
+        label: "Capacity (kg, computed)",
+        name: "vehicleCapacityKg",
+        type: "number",
+        step: "vehicle",
+        colSpan: { base: 0 },
+      },
 
       // Driver
-      { label: "License Type",           type: "text", step: "driver" },
-      { label: "Driver License Number",  type: "text", step: "driver" },
+      { label: "License Type",           name: "licenseType",          type: "text", step: "driver" },
+      { label: "Driver License Number",  name: "licenseNumber",        type: "text", step: "driver" },
 
       // Compliance
-      { label: "Vehicle Registration Number", type: "text", pattern: "[0-9]+", step: "compliance" },
-      { label: "Vehicle Insurance",           type: "checkbox",                step: "compliance" },
+      {
+        label: "Vehicle Registration Number",
+        name: "vehicleRegistrationNumber",
+        type: "text",
+        pattern: "[0-9]+",
+        step: "compliance",
+      },
+      {
+        label: "Vehicle Insurance",
+        name: "vehicleInsurance",
+        type: "checkbox",
+        step: "compliance",
+      },
     ],
   },
 
@@ -109,10 +181,19 @@ export const RolesTable: readonly RoleDef[] = [
       { id: "compliance", title: "Compliance", order: 4 },
     ],
     fields: [
-      { label: "Vehicle Make", type: "text", step: "vehicle" },
-      { label: "Vehicle Model", type: "text", step: "vehicle" },
-      { label: "Vehicle Type", type: "text", step: "vehicle" },
-      { label: "Vehicle Year", type: "number", step: "vehicle" },
+      { label: "Vehicle Make",  name: "vehicleMake",  type: "text", step: "vehicle" },
+      { label: "Vehicle Model", name: "vehicleModel", type: "text", step: "vehicle" },
+
+      // same dropdown list reused here
+      {
+        label: "Vehicle Type",
+        name: "vehicleType",
+        type: "select",
+        step: "vehicle",
+        options: VEHICLE_TYPE_OPTIONS,
+      },
+
+      { label: "Vehicle Year",  name: "vehicleYear", type: "number", step: "vehicle" },
 
       // Cargo dimensions
       {
@@ -126,24 +207,63 @@ export const RolesTable: readonly RoleDef[] = [
       },
 
       // line 1 (full width)
-      { label: "Vehicle Capacity (L)", name: "vehicleCapacityLiters", type: "number", step: "vehicle", stepAttr: "0.1", min: "0", colSpan: { base: 1, md: 2 } },
+      {
+        label: "Vehicle Capacity (L)",
+        name: "vehicleCapacityLiters",
+        type: "number",
+        step: "vehicle",
+        stepAttr: "0.1",
+        min: "0",
+        colSpan: { base: 1, md: 2 },
+      },
 
       // line 2 (two columns side-by-side)
-      { label: "Vehicle Weight Capacity", name: "vehicleCapacityValue", type: "number", step: "vehicle", stepAttr: "0.1", min: "0" }, // spans 1 col by default
-      { label: "Weight Unit", name: "vehicleCapacityUnit", type: "text", step: "vehicle", help: "Choose kg or t" },       // spans 1 col by default
+      {
+        label: "Vehicle Weight Capacity",
+        name: "vehicleCapacityValue",
+        type: "number",
+        step: "vehicle",
+        stepAttr: "0.1",
+        min: "0",
+      },
+      {
+        label: "Weight Unit",
+        name: "vehicleCapacityUnit",
+        type: "text",
+        step: "vehicle",
+        help: "Choose kg or t",
+      },
 
       // hidden computed (still hidden)
-      { label: "Capacity (kg, computed)", name: "vehicleCapacityKg", type: "number", step: "vehicle", colSpan: { base: 0 } },
+      {
+        label: "Capacity (kg, computed)",
+        name: "vehicleCapacityKg",
+        type: "number",
+        step: "vehicle",
+        colSpan: { base: 0 },
+      },
 
-      { label: "License Type", type: "text", step: "driver" },
-      { label: "Driver License Number", type: "text", step: "driver" },
+      { label: "License Type",          name: "licenseType",   type: "text", step: "driver" },
+      { label: "Driver License Number", name: "licenseNumber", type: "text", step: "driver" },
 
-      { label: "Refrigerated", type: "checkbox", step: "features" },
+      { label: "Refrigerated", name: "refrigerated", type: "checkbox", step: "features" },
 
-      { label: "Vehicle Registration Number", type: "text", pattern: "[0-9]+", step: "compliance" },
-      { label: "Vehicle Insurance", type: "checkbox", step: "compliance" },
+      {
+        label: "Vehicle Registration Number",
+        name: "vehicleRegistrationNumber",
+        type: "text",
+        pattern: "[0-9]+",
+        step: "compliance",
+      },
+      {
+        label: "Vehicle Insurance",
+        name: "vehicleInsurance",
+        type: "checkbox",
+        step: "compliance",
+      },
     ],
   },
+
 
   {
     name: "farmer",

@@ -66,7 +66,7 @@ function ItemsGridBase({
   onAdd,
   allItemsForRelated,
   minCardHeight = "280px",
-  columns = { base: 2, md: 3, lg: 5 },
+  columns = { base: 2, md: 3, lg: 4, xl:5 },
   gutter = "4",
 }: ItemsGridProps) {
   const renderSkeletons = isLoading;

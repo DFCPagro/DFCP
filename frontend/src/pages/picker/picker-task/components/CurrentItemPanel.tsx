@@ -9,6 +9,7 @@ import {
   Input,
   Text,
   VStack,
+  Box,
 } from "@chakra-ui/react"
 import { type PlanPiece } from "@/api/pickerTask"
 
@@ -87,101 +88,152 @@ export default function CurrentItemPanel({
   const loc = getLocation(cur.itemId)
 
   return (
-    <Card.Root borderWidth="1px" borderRadius="2xl">
-      <Card.Header>
-        <HStack justify="space-between" w="full">
-          <HStack gap={3}>
-            <Text as="h2" fontSize="lg" fontWeight="semibold">
-              {curName}
-            </Text>
-            <Badge size="lg" variant="outline">{`Box #${selectedBoxNo} size #${SizeStrip}`}</Badge>
-          </HStack>
+        <Card.Root borderWidth="1px" borderRadius="2xl">
+  <Card.Header>
+    <HStack justify="space-between" w="full">
+      <HStack gap={3}>
+        <Text as="h2" fontSize="lg" fontWeight="semibold">
+          {curName}
+        </Text>
+        <Badge size="lg" variant="outline">{`Box #${selectedBoxNo} size #${SizeStrip}`}</Badge>
+      </HStack>
+    </HStack>
+  </Card.Header>
+
+  <Card.Body>
+    <Grid
+      templateColumns={{ base: "1fr", md: "auto 1fr" }}
+      gap={6}
+      alignItems="start"
+    >
+      {/* LEFT COLUMN: image (left) + location (right) */}
+      <HStack align="flex-start" gap={4} w="full">
+        <Image
+          src={curImg}
+          alt={curName}
+          borderRadius="lg"
+          maxH="250px"
+          objectFit="contain"
+        />
+
+        <VStack align="flex-start" gap={3} minW="160px">
+          <Text
+            fontSize="sm"
+            fontWeight="semibold"
+            textTransform="uppercase"
+            letterSpacing="wide"
+            color="fg.muted"
+          >
+            Location
+          </Text>
+
+          <Badge
+            variant="solid"
+            colorPalette="teal"
+            px={4}
+            py={2}
+            borderRadius="full"
+            fontSize="lg"
+          >
+            Zone {loc.zone}
+          </Badge>
+
+          <Badge
+            variant="solid"
+            colorPalette="teal"
+            px={4}
+            py={2}
+            borderRadius="full"
+            fontSize="lg"
+          >
+            Shelf {loc.shelf}
+          </Badge>
+
+          <Badge
+            variant="solid"
+            colorPalette="teal"
+            px={4}
+            py={2}
+            borderRadius="full"
+            fontSize="lg"
+          >
+            Bin {loc.bin}
+          </Badge>
+        </VStack>
+      </HStack>
+
+      {/* RIGHT COLUMN: details, input, buttons */}
+      <VStack align="stretch" gap={5}>
+        <HStack gap={6} flexWrap="wrap">
+          <Badge size="lg" variant="surface" colorPalette="purple">
+            Piece: {cur.pieceType}
+          </Badge>
+          <Badge size="lg" variant="surface" colorPalette="teal">
+            Mode: {cur.mode}
+          </Badge>
+          {cur.qtyKg != null && (
+            <Badge size="lg" variant="surface" colorPalette="purple">
+              Required kg: {cur.qtyKg}
+            </Badge>
+          )}
         </HStack>
-      </Card.Header>
 
-      <Card.Body>
-        <Grid templateColumns={{ base: "1fr", md: "1fr 1fr" }} gap={6} alignItems="start">
-          {/* Left: image */}
-          <Image src={curImg} alt={curName} borderRadius="lg" maxH="250px" objectFit="contain" />
+        {arrivalConfirmed && (
+          <VStack align="stretch" gap={2}>
+            <Text fontSize="md" fontWeight="semibold">
+              Units: {Math.round((cur.units ?? 0) * 100) / 100}
+            </Text>
+            <Text fontWeight="semibold">Enter measured weight</Text>
 
-          {/* Right: details, input, buttons */}
-          <VStack align="stretch" gap={5}>
-            <HStack gap={3}>
-              <Badge variant="surface" size="lg">Zone {loc.zone}</Badge>
-              <Badge variant="surface" size="lg">Shelf {loc.shelf}</Badge>
-              <Badge variant="surface" size="lg">Bin {loc.bin}</Badge>
+            <HStack gap={3} maxW="sm">
+              <Input
+                inputMode="decimal"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={weightInput}
+                onChange={(e) => setWeightInput(e.target.value)}
+                aria-label="Actual weight in kilograms"
+              />
+              <Text>kg</Text>
             </HStack>
-
-            <HStack gap={6} flexWrap="wrap">
-              <Badge size="lg" variant="surface" colorPalette="purple">
-                Piece: {cur.pieceType}
-              </Badge>
-              <Badge size="lg" variant="surface" colorPalette="teal">
-                Mode: {cur.mode}
-              </Badge>
-              {cur.qtyKg != null && (
-                <Badge size="lg" variant="surface" colorPalette="purple">
-                  Required kg: {cur.qtyKg}
-                </Badge>
-              )}
-            </HStack>
-
-            {/* Inputs appear only AFTER arrival is confirmed */}
-            {arrivalConfirmed && (
-              <VStack align="stretch" gap={2}>
-                <Text fontSize="md" fontWeight="semibold">
-                  Units: {Math.round((cur.units ?? 0) * 100) / 100}
-                </Text>
-                <Text fontWeight="semibold">Enter measured weight </Text>
-
-                <HStack gap={3} maxW="sm">
-                  <Input
-                    inputMode="decimal"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    value={weightInput}
-                    onChange={(e) => setWeightInput(e.target.value)}
-                    aria-label="Actual weight in kilograms"
-                  />
-                  <Text>kg</Text>
-                </HStack>
-                <Text color="fg.muted" fontSize="sm">
-                  KG: {Math.round((cur.estWeightKgPiece ?? 0) * 10) / 10} Units: {Math.round((cur.units ?? 0) * 100) / 100}
-                </Text>
-              </VStack>
-            )}
-
-            {/* Right column buttons */}
-            <HStack gap={3} minH="100px">
-              {!arrivalConfirmed && (
-                <Button
-                  alignSelf="flex-start"
-                  size="lg"
-                  variant="solid"
-                  colorPalette="blue"
-                  onClick={onConfirmArrival}
-                  borderRadius="full"
-                >
-                  Confirm arrival
-                </Button>
-              )}
-              {arrivalConfirmed && (
-                <Button
-                  size="lg"
-                  colorPalette="teal"
-                  onClick={onContinue}
-                  disabled={!isKgValid}
-                  borderRadius="full"
-                >
-                  Confirm & Continue
-                </Button>
-              )}
-            </HStack>
+            <Text color="fg.muted" fontSize="sm">
+              KG: {Math.round((cur.estWeightKgPiece ?? 0) * 10) / 10} Units:{" "}
+              {Math.round((cur.units ?? 0) * 100) / 100}
+            </Text>
           </VStack>
-        </Grid>
-      </Card.Body>
-    </Card.Root>
+        )}
+
+        <HStack gap={3} minH="100px">
+          {!arrivalConfirmed && (
+            <Button
+              alignSelf="flex-start"
+              size="lg"
+              variant="solid"
+              colorPalette="blue"
+              onClick={onConfirmArrival}
+              borderRadius="full"
+            >
+              Confirm arrival
+            </Button>
+          )}
+          {arrivalConfirmed && (
+            <Button
+              size="lg"
+              colorPalette="teal"
+              onClick={onContinue}
+              disabled={!isKgValid}
+              borderRadius="full"
+            >
+              Confirm & Continue
+            </Button>
+          )}
+        </HStack>
+      </VStack>
+    </Grid>
+  </Card.Body>
+</Card.Root>
+
   )
 }

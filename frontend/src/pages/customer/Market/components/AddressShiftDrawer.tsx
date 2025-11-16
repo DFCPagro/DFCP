@@ -480,7 +480,20 @@ export default function AddressShiftDrawer({
       </Dialog.Root>
 
       {/* Map Picker for adding new address */}
-      <MapPickerDialog open={mapOpen} onClose={closeMap} onConfirm={handleMapPicked} />
+<MapPickerDialog
+  open={mapOpen}
+  onClose={closeMap}
+  onConfirm={handleMapPicked}
+  countries="IL"
+  pointMarkerLabel="A"
+  pointMarkerTitle="New Address"
+  initial={{
+    lat: 32.726884,
+    lng: 35.215722,
+    address: "Zarzir, Israel",
+  }}
+/>
+
     </>
   )
 }
