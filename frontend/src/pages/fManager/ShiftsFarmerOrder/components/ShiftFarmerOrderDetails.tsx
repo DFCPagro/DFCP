@@ -491,14 +491,14 @@ function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
                     <StatusBadge status={vm.overall.inspection || undefined} />
                 </HStack>
                 <Separator orientation="vertical" />
-                <HStack gap={2}>
+                {/* <HStack gap={2}>
                     <Text color="fg.subtle">Farmer :</Text>
                     <Code>{fmtDate(vm.meta.farmerAt as any)}</Code>
                 </HStack>
                 <HStack gap={2}>
                     <Text color="fg.subtle">Inspection at :</Text>
                     <Code>{fmtDate(vm.meta.inspectionAt as any)}</Code>
-                </HStack>
+                </HStack> */}
             </HStack>
 
             {/* Values comparison table */}
@@ -509,7 +509,7 @@ function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
                             <Table.ColumnHeader minW="200px">Metric</Table.ColumnHeader>
                             <Table.ColumnHeader>Farmer</Table.ColumnHeader>
                             <Table.ColumnHeader>Inspection</Table.ColumnHeader>
-                            <Table.ColumnHeader>Grades</Table.ColumnHeader>
+                            {/* <Table.ColumnHeader>Grades</Table.ColumnHeader> */}
                         </Table.Row>
                     </Table.Header>
                     <Table.Body>
@@ -532,12 +532,12 @@ function QSCompareSection({ row }: { row: ShiftFarmerOrderItem }) {
                                         <Text>{String(r.inspection)}</Text>
                                     )}
                                 </Table.Cell>
-                                <Table.Cell>
+                                {/* <Table.Cell>
                                     <HStack gap={2}>
                                         <Badge variant="subtle">F: {r.farmerGrade || "—"}</Badge>
                                         <Badge variant="subtle">I: {r.inspectionGrade || "—"}</Badge>
                                     </HStack>
-                                </Table.Cell>
+                                </Table.Cell> */}
                             </Table.Row>
                         ))}
                     </Table.Body>
