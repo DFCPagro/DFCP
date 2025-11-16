@@ -1,7 +1,10 @@
 // src/services/farmerOrder.service.ts
 import crypto from "node:crypto";
 import mongoose, { Types } from "mongoose";
-import { normalizeAndEnrichAuditEntries, type AuditEvent } from "../utils/audit.utils";
+import {
+  normalizeAndEnrichAuditEntries,
+  type AuditEvent,
+} from "../utils/audit.utils";
 
 import { FarmerOrder } from "../models/farmerOrder.model";
 import { Item } from "../models/Item.model";
@@ -10,7 +13,11 @@ import ShiftConfig from "../models/shiftConfig.model";
 import QRModel from "../models/QRModel.model";
 
 import { DateTime } from "luxon";
-import { getCurrentShift, getNextAvailableShifts, getShiftConfigByKey } from "./shiftConfig.service";
+import {
+  getCurrentShift,
+  getNextAvailableShifts,
+  getShiftConfigByKey,
+} from "./shiftConfig.service";
 
 import {
   addItemToAvailableMarketStock,
@@ -49,7 +56,10 @@ export type FarmerOrderDTO = {
   audit?: AuditEvent[]; // normalized + enriched for FE
 };
 
-async function shapeFarmerOrderDTO(raw: any, opts?: { includeAudit?: boolean }): Promise<FarmerOrderDTO> {
+async function shapeFarmerOrderDTO(
+  raw: any,
+  opts?: { includeAudit?: boolean }
+): Promise<FarmerOrderDTO> {
   const includeAudit = !!opts?.includeAudit;
 
   const id = String(raw._id ?? raw.id);
@@ -61,7 +71,9 @@ async function shapeFarmerOrderDTO(raw: any, opts?: { includeAudit?: boolean }):
       (raw.audit as any[]) ??
       (raw.auditTrail as any[]) ??
       [];
-    dto.audit = await normalizeAndEnrichAuditEntries(Array.isArray(rawTrail) ? rawTrail : []);
+    dto.audit = await normalizeAndEnrichAuditEntries(
+      Array.isArray(rawTrail) ? rawTrail : []
+    );
     // If you want to hide raw trail from FE:
     // delete dto.historyAuditTrail;
   }
@@ -80,13 +92,19 @@ type FarmerApprovalStatus = (typeof FARMER_APPROVAL_STATUSES)[number];
 
 const STATIC_LC_ID = "66e007000000000000000001";
 
-const isObjectId = (v: unknown) => typeof v === "string" && mongoose.isValidObjectId(v);
+const isObjectId = (v: unknown) =>
+  typeof v === "string" && mongoose.isValidObjectId(v);
 const toOID = (v: string | Types.ObjectId) =>
   v instanceof Types.ObjectId ? v : new Types.ObjectId(String(v));
-const isYMD = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const isYMD = (s: unknown) =>
+  typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const nonEmpty = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
-type UserCtx = { userId: Types.ObjectId; role: string; LogisticCenterId?: Types.ObjectId };
+type UserCtx = {
+  userId: Types.ObjectId;
+  role: string;
+  LogisticCenterId?: Types.ObjectId;
+};
 export type ContactInfo = {
   name: string;
   email: string;
@@ -106,13 +124,17 @@ async function resolveFarmLogo(farmerId: string, payloadLogo?: string | null) {
   try {
     const farmerDoc = await Farmer.findById(farmerId, { farmLogo: 1 }).lean();
     if (farmerDoc?.farmLogo) return farmerDoc.farmLogo;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // try contact info service
   try {
     const ci = await getContactInfoByIdService(String(farmerId));
     if (ci?.farmLogo) return ci.farmLogo;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return null;
 }
@@ -131,7 +153,7 @@ export interface CreateFarmerOrderPayload {
   farmerId?: string;
   farmerName?: string;
   farmName?: string;
-  farmLogo?: string
+  farmLogo?: string;
 
   shift?: Shift;
   pickUpDate?: string; // "YYYY-MM-DD"
@@ -151,7 +173,9 @@ async function computePickUpTimeISO(args: {
   const startMin = cfg.generalStartMin ?? 0;
   const pickupMin = startMin + 90;
 
-  const base = DateTime.fromFormat(pickUpDate, "yyyy-LL-dd", { zone: tz }).startOf("day");
+  const base = DateTime.fromFormat(pickUpDate, "yyyy-LL-dd", {
+    zone: tz,
+  }).startOf("day");
   const dt = base.plus({ minutes: pickupMin });
   return dt.toJSDate();
 }
@@ -195,7 +219,10 @@ async function autoOkOrdersForShiftViaService(opts: {
   }
 }
 
-export async function createFarmerOrderService(payload: CreateFarmerOrderPayload, user: AuthUser) {
+export async function createFarmerOrderService(
+  payload: CreateFarmerOrderPayload,
+  user: AuthUser
+) {
   if (!["fManager", "admin"].includes(user.role)) {
     const e: any = new Error("Forbidden");
     e.name = "Forbidden";
@@ -237,11 +264,16 @@ export async function createFarmerOrderService(payload: CreateFarmerOrderPayload
   }
 
   const pickUpTime: Date = await computePickUpTimeISO({
-    logisticCenterId: user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID,
+    logisticCenterId: user.logisticCenterId
+      ? String(user.logisticCenterId)
+      : STATIC_LC_ID,
     shift: payload.shift as "morning" | "afternoon" | "evening" | "night",
     pickUpDate: payload.pickUpDate!,
   });
-  const farmLogo = await resolveFarmLogo(String(payload.farmerId!), payload.farmLogo ?? null); // <-- await
+  const farmLogo = await resolveFarmLogo(
+    String(payload.farmerId!),
+    payload.farmLogo ?? null
+  ); // <-- await
 
   const session = await mongoose.startSession();
   try {
@@ -267,7 +299,9 @@ export async function createFarmerOrderService(payload: CreateFarmerOrderPayload
         shift: payload.shift,
         pickUpDate: payload.pickUpDate,
         pickUpTime: pickUpTime,
-        logisticCenterId: toOID(user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID),
+        logisticCenterId: toOID(
+          user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID
+        ),
 
         farmerStatus: "pending",
         sumOrderedQuantityKg:
@@ -306,7 +340,9 @@ export async function createFarmerOrderService(payload: CreateFarmerOrderPayload
     });
 
     await autoOkOrdersForShiftViaService({
-      lcId: toOID(user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID),
+      lcId: toOID(
+        user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID
+      ),
       date: payload.pickUpDate!,
       shift: payload.shift as "morning" | "afternoon" | "evening" | "night",
       excludedFarmerIds: EXCLUDED_FARMER_IDS,
@@ -403,11 +439,15 @@ export async function initContainersForFarmerOrderService(args: {
       containerOpsId: null,
       orderId: null,
       packageId: null,
-      logisticsCenterId: fo.logisticCenterId ? String(fo.logisticCenterId) : null,
+      logisticsCenterId: fo.logisticCenterId
+        ? String(fo.logisticCenterId)
+        : null,
       shelfId: null,
       pickTaskId: null,
       shift: fo.shift || null,
-      deliveryDate: fo.pickUpDate ? new Date(`${fo.pickUpDate}T00:00:00Z`) : null,
+      deliveryDate: fo.pickUpDate
+        ? new Date(`${fo.pickUpDate}T00:00:00Z`)
+        : null,
     };
 
     const newContainers: any[] = [];
@@ -461,7 +501,12 @@ export async function initContainersForFarmerOrderService(args: {
     }
 
     fo.updatedBy = args.user.userId;
-    fo.addAudit(args.user.userId, "CONTAINERS_INIT", `+${newContainers.length} containers`, {});
+    fo.addAudit(
+      args.user.userId,
+      "CONTAINERS_INIT",
+      `+${newContainers.length} containers`,
+      {}
+    );
     await fo.save({ session });
 
     if (qrDocsToInsert.length > 0) {
@@ -469,7 +514,11 @@ export async function initContainersForFarmerOrderService(args: {
     }
 
     await session.commitTransaction();
-    return { ok: true, added: newContainers.length, containerIds: newContainers.map((c) => c.containerId) };
+    return {
+      ok: true,
+      added: newContainers.length,
+      containerIds: newContainers.map((c) => c.containerId),
+    };
   } catch (e) {
     await session.abortTransaction();
     throw e;
@@ -526,7 +575,9 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
   order.farmerStatus = status;
 
   if (status === "ok") {
-    order.markStageOk("farmerAck", order.updatedBy as any, { note: note ?? "" });
+    order.markStageOk("farmerAck", order.updatedBy as any, {
+      note: note ?? "",
+    });
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
       newStatus: "ok",
       byRole: role,
@@ -540,7 +591,9 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       throw e;
     }
 
-    const pricePerUnit = Number(itemDoc?.price?.a ?? (itemDoc as any)?.priceA ?? itemDoc?.price?.kg ?? NaN);
+    const pricePerUnit = Number(
+      itemDoc?.price?.a ?? (itemDoc as any)?.priceA ?? itemDoc?.price?.kg ?? NaN
+    );
     if (!Number.isFinite(pricePerUnit) || pricePerUnit < 0) {
       const e: any = new Error("BadRequest");
       e.name = "BadRequest";
@@ -550,7 +603,9 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
 
     let farmLogo: string | undefined;
     try {
-      const farmerDoc = await Farmer.findById(order.farmerId, { farmLogo: 1 }).lean();
+      const farmerDoc = await Farmer.findById(order.farmerId, {
+        farmLogo: 1,
+      }).lean();
       farmLogo = farmerDoc?.farmLogo ?? (order as any)?.farmLogo ?? undefined;
     } catch {
       farmLogo = (order as any)?.farmLogo ?? undefined;
@@ -577,7 +632,9 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
       (itemDoc?.variety
         ? `${itemDoc?.type ?? ""} ${itemDoc.variety}`.trim()
         : itemDoc?.type) ||
-      (order.variety ? `${order.type ?? ""} ${order.variety}`.trim() : order.type) ||
+      (order.variety
+        ? `${order.type ?? ""} ${order.variety}`.trim()
+        : order.type) ||
       "Unknown Item";
 
     const category = (itemDoc as any)?.category ?? "unknown";
@@ -641,9 +698,14 @@ export async function updateFarmerStatusService(args: UpdateFarmerStatusArgs) {
     if (note) st.note = note;
 
     order.stageKey = "farmerAck";
-    order.addAudit(order.updatedBy as any, "PIPELINE_HALT", note ?? "Farmer reported problem", {
-      byRole: role,
-    });
+    order.addAudit(
+      order.updatedBy as any,
+      "PIPELINE_HALT",
+      note ?? "Farmer reported problem",
+      {
+        byRole: role,
+      }
+    );
     order.addAudit(order.updatedBy as any, "FARMER_STATUS_UPDATE", note ?? "", {
       newStatus: "problem",
       byRole: role,
@@ -689,12 +751,15 @@ export async function addOrderIdToFarmerOrder(
   const fo = await query;
   if (!fo) throw new ApiError(404, "FarmerOrder not found");
 
-  fo.linkOrder(orderOID, allocatedQuantityKg == null ? null : Number(allocatedQuantityKg));
+  fo.linkOrder(
+    orderOID,
+    allocatedQuantityKg == null ? null : Number(allocatedQuantityKg)
+  );
   fo.updatedAt = new Date();
 
   await fo.save({ session: opts?.session });
   // lightweight: no audit enrichment by default
-  return (fo.toJSON() as any) as FarmerOrderDTO;
+  return fo.toJSON() as any as FarmerOrderDTO;
 }
 
 /* =============================
@@ -734,7 +799,7 @@ export async function adjustFarmerOrderAllocatedKg(
 
   await fo.save({ session: opts?.session });
   // lightweight: no audit enrichment by default
-  return (fo.toJSON() as any) as FarmerOrderDTO;
+  return fo.toJSON() as any as FarmerOrderDTO;
 }
 
 /* =============================
@@ -763,17 +828,26 @@ type FOSummaryEntry = {
 export async function farmerOrdersSummary(params: FOSummaryParams) {
   const { logisticCenterId, count = 5 } = params;
 
-  const anyCfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
+  const anyCfg = await ShiftConfig.findOne(
+    { logisticCenterId },
+    { timezone: 1 }
+  )
     .lean<{ timezone?: string }>()
     .exec();
-  if (!anyCfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  if (!anyCfg)
+    throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = anyCfg.timezone || "Asia/Jerusalem";
 
   const currentShiftName = await getCurrentShift();
   const nextShifts = await getNextAvailableShifts({ logisticCenterId, count });
 
   const summarize = (
-    docs: Array<{ stageKey?: string; stages?: any[]; farmerStatus?: string; farmerId?: any }>
+    docs: Array<{
+      stageKey?: string;
+      stages?: any[];
+      farmerStatus?: string;
+      farmerId?: any;
+    }>
   ) => {
     const countAll = docs.length;
     const problemDocs = docs.filter((d) => isFarmerOrderProblem(d));
@@ -787,7 +861,8 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
     const pendingFO = pendingDocs.length;
     const problemFO = legacyProblemDocs.length;
 
-    const uniq = (arr: any[]) => Array.from(new Set(arr.map((v) => String(v)))).length;
+    const uniq = (arr: any[]) =>
+      Array.from(new Set(arr.map((v) => String(v)))).length;
 
     return {
       count: countAll,
@@ -816,7 +891,11 @@ export async function farmerOrdersSummary(params: FOSummaryParams) {
           .exec();
 
         const base = summarize(docs);
-        return { date: s.date, shiftName: s.name as ShiftName, ...base } as FOSummaryEntry;
+        return {
+          date: s.date,
+          shiftName: s.name as ShiftName,
+          ...base,
+        } as FOSummaryEntry;
       })
     );
 
@@ -880,13 +959,11 @@ export async function listFarmerOrdersForShift(
     includeAudit = false, // NEW default false
   } = params;
 
-  const cfg = await ShiftConfig.findOne(
-    { logisticCenterId },
-    { timezone: 1 }
-  )
+  const cfg = await ShiftConfig.findOne({ logisticCenterId }, { timezone: 1 })
     .lean()
     .exec();
-  if (!cfg) throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
+  if (!cfg)
+    throw new Error(`No ShiftConfig found for lc='${logisticCenterId}'`);
   const tz = cfg.timezone || "Asia/Jerusalem";
 
   const q: any = {
@@ -936,15 +1013,14 @@ export async function listFarmerOrdersForShift(
     // category will be added via populate+flatten below
   };
 
-  const projection =
-    forFarmerView
-      ? farmerProjection
-      : Array.isArray(fields) && fields.length
-      ? (fields.reduce(
-          (acc, f) => ((acc[f] = 1), acc),
-          {} as Record<string, 1>
-        ) as any)
-      : undefined;
+  const projection = forFarmerView
+    ? farmerProjection
+    : Array.isArray(fields) && fields.length
+    ? (fields.reduce(
+        (acc, f) => ((acc[f] = 1), acc),
+        {} as Record<string, 1>
+      ) as any)
+    : undefined;
 
   const safeLimit = Math.max(1, limit);
   const safePage = Math.max(1, page);
@@ -967,7 +1043,9 @@ export async function listFarmerOrdersForShift(
     FarmerOrder.find(q, { _id: 1, stageKey: 1, stages: 1 }).lean().exec(),
   ]);
 
-  const problemCount = allForWindow.filter((fo) => isFarmerOrderProblem(fo)).length;
+  const problemCount = allForWindow.filter((fo) =>
+    isFarmerOrderProblem(fo)
+  ).length;
 
   // Flatten item.category -> doc.category, and normalize itemId back to ObjectId if you prefer
   const docs = (rawDocs as any[]).map((d) => ({
@@ -976,6 +1054,15 @@ export async function listFarmerOrdersForShift(
     itemId: d?.itemId?._id ?? d.itemId, // keep as ObjectId value (not populated object)
   }));
 
+  console.log(
+    "[listFarmerOrdersForShift] sample docs:",
+    docs.slice(0, 9).map((d) => ({
+      _id: d._id,
+      itemId: d.itemId,
+      type: d.type,
+      variety: d.variety,
+    }))
+  );
   // Farmer view: keep current mapping (fast), but provide itemCategory from flattened category
   if (forFarmerView) {
     const itemsBase = docs.map((d: any) => ({
@@ -1029,7 +1116,10 @@ export async function listFarmerOrdersForShift(
       itemsBase.map(async (x, idx) => {
         const raw = rawDocs[idx] as any; // use raw to pull audit from selection if present
         const audit = await normalizeAndEnrichAuditEntries(
-          (raw?.historyAuditTrail ?? raw?.audit ?? raw?.auditTrail ?? []) as any[]
+          (raw?.historyAuditTrail ??
+            raw?.audit ??
+            raw?.auditTrail ??
+            []) as any[]
         );
         return { ...x, audit };
       })
@@ -1096,7 +1186,6 @@ export async function listFarmerOrdersForShift(
   };
 }
 
-
 /* =============================
  * LIST my FOs (farmer or admin/fManager)
  * ============================= */
@@ -1146,7 +1235,10 @@ export async function listMyFarmerOrdersService(
   if (Array.isArray(opts?.filters?.fields) && opts.filters!.fields.length) {
     const base = new Set<string>(["_id", "pickUpDate", "shift"]);
     for (const f of opts.filters!.fields) base.add(f);
-    projection = Array.from(base).reduce((acc, f) => ((acc[f] = 1), acc), {} as Record<string, 1>);
+    projection = Array.from(base).reduce(
+      (acc, f) => ((acc[f] = 1), acc),
+      {} as Record<string, 1>
+    );
   }
 
   const branches = (SHIFTS as readonly string[]).map((name, idx) => ({

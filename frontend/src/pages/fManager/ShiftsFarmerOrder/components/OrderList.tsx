@@ -32,16 +32,56 @@ export type OrderListProps = {
   /** Optional override for group labels, given the group's rows */
   renderGroupTitle?: (groupRows: ShiftFarmerOrderItem[]) => React.ReactNode;
 };
+const debug = false as boolean;
 
 // (Use the fixed version; no expandedRowId state or row click handler)
 export const OrderList = memo(function OrderList({
   items,
   renderGroupTitle,
 }: OrderListProps) {
-  const groups = useMemo(() => groupByItemId(items), [items]);
+  const groups = useMemo(() => {
+
+    if (debug === true) {
+      // eslint-disable-next-line no-console
+      console.log("[OrderList] input items:", {
+        count: items?.length ?? 0,
+        sample: items?.slice(0, 5),
+      });
+    }
+
+    const g = groupByItemId(items);
+
+    if (debug === true) {
+      // eslint-disable-next-line no-console
+      console.log(
+        "[OrderList] groups created:",
+        Array.from(g.entries()).map(([itemId, rows]) => ({
+          itemId,
+          rowsCount: rows.length,
+          rowIds: rows.map((r: any) => r?._id),
+        })),
+      );
+    }
+
+    return g;
+  }, [items]);
 
   const sortedGroups = useMemo(() => {
-    return [...groups].sort((a, b) => {
+    const arr = [...groups];
+
+    if (debug === true) {
+      // eslint-disable-next-line no-console
+      console.log(
+        "[OrderList] groups BEFORE sort:",
+        arr.map(([itemId, rows]) => ({
+          itemId,
+          rowsCount: rows.length,
+          hasProblem: groupHasProblem(rows),
+        })),
+      );
+    }
+
+    arr.sort((a, b) => {
       const aHasProblem = groupHasProblem(a[1]);
       const bHasProblem = groupHasProblem(b[1]);
       if (aHasProblem && !bHasProblem) return -1;
@@ -50,9 +90,31 @@ export const OrderList = memo(function OrderList({
       const bLabel = computeGroupLabel(b[1]).toLowerCase();
       return aLabel.localeCompare(bLabel);
     });
+
+    if (debug === true) {
+      // eslint-disable-next-line no-console
+      console.log(
+        "[OrderList] groups AFTER sort:",
+        arr.map(([itemId, rows]) => ({
+          itemId,
+          rowsCount: rows.length,
+          hasProblem: groupHasProblem(rows),
+          label: computeGroupLabel(rows),
+        })),
+      );
+    }
+
+    return arr;
   }, [groups]);
 
   if (!items?.length) return null;
+
+  if (debug === true) {
+    // eslint-disable-next-line no-console
+    console.log("[OrderList] rendering sortedGroups:", {
+      groupCount: sortedGroups.length,
+    });
+  }
 
   return (
     <Stack gap={4}>
@@ -69,6 +131,17 @@ export const OrderList = memo(function OrderList({
             .trim()
             .slice(0, 2)
             .toUpperCase() || "??";
+
+        // eslint-disable-next-line no-console
+        if (debug === true) {
+          console.log("[OrderList] render group:", {
+            itemId,
+            title,
+            hasProblem,
+            rowsCount: rows.length,
+            sortedRowIds: sortedRows.map((r: any) => r?._id),
+          });
+        }
 
         return (
           <Box
@@ -131,8 +204,7 @@ export const OrderList = memo(function OrderList({
                   <OrderRow
                     key={
                       (row as any)._id ??
-                      `${(row as any).itemId ?? "item"}-${
-                        (row as any).farmerId ?? "farmer"
+                      `${(row as any).itemId ?? "item"}-${(row as any).farmerId ?? "farmer"
                       }`
                     }
                     row={row}
@@ -156,6 +228,19 @@ function groupByItemId(
   const m = new Map<string, ShiftFarmerOrderItem[]>();
   for (const it of items ?? []) {
     const key = (it as any)?.itemId ?? "unknown";
+    // eslint-disable-next-line no-console
+    if (debug === true) {
+      console.log("[OrderList] groupByItemId add:", {
+        itemId: key,
+        _id: (it as any)?._id,
+      });
+    }
+
+    if (key === "unknown") {
+      // eslint-disable-next-line no-console
+      console.warn("[OrderList] groupByItemId found item with missing itemId:", it);
+    }
+
     if (!m.has(key)) m.set(key, []);
     m.get(key)!.push(it);
   }
@@ -177,7 +262,7 @@ function toTime(s?: string | Date): number {
 function sortRowsProblemFirstThenUpdatedDesc(
   rows: ShiftFarmerOrderItem[],
 ): ShiftFarmerOrderItem[] {
-  return [...rows].sort((a, b) => {
+  const result = [...rows].sort((a, b) => {
     const aProblem =
       ((a as any)?.farmerStatus ?? (a as any)?.status) === "problem";
     const bProblem =
@@ -187,8 +272,19 @@ function sortRowsProblemFirstThenUpdatedDesc(
 
     const aTime = toTime((a as any)?.updatedAt) || toTime((a as any)?.createdAt);
     const bTime = toTime((b as any)?.updatedAt) || toTime((b as any)?.createdAt);
+
     return bTime - aTime; // desc (newest first)
   });
+
+  if (debug === true) {
+    console.log("[OrderList] sortRowsProblemFirstThenUpdatedDesc:", {
+      itemId: (rows[0] as any)?.itemId,
+      inputIds: rows.map((r: any) => r?._id),
+      outputIds: result.map((r: any) => r?._id),
+    });
+  }
+
+  return result;
 }
 
 /**

@@ -24,19 +24,20 @@ const fromEnum = <T extends readonly string[]>(
   allowed: T
 ): T[number] | undefined => {
   if (typeof v !== "string") return undefined;
-  return (allowed as readonly string[]).includes(v) ? (v as T[number]) : undefined;
+  return (allowed as readonly string[]).includes(v)
+    ? (v as T[number])
+    : undefined;
 };
 
 // enums for narrowing
 const FARMER_STATUSES = ["pending", "ok", "problem"] as const;
-type FarmerStatus = typeof FARMER_STATUSES[number];
+type FarmerStatus = (typeof FARMER_STATUSES)[number];
 
 const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
-type ShiftName = typeof SHIFTS[number];
+type ShiftName = (typeof SHIFTS)[number];
 
 const WINDOWS = ["future", "past", "all"] as const;
-type WindowOpt = typeof WINDOWS[number];
-
+type WindowOpt = (typeof WINDOWS)[number];
 
 /** POST /api/farmer-orders */
 export async function create(req: Request, res: Response) {
@@ -229,25 +230,26 @@ export async function getFarmerOrdersUpcoming(req: Request, res: Response) {
 
 export async function getFarmerOrdersForShift(req: Request, res: Response) {
   try {
-    const user = (req as any).user || {}
-    const role = user.role as string | undefined
-    const userId = (user.id || user._id) as string | undefined
+    const user = (req as any).user || {};
+    const role = user.role as string | undefined;
+    const userId = (user.id || user._id) as string | undefined;
 
-    const logisticCenterId =
-       user?.logisticCenterId || ""
+    const logisticCenterId = user?.logisticCenterId || "";
     if (!logisticCenterId)
-      return res.status(400).json({ message: "logisticCenterId is required" })
+      return res.status(400).json({ message: "logisticCenterId is required" });
 
-    const date = String(req.query.date || "")
-    const shiftName = String(req.query.shiftName || "")
+    const date = String(req.query.date || "");
+    const shiftName = String(req.query.shiftName || "");
     if (!date || !shiftName)
-      return res.status(400).json({ message: "date and shiftName are required" })
+      return res
+        .status(400)
+        .json({ message: "date and shiftName are required" });
 
-    const farmerStatus = req.query.farmerStatus as any
-    const page = parseInt(String(req.query.page ?? "1"), 10) || 1
-    const limit = parseInt(String(req.query.limit ?? "50"), 10) || 50
+    const farmerStatus = req.query.farmerStatus as any;
+    const page = parseInt(String(req.query.page ?? "1"), 10) || 1;
+    const limit = parseInt(String(req.query.limit ?? "50"), 10) || 50;
 
-    const isFarmer = role === "farmer"
+    const isFarmer = role === "farmer";
 
     const data = await listFarmerOrdersForShift({
       logisticCenterId,
@@ -258,12 +260,14 @@ export async function getFarmerOrdersForShift(req: Request, res: Response) {
       limit,
       farmerId: isFarmer ? userId : undefined,
       forFarmerView: isFarmer, // <- switches projection + mapping + normalization
-    })
+    });
 
-    return res.json(data)
+    // console.log("getFarmerOrdersForShift data:", data.items);
+
+    return res.json(data);
   } catch (err) {
-    console.error("getFarmerOrdersForShift error:", err)
-    return res.status(500).json({ error: "Internal server error" })
+    console.error("getFarmerOrdersForShift error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
 /**
@@ -284,9 +288,13 @@ export async function listMyOrders(req: Request, res: Response) {
 
     // role-aware LC selection
     const lcFromQuery = asString(req.query.lc);
-    const effectiveLC = isMgr ? (lcFromQuery || user.logisticCenterId) : user.logisticCenterId;
+    const effectiveLC = isMgr
+      ? lcFromQuery || user.logisticCenterId
+      : user.logisticCenterId;
     if (isMgr && !effectiveLC) {
-      return res.status(400).json({ error: "logisticCenterId (lc) is required for manager/admin" });
+      return res
+        .status(400)
+        .json({ error: "logisticCenterId (lc) is required for manager/admin" });
     }
 
     // window / dates
@@ -297,7 +305,10 @@ export async function listMyOrders(req: Request, res: Response) {
     // load tz from LC (if available)
     let tz = "Asia/Jerusalem";
     if (effectiveLC) {
-      const cfg = await ShiftConfig.findOne({ logisticCenterId: effectiveLC }, { timezone: 1 })
+      const cfg = await ShiftConfig.findOne(
+        { logisticCenterId: effectiveLC },
+        { timezone: 1 }
+      )
         .lean()
         .exec();
       tz = cfg?.timezone || tz;
@@ -309,12 +320,17 @@ export async function listMyOrders(req: Request, res: Response) {
     if (!from && !to) {
       if (window === "future") from = todayLocal;
       else if (window === "past")
-        to = DateTime.fromISO(todayLocal).minus({ days: 1 }).toFormat("yyyy-LL-dd");
+        to = DateTime.fromISO(todayLocal)
+          .minus({ days: 1 })
+          .toFormat("yyyy-LL-dd");
       // "all" => leave undefined
     }
 
     // other filters — NARROWED ✅
-    const farmerStatus: FarmerStatus | undefined = fromEnum(req.query.farmerStatus, FARMER_STATUSES);
+    const farmerStatus: FarmerStatus | undefined = fromEnum(
+      req.query.farmerStatus,
+      FARMER_STATUSES
+    );
     const shift: ShiftName | undefined = fromEnum(req.query.shift, SHIFTS);
     const itemId = asString(req.query.itemId);
 
@@ -349,7 +365,6 @@ export async function listMyOrders(req: Request, res: Response) {
       .json({ error: err?.message || "Internal server error" });
   }
 }
-
 
 /**
  * GET /api/farmer-orders/:id/print

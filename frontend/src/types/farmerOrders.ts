@@ -317,7 +317,7 @@ export const ShiftFarmerOrderItemSchema = z.object({
 
   // additional fields returned by the API (kept optional for now)
   farmerId: z.string().optional(),
-  itemId: z.string().optional(),
+  itemId: z.string(),
   logisticCenterId: z.string().optional(),
 
   shift: ShiftEnum.optional(),
