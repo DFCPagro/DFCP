@@ -58,7 +58,9 @@ export async function postNewAddress(req: Request, res: Response) {
   try {
     const userId = authId(req);
     console.log("postNewAddress body:", req.body);
-    const { lat, lng, address } = req.body ?? {};
+    const { lnt, alt, address } = req.body ?? {};
+    const lat = parseFloat(lnt);
+    const lng = parseFloat(alt);
     const data = await addUserAddress(userId, { lat, lng, address });
 
     // NOTE: For now logisticCenterId is always set to DEFAULT_LC_ID inside the service.
