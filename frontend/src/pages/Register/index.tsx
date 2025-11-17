@@ -33,6 +33,34 @@ import { isAtLeast16, isValidEmail, isValidName } from "@/validations/registrati
 
 type FormWithoutAddress = Omit<RegisterPayload, "address">;
 
+const HelperBadge = ({ text }: { text: string }) => (
+  <Tooltip content={text} openDelay={80}>
+    <IconButton
+      aria-label={text}
+      size="xs"
+      variant="ghost"
+      ml="2"
+      minW="18px"
+      h="18px"
+      borderRadius="full"
+      border="1px solid"
+      borderColor="gray.300"
+      bg="gray.50"
+      color="gray.600"
+      fontSize="xs"
+      fontWeight="bold"
+      lineHeight="1"
+      display="inline-flex"
+      alignItems="center"
+      justifyContent="center"
+      cursor="help"
+      padding="0"
+    >
+      ?
+    </IconButton>
+  </Tooltip>
+);
+
 export default function Register() {
   const navigate = useNavigate();
 
@@ -72,11 +100,7 @@ export default function Register() {
     >
   >({});
 
-  const { mutate, isPending } = useMutation<
-    RegisterResponse,
-    any,
-    RegisterPayload
-  >({
+  const { mutate, isPending } = useMutation<RegisterResponse, any, RegisterPayload>({
     mutationFn: (payload) => registerApi(payload),
     onSuccess: () => {
       toaster.create({
@@ -172,7 +196,7 @@ export default function Register() {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 10000,
-        })
+        }),
       );
 
       const lat = pos.coords.latitude;
@@ -183,7 +207,7 @@ export default function Register() {
       try {
         const addr = await reverseGeocode(lat, lng);
         if (addr) setAddressText(addr);
-      } catch {}
+      } catch { }
 
       toaster.create({ type: "success", title: "Location detected" });
       clearErrorIfValid("address", true);
@@ -212,7 +236,7 @@ export default function Register() {
       isBirthdayValid &&
       isAddressValid &&
       agreeTerms,
-    [form, isConfirmValid, isPhoneValid, isBirthdayValid, isAddressValid, agreeTerms]
+    [form, isConfirmValid, isPhoneValid, isBirthdayValid, isAddressValid, agreeTerms],
   );
 
   const submit = (e: React.FormEvent) => {
@@ -275,7 +299,7 @@ export default function Register() {
 
   return (
     <Box h="92vh" overflow="hidden" bg="#4a6f1eff">
-      <CGrid templateColumns="repeat(2, 1fr)" h="80%" w="100%" placeItems="stretch" gap="0">
+      <CGrid templateColumns="repeat(2, 1fr)" h="80%" w="100%" placeItems="stretch" gap="5">
         {/* Left: Form column */}
         <Box
           mx="auto"
@@ -291,19 +315,17 @@ export default function Register() {
         >
           {/* Scrollable content: form only */}
           <Box flex="1" minH="0" overflow="auto" pr="1">
-            <VStack
-              as="form"
-              gap={1}
-              onSubmit={submit}
-              w="100%"
-              align="stretch"
-            >
-              <Heading size="lg" alignSelf={"center"}>Register</Heading>
+            <VStack as="form" gap={3} onSubmit={submit} w="100%" align="stretch" >
+              <Heading size="lg" alignSelf={"center"}>
+                Register
+              </Heading>
 
+              {/* Name */}
               <Field.Root invalid={!!errors.name} required>
                 <Flex align="center" gap={1} w="100%">
-                  <Field.Label mb="0" fontSize="sm">
+                  <Field.Label mb="0" fontSize="sm" display="inline-flex" alignItems="center">
                     Name <Field.RequiredIndicator />
+                    <HelperBadge text="Letters and spaces only." />
                   </Field.Label>
                   <Input
                     value={form.name}
@@ -318,19 +340,17 @@ export default function Register() {
                     size="sm"
                   />
                 </Flex>
-                {errors.name ? (
+                {errors.name && (
                   <Field.ErrorText fontSize="xs">{errors.name}</Field.ErrorText>
-                ) : (
-                  <Field.HelperText fontSize="xs">
-                    Letters and spaces only.
-                  </Field.HelperText>
                 )}
               </Field.Root>
 
+              {/* Email */}
               <Field.Root invalid={!!errors.email} required>
                 <Flex align="center" gap={2} w="100%">
-                  <Field.Label fontSize="sm">
+                  <Field.Label fontSize="sm" display="inline-flex" alignItems="center">
                     Email <Field.RequiredIndicator />
+                    <HelperBadge text="We’ll send a confirmation email." />
                   </Field.Label>
                   <Input
                     type="email"
@@ -347,19 +367,17 @@ export default function Register() {
                     size="sm"
                   />
                 </Flex>
-                {errors.email ? (
+                {errors.email && (
                   <Field.ErrorText fontSize="xs">{errors.email}</Field.ErrorText>
-                ) : (
-                  <Field.HelperText fontSize="xs">
-                    We’ll send a confirmation email.
-                  </Field.HelperText>
                 )}
               </Field.Root>
 
+              {/* Password */}
               <Field.Root invalid={!!errors.password} required>
                 <Flex align="center" gap={3} w="100%">
-                  <Field.Label fontSize="sm">
+                  <Field.Label fontSize="sm" display="inline-flex" alignItems="center">
                     Password <Field.RequiredIndicator />
+                    <HelperBadge text="Use a strong password, at least 8 characters." />
                   </Field.Label>
                   <Box position="relative" w="100%">
                     <Input
@@ -389,19 +407,23 @@ export default function Register() {
                     </IconButton>
                   </Box>
                 </Flex>
-                {errors.password ? (
+                {errors.password && (
                   <Field.ErrorText fontSize="xs">{errors.password}</Field.ErrorText>
-                ) : (
-                  <Field.HelperText fontSize="xs">
-                    Use a strong password you don’t reuse elsewhere.
-                  </Field.HelperText>
                 )}
               </Field.Root>
 
+              {/* Confirm password */}
               <Field.Root invalid={!!errors.confirmPassword} required>
                 <Flex align="center" gap={3} w="100%">
-                  <Field.Label fontSize="sm" mb="0" whiteSpace="nowrap">
+                  <Field.Label
+                    fontSize="sm"
+                    mb="0"
+                    whiteSpace="nowrap"
+                    display="inline-flex"
+                    alignItems="center"
+                  >
                     Confirm password <Field.RequiredIndicator />
+                    <HelperBadge text="Must match the password above." />
                   </Field.Label>
                   <Box position="relative" w="100%">
                     <Input
@@ -431,17 +453,14 @@ export default function Register() {
                     </IconButton>
                   </Box>
                 </Flex>
-                {errors.confirmPassword ? (
+                {errors.confirmPassword && (
                   <Field.ErrorText fontSize="xs">
                     {errors.confirmPassword}
                   </Field.ErrorText>
-                ) : (
-                  <Field.HelperText fontSize="xs">
-                    Must match the password above.
-                  </Field.HelperText>
                 )}
               </Field.Root>
 
+              {/* Phone */}
               <PhoneFieldControl
                 value={phoneState}
                 onChange={handlePhoneChange}
@@ -451,10 +470,12 @@ export default function Register() {
                 helperText="We’ll use this for account security."
               />
 
+              {/* Birthday */}
               <Field.Root invalid={!!errors.birthday} required>
-                <Flex gap={3} w="100%">
-                  <Field.Label fontSize="sm">
+                <Flex gap={3} w="100%" align="center">
+                  <Field.Label fontSize="sm" display="inline-flex" alignItems="center">
                     Birthday <Field.RequiredIndicator />
+                    <HelperBadge text="You must be at least 16 years old." />
                   </Field.Label>
                   <Input
                     type="date"
@@ -468,15 +489,12 @@ export default function Register() {
                     size="sm"
                   />
                 </Flex>
-                {errors.birthday ? (
+                {errors.birthday && (
                   <Field.ErrorText fontSize="xs">{errors.birthday}</Field.ErrorText>
-                ) : (
-                  <Field.HelperText fontSize="xs">
-                    You must be at least 16 years old.
-                  </Field.HelperText>
                 )}
               </Field.Root>
 
+              {/* Address */}
               <Field.Root invalid={!!errors.address} required>
                 <Flex gap={3} w="100%">
                   <Field.Label fontSize="sm">
@@ -495,7 +513,10 @@ export default function Register() {
                       setAddressText(address);
                       if (lat != null) setLatitude(lat);
                       if (lng != null) setLongitude(lng);
-                      clearErrorIfValid("address", !!address && lat != null && lng != null);
+                      clearErrorIfValid(
+                        "address",
+                        !!address && lat != null && lng != null,
+                      );
                     }}
                     countries={countries}
                     placeholder="Search and pick an address"
@@ -507,6 +528,7 @@ export default function Register() {
                 )}
               </Field.Root>
 
+              {/* Location helpers */}
               <Flex gap={3} align="center" w="full">
                 <Button variant="subtle" onClick={() => setPickerOpen(true)} size="sm">
                   Pick on map
@@ -572,6 +594,7 @@ export default function Register() {
                 )}
               </Field.Root>
 
+              {/* Submit */}
               <Button
                 type="submit"
                 loading={isPending}
@@ -582,24 +605,25 @@ export default function Register() {
                 Create account
               </Button>
 
-        <Box mt="2" flexShrink={0}>
-            <Text fontSize="xs" textAlign="center" mb="0">
-              Already have an account?{" "}
-              <CLink asChild color="blue.400">
-                <RouterLink to="/login">Login</RouterLink>
-              </CLink>
-            </Text>
+              {/* Footer */}
+              <Box mt="2" flexShrink={0} position="relative" overflow="hidden">
+                <Text fontSize="xs" textAlign="center" mb="0">
+                  Already have an account?{" "}
+                  <CLink asChild color="blue.400">
+                    <RouterLink to="/login">Login</RouterLink>
+                  </CLink>
+                </Text>
 
-           
-              <Box
-                position="absolute"
-                inset="0"
-                opacity="0.15"
-                bgImage="radial-gradient(circle at 20% 20%, #6ca51e 0.5px, transparent 1px), radial-gradient(circle at 80% 30%, #4a6f1e 0.5px, transparent 1px)"
-                bgSize="20px 20px"
-              />
-              <Flex align="center" gap="0">
-           
+                <Box
+                  position="absolute"
+                  inset="0"
+                  opacity="0.15"
+                  bgImage="radial-gradient(circle at 20% 20%, #6ca51e 0.5px, transparent 1px), radial-gradient(circle at 80% 30%, #4a6f1e 0.5px, transparent 1px)"
+                  bgSize="20px 20px"
+                  pointerEvents="none"
+                />
+
+                <Flex align="center" gap="0" mt="2" position="relative">
                   <Image
                     src="/images/MDcoin3.png"
                     alt="Affiliate"
@@ -608,36 +632,32 @@ export default function Register() {
                     objectFit="contain"
                   />
 
-                <Box flex="1" color="white" gap={0}>
-                  <Text fontSize="xs" opacity="0.8" color=" #4a6f1e">
-                    Sponsored
-                  </Text>
-                  <Heading size="sm" lineHeight="short"  color=" #4a6f1e">
-                    Earn with our Affiliate Program
-                  </Heading>
-                  <Text fontSize="xs" opacity="0.9" color=" #4a6f1e">
-                    Share, refer, and receive payouts on every successful signup.
-                  </Text>
-                </Box>
+                  <Box flex="1" gap={0}>
+                    <Text fontSize="xs" opacity="0.8" color="#4a6f1e">
+                      Sponsored
+                    </Text>
+                    <Heading size="sm" lineHeight="short" color="#4a6f1e">
+                      Earn with our Affiliate Program
+                    </Heading>
+                    <Text fontSize="xs" opacity="0.9" color="#4a6f1e">
+                      Share, refer, and receive payouts on every successful signup.
+                    </Text>
+                  </Box>
 
-                <Button
-                  asChild
-                  size="xs"
-                  variant="solid"
-                  colorPalette="teal"
-                  borderRadius="full"
-                  px="3"
-                  _groupHover={{ translateY: "-1px" }}
-                >
-                  <RouterLink to="#">Join now</RouterLink>
-                </Button>
-              </Flex>
-            </Box>
-                   </VStack>
+                  <Button
+                    asChild
+                    size="xs"
+                    variant="solid"
+                    colorPalette="teal"
+                    borderRadius="full"
+                    px="3"
+                  >
+                    <RouterLink to="#">Join now</RouterLink>
+                  </Button>
+                </Flex>
+              </Box>
+            </VStack>
           </Box>
-
-          {/* Fixed footer: Login + Sponsored, always visible and under the form */}
-  
 
           <MapPickerDialog
             key={pickerOpen ? "open" : "closed"}
@@ -648,7 +668,10 @@ export default function Register() {
               setLatitude(v.lat);
               setLongitude(v.lng);
               setPickerOpen(false);
-              clearErrorIfValid("address", !!v.address && v.lat != null && v.lng != null);
+              clearErrorIfValid(
+                "address",
+                !!v.address && v.lat != null && v.lng != null,
+              );
             }}
             initial={
               latitude != null && longitude != null
@@ -661,7 +684,14 @@ export default function Register() {
 
         {/* Right: Preview */}
         <Box mx="auto" w="80%" h="80%">
-          <Box position="relative" w="100%" h="100%" overflow="hidden" borderRadius="2xl" bg="black">
+          <Box
+            position="relative"
+            w="100%"
+            h="100%"
+            overflow="hidden"
+            borderRadius="2xl"
+            bg="black"
+          >
             <Image
               key={images[active].src}
               src={images[active].src}
@@ -697,7 +727,13 @@ export default function Register() {
               <ChevronRight size={18} />
             </IconButton>
 
-            <HStack position="absolute" bottom="1" left="50%" transform="translateX(-50%)" gap="2">
+            <HStack
+              position="absolute"
+              bottom="1"
+              left="50%"
+              transform="translateX(-50%)"
+              gap="2"
+            >
               {images.map((_, i) => (
                 <Box
                   key={i}

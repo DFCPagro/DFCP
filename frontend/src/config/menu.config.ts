@@ -60,7 +60,6 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     path: P.FarmerDashboard,
   },
 
-
   {
     type: "link",
     key: "farmer-reports",
@@ -90,7 +89,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
         label: "CS-M Dashboard",
         path: P.csManagerDashboard,
       },
-     
+
       {
         type: "link",
         key: "CS-M-orders",
@@ -147,9 +146,9 @@ const workAdmin: ReadonlyArray<MenuItem> = [
   {
     type: "group",
     key: "TManager",
-    label: "T Manager WIP",
+    label: "Transport M",
     children: [
-   {
+      {
         type: "link",
         key: "admin-package-sizes",
         label: "Package Sizes",
@@ -157,7 +156,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
       },
     ],
   },
-    {
+  {
     type: "link",
     key: "admin-jobApplication",
     label: "Job Application Review",
@@ -171,7 +170,6 @@ const workAdmin: ReadonlyArray<MenuItem> = [
   },
 
   // Admin utilities
- 
 
   WORKER_MARKET_GROUP,
 ] as const;
@@ -207,12 +205,6 @@ const workFManager: ReadonlyArray<MenuItem> = [
     label: "View Farmer Orders",
     path: P.fManagerViewFarmerOrders,
   },
-  {
-    type: "link",
-    key: "view-farmer-list",
-    label: "View Farmer List",
-    path: P.fManagerViewFarmerList,
-  },
   WORKER_MARKET_GROUP,
 ] as const;
 
@@ -233,24 +225,6 @@ const workCSManager: ReadonlyArray<MenuItem> = [
     key: "cs-orders",
     label: "All Orders",
     path: P.csManagerOrders,
-  },
-  {
-    type: "link",
-    key: "cs-customers",
-    label: "Customers",
-    path: P.csManagerCustomers,
-  },
-  {
-    type: "link",
-    key: "cs-reports",
-    label: "Reports Inbox",
-    path: P.csManagerReportsInbox,
-  },
-  {
-    type: "link",
-    key: "cs-analytics",
-    label: "Analytics",
-    path: P.csManagerAnalytics,
   },
   WORKER_MARKET_GROUP,
 ] as const;
