@@ -1081,7 +1081,7 @@ export async function listFarmerOrdersForShift(
     FarmerOrder.find(q, projection)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(safeLimit)
+      .limit(limit)
       .lean()
       .exec(),
     FarmerOrder.countDocuments(q),
