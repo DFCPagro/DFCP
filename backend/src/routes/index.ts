@@ -27,6 +27,7 @@ import demandStaticsRoutes from "./demandStatics.routes";
 import pickerRoutes from "./picker.routes";
 import deliveryShelvingRoutes from "./deliveryShelving.routes";
 import pickerTasksRoutes from "./pickerTask.routes";
+import scheduleRoutes from "./schedule.routes";
 
 import farmerDelivery from "./farmerDelivery.routes";
 const router = Router();
@@ -65,6 +66,7 @@ router.use("/users", userRoutes);
 router.use("/containers", reconciliationRoutes);
 router.use("/farmer-inventory", farmerInventoryRoutes);
 router.use("/jobApp", jobApplicationRouter);
+router.use("/schedule", scheduleRoutes);
 
 //pickers
 router.use("/pickerTasks", pickerTasksRoutes);
