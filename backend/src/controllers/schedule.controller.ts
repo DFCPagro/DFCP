@@ -364,7 +364,6 @@ export async function getWorkersForShift(req: Request, res: Response) {
     const shiftName = req.query.shift as string | undefined;
     const date = req.query.date as string | undefined; // YYYY-MM-DD
     const scheduleType = req.query.scheduleType as ScheduleType | undefined;
-    const lcFromQuery = req.query.logisticCenterId as string | undefined;
 
     if (!role || !shiftName || !date || !scheduleType) {
       throw new ApiError(
@@ -373,11 +372,10 @@ export async function getWorkersForShift(req: Request, res: Response) {
       );
     }
 
-    const lcFromToken = authUser.logisticCenterId
+    const logisticCenterId = authUser.logisticCenterId
       ? authUser.logisticCenterId.toString()
       : undefined;
 
-    const logisticCenterId = lcFromQuery || lcFromToken;
     if (!logisticCenterId) {
       throw new ApiError(
         400,

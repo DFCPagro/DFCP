@@ -4,6 +4,11 @@ import { DateTime } from "luxon";
 
 import Schedule, { type ScheduleDoc } from "../models/schedule.model";
 import ApiError from "@/utils/ApiError";
+import {
+  getCurrentShift,
+  getShiftConfigByKey,
+  type ShiftName,
+} from "./shiftConfig.service";
 
 export type IdLike = string | Types.ObjectId;
 
@@ -536,5 +541,69 @@ export async function getWorkersForShift(params: {
       role: w.role,
       logisticCenterId: w.logisticCenterId,
     })),
+  };
+}
+
+export async function getIsActiveNow(params: {
+  userId: IdLike;
+  logisticCenterId?: IdLike | null;
+  month?: string;
+}) {
+  const { userId, logisticCenterId, month } = params;
+  const shiftName = await getCurrentShift();
+  const hasActiveShift = shiftName !== "none";
+
+  // Use LC-specific timezone when available so day boundaries align with the shift window.
+  let tz = DEFAULT_TZ;
+  if (hasActiveShift && logisticCenterId) {
+    try {
+      const cfg = await getShiftConfigByKey({
+        logisticCenterId: String(logisticCenterId),
+        name: shiftName as Exclude<ShiftName, "none">,
+      });
+      tz = cfg.timezone || DEFAULT_TZ;
+    } catch (err) {
+      // ignore and fall back to default tz if config lookup fails
+    }
+  }
+
+  const now = DateTime.now().setZone(tz);
+  const normalizedMonth = normalizeMonth(month ?? now.toFormat("yyyy-LL"));
+  const dayIndex = now.day - 1;
+  const date = now.toFormat("yyyy-LL-dd");
+
+  const userOID = toOID(userId);
+  const filter: any = { userId: userOID };
+  if (logisticCenterId) {
+    filter.logisticCenterId = toOID(logisticCenterId);
+  }
+
+  const doc = await Schedule.findOne(filter).lean<ScheduleDoc>().exec();
+
+  const activeEntry = doc
+    ? getMonthEntry(doc as any, "active", normalizedMonth)
+    : undefined;
+  const standByEntry = doc
+    ? getMonthEntry(doc as any, "standby", normalizedMonth)
+    : undefined;
+
+  const mask = hasActiveShift ? SHIFT_BITMASK[shiftName] ?? 0 : 0;
+  const todayValue = valueForDay(activeEntry, dayIndex);
+  const isActive = Boolean(mask && (todayValue & mask));
+
+  return {
+    userId: doc ? (doc as any).userId : userOID,
+    role: doc ? (doc as any).role ?? null : null,
+    logisticCenterId: doc
+      ? (doc as any).logisticCenterId ?? null
+      : logisticCenterId
+      ? toOID(logisticCenterId)
+      : null,
+    month: normalizedMonth,
+    date,
+    shiftName,
+    isActive,
+    active: activeEntry?.bitmap ?? [],
+    standBy: standByEntry?.bitmap ?? [],
   };
 }
