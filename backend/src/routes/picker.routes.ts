@@ -2,8 +2,9 @@ import { Router } from "express";
 import {
   getMe,
   getTopPickersByCompletedOrdersHandler,
+  getCurrentShiftOrdersForPicker,
   patchMe,
-  patchMeGamification,
+  patchMeGamification
 } from "@/controllers/picker.controller";
 import { authenticate, authorize } from "@/middlewares/auth";
 
@@ -29,5 +30,8 @@ router.patch(
 // e.g. GET /pickers/top?mode=todayShift&logisticCenterId=...&limit=5
 //      GET /pickers/top?mode=month&month=11&year=2025&logisticCenterId=...
 router.get("/top", authenticate, getTopPickersByCompletedOrdersHandler);
+router.get("/:id/orders/current-shift", authenticate, getCurrentShiftOrdersForPicker);
+
+
 
 export default router;

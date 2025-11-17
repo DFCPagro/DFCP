@@ -6,7 +6,8 @@ import {
   addXP,
   createPicker,
   getPickerByUserId,
-  getTopPickersByCompletedOrders
+  getTopPickersByCompletedOrders,
+  countCompletedTodayShiftOrdersForPicker
 } from "../services/picker.service";
 
 /**
@@ -104,5 +105,51 @@ export async function getTopPickersByCompletedOrdersHandler(
   } catch (e: any) {
     console.error("getTopPickersByCompletedOrders error:", e);
     return res.status(400).json({ message: e.message ?? "Failed to fetch top pickers" });
+  }
+}
+
+
+/**
+ * GET /pickers/:id/orders/current-shift
+ * Query params:
+ *   - logisticCenterId: string (required)
+ *
+ * Returns the number of completed orders for the given picker
+ * in today's current shift for the specified logistics center.
+ */
+export async function getCurrentShiftOrdersForPicker(
+  req: Request,
+  res: Response
+) {
+  const pickerUserId = req.params.id;
+  const { logisticCenterId } = req.query as { logisticCenterId?: string };
+
+  if (!pickerUserId) {
+    return res.status(400).json({ message: "Picker user id is required in path param ':id'" });
+  }
+
+  if (!logisticCenterId) {
+    return res
+      .status(400)
+      .json({ message: "Query parameter 'logisticCenterId' is required" });
+  }
+
+  try {
+    const completedOrders = await countCompletedTodayShiftOrdersForPicker({
+      pickerUserId,
+      logisticCenterId,
+    });
+
+    return res.json({
+      pickerUserId,
+      logisticCenterId,
+      mode: "todayShift",
+      completedOrders,
+    });
+  } catch (e: any) {
+    console.error("getCurrentShiftOrdersForPicker error:", e);
+    return res
+      .status(400)
+      .json({ message: e.message ?? "Failed to fetch current shift orders for picker" });
   }
 }

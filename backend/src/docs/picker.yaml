@@ -226,6 +226,53 @@ paths:
         "403":
           description: Forbidden
 
+  /api/v1/picker/{id}/orders/current-shift:
+    get:
+      tags: [Picker]
+      summary: Get completed orders for current shift for a specific picker
+      description: >
+        Returns the number of **completed** orders for the given picker in **today's current shift**  
+        for a specific logistics center.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Picker user id (User._id as string).
+        - in: query
+          name: logisticCenterId
+          required: true
+          schema:
+            type: string
+          description: Logistics center id (Mongo ObjectId as string) to scope the query.
+      responses:
+        "200":
+          description: Completed orders count for picker in today's current shift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentShiftOrdersResponse"
+              example:
+                pickerUserId: "66f2aa00000000000000002b"
+                logisticCenterId: "66e007000000000000000001"
+                mode: "todayShift"
+                completedOrders: 7
+        "400":
+          description: Bad request (missing params or invalid data)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                message: "Query parameter 'logisticCenterId' is required"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
 components:
   securitySchemes:
     bearerAuth:
@@ -409,6 +456,27 @@ components:
           example: 1230
         user:
           $ref: "#/components/schemas/TopPickerUserSummary"
+
+    CurrentShiftOrdersResponse:
+      type: object
+      description: Completed orders summary for the current shift for a picker.
+      properties:
+        pickerUserId:
+          type: string
+          description: Picker user id (User._id as string)
+          example: "66f2aa00000000000000002b"
+        logisticCenterId:
+          type: string
+          description: Logistics center id used in the query
+          example: "66e007000000000000000001"
+        mode:
+          type: string
+          description: Mode used internally (always "todayShift" for this endpoint)
+          example: "todayShift"
+        completedOrders:
+          type: integer
+          description: Number of completed orders for this picker in today's current shift
+          example: 7
 
     Error:
       type: object
