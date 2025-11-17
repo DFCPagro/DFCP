@@ -153,7 +153,9 @@ export default function AddressesCard({
           onAddAddress({ lat: p.lat, lng: p.lng, addressLine: p.address });
           setAddrPickerOpen(false);
         }}
-        initial={{ lat: 31.771959, lng: 35.217018 }}
+        initial={{ lat: 32.726884,
+    lng: 35.215722,
+    address: "Zarzir, Israel",}}
         countries="IL"
       />
     </Card.Root>

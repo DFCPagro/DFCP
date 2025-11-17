@@ -486,7 +486,7 @@ export default function AddressShiftDrawer({
   onConfirm={handleMapPicked}
   countries="IL"
   pointMarkerLabel="A"
-  pointMarkerTitle="New Address"
+  pointMarkerTitle="New"
   initial={{
     lat: 32.726884,
     lng: 35.215722,
