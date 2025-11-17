@@ -28,10 +28,17 @@ export default function NavBar() {
     expandSlack: 12,
     stableFrames: 1,
   });
+
   const openDrawer = useUIStore((s) => s.openDrawer);
 
-  // Admin: always show SideDrawer button on desktop
-  const showDesktopBurger = role === "admin" || isOverflowing || !items?.length;
+  // Desktop: non-admin sees burger only if header doesn't fit; admin always sees it.
+  const showDesktopBurger =
+    role === "admin" || (role !== "admin" && isOverflowing);
+
+  // Mobile: header is hidden, thus "doesn't fit" -> show burger for everyone.
+  const showMobileBurger = true;
+
+  const showInlineHeader = role !== "admin" && !isOverflowing && !!items?.length;
 
   return (
     <Box
@@ -44,8 +51,22 @@ export default function NavBar() {
       zIndex={100}
     >
       <Flex h="14" align="center" px="3" gap="3">
+        {/* Desktop burger (md+) */}
         {showDesktopBurger && (
           <Box display={{ base: "none", md: "block" }}>
+            <StyledIconButton
+              aria-label="Open menu"
+              variant="ghost"
+              onClick={openDrawer}
+            >
+              <FiMenu />
+            </StyledIconButton>
+          </Box>
+        )}
+
+        {/* Mobile burger (base) */}
+        {showMobileBurger && (
+          <Box display={{ base: "flex", md: "none" }}>
             <StyledIconButton
               aria-label="Open menu"
               variant="ghost"
@@ -63,20 +84,11 @@ export default function NavBar() {
         </CLink>
 
         {/* Right cluster */}
-        <Flex
-          align="center"
-          gap="2"
-          ml="auto"
-          minW={0}
-          flex="1"
-          position="relative"
-        >
-          {/* Visible inline menu only when it fits AND not admin */}
-          {!isOverflowing && role !== "admin" && items?.length ? (
-            <HeaderMenu items={items} />
-          ) : null}
+        <Flex align="center" gap="2" ml="auto" minW={0} flex="1" position="relative">
+          {/* Inline header only when it fits and user is not admin */}
+          {showInlineHeader ? <HeaderMenu items={items} /> : null}
 
-          {/* Probe: always mounted, hidden, measured. Must render SAME structure. */}
+          {/* Hidden probe for width measurement */}
           <Box
             position="absolute"
             left={0}
@@ -93,7 +105,7 @@ export default function NavBar() {
         </Flex>
       </Flex>
 
-      {/* Only one drawer; used by admin and others when burger is shown */}
+      {/* Drawer exists once; opened via burger buttons */}
       <SideDrawer items={items} />
     </Box>
   );
