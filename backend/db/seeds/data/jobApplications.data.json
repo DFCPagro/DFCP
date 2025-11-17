@@ -1,0 +1,45 @@
+[
+  {
+    "user": "66f2aa000000000000000009",
+    "appliedRole": "picker",
+    "logisticCenterId": "66e007000000000000000001",
+    "status": "pending",
+    "applicationData": {
+      "yearsOfExperience": "5"
+    }
+  },
+  {
+    "user": "66f2aa00000000000000000a",
+    "appliedRole": "farmer",
+    "logisticCenterId": "66e007000000000000000001",
+    "status": "pending",
+    "applicationData": {
+      "agreementPercentage": 60,
+      "agriculturalInsurance": true,
+      "farmName": "NameOfFarm",
+      "lands": [
+        {
+          "address": {
+            "address": "Balfour St 1, Jerusalem, Israel",
+            "alt": 31.773820298743267,
+            "lnt": 35.21698366824847
+          },
+          "measurements": {
+            "abM": 120,
+            "bcM": 100,
+            "cdM": 120,
+            "daM": 100
+          },
+          "rotationDeg": 0,
+          "name": "Land 1",
+          "ownership": "owned",
+          "pickupAddress": {
+            "address": "Abraham Lincoln St 20, Jerusalem, Israel",
+            "alt": 31.775206671489933,
+            "lnt": 35.219043604771905
+          }
+        }
+      ]
+    }
+  }
+]
