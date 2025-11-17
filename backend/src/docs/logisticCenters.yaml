@@ -12,7 +12,7 @@ info:
         - **Delete**: `opManager`, `admin`.
         - **Delivery history**: `tManager`, `opManager`, `admin`.
         - **Deliverer associations**: `tManager`, `opManager`, `admin`.
-      - `location.geo` (if provided) must be a valid GeoJSON **Point**: `{ type: "Point", coordinates: [lng, lat] }`.
+      - `address.geo` (if provided) must be a valid GeoJSON **Point**: `{ type: "Point", coordinates: [lng, lat] }`.
 
 servers:
   - url: /api
@@ -44,7 +44,7 @@ paths:
         - in: query
           name: select
           schema: { type: string }
-          description: Space-delimited projection (e.g., `"logisticName location.name"`)
+          description: Space-delimited projection (e.g., `"logisticName address.name"`)
         - in: query
           name: populate
           schema: { type: string, enum: ["true","false"], default: "false" }
@@ -52,7 +52,7 @@ paths:
         - in: query
           name: search
           schema: { type: string }
-          description: Case-insensitive match on `logisticName` or `location.name`
+          description: Case-insensitive match on `logisticName` or `address.name`
         - in: query
           name: employeeId
           schema: { type: string }
@@ -88,7 +88,7 @@ paths:
                     results:
                       - _id: "671234abcd00000000000001"
                         logisticName: "Kiryat Shmona LC"
-                        location:
+                        address:
                           name: "Kiryat Shmona"
                           geo: { type: "Point", coordinates: [35.571, 33.207] }
                         employeeIds: ["66e007000000000000000111","66e007000000000000000112"]
@@ -118,7 +118,7 @@ paths:
               create:
                 value:
                   logisticName: "Tel Aviv LC"
-                  location:
+                  address:
                     name: "Tel Aviv-Yafo"
                     geo: { type: "Point", coordinates: [34.781768, 32.0853] }
                   employeeIds: ["66e007000000000000000201"]
@@ -138,9 +138,9 @@ paths:
               schema: { $ref: "#/components/schemas/MessageError" }
               examples:
                 missing:
-                  value: { message: "logisticName and location.name are required" }
+                  value: { message: "logisticName and address.name are required" }
                 badGeo:
-                  value: { message: "location.geo must be { type:\"Point\", coordinates:[lng,lat] }" }
+                  value: { message: "address.geo must be { type:\"Point\", coordinates:[lng,lat] }" }
         "401": { description: Unauthorized }
         "403": { description: Forbidden }
 
@@ -200,7 +200,7 @@ paths:
                   logisticName: "TA LC — Central"
               fixGeo:
                 value:
-                  location:
+                  address:
                     geo: { type: "Point", coordinates: [34.8, 32.09] }
       responses:
         "200":
@@ -215,7 +215,7 @@ paths:
               schema: { $ref: "#/components/schemas/MessageError" }
               examples:
                 badId: { value: { message: "Invalid id" } }
-                badGeo: { value: { message: "location.geo must be { type:\"Point\", coordinates:[lng,lat] }" } }
+                badGeo: { value: { message: "address.geo must be { type:\"Point\", coordinates:[lng,lat] }" } }
         "401": { description: Unauthorized }
         "403": { description: Forbidden }
         "404":
@@ -427,7 +427,7 @@ components:
           maxItems: 2
           items: { type: number }
           description: "[lng, lat]"
-    Location:
+    Address:
       type: object
       required: [name]
       properties:
@@ -449,11 +449,11 @@ components:
           description: "User id who added the entry"
     LogisticsCenter:
       type: object
-      required: [ _id, logisticName, location ]
+      required: [ _id, logisticName, address ]
       properties:
         _id: { type: string }
         logisticName: { type: string }
-        location: { $ref: "#/components/schemas/Location" }
+        address: { $ref: "#/components/schemas/Address" }
         employeeIds:
           type: array
           items: { type: string }
@@ -465,7 +465,7 @@ components:
       example:
         _id: "671234abcd00000000000001"
         logisticName: "Tel Aviv LC"
-        location:
+        address:
           name: "Tel Aviv-Yafo"
           geo: { type: "Point", coordinates: [34.781768, 32.0853] }
         employeeIds: ["66e007000000000000000201"]
@@ -479,10 +479,10 @@ components:
     # ---- Inputs ----
     CreateCenterInput:
       type: object
-      required: [logisticName, location]
+      required: [logisticName, address]
       properties:
         logisticName: { type: string }
-        location:
+        address:
           type: object
           required: [name]
           properties:
@@ -500,7 +500,7 @@ components:
               at: { type: string, format: date-time }
               by: { type: string, nullable: true }
       description: >
-        `location.geo` (if present) must be `{ type:"Point", coordinates:[lng,lat] }`.
+        `address.geo` (if present) must be `{ type:"Point", coordinates:[lng,lat] }`.
     UpdateCenterInput:
       allOf:
         - $ref: "#/components/schemas/CreateCenterInput"

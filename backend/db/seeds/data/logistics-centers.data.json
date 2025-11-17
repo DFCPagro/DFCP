@@ -2,7 +2,7 @@
   {
     "_id": "66e007000000000000000001",
     "logisticName": "Zarzir Logistics Center",
-    "location": {
+    "address": {
       "name": "Zarzir",
       "geo": { "type": "Point", "coordinates": [35.218805, 32.733459] }
     },
@@ -14,14 +14,14 @@
   {
     "_id": "66e007000000000000000002",
     "logisticName": "Jerusalem Logistics Center",
-    "location": { "name": "Jerusalem" },
+    "address": { "name": "Jerusalem" },
     "employeeIds": [],
     "deliveryHistory": []
   },
   {
     "_id": "66e007000000000000000003",
     "logisticName": "Haifa Logistics Center",
-    "location": { "name": "Haifa" },
+    "address": { "name": "Haifa" },
     "employeeIds": [],
     "deliveryHistory": []
   }

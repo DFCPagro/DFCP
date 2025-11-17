@@ -6,7 +6,7 @@ import ApiError from "../utils/ApiError";
 
 export type CreateLogisticsCenterDTO = {
   logisticName: string;
-  location: {
+  address: {
     name: string;
     geo?: { type: 'Point'; coordinates: [number, number] };
   };

@@ -23,7 +23,7 @@ const DeliveryHistorySchema = new Schema(
 const LogisticsCenterSchema = new Schema(
   {
     logisticName: { type: String, required: true, trim: true },
-    location: { type: LocationSchema, required: true },
+    address: { type: LocationSchema, required: true },
     employeeIds: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
     deliveryHistory: { type: [DeliveryHistorySchema], default: [] },
   },

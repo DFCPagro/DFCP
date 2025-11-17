@@ -6,27 +6,27 @@ const isObjectId = (id: string) => mongoose.isValidObjectId(id);
 
 /** CREATE */
 export async function create(req: Request, res: Response) {
-  const { logisticName, location, employeeIds, deliveryHistory } = req.body;
+  const { logisticName, address, employeeIds, deliveryHistory } = req.body;
 
-  if (!logisticName || !location?.name) {
-    res.status(400).json({ message: 'logisticName and location.name are required' });
+  if (!logisticName || !address?.name) {
+    res.status(400).json({ message: 'logisticName and address.name are required' });
     return;
   }
   // basic shape check for geo if provided
-  if (location.geo) {
-    const ok = location.geo.type === 'Point'
-      && Array.isArray(location.geo.coordinates)
-      && location.geo.coordinates.length === 2
-      && location.geo.coordinates.every((n: any) => Number.isFinite(n));
+  if (address.geo) {
+    const ok = address.geo.type === 'Point'
+      && Array.isArray(address.geo.coordinates)
+      && address.geo.coordinates.length === 2
+      && address.geo.coordinates.every((n: any) => Number.isFinite(n));
     if (!ok) {
-      res.status(400).json({ message: 'location.geo must be { type:"Point", coordinates:[lng,lat] }' });
+      res.status(400).json({ message: 'address.geo must be { type:"Point", coordinates:[lng,lat] }' });
       return;
     }
   }
 
   const doc = await svc.createLogisticsCenter({
     logisticName,
-    location,
+    address,
     employeeIds,
     deliveryHistory,
   });
@@ -90,13 +90,13 @@ export async function update(req: Request, res: Response) {
 
   const body = req.body;
 
-  if (body.location?.geo) {
-    const ok = body.location.geo.type === 'Point'
-      && Array.isArray(body.location.geo.coordinates)
-      && body.location.geo.coordinates.length === 2
-      && body.location.geo.coordinates.every((n: any) => Number.isFinite(n));
+  if (body.address?.geo) {
+    const ok = body.address.geo.type === 'Point'
+      && Array.isArray(body.address.geo.coordinates)
+      && body.address.geo.coordinates.length === 2
+      && body.address.geo.coordinates.every((n: any) => Number.isFinite(n));
     if (!ok) {
-      res.status(400).json({ message: 'location.geo must be { type:"Point", coordinates:[lng,lat] }' });
+      res.status(400).json({ message: 'address.geo must be { type:"Point", coordinates:[lng,lat] }' });
       return;
     }
   }

@@ -84,8 +84,8 @@ export async function getTopPickersByCompletedOrdersHandler(
       year,
       limit,
     } = req.query as {
-      mode?: string;
-      logisticCenterId?: string;
+      mode: string;
+      logisticCenterId: string;
       month?: string;
       year?: string;
       limit?: string;
