@@ -48,71 +48,101 @@ export async function postAddMonthlySchedule(req: Request, res: Response) {
     const authUserId = getAuthUserId(req);
     if (!authUserId) throw new ApiError(401, "Unauthorized");
 
-    const {
-      month,
-      scheduleType,
-      bitmap,
-      userId: bodyUserId,
-      logisticCenterId: bodyLcId,
-      role: workerRoleFromBody,
-      overwriteExisting,
-    } = req.body as {
-      month?: string;
-      scheduleType?: ScheduleType;
-      bitmap?: number[];
-      userId?: string;
-      logisticCenterId?: string;
-      role?: string;
-      overwriteExisting?: boolean;
-    };
-
-    if (!month || !scheduleType || !bitmap) {
-      throw new ApiError(
-        400,
-        "month, scheduleType and bitmap are required in body"
-      );
-    }
-
     const manager = isManager(req);
+    if (!manager) {
+      const userId = req.body.userId as string | undefined;
+      const logisticCenterId = req.body.logisticCenterId as string | undefined;
+      const role = req.body.role as string | undefined;
+      const { month, scheduleType, bitmap, overwriteExisting } = req.body as {
+        month?: string;
+        scheduleType?: ScheduleType;
+        bitmap?: number[];
+        overwriteExisting?: boolean;
+      };
 
-    // Decide whose schedule we are modifying
-    const targetUserId =
-      manager && bodyUserId ? bodyUserId : (authUserId as string);
+      if (!month || !scheduleType || !bitmap) {
+        throw new ApiError(
+          400,
+          "month, scheduleType and bitmap are required in body"
+        );
+      }
 
-    // Decide which role is associated with this schedule
-    // - Normal user: use their own role
-    // - Manager: can optionally send workerRole in body (recommended)
-    const workerRole = manager
-      ? workerRoleFromBody || (authUser.role as string)
-      : (authUser.role as string);
+      const data = await addMonthlySchedule({
+        userId: userId ?? authUserId,
+        role: role ?? (authUser.role as string),
+        logisticCenterId: logisticCenterId ?? null,
+        month,
+        scheduleType,
+        bitmap,
+        overwriteExisting: !!overwriteExisting,
+      });
 
-    if (!workerRole) {
-      throw new ApiError(
-        400,
-        "Cannot determine worker role for schedule; provide role in body"
-      );
+      return res.status(201).json({ data });
+    } else {
+      const {
+        month,
+        scheduleType,
+        bitmap,
+        userId: bodyUserId,
+        logisticCenterId: bodyLcId,
+        role: workerRoleFromBody,
+        overwriteExisting,
+      } = req.body as {
+        month?: string;
+        scheduleType?: ScheduleType;
+        bitmap?: number[];
+        userId?: string;
+        logisticCenterId?: string;
+        role?: string;
+        overwriteExisting?: boolean;
+      };
+
+      if (!month || !scheduleType || !bitmap) {
+        throw new ApiError(
+          400,
+          "month, scheduleType and bitmap are required in body"
+        );
+      }
+
+      // Decide whose schedule we are modifying
+      const targetUserId =
+        manager && bodyUserId ? bodyUserId : (authUserId as string);
+
+      // Decide which role is associated with this schedule
+      // - Normal user: use their own role
+      // - Manager: can optionally send workerRole in body (recommended)
+      const workerRole = manager
+        ? workerRoleFromBody || (authUser.role as string)
+        : (authUser.role as string);
+
+      if (!workerRole) {
+        throw new ApiError(
+          400,
+          "Cannot determine worker role for schedule; provide role in body"
+        );
+      }
+
+      // Resolve LC:
+      // - Manager can override via body.logisticCenterId
+      // - Otherwise, we fall back to user's lc from token (if any)
+      const lcFromToken = authUser.logisticCenterId
+        ? authUser.logisticCenterId.toString()
+        : undefined;
+
+      const logisticCenterId = manager ? bodyLcId || lcFromToken : lcFromToken;
+
+      const data = await addMonthlySchedule({
+        userId: targetUserId,
+        role: workerRole,
+        logisticCenterId: logisticCenterId ?? null,
+        month,
+        scheduleType,
+        bitmap,
+        overwriteExisting: !!overwriteExisting,
+      });
+
+      return res.status(201).json({ data });
     }
-
-    // Resolve LC:
-    // - Manager can override via body.logisticCenterId
-    // - Otherwise, we fall back to user's lc from token (if any)
-    const lcFromToken = authUser.logisticCenterId
-      ? authUser.logisticCenterId.toString()
-      : undefined;
-
-    const logisticCenterId = manager ? bodyLcId || lcFromToken : lcFromToken;
-
-    const data = await addMonthlySchedule({
-      userId: targetUserId,
-      role: workerRole,
-      logisticCenterId: logisticCenterId ?? null,
-      month,
-      scheduleType,
-      bitmap,
-      overwriteExisting: !!overwriteExisting,
-    });
-
-    return res.status(201).json({ data });
   } catch (err: any) {
     if (err.statusCode) {
       return res.status(err.statusCode).json({ error: err.message });
@@ -132,10 +162,7 @@ export async function patchUpdateMonthlySchedule(req: Request, res: Response) {
     const authUserId = getAuthUserId(req);
     if (!authUserId) throw new ApiError(401, "Unauthorized");
 
-    if (!isManager(req)) {
-      throw new ApiError(403, "Only managers can update schedules");
-    }
-
+    const manager = isManager(req);
     const {
       month,
       scheduleType,
@@ -157,13 +184,13 @@ export async function patchUpdateMonthlySchedule(req: Request, res: Response) {
       );
     }
 
-    const targetUserId = bodyUserId || authUserId;
+    const targetUserId = manager && bodyUserId ? bodyUserId : authUserId;
 
     const lcFromToken = authUser.logisticCenterId
       ? authUser.logisticCenterId.toString()
       : undefined;
 
-    const logisticCenterId = bodyLcId || lcFromToken;
+    const logisticCenterId = manager ? bodyLcId || lcFromToken : lcFromToken;
 
     const data = await updateMonthlySchedule({
       userId: targetUserId,
@@ -171,6 +198,7 @@ export async function patchUpdateMonthlySchedule(req: Request, res: Response) {
       month,
       scheduleType,
       bitmap,
+      canBypassTwoWeekRule: manager,
       // tz param: you can derive from LC / user if needed; default handled in service
     });
 

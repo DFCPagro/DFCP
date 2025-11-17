@@ -107,16 +107,23 @@ function getOrCreateMonthEntry(
 /**
  * Enforces the "2 weeks rule":
  * - For every *changed* day between oldBitmap and newBitmap,
- *   if that calendar day is more than 14 days in the future (in tz),
- *   we reject the update.
+ *   if that calendar day is inside the next 14 days (in tz),
+ *   we reject the update unless allowInsideTwoWeeks=true.
  */
 function enforceTwoWeekRuleForMonthUpdate(opts: {
   oldBitmap: number[];
   newBitmap: number[];
   month: string; // "YYYY-MM"
   tz?: string;
+  allowInsideTwoWeeks?: boolean;
 }) {
-  const { oldBitmap, newBitmap, month, tz = DEFAULT_TZ } = opts;
+  const {
+    oldBitmap,
+    newBitmap,
+    month,
+    tz = DEFAULT_TZ,
+    allowInsideTwoWeeks = false,
+  } = opts;
 
   const now = DateTime.now().setZone(tz);
   const [yearStr, monthStr] = month.split("-");
@@ -144,10 +151,10 @@ function enforceTwoWeekRuleForMonthUpdate(opts: {
     }
 
     const diffDays = dayDt.diff(now, "days").days;
-    if (diffDays > 14) {
+    if (!allowInsideTwoWeeks && diffDays >= 0 && diffDays < 14) {
       throw new ApiError(
-        400,
-        "Cannot modify schedule more than 14 days in the future"
+        403,
+        "Changes inside the next 14 days require manager approval"
       );
     }
   }
@@ -266,8 +273,8 @@ export async function addMonthlySchedule(params: {
 
 /**
  * Update an existing monthly schedule bitmap for a user.
- * - Only for managers (should be enforced by controller/route).
- * - Enforces the "2-week rule": you cannot change days more than 14 days in the future.
+ * - Managers can bypass the 14-day restriction; normal users may only change days 14+ days out.
+ * - Caller (controller/route) is expected to decide who can bypass.
  */
 export async function updateMonthlySchedule(params: {
   userId: IdLike;
@@ -276,8 +283,17 @@ export async function updateMonthlySchedule(params: {
   scheduleType: ScheduleType;
   bitmap: number[];
   tz?: string;
+  canBypassTwoWeekRule?: boolean;
 }) {
-  const { userId, logisticCenterId, month, scheduleType, bitmap, tz } = params;
+  const {
+    userId,
+    logisticCenterId,
+    month,
+    scheduleType,
+    bitmap,
+    tz,
+    canBypassTwoWeekRule = false,
+  } = params;
 
   const normalizedMonth = normalizeMonth(month);
   validateBitmap(bitmap);
@@ -309,6 +325,7 @@ export async function updateMonthlySchedule(params: {
     newBitmap: bitmap,
     month: normalizedMonth,
     tz,
+    allowInsideTwoWeeks: canBypassTwoWeekRule,
   });
 
   existing.bitmap = bitmap;

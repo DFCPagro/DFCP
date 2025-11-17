@@ -19,13 +19,9 @@ router.post("/month", ctrl.postAddMonthlySchedule);
 /**
  * PATCH /api/v1/schedule/month
  * - Update existing monthly schedule
- * - Manager-only (controller also enforces)
+ * - Controller enforces who can update which user and the 14-day rule
  */
-router.patch(
-  "/month",
-  authorize("admin", "fManager", "tManager", "opManager"),
-  ctrl.patchUpdateMonthlySchedule
-);
+router.patch("/month", ctrl.patchUpdateMonthlySchedule);
 
 /**
  * GET /api/v1/schedule/my?month=YYYY-MM
