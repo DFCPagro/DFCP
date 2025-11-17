@@ -1,10 +1,11 @@
 import { Router } from "express";
 import {
   getMe,
+  getTopPickersByCompletedOrdersHandler,
   patchMe,
   patchMeGamification,
-} from "../controllers/picker.controller";
-import { authenticate, authorize } from "../middlewares/auth"; // adjust path
+} from "@/controllers/picker.controller";
+import { authenticate, authorize } from "@/middlewares/auth";
 
 const router = Router();
 
@@ -24,5 +25,9 @@ router.patch(
   authorize(...PICKER_WRITE_ROLES as any),
   patchMeGamification
 );
+
+// e.g. GET /pickers/top?mode=todayShift&logisticCenterId=...&limit=5
+//      GET /pickers/top?mode=month&month=11&year=2025&logisticCenterId=...
+router.get("/top", authenticate, getTopPickersByCompletedOrdersHandler);
 
 export default router;

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import LogisticsCenter, { ILogisticsCenter } from '../models/logisticsCenter.model';
-import Order, { ORDER_STATUSES } from '../models/order.model';
+import LogisticsCenter, { TLogisticsCenter } from '../models/logisticsCenter.model';
+import Order from '../models/order.model';
 import { Deliverer } from "../models/deliverer.model";
 import ApiError from "../utils/ApiError";
 
@@ -43,7 +43,7 @@ const ACTIVE_STATUSES = new Set([
 /** CREATE */
 export async function createLogisticsCenter(
   payload: CreateLogisticsCenterDTO
-): Promise<ILogisticsCenter> {
+): Promise<TLogisticsCenter> {
   return LogisticsCenter.create(payload);
 }
 
@@ -51,7 +51,7 @@ export async function createLogisticsCenter(
 export async function getLogisticsCenterById(
   id: string,
   options?: { populate?: boolean; select?: string }
-): Promise<ILogisticsCenter | null> {
+): Promise<TLogisticsCenter | null> {
   let q = LogisticsCenter.findById(id);
   if (options?.select) q = q.select(options.select);
   if (options?.populate) {
@@ -217,7 +217,7 @@ export async function updateLogisticsCenterById(
   id: string,
   update: UpdateLogisticsCenterDTO,
   options?: { newDoc?: boolean; populate?: boolean; select?: string }
-): Promise<ILogisticsCenter | null> {
+): Promise<TLogisticsCenter | null> {
   let q = LogisticsCenter.findByIdAndUpdate(id, update, {
     new: options?.newDoc ?? true,
     runValidators: true,

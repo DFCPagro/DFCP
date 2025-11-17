@@ -6,6 +6,7 @@ import {
   addXP,
   createPicker,
   getPickerByUserId,
+  getTopPickersByCompletedOrders
 } from "../services/picker.service";
 
 /**
@@ -26,15 +27,12 @@ export async function getMe(req: Request, res: Response) {
  */
 export async function patchMe(req: Request, res: Response) {
   const userId = (req as any).user?.id || req.params.userId;
-  const { nickname, logisticCenterId } = req.body as {
-    nickname?: string;
-    logisticCenterId?: string;
+  const { logisticCenterId } = req.body as {
+    logisticCenterId: string;
   };
 
-  console.log("logisticCenterId:", logisticCenterId);
-
   try {
-    const picker = await upsertCore(userId, { nickname, logisticCenterId });
+    const picker = await upsertCore(userId, logisticCenterId);
     const profile = await getPickerProfile(userId);
     return res.json(profile);
   } catch (e: any) {
@@ -60,5 +58,51 @@ export async function patchMeGamification(req: Request, res: Response) {
     return res.json(profile);
   } catch (e: any) {
     return res.status(400).json({ message: e.message });
+  }
+}
+
+
+/**
+ * GET /pickers/top
+ * Query params:
+ *   - mode: "todayShift" | "month" (default "todayShift")
+ *   - logisticCenterId?: string
+ *   - month?: number (1-12, only for mode="month")
+ *   - year?: number (only for mode="month")
+ *   - limit?: number (default 5)
+ */
+export async function getTopPickersByCompletedOrdersHandler(
+  req: Request,
+  res: Response
+) {
+  try {
+    const {
+      mode: rawMode,
+      logisticCenterId,
+      month,
+      year,
+      limit,
+    } = req.query as {
+      mode?: string;
+      logisticCenterId?: string;
+      month?: string;
+      year?: string;
+      limit?: string;
+    };
+
+    const mode = rawMode === "month" ? "month" : "todayShift";
+
+    const result = await getTopPickersByCompletedOrders({
+      mode,
+      logisticCenterId,
+      month: month ? Number(month) : undefined,
+      year: year ? Number(year) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+
+    return res.json(result);
+  } catch (e: any) {
+    console.error("getTopPickersByCompletedOrders error:", e);
+    return res.status(400).json({ message: e.message ?? "Failed to fetch top pickers" });
   }
 }

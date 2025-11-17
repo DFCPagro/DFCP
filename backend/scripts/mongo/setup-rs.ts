@@ -16,12 +16,8 @@ const PID_FILE = path.join(DATA_DIR, "mongod.pid");
 const LOG_FILE = path.join(DATA_DIR, "mongod.log");
 const PORT = 27017;
 
-const AUTO_REPAIR = process.env.MONGO_AUTO_REPAIR === "1";
-const RESET_IF_BROKEN = process.env.MONGO_RESET_IF_BROKEN === "1";
-const ULIMIT = process.env.MONGO_ULIMIT; // e.g., "64000"
-
-// 🔹 NEW: allow overriding socket dir (default /tmp)
-const SOCKET_DIR = (process.env.MONGO_SOCKET_DIR || "/tmp").trim();
+// keep ULIMIT if you want it; no AUTO_REPAIR / RESET_IF_BROKEN env toggles anymore
+const ULIMIT = process.env.MONGO_ULIMIT; // e.g. "64000"
 
 // ---------- Resolve mongod binary ----------
 function stripQuotes(s: string) {
@@ -60,7 +56,7 @@ function resolveMongodBin(): string {
     const p = which.stdout.trim();
     if (p && fs.existsSync(p)) return p;
   }
-  return "mongod";
+  return "mongod"; // hope it's on PATH
 }
 const MONGOD_BIN = resolveMongodBin();
 
@@ -95,7 +91,11 @@ function findPidByPortSync(port: number): number | null {
     } else {
       let r = spawnSync("lsof", ["-iTCP:" + port, "-sTCP:LISTEN", "-Pn", "-t"], { encoding: "utf8" });
       if (r.status === 0 && r.stdout.trim()) {
-        const pid = Number(r.stdout.trim().split(/\s+/)[0]);
+        const pid = Number(
+          r.stdout
+            .trim()
+            .split(/\s+/)[0]
+        );
         if (Number.isFinite(pid)) return pid;
       }
       r = spawnSync("bash", ["-lc", `ss -ltnp | grep :${port} || true`], { encoding: "utf8" });
@@ -105,7 +105,10 @@ function findPidByPortSync(port: number): number | null {
       }
       r = spawnSync("bash", ["-lc", `netstat -lpn 2>/dev/null | grep :${port} || true`], { encoding: "utf8" });
       if (r.status === 0 && r.stdout) {
-        const line = r.stdout.split(/\n/).map((l) => l.trim()).filter(Boolean)[0];
+        const line = r.stdout
+          .split(/\n/)
+          .map((l) => l.trim())
+          .filter(Boolean)[0];
         const m = line?.match(/\bLISTEN\b.*?(\d+)\/[^\s]+$/);
         if (m) return Number(m[1]);
       }
@@ -152,64 +155,20 @@ function tailLog(n = 120): string {
   }
 }
 
-// 🔹 NEW: get the expected Unix socket path for this port
-function mongoUnixSocketPath(port: number): string {
-  return path.join(SOCKET_DIR, `mongodb-${port}.sock`);
-}
-
-// 🔹 NEW: remove stale MongoDB Unix socket if we safely can
-function removeStaleUnixSocket(port: number) {
-  if (process.platform === "win32") return;
-  const sock = mongoUnixSocketPath(port);
-  if (!fs.existsSync(sock)) return;
-
-  try {
-    const stats = fs.lstatSync(sock);
-    // only try to delete if it really is a socket
-    if (!stats.isSocket()) {
-      console.warn(`⚠️ ${sock} exists but is not a socket. Skipping deletion.`);
-      return;
-    }
-
-    // On POSIX, only delete if we own it (avoid nuking root-owned stuff)
-    if (typeof (process as any).getuid === "function") {
-      const uid = (process as any).getuid();
-      if (stats.uid !== uid) {
-        console.warn(
-          `⚠️ Stale MongoDB socket ${sock} is not owned by current user (uid=${stats.uid}). ` +
-            `Run this script as that user/root or delete manually.`
-        );
-        return;
-      }
-    }
-
-    fs.unlinkSync(sock);
-    console.log(`🧹 Removed stale MongoDB socket: ${sock}`);
-  } catch (e) {
-    console.warn(`⚠️ Could not remove stale socket ${sock}: ${(e as Error).message}`);
-  }
-}
-
 function detectKnownError(logChunk: string): { kind: string; hint: string } | null {
   const s = logChunk;
-  if (/address already in use/i.test(s)) return { kind: "port_in_use", hint: "Port 27017 already in use" };
-  if (/Permission denied|errno:13/i.test(s)) return { kind: "perm", hint: "Permissions/ownership problem in dbpath" };
-  if (/Too many open files/i.test(s)) return { kind: "ulimit", hint: "Increase file descriptor limit" };
+  if (/address already in use/i.test(s))
+    return { kind: "port_in_use", hint: "Port 27017 already in use" };
+  if (/Permission denied|errno:13/i.test(s))
+    return { kind: "perm", hint: "Permissions/ownership problem in dbpath" };
+  if (/Too many open files/i.test(s))
+    return { kind: "ulimit", hint: "Increase file descriptor limit" };
   if (/WiredTiger.turtle|WiredTiger.wt|wiredtiger/i.test(s) && /corrupt|salvage|illegal/i.test(s))
     return { kind: "wt_corrupt", hint: "WiredTiger metadata/data appears corrupt" };
   if (/incompatible|unsupported|requires newer version|created by version/i.test(s) && /WiredTiger/i.test(s))
     return { kind: "wt_incompat", hint: "WiredTiger file version incompatibility (upgrade/downgrade)" };
   if (/Data directory .* not found|No such file or directory/i.test(s))
     return { kind: "dbpath_missing", hint: "dbpath missing" };
-
-  // 🔹 NEW: detect failure to unlink MongoDB Unix socket
-  if (/Failed to unlink socket file/i.test(s) && /mongodb-\d+\.sock/i.test(s)) {
-    return {
-      kind: "unix_socket_stale",
-      hint: "Stale MongoDB Unix socket in /tmp (permission/ownership issue)",
-    };
-  }
-
   return null;
 }
 
@@ -217,8 +176,14 @@ async function fixPermissionsIfPossible() {
   if (process.platform === "win32") return; // skip
   try {
     // best-effort: chown current user & chmod u+rwX recursively
-    spawnSync("bash", ["-lc", `chown -R $(id -u):$(id -g) ${JSON.stringify(DATA_DIR)} 2>/dev/null || true`]);
-    spawnSync("bash", ["-lc", `chmod -R u+rwX ${JSON.stringify(DATA_DIR)} 2>/dev/null || true`]);
+    spawnSync("bash", [
+      "-lc",
+      `chown -R $(id -u):$(id -g) ${JSON.stringify(DATA_DIR)} 2>/dev/null || true`,
+    ]);
+    spawnSync("bash", [
+      "-lc",
+      `chmod -R u+rwX ${JSON.stringify(DATA_DIR)} 2>/dev/null || true`,
+    ]);
   } catch {}
 }
 
@@ -234,42 +199,70 @@ function removeStaleLocks() {
   }
 }
 
-async function ensurePortFree(port: number) {
-  // Kill PID from our pidfile first
-  if (fs.existsSync(PID_FILE)) {
-    const txt = fs.readFileSync(PID_FILE, "utf8").trim();
-    const ownPid = Number(txt);
-    if (Number.isFinite(ownPid)) {
-      await killPidGracefully(ownPid);
+// ----- NEW: aggressive cleaner -----
+async function forceCleanMongoState(port: number) {
+  console.log(`🧹 Force-cleaning any MongoDB on port ${port} and wiping DATA_DIR: ${DATA_DIR}`);
+
+  // Kill PID from our pidfile first (if any)
+  try {
+    if (fs.existsSync(PID_FILE)) {
+      const txt = fs.readFileSync(PID_FILE, "utf8").trim();
+      const ownPid = Number(txt);
+      if (Number.isFinite(ownPid)) {
+        console.log(`  - Killing PID from pidfile: ${ownPid}`);
+        await killPidGracefully(ownPid);
+      }
+      try {
+        fs.unlinkSync(PID_FILE);
+      } catch {}
     }
-    try {
-      fs.unlinkSync(PID_FILE);
-    } catch {}
-  }
-  if (await portInUse(port)) {
+  } catch {}
+
+  // Repeatedly kill whatever is on this port
+  const hardTimeoutMs = 30_000;
+  const start = Date.now();
+  while (await portInUse(port)) {
     const pid = findPidByPortSync(port);
     if (pid) {
-      console.log(`⚠️  Port ${port} in use by PID ${pid}. Terminating...`);
+      console.log(`  - Killing PID ${pid} using port ${port}`);
       await killPidGracefully(pid);
     } else {
-      console.log(`⚠️  Port ${port} in use by unknown PID. Waiting...`);
+      console.log(`  - Port ${port} in use by unknown PID, retrying...`);
+      await sleep(500);
     }
-    const t0 = Date.now();
-    while (await portInUse(port)) {
-      if (Date.now() - t0 > 10_000)
-        throw new Error(`Could not free port ${port}. Close the process using it and retry.`);
-      await sleep(200);
+    if (Date.now() - start > hardTimeoutMs) {
+      console.warn(`⚠️  Port ${port} still appears in use after ${hardTimeoutMs}ms. Continuing anyway.`);
+      break;
     }
   }
+
+  // Wipe data/log for this script
+  try {
+    console.log(`  - Removing DATA_DIR: ${DATA_DIR}`);
+    fs.rmSync(DATA_DIR, { recursive: true, force: true });
+  } catch {}
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+
+  try {
+    fs.unlinkSync(LOG_FILE);
+  } catch {}
+  try {
+    fs.unlinkSync(PID_FILE);
+  } catch {}
+
+  // Just in case any stale lock-like files show up again
+  removeStaleLocks();
 }
 
-function posixSpawnWithUlimit(cmd: string, args: string[], logFile?: string) {
+// ---------- Start mongod ----------
+function posixSpawnWithUlimit(cmd: string, args: string[]): ReturnType<typeof spawn> {
   if (process.platform === "win32" || !ULIMIT) {
     return spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true });
   }
-  const bashCmd = `ulimit -n ${
-    Number(ULIMIT) || 64000
-  }; exec "${cmd.replace(/"/g, '\\"')}" ${args.map((a) => JSON.stringify(a)).join(" ")}`;
+  const bashCmd = `ulimit -n ${Number(ULIMIT) || 64000}; exec "${cmd.replace(
+    /"/g,
+    '\\"'
+  )}" ${args.map((a) => JSON.stringify(a)).join(" ")}`;
   const child = spawn("bash", ["-lc", bashCmd], { detached: true, stdio: "ignore" });
   return child;
 }
@@ -289,8 +282,6 @@ function mongodArgs(dbpath: string, port: number): string[] {
     "--logappend",
     "--pidfilepath",
     PID_FILE,
-    // 🔹 OPTIONAL: if you ever want to override socket path explicitly:
-    // "--unixSocketPrefix", SOCKET_DIR,
   ];
 }
 
@@ -311,33 +302,6 @@ async function waitForPortOrError(port: number, ms: number) {
   }
 }
 
-async function runRepair(): Promise<boolean> {
-  console.log("🛠  Attempting mongod --repair ...");
-  try {
-    // Run foreground repair so we can get its exit code
-    const args = ["--dbpath", DATA_DIR, "--logpath", LOG_FILE, "--logappend", "--repair"];
-    const r = spawnSync(MONGOD_BIN, args, { encoding: "utf8" });
-    if (r.status === 0) {
-      console.log("✅ Repair succeeded.");
-      return true;
-    } else {
-      console.log("❌ Repair failed (non-zero exit).");
-    }
-  } catch (e) {
-    console.log("❌ Repair threw:", (e as Error).message);
-  }
-  return false;
-}
-
-function resetDbPathDangerous() {
-  console.log("⚠️  RESET_IF_BROKEN is enabled. Deleting dbpath (DEV ONLY):", DATA_DIR);
-  try {
-    fs.rmSync(DATA_DIR, { recursive: true, force: true });
-  } catch {}
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// ---------- Start mongod ----------
 async function startMongod(port: number): Promise<number> {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   // Ensure the log file exists
@@ -345,15 +309,10 @@ async function startMongod(port: number): Promise<number> {
     fs.closeSync(fs.openSync(LOG_FILE, "a"));
   } catch {}
   removeStaleLocks();
-
-  // 🔹 NEW: proactively clean up stale Unix socket
-  removeStaleUnixSocket(port);
-
   await fixPermissionsIfPossible();
 
-  // Start process (optionally with higher ulimit on POSIX)
   const args = mongodArgs(DATA_DIR, port);
-  const child = posixSpawnWithUlimit(MONGOD_BIN, args, LOG_FILE);
+  const child = posixSpawnWithUlimit(MONGOD_BIN, args);
   if (!child.pid) throw new Error("Failed to spawn mongod. Check your MONGOD_BIN or PATH.");
   child.unref();
 
@@ -394,7 +353,8 @@ async function ensureReplicaSet(baseUri: string, port: number): Promise<"initiat
         const primary = (status.members || []).find((m: any) => m.stateStr === "PRIMARY");
         if (primary) break;
       } catch {}
-      if (Date.now() - start > 20_000) throw new Error("Replica set did not become PRIMARY in time.");
+      if (Date.now() - start > 20_000)
+        throw new Error("Replica set did not become PRIMARY in time.");
       await sleep(500);
     }
     return "initiated";
@@ -403,84 +363,68 @@ async function ensureReplicaSet(baseUri: string, port: number): Promise<"initiat
   }
 }
 
-// ---------- Main (with self-heal) ----------
+// ---------- Main (aggressive self-heal, runs until success) ----------
 async function main() {
   console.log(`🔎 Using mongod: ${MONGOD_BIN}`);
   console.log(`📁 Data dir    : ${DATA_DIR}`);
   console.log(`📝 Log file    : ${LOG_FILE}`);
   console.log(`🧩 RS name     : ${RS_NAME}`);
   console.log(`🔌 Port        : ${PORT}`);
-  console.log(`🧷 Socket dir  : ${SOCKET_DIR}`);
 
-  await ensurePortFree(PORT);
+  // First, completely clean up anything on this port / in this DATA_DIR
+  await forceCleanMongoState(PORT);
 
   const baseUri = `mongodb://127.0.0.1:${PORT}`;
   const rsUri = `${baseUri}/${DB_NAME}?replicaSet=${RS_NAME}`;
 
   let attempts = 0;
-  const maxAttempts = 3;
-  let lastError: Error | null = null;
 
-  while (attempts < maxAttempts) {
+  // Loop forever until success (Ctrl+C to stop)
+  // This makes the script "never fail" in the sense of "keep retrying"
+  while (true) {
     attempts++;
+    console.log(`\n🚀 Start attempt #${attempts}`);
     try {
       const pid = await startMongod(PORT);
       console.log(`▶️  Started mongod (pid ${pid})`);
       const rsState = await ensureReplicaSet(baseUri, PORT);
-      console.log(rsState === "initiated" ? "✅ Replica set initiated" : "✅ Replica set already configured");
+      console.log(
+        rsState === "initiated"
+          ? "✅ Replica set initiated"
+          : "✅ Replica set already configured"
+      );
       console.log("\n🔗 Add this to your .env:");
       console.log(`MONGODB_URI=${rsUri}\n`);
-      return;
-    } catch (e) {
-      lastError = e as Error;
+      return; // success, exit 0
+    } catch (e: any) {
+      const err = e as Error;
+      const msg = err?.message || String(err);
       const tail = tailLog();
       const det = detectKnownError(tail);
 
-      console.warn(`❌ Start attempt ${attempts} failed: ${lastError.message}`);
+      console.warn(`❌ Start attempt ${attempts} failed: ${msg}`);
       if (det) console.warn(`   Detected: ${det.kind} — ${det.hint}`);
 
-      // Self-heal steps (in order)
-      if (det?.kind === "perm") {
-        await fixPermissionsIfPossible();
-      } else if (det?.kind === "ulimit" && !ULIMIT && process.platform !== "win32") {
-        console.warn("   Hint: set MONGO_ULIMIT=64000 to raise file descriptor limit for the child process.");
-      } else if (det?.kind === "port_in_use") {
-        await ensurePortFree(PORT);
-      } else if (det?.kind === "unix_socket_stale" && process.platform !== "win32") {
-        // 🔹 NEW: try to clean up the stale socket and retry
-        removeStaleUnixSocket(PORT);
-      } else if ((det?.kind === "wt_corrupt" || det?.kind === "wt_incompat") && AUTO_REPAIR) {
-        // Try a repair once
-        await ensurePortFree(PORT);
-        removeStaleLocks();
-        const repaired = await runRepair();
-        if (!repaired && det.kind === "wt_incompat" && RESET_IF_BROKEN) {
-          resetDbPathDangerous();
-        }
-      } else if (det?.kind === "dbpath_missing") {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      } else if (!det && AUTO_REPAIR) {
-        // Unknown error: try repair as a fallback
-        await ensurePortFree(PORT);
-        removeStaleLocks();
-        await runRepair();
+      if (tail) {
+        console.warn("---- LOG TAIL ----");
+        console.warn(tail);
+        console.warn("------------------");
       }
 
-      // small backoff
-      await sleep(500);
+      // Aggressively clean up everything and try again
+      await forceCleanMongoState(PORT);
+
+      // Small exponential-ish backoff up to 5 seconds
+      const backoff = Math.min(500 * attempts, 5000);
+      console.log(`⏱  Backing off for ${backoff}ms before retry...`);
+      await sleep(backoff);
     }
   }
-
-  // Final failure
-  console.error("\n❌ setup-rs failed:", lastError?.message || lastError);
-  const endTail = tailLog();
-  if (endTail) console.error("---- LOG TAIL ----\n" + endTail + "\n------------------");
-  console.error(`   Check log file at: ${LOG_FILE}`);
-  process.exit(1);
 }
 
 main().catch((err) => {
-  console.error("❌ setup-rs failed:", err?.message || err);
+  // These are "hard" failures (e.g. mongod binary truly missing).
+  console.error("❌ setup-rs failed fatally:", err?.message || err);
   console.error(`   Check log file at: ${LOG_FILE}`);
   process.exit(1);
 });

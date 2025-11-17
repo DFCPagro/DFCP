@@ -5,7 +5,7 @@ info:
 
 tags:
   - name: Picker
-    description: Picker profile & gamification (require authentication)
+    description: Picker profile, core data & gamification (require authentication)
 
 paths:
   /api/v1/picker/me:
@@ -36,8 +36,7 @@ paths:
                     id: "66e007000000000000000001"
                     name: "Zarzir Logistics Center"
                     locationName: "Zarzir"
-                  mdCoints: 0
-                  coins: 0
+                  mdCoins: 0
                   activeStatus: true
                 currentMonthSchedule: []
                 nextMonthSchedule: []
@@ -47,12 +46,12 @@ paths:
           description: Forbidden
     patch:
       tags: [Picker]
-      summary: Update my picker core fields
+      summary: Update my logistic center
       description: >
         Upsert core picker data.  
-        - `nickname` is stored on Picker.  
-        - If provided, `logisticCenterId` updates the **User**'s logistic center.  
-        Response **does not** include any `logisticCenterId`; LC appears only under `user.logisticCenter`.
+        - Picker document is created if missing.  
+        - `logisticCenterId` is applied to the **User** document (not Picker).  
+        - Response **does not** expose a raw `logisticCenterId`; instead it appears as `user.logisticCenter`.
       security:
         - bearerAuth: []
       requestBody:
@@ -62,12 +61,8 @@ paths:
             schema:
               $ref: "#/components/schemas/PatchMeRequest"
             examples:
-              changeNickname:
-                value: { nickname: "NewNick" }
               changeCenter:
                 value: { logisticCenterId: "66e007000000000000000001" }
-              both:
-                value: { nickname: "NewNick", logisticCenterId: "66e007000000000000000001" }
       responses:
         "200":
           description: Updated picker profile
@@ -124,6 +119,113 @@ paths:
         "403":
           description: Forbidden
 
+  /api/v1/picker/top:
+    get:
+      tags: [Picker]
+      summary: Get top pickers by completed orders
+      description: >
+        Returns the top N pickers ordered by **completed orders count** for a given time window.  
+        Time window can be either the **current shift today** (`mode=todayShift`) or a **specific month** (`mode=month`).  
+        Optionally scoped to a specific logistics center.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: mode
+          schema:
+            type: string
+            enum: [todayShift, month]
+            default: todayShift
+          description: >
+            Ranking mode.  
+            - `todayShift` — current active shift today (based on shiftConfig).  
+            - `month` — calendar month (uses `month` and `year` if provided).
+        - in: query
+          name: logisticCenterId
+          schema:
+            type: string
+          required: false
+          description: >
+            Optional logistics center to scope the ranking to (Mongo ObjectId as string).
+        - in: query
+          name: month
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          required: false
+          description: >
+            Target month (1-12).  
+            Only used when `mode=month`.  
+            Defaults to current month if omitted.
+        - in: query
+          name: year
+          schema:
+            type: integer
+          required: false
+          description: >
+            Target year (e.g. 2025).  
+            Only used when `mode=month`.  
+            Defaults to current year if omitted.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            default: 5
+          required: false
+          description: >
+            Maximum number of pickers to return.  
+            Defaults to 5.
+      responses:
+        "200":
+          description: Top pickers ordered by completed orders (descending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TopPicker"
+              example:
+                - pickerUserId: "66f2aa00000000000000002b"
+                  completedOrders: 42
+                  nickname: "SpeedyPicker"
+                  status: "active"
+                  level: 5
+                  xp: 1230
+                  user:
+                    name: "Avi Mizrahi"
+                    email: "picker@gmail.com"
+                    phone: null
+                    role: "picker"
+                    logisticCenterId: "66e007000000000000000001"
+                    mdCoins: 0
+                    activeStatus: true
+                - pickerUserId: "66f2aa000000000000000030"
+                  completedOrders: 37
+                  nickname: "BoxMaster"
+                  status: "active"
+                  level: 4
+                  xp: 980
+                  user:
+                    name: "Dana Cohen"
+                    email: "picker2@gmail.com"
+                    phone: null
+                    role: "picker"
+                    logisticCenterId: "66e007000000000000000001"
+                    mdCoins: 10
+                    activeStatus: true
+        "400":
+          description: Bad request (e.g. invalid month/year)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden
+
 components:
   securitySchemes:
     bearerAuth:
@@ -156,7 +258,7 @@ components:
 
     UserInProfile:
       type: object
-      required: [name, email, role, mdCoints, coins, activeStatus]
+      required: [name, email, role, mdCoins, activeStatus]
       properties:
         name:
           type: string
@@ -175,10 +277,7 @@ components:
           example: picker
         logisticCenter:
           $ref: "#/components/schemas/LogisticCenter"
-        mdCoints:
-          type: number
-          example: 0
-        coins:
+        mdCoins:
           type: number
           example: 0
         activeStatus:
@@ -229,17 +328,13 @@ components:
       type: object
       additionalProperties: false
       properties:
-        nickname:
-          type: string
-          description: New nickname for the picker
-          example: "NewNick"
         logisticCenterId:
           type: string
           description: >
             Logistic center to assign to the user (ObjectId as string).  
-            **Note:** This field is **input only**; responses never include any `logisticCenterId`.
+            **Note:** This field is **input only**; responses never include any raw `logisticCenterId`.
           example: "66e007000000000000000001"
-      minProperties: 1
+      required: [logisticCenterId]
 
     PatchGamificationRequest:
       type: object
@@ -255,6 +350,65 @@ components:
           description: Additive XP delta (can be negative; service clamps total at 0)
           example: 50
       minProperties: 1
+
+    TopPickerUserSummary:
+      type: object
+      description: Lightweight user info inside a top-pickers ranking entry.
+      properties:
+        name:
+          type: string
+          example: "Avi Mizrahi"
+        email:
+          type: string
+          format: email
+          example: "picker@gmail.com"
+        phone:
+          type: string
+          nullable: true
+          example: null
+        role:
+          type: string
+          example: "picker"
+        logisticCenterId:
+          type: string
+          description: Raw ObjectId of the user's logistics center (if any).
+          nullable: true
+          example: "66e007000000000000000001"
+        mdCoins:
+          type: number
+          example: 0
+        activeStatus:
+          type: boolean
+          example: true
+
+    TopPicker:
+      type: object
+      description: Ranking entry for a picker, ordered by completed orders.
+      properties:
+        pickerUserId:
+          type: string
+          description: User _id of the picker (as string)
+          example: "66f2aa00000000000000002b"
+        completedOrders:
+          type: integer
+          description: Number of completed orders in the selected time window
+          example: 42
+        nickname:
+          type: string
+          nullable: true
+          example: "SpeedyPicker"
+        status:
+          $ref: "#/components/schemas/PickerStatus"
+        level:
+          type: integer
+          minimum: 1
+          example: 5
+        xp:
+          type: integer
+          minimum: 0
+          example: 1230
+        user:
+          $ref: "#/components/schemas/TopPickerUserSummary"
 
     Error:
       type: object
