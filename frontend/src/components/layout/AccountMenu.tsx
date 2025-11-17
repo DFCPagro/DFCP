@@ -6,6 +6,7 @@ import { toaster } from "@/components/ui/toaster";
 import { useAuthStore } from "@/store/auth";
 import { useUIStore } from "@/store/ui";
 import { Coins } from "lucide-react";
+import { useColorModeValue, ColorModeButton } from "@/components/ui/color-mode";
 
 const colorPalette = ["red", "blue", "green", "yellow", "purple", "orange"] as const;
 const pickPalette = (name?: string | null) => {
@@ -35,7 +36,8 @@ export default function AccountMenu() {
   const setMode = useSessionStore((s) => s.setMode);
   const resetForLogout = useSessionStore((s) => s.resetForLogout);
   const logout = useAuthStore((s) => s.logout);
-
+const bg = useColorModeValue("gray.50", "gray.900");
+  const border = useColorModeValue("gray.200", "gray.700");
   const openDrawer = useUIStore((s) => s.openDrawer);
 
   const canWork = Boolean(role);
@@ -93,8 +95,8 @@ export default function AccountMenu() {
   const roleAvatarSrc = roleName ? roleAvatarMap[roleName] : undefined;
 
   return (
-    <Menu.Root positioning={{ placement: "bottom-end" }}>
-      <Menu.Trigger asChild>
+    <Menu.Root  positioning={{ placement: "bottom-end" }}>
+      <Menu.Trigger asChild  position= "absolute" right="0">
         <Box cursor="pointer">
           <HStack gap={2} align="center">
             <Avatar.Root colorPalette={pickPalette(user?.name)}>
@@ -105,7 +107,7 @@ export default function AccountMenu() {
               )}
             </Avatar.Root>
 
-            <HStack gap={2} align="center">
+            <HStack gap={2} align="flex-">
               <Text fontSize="sm">{userName}</Text>
 
               {!isGuest && (
@@ -129,11 +131,14 @@ export default function AccountMenu() {
                       <Text fontSize="sm" color="fg.muted">
                         Earned from verified performance. Usable for discounts and in-app purchases.
                       </Text>
+                      
                     </HoverCard.Content>
                   </HoverCard.Positioner>
                 </HoverCard.Root>
               )}
             </HStack>
+                                            <ColorModeButton />
+
           </HStack>
         </Box>
       </Menu.Trigger>
