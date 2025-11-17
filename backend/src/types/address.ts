@@ -1,4 +1,4 @@
-export interface Address {
+export type Address = {
   lnt: number;
   alt: number;
   address: string;

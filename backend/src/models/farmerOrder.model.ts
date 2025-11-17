@@ -20,7 +20,7 @@ import { AuditEntrySchema } from "./shared/audit.schema";
 // 🔹 NEW: quality standards schemas
 import QualityStandardsSchema from "./shared/qualityStandards.schema";
 import { QualityStandardsEggDairySchema } from "./shared/qualityStandardsEggDairy.schema";
-
+import  { AddressSchema } from "./shared/address.schema";
 
 // ---------- enums ----------
 export const SHIFTS = ["morning", "afternoon", "evening", "night"] as const;
@@ -138,6 +138,10 @@ const FarmerOrderSchema = new Schema(
     logisticCenterId: {
       type: Schema.Types.ObjectId,
       ref: "LogisticCenter",
+      required: true,
+    },
+    pickupAddress: {
+      type: AddressSchema,
       required: true,
     },
 

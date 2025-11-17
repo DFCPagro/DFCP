@@ -37,7 +37,6 @@ export const PATHS = {
   adminDashboard: "/admin/dashboard",
   JobAppReview: "/admin/jobReview",
   cropHarvest: "/admin/crop-harvest",
-  PackageSizes: "/admin/package-sizes",
   PickerTasksPage: "/admin/picker-tasks",
   StatisticsAnalytics: "/admin/statistics-analytics",
 
@@ -63,6 +62,10 @@ export const PATHS = {
   csManagerCustomers: "/csManager/customers",
   csManagerAnalytics: "/csManager/analytics",
   csManagerReportsInbox: "/csManager/reports-inbox",
+
+  //tManager pages
+  TManagerDashboard: "/tManager/dashboard",
+  PackageSizes: "/tManager/package-sizes",
 
   //fManager pages
   fManagerDashboard: "/fManager/dashboard",

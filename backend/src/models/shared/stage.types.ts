@@ -79,3 +79,37 @@ export const ORDER_STAGE_KEYS = ORDER_STAGE_DEFS.map(
 
 export const ORDER_STAGE_LABELS: Record<OrderStageKey, string> =
   Object.fromEntries(ORDER_STAGE_DEFS.map((s) => [s.key, s.label])) as any;
+
+
+  export const FARMER_DELIVERY_STAGE_KEYS = [
+  "planned",
+  "assigned",
+  "en_route_to_farms",
+  "loading_at_farms",
+  "returning_to_lc",
+  "unloading_at_lc",
+  "completed",
+  "cancelled",
+  "problem",
+] as const;
+
+export type FarmerDeliveryStageKey =
+  (typeof FARMER_DELIVERY_STAGE_KEYS)[number];
+
+export const FARMER_DELIVERY_STAGES = FARMER_DELIVERY_STAGE_KEYS.map((key) => {
+  const labels: Record<FarmerDeliveryStageKey, string> = {
+    planned: "Planned",
+    assigned: "Driver assigned",
+    en_route_to_farms: "On route to farms",
+    loading_at_farms: "Loading at farms",
+    returning_to_lc: "Returning to LC",
+    unloading_at_lc: "Unloading at LC",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    problem: "Problem",
+  };
+  return {
+    key,
+    label: labels[key],
+  };
+});

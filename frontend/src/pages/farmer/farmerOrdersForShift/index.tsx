@@ -171,7 +171,7 @@ export default function FarmerOrderForShift() {
     queryKey: ["shift-windows-all", logisticCenterId],
     queryFn: async () => {
       console.debug("[FarmerOrderForShift] Calling fetchShiftWindows for lc:", logisticCenterId)
-      const res = await fetchShiftWindows(logisticCenterId)
+      const res = await fetchShiftWindows()
       console.debug("[FarmerOrderForShift] Shift windows loaded:", res)
       return res
     },

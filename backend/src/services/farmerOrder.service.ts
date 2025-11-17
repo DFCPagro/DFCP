@@ -42,7 +42,8 @@ import {
   type AuditEvent,
 } from "../utils/audit.utils";
 import { pushHistoryAuditTrail } from "./auditTrail.service";
-import { getContactInfoByIdService } from "./user.service";
+import { getContactInfoByIdService, getUserAddresses } from "./user.service";
+import { A } from "framer-motion/dist/types.d-BJcRxCew";
 
 /* =============================
  * DTO and shaper
@@ -113,6 +114,14 @@ type UserCtx = {
   LogisticCenterId?: Types.ObjectId;
 };
 
+type PickupAddress = {
+  lnt: number; // longitude
+  alt: number; // latitude
+  address: string;
+  logisticCenterId?: string | Types.ObjectId | null;
+  note?: string;
+};
+
 export type ContactInfo = {
   name: string;
   email: string;
@@ -165,6 +174,7 @@ export interface CreateFarmerOrderPayload {
 
   shift?: Shift;
   pickUpDate?: string; // "YYYY-MM-DD"
+  pickUpAddress?: PickupAddress;
 
   forcastedQuantityKg?: number;
   sumOrderedQuantityKg?: number;
@@ -285,7 +295,33 @@ export async function createFarmerOrderService(
     String(payload.farmerId!),
     payload.farmLogo ?? null
   );
+  
+  let pickupAddress: PickupAddress | null =
+    (payload as any).pickUpAddress ?? (payload as any).pickupAddress ?? null;
 
+  if (!pickupAddress) {
+    try {
+      const addresses = await getUserAddresses(String(payload.farmerId!));
+      if (Array.isArray(addresses) && addresses.length > 0) {
+        // assume user.addresses already uses the same Address schema
+        pickupAddress = addresses[0] as PickupAddress;
+      }
+    } catch {
+      // ignore and fallback below
+    }
+  }
+
+  if (!pickupAddress) {
+    pickupAddress = {
+      lnt: 35.0,
+      alt: 32.0,
+      address: String(payload.farmName ?? "Unknown farm"),
+      logisticCenterId: user.logisticCenterId
+        ? String(user.logisticCenterId)
+        : STATIC_LC_ID,
+      note: "Auto-generated pickupAddress (no address provided/found)",
+    };
+  }
   const session = await mongoose.startSession();
   try {
     let json: any;
@@ -310,9 +346,11 @@ export async function createFarmerOrderService(
         shift: payload.shift,
         pickUpDate: payload.pickUpDate,
         pickUpTime,
+        pickupAddress,
         logisticCenterId: toOID(
           user.logisticCenterId ? String(user.logisticCenterId) : STATIC_LC_ID
         ),
+
 
         farmerStatus: "pending",
         sumOrderedQuantityKg:

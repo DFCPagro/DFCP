@@ -149,12 +149,18 @@ const workAdmin: ReadonlyArray<MenuItem> = [
     key: "TManager",
     label: "T Manager WIP",
     children: [
-   {
+      {
+        type: "link",
+        key: "t-manager-dashboard",
+        label: "T-M Dashboard",
+        path: P.TManagerDashboard,
+      },
+      {
         type: "link",
         key: "admin-package-sizes",
         label: "Package Sizes",
         path: P.PackageSizes,
-      },
+      }
     ],
   },
     {

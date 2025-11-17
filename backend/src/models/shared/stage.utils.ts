@@ -8,6 +8,8 @@ import {
   ORDER_STAGE_KEYS,
   ORDER_STAGE_LABELS,
   type OrderStageKey,
+  FARMER_DELIVERY_STAGES,
+  FARMER_DELIVERY_STAGE_KEYS,
 } from "./stage.types";
 
 /* -------------------------------------------------------------------------- */
@@ -89,4 +91,21 @@ export function buildStageEntry(
     timestamp: now,
     note: "",
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                FOrder deliveries helpers                               */
+/* -------------------------------------------------------------------------- */
+
+export function buildFarmerDeliveryDefaultStages() {
+  return FARMER_DELIVERY_STAGES.map((s) => ({
+    key: s.key,
+    label: s.label,
+    status: s.key === "planned" ? "current" : "pending",
+    expectedAt: null,
+    startedAt: null,
+    completedAt: null,
+    timestamp: new Date(),
+    note: "",
+  }));
 }

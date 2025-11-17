@@ -24,6 +24,7 @@ import ItemModel from "../../../src/models/Item.model";
 import { getContactInfoByIdService } from "../../../src/services/user.service";
 import { buildAmsItemFromItem } from "../../../src/services/amsLine.builder";
 import ContainerOps from "../../../src/models/ContainerOps.model";
+import {getUserAddresses} from "../../../src/services/user.service";
 
 // -----------------------------
 // Config
@@ -266,8 +267,17 @@ async function seed() {
 
   try {
     // fetch farmer display data once (by *user* id)
+        // fetch farmer display data once (by *user* id)
     const f1 = await getContactInfoByIdService(Farmer1_ID);
     const f2 = await getContactInfoByIdService(Farmer2_ID);
+
+    // NEW: fetch farmer addresses from User.addresses
+    const f1Addresses = await getUserAddresses(Farmer1_ID);
+    const f2Addresses = await getUserAddresses(Farmer2_ID);
+
+    const pickFirstAddress = (arr: any[]): any | null =>
+      Array.isArray(arr) && arr.length ? arr[0] : null;
+
     const FARMERS = [
       {
         farmerUserId: Farmer1_ID,
@@ -275,6 +285,8 @@ async function seed() {
         farmerName: f1.name,
         farmName: f1.farmName || "freshy fresh",
         farmLogo: f1.farmLogo ?? null,
+        // assume User.addresses uses same Address schema as pickupAddress
+        pickupAddress: pickFirstAddress(f1Addresses),
       },
       {
         farmerUserId: Farmer2_ID,
@@ -282,8 +294,10 @@ async function seed() {
         farmerName: f2.name,
         farmName: f2.farmName || "freshy fresh",
         farmLogo: f2.farmLogo ?? null,
+        pickupAddress: pickFirstAddress(f2Addresses),
       },
     ];
+
 
     // 1) Next 2 shifts
     const next2 = nextTwoShifts(new Date());
@@ -332,7 +346,7 @@ async function seed() {
           const committedKg = category === "egg_dairy" ? 80 : randInt(50, 80);
 
           // ---------- FarmerOrder (authoritative containers are refs) ----------
-          const createdFO = await FarmerOrder.create({
+                    const createdFO = await FarmerOrder.create({
             createdBy: new Types.ObjectId(FARMER_MANAGER_ID),
             updatedBy: new Types.ObjectId(FARMER_MANAGER_ID),
 
@@ -346,6 +360,16 @@ async function seed() {
             farmerId: farmer.farmerId,
             farmerName: farmer.farmerName,
             farmName: farmer.farmName,
+
+            // 🔹 NEW: pickupAddress for planning / trips
+            pickupAddress:
+              farmer.pickupAddress ?? {
+                lnt: 35.0,
+                alt: 32.0,
+                address: `${farmer.farmName} (seeded default)`,
+                logisticCenterId: STATIC_LC_ID,
+                note: "Seeded default pickup address",
+              },
 
             shift: s.name,
             pickUpDate: s.ymd,

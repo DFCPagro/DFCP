@@ -28,6 +28,7 @@ import pickerRoutes from "./picker.routes";
 import deliveryShelvingRoutes from "./deliveryShelving.routes";
 import pickerTasksRoutes from "./pickerTask.routes";
 
+import farmerDelivery from "./farmerDelivery.routes";
 const router = Router();
 
 router.use("/auth", authRoutes);
@@ -67,5 +68,6 @@ router.use("/jobApp", jobApplicationRouter);
 
 //pickers
 router.use("/pickerTasks", pickerTasksRoutes);
+router.use("/farmer-delivery", farmerDelivery);
 
 export default router;
