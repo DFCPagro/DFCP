@@ -548,5 +548,81 @@
         "logisticCenterId": "66e007000000000000000001"
       }
     ]
-  }
+  },
+{
+  "_id": "66f2aa000000000000000042",
+  "name": "Industrial Driver One",
+  "email": "ideliverer1@gmail.com",
+  "password": "12345678",
+  "role": "industrialDeliverer",
+  "activeStatus": true,
+  "uid": "IDL-2",
+  "logisticCenterId": "66e007000000000000000001",
+  "mdCoins": 512,
+  "addresses": [
+    {
+      "lnt": 34.8516,
+      "alt": 32.1093,
+      "address": "Industrial Zone, Holon, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    {
+      "lnt": 34.8259,
+      "alt": 32.029,
+      "address": "Logistics Park, Rishon LeZion, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    }
+  ]
+},
+{
+  "_id": "66f2aa000000000000000043",
+  "name": "Industrial Driver Two",
+  "email": "ideliverer2@gmail.com",
+  "password": "12345678",
+  "role": "industrialDeliverer",
+  "activeStatus": true,
+  "uid": "IDL-3",
+  "logisticCenterId": "66e007000000000000000001",
+  "mdCoins": 587,
+  "addresses": [
+    {
+      "lnt": 34.7775,
+      "alt": 32.0706,
+      "address": "Logistics Center, Tel Aviv-Yafo, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    {
+      "lnt": 34.9136,
+      "alt": 32.192,
+      "address": "Industrial Area, Kfar Saba, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    }
+  ]
+},
+{
+  "_id": "66f2aa000000000000000044",
+  "name": "Industrial Driver Three",
+  "email": "ideliverer3@gmail.com",
+  "password": "12345678",
+  "role": "industrialDeliverer",
+  "activeStatus": true,
+  "uid": "IDL-4",
+  "logisticCenterId": "66e007000000000000000001",
+  "mdCoins": 603,
+  "addresses": [
+    {
+      "lnt": 34.7462,
+      "alt": 31.963,
+      "address": "Industrial Zone, Lod, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    },
+    {
+      "lnt": 34.8417,
+      "alt": 32.154,
+      "address": "Logistics Hub, Ra'anana, Israel",
+      "logisticCenterId": "66e007000000000000000001"
+    }
+  ]
+}
+
 ]
