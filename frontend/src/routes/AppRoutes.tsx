@@ -34,6 +34,15 @@ const FarmerOrderForShift = lazy(
   () => import("@/pages/farmer/farmerOrdersForShift")
 );
 
+// Deliverer pages
+const DelivererDashboard = lazy(
+  () => import("@/pages/deliverer/delivererDashboard")
+);
+const DelivererSchedule = lazy(
+  () => import("@/pages/deliverer/delivererSchedule")
+);
+
+
 // Picker pages
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
 const PickTaskPage = lazy(() => import("@/pages/picker/picker-task"));
@@ -300,10 +309,19 @@ export default function AppRoutes() {
 
           {/* Driver-only */}
           <Route
-            path={PATHS.driverSchedule}
+            path={PATHS.delivererDashboard}
             element={
               <RoleGuard allow={["deliverer"]}>
-                <DriverSchedule />
+                <DelivererDashboard />
+                <ScrollToTopOnMount />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path={PATHS.delivererSchedule}
+            element={
+              <RoleGuard allow={["deliverer"]}>
+                <DelivererSchedule />
                 <ScrollToTopOnMount />
               </RoleGuard>
             }

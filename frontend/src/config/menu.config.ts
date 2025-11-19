@@ -60,7 +60,6 @@ const workFarmer: ReadonlyArray<MenuItem> = [
     path: P.FarmerDashboard,
   },
 
-
   {
     type: "link",
     key: "farmer-reports",
@@ -90,7 +89,7 @@ const workAdmin: ReadonlyArray<MenuItem> = [
         label: "CS-M Dashboard",
         path: P.csManagerDashboard,
       },
-     
+
       {
         type: "link",
         key: "CS-M-orders",
@@ -160,10 +159,10 @@ const workAdmin: ReadonlyArray<MenuItem> = [
         key: "admin-package-sizes",
         label: "Package Sizes",
         path: P.PackageSizes,
-      }
+      },
     ],
   },
-    {
+  {
     type: "link",
     key: "admin-jobApplication",
     label: "Job Application Review",
@@ -177,7 +176,6 @@ const workAdmin: ReadonlyArray<MenuItem> = [
   },
 
   // Admin utilities
- 
 
   WORKER_MARKET_GROUP,
 ] as const;
@@ -298,14 +296,19 @@ const workCSManager: ReadonlyArray<MenuItem> = [
 const workDeliverer: ReadonlyArray<MenuItem> = [
   {
     type: "link",
-    key: "drv-schedule",
-    label: "Schedule",
-    path: P.driverSchedule,
+    key: "dlvr-dashboard",
+    label: "Dashboard",
+    path: P.delivererDashboard,
     exact: true,
   },
-  { type: "link", key: "drv-today", label: "Today", path: "#" },
-  { type: "link", key: "drv-upcoming", label: "Upcoming", path: "#" },
-  { type: "link", key: "drv-month", label: "Month View", path: "#" },
+  {
+    type: "link",
+    key: "dlvr-schedule",
+    label: "Schedule",
+    path: P.delivererSchedule,
+    exact: true,
+  },
+
   WORKER_MARKET_GROUP,
 ] as const;
 
