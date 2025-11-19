@@ -2,7 +2,11 @@ import { Request, Response, NextFunction } from "express";
 import * as svc from "../services/deliverer.service";
 import ApiError from "../utils/ApiError";
 
-export const create = async (req: Request, res: Response, next: NextFunction) => {
+export const create = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const doc = await svc.createDeliverer(req.body);
     res.status(201).json(doc);
@@ -20,7 +24,11 @@ export const get = async (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-export const getMe = async (req: Request, res: Response, next: NextFunction) => {
+export const getMe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     // @ts-ignore injected by authenticate middleware
     const user = req.user;
@@ -40,10 +48,14 @@ export const list = async (req: Request, res: Response, next: NextFunction) => {
       sort: req.query.sort as string,
       user: req.query.user as string,
       logisticCenterId: req.query.logisticCenterId as string,
-      currentMonth: req.query.currentMonth ? +req.query.currentMonth : undefined,
-      hasVehicleInsurance: typeof req.query.hasVehicleInsurance !== "undefined"
-        ? req.query.hasVehicleInsurance === "true" || req.query.hasVehicleInsurance === "1"
+      currentMonth: req.query.currentMonth
+        ? +req.query.currentMonth
         : undefined,
+      hasVehicleInsurance:
+        typeof req.query.hasVehicleInsurance !== "undefined"
+          ? req.query.hasVehicleInsurance === "true" ||
+            req.query.hasVehicleInsurance === "1"
+          : undefined,
       licenseType: req.query.licenseType as string,
       search: req.query.search as string,
     });
@@ -53,7 +65,11 @@ export const list = async (req: Request, res: Response, next: NextFunction) => {
   }
 };
 
-export const update = async (req: Request, res: Response, next: NextFunction) => {
+export const update = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const doc = await svc.updateDeliverer(req.params.id, req.body);
     res.json(doc);
@@ -62,7 +78,11 @@ export const update = async (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
-export const remove = async (req: Request, res: Response, next: NextFunction) => {
+export const remove = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const result = await svc.deleteDeliverer(req.params.id);
     res.json(result);
@@ -71,68 +91,11 @@ export const remove = async (req: Request, res: Response, next: NextFunction) =>
   }
 };
 
-// ===== schedule endpoints =====
-
-export const putActiveSchedule = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { activeSchedule } = req.body as { activeSchedule: number[] };
-    if (!Array.isArray(activeSchedule)) throw new ApiError(400, "activeSchedule must be an array of numbers");
-    const doc = await svc.setActiveSchedule(req.params.id, activeSchedule);
-    res.json(doc);
-  } catch (e) {
-    next(e);
-  }
-};
-
-export const putNextSchedule = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { nextSchedule } = req.body as { nextSchedule: number[] };
-    if (!Array.isArray(nextSchedule)) throw new ApiError(400, "nextSchedule must be an array of numbers");
-    const doc = await svc.setNextSchedule(req.params.id, nextSchedule);
-    res.json(doc);
-  } catch (e) {
-    next(e);
-  }
-};
-
-export const patchDayShift = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { dayIndex, shiftMask, enabled } = req.body as { dayIndex: number; shiftMask: number; enabled: boolean };
-    if (!Number.isInteger(dayIndex)) throw new ApiError(400, "dayIndex must be an integer");
-    if (!Number.isInteger(shiftMask)) throw new ApiError(400, "shiftMask must be an integer");
-    const doc = await svc.setDayShift(req.params.id, dayIndex, shiftMask, !!enabled);
-    res.json(doc);
-  } catch (e) {
-    next(e);
-  }
-};
-
-export const availability = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const dayIndex = Number(req.query.dayIndex);
-    const shiftMask = Number(req.query.shiftMask);
-    if (!Number.isInteger(dayIndex) || !Number.isInteger(shiftMask)) {
-      throw new ApiError(400, "dayIndex and shiftMask must be integers");
-    }
-    const result = await svc.checkAvailability(req.params.id, dayIndex, shiftMask);
-    res.json(result);
-  } catch (e) {
-    next(e);
-  }
-};
-
-export const advanceMonth = async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { applyNext } = req.body as { applyNext?: boolean };
-    const doc = await svc.advanceMonth(req.params.id, !!applyNext);
-    res.json(doc);
-  } catch (e) {
-    next(e);
-  }
-};
-
-
-export const listMyCenters = async (req: Request, res: Response, next: NextFunction) => {
+export const listMyCenters = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     // @ts-ignore
     const user = req.user;
@@ -146,7 +109,11 @@ export const listMyCenters = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-export const listCenters = async (req: Request, res: Response, next: NextFunction) => {
+export const listCenters = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const centers = await svc.listCentersForDeliverer(req.params.id);
     res.json(centers);
@@ -155,18 +122,32 @@ export const listCenters = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const assignCenter = async (req: Request, res: Response, next: NextFunction) => {
+export const assignCenter = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const doc = await svc.assignDelivererToCenter(req.params.id, req.params.centerId);
+    const doc = await svc.assignDelivererToCenter(
+      req.params.id,
+      req.params.centerId
+    );
     res.json(doc);
   } catch (e) {
     next(e);
   }
 };
 
-export const unassignCenter = async (req: Request, res: Response, next: NextFunction) => {
+export const unassignCenter = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
-    const doc = await svc.unassignDelivererFromCenter(req.params.id, req.params.centerId);
+    const doc = await svc.unassignDelivererFromCenter(
+      req.params.id,
+      req.params.centerId
+    );
     res.json(doc);
   } catch (e) {
     next(e);
