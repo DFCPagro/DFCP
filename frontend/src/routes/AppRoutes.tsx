@@ -94,6 +94,10 @@ const TManagerDashboard = lazy(
   () => import("@/pages/TManager/dashboard")
 );
 
+const TManagerFarmerDeliveriesShiftDetails =lazy(
+  ()=> import("@/pages/TManager/farmerDeliveries")
+)
+
 // Misc / Example
 const MapPickerExamplePage = lazy(
   () => import("@/pages/MapExampleUsage")
@@ -435,6 +439,15 @@ export default function AppRoutes() {
             element={
               <RoleGuard allow={["tManager", "admin"]}>
                 <TManagerDashboard />
+                <ScrollToTopOnMount />
+              </RoleGuard>
+            }
+          />
+          <Route
+            path={PATHS.TManagerFarmerDeliveriesForShift}
+            element={
+              <RoleGuard allow={["tManager", "admin"]}>
+                <TManagerFarmerDeliveriesShiftDetails />
                 <ScrollToTopOnMount />
               </RoleGuard>
             }

@@ -62,6 +62,7 @@ export type PackingPlan = {
     contents: Array<{
       itemId: string;
       itemName?: string;
+      farmerOrderId?: string;
       pieceType: "bag" | "bundle";
       mode: "kg" | "unit";
       qtyKg?: number;        // for kg-mode piece

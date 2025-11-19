@@ -20,7 +20,7 @@ import TaskDetailsModal from "./components/taskDetailsModal";
 import PickerTasksTable from "./components/pickerTasksTable";
 import HeaderBar from "./components/HeaderBar.tsx";
 import { getDayOfWeek, toISODate, formatShiftLabel } from "@/utils/date";
-import { StatCardsRow } from "./components/StatusStats";
+
 
 /* ---------- helpers ---------- */
 function isRealShiftName(s: ApiShiftName): s is PickerShiftName {

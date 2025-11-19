@@ -66,6 +66,7 @@ export const PATHS = {
   //tManager pages
   TManagerDashboard: "/tManager/dashboard",
   PackageSizes: "/tManager/package-sizes",
+  TManagerFarmerDeliveriesForShift: "tManager/farmer-deliveries/:date/:shift",
 
   //fManager pages
   fManagerDashboard: "/fManager/dashboard",

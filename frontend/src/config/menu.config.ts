@@ -223,7 +223,41 @@ const workFManager: ReadonlyArray<MenuItem> = [
 ] as const;
 
 const workTManager: ReadonlyArray<MenuItem> = [
-  { type: "link", key: "dashboard", label: "dashboard", path: "" },
+  {
+        type: "link",
+        key: "t-manager-dashboard",
+        label: "Dashboard",
+        path: P.TManagerDashboard,
+      },
+      {
+        type: "link",
+        key: "admin-package-sizes",
+        label: "Package Sizes",
+        path: P.PackageSizes,
+      },
+      {
+        type: "group",
+    key: "manage-deliverers",
+    label: "Manage Deliverers" ,
+    children: [{
+
+      type: "link",
+        key: "deliverers-management",
+        label: "manage deliverers",
+        path: P.PackageSizes,//reconnect 
+    },
+{
+    type: "link",
+        key: "job-application",
+        label: "Job applications",
+        path: P.PackageSizes,//reconnect
+    },
+
+
+  ]   
+      },
+
+
   WORKER_MARKET_GROUP,
 ] as const;
 

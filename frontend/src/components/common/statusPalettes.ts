@@ -1,4 +1,6 @@
-// src/components/statusPalettes.ts
+// -----------------------
+// PICKER Tasks
+// -----------------------
 export type StatusKeyPickerTask =
   | "total"
   | "open"
@@ -20,8 +22,35 @@ export const STATUS_BASE_COLOR: Record<StatusKeyPickerTask, string> = {
   done: "blue",
 };
 
-// Label helper (keeps consistent human-friendly names)
+// -----------------------
+// FARMER DELIVERY 
+// -----------------------
+export type StatusKeyFarmerDelivery =
+  | "planned"
+  | "in_progress"
+  | "completed"
+  | "canceled"
+  | "problem";
+
+export const FARMER_DELIVERY_STATUS_COLOR: Record<
+  StatusKeyFarmerDelivery,
+  string
+> = {
+  planned: "blue",
+  in_progress: "purple",
+  completed: "green",
+  canceled: "orange",
+  problem: "red",
+};
+
+// -----------------------
+// Label helper
+// -----------------------
 export function labelOf(key: string): string {
   if (key === "in_progress") return "In progress";
-  return key.charAt(0).toUpperCase() + key.slice(1);
+
+  return key
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
