@@ -1,0 +1,735 @@
+openapi: 3.0.3
+info:
+  title: Schedule API
+  version: "1.0.0"
+  description: >
+    Endpoints for maintaining per-user monthly schedules (active / standby) and
+    querying workers assigned to shifts.
+    Notes:
+      - All endpoints require authentication (JWT bearer).
+      - Manager-only operations are restricted to roles:
+        `admin`, `fManager`, `tManager`, `opManager`.
+      - Monthly schedules are stored as bitmaps (`number[]`) where each index
+        represents a calendar day (1-based) and each bit in the integer
+        corresponds to one of the 4 shifts:
+        `morning`, `afternoon`, `evening`, `night`.
+
+servers:
+  - url: /api/v1
+    description: Main API base path
+
+tags:
+  - name: Schedule
+    description: >
+      Monthly schedules (active/standby) and shift assignment helpers.
+
+paths:
+  /schedule/month:
+    post:
+      tags: [Schedule]
+      summary: Add a monthly schedule bitmap
+      description: >
+        Create a monthly schedule bitmap for a worker for the given month and
+        schedule type (`active` or `standby`).  
+        - If a schedule for that month and type already exists:
+          - default behavior: **409 Conflict**.
+          - if `overwriteExisting=true`: it is overwritten.  
+        - Non-managers can only affect their own schedule.  
+        - Managers can target other users and optionally override the logistic center.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMonthlyScheduleRequest"
+            examples:
+              selfActive:
+                summary: Non-manager creating their own active schedule
+                value:
+                  month: "2025-11"
+                  scheduleType: active
+                  bitmap: [3, 0, 0, 12, 0, 0, 0]
+              managerForWorker:
+                summary: Manager creating standby schedule for a worker
+                value:
+                  userId: "66e007000000000000000001"
+                  role: "farmer"
+                  logisticCenterId: "66e007000000000000000010"
+                  month: "2025-11"
+                  scheduleType: standby
+                  bitmap: [0, 0, 4, 4, 0, 0, 0]
+                  overwriteExisting: true
+      responses:
+        "201":
+          description: Created or overwritten monthly schedule
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/MonthlyScheduleResponse"
+        "400":
+          description: Validation error (e.g., bad month format or invalid bitmap)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden (role not allowed to modify target schedule)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Schedule already exists and overwriteExisting not set
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+    patch:
+      tags: [Schedule]
+      summary: Update an existing monthly schedule bitmap
+      description: >
+        Update an existing monthly schedule bitmap for the given user/month/type.  
+        Business rules:
+          - Schedule document and monthly entry must already exist, otherwise 404.
+          - A "two-week rule" is enforced for non-managers:
+            - Any changes to days inside the next 14 days (in local LC timezone)
+              are rejected with **403**.
+          - Managers can bypass this rule automatically.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMonthlyScheduleRequest"
+            examples:
+              selfUpdate:
+                summary: Non-manager updating their own active schedule
+                value:
+                  month: "2025-11"
+                  scheduleType: active
+                  bitmap: [3, 0, 0, 12, 0, 0, 0]
+              managerUpdateWorker:
+                summary: Manager overriding a worker's standby schedule
+                value:
+                  userId: "66e007000000000000000001"
+                  logisticCenterId: "66e007000000000000000010"
+                  month: "2025-11"
+                  scheduleType: standby
+                  bitmap: [0, 0, 4, 4, 0, 0, 0]
+      responses:
+        "200":
+          description: Updated monthly schedule
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/MonthlyScheduleResponse"
+        "400":
+          description: Validation error (e.g., bad month or bitmap, or invalid day index)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Two-week rule violation or forbidden update
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Schedule doc or month entry not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schedule/my:
+    get:
+      tags: [Schedule]
+      summary: Get my monthly schedule
+      description: >
+        Returns both active and standby schedule bitmaps for the authenticated user
+        for the requested month. If no schedule document exists yet, returns empty
+        arrays for `active` and `standBy`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: month
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+          description: "Month in format YYYY-MM (e.g., `2025-11`)."
+      responses:
+        "200":
+          description: Schedule for the requested month (active + standby).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/UserMonthSchedule"
+              examples:
+                withData:
+                  value:
+                    data:
+                      userId: "66e007000000000000000001"
+                      role: "farmer"
+                      logisticCenterId: "66e007000000000000000010"
+                      month: "2025-11"
+                      active: [3, 0, 0, 12, 0, 0, 0]
+                      standBy: [0, 0, 4, 0, 0, 0, 0]
+                noData:
+                  value:
+                    data:
+                      userId: "66e007000000000000000001"
+                      role: null
+                      logisticCenterId: null
+                      month: "2025-11"
+                      active: []
+                      standBy: []
+        "400":
+          description: Missing or invalid `month` query param
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schedule/user/{userId}:
+    get:
+      tags: [Schedule]
+      summary: Get schedule for a specific user (manager view)
+      description: >
+        Manager view of a specific worker's schedule.  
+        - Non-managers may only fetch their own schedule through this endpoint
+          (`userId` must match authenticated user).  
+        - If `month` is provided, a compact `{ active, standBy }` summary is
+          returned for that month.  
+        - If `month` is omitted, the full Schedule document is returned
+          (including all months in `activeSchedule` / `standBySchedule`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+          description: "User ID whose schedule should be loaded."
+        - in: query
+          name: month
+          required: false
+          schema:
+            type: string
+            pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+          description: >
+            Optional month filter (YYYY-MM).  
+            - When provided, response is a compact monthly summary.  
+            - When omitted, full Schedule document is returned.
+      responses:
+        "200":
+          description: Schedule document or monthly summary for the user.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: "#/components/schemas/ScheduleDocument"
+                      - $ref: "#/components/schemas/UserMonthSchedule"
+        "400":
+          description: Invalid `userId` or invalid `month` format
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Forbidden for non-managers trying to access other users
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Schedule document not found for user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schedule/by-role:
+    get:
+      tags: [Schedule]
+      summary: Aggregated schedule by role and date
+      description: >
+        Returns an aggregated snapshot of schedule bitmaps for all workers
+        with the given `role` in a specific logistic center on a given date.  
+        For each worker, the bit for that date is extracted from both `active`
+        and `standBy` schedules.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: role
+          required: true
+          schema:
+            type: string
+          description: "Worker role (must be one of the backend `roles` constants)."
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
+          description: "Local LC date in format YYYY-MM-DD (e.g., `2025-11-09`)."
+        - in: query
+          name: logisticCenterId
+          required: false
+          schema:
+            type: string
+          description: >
+            Logistic center ID.  
+            If omitted, derived from the authenticated user's `logisticCenterId`.  
+            If neither is available, the request fails with 400.
+      responses:
+        "200":
+          description: Aggregated schedule snapshot for the given role/date/LC.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/ScheduleByRoleDateResponse"
+              examples:
+                example:
+                  value:
+                    data:
+                      role: "farmer"
+                      date: "2025-11-09"
+                      logisticCenterId: "66e007000000000000000010"
+                      month: "2025-11"
+                      dayIndex: 8
+                      records:
+                        - userId: "66e007000000000000000001"
+                          role: "farmer"
+                          logisticCenterId: "66e007000000000000000010"
+                          date: "2025-11-09"
+                          active: 3
+                          standBy: 0
+        "400":
+          description: Missing or invalid query parameters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Only managers can view schedules by role
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /schedule/workers:
+    get:
+      tags: [Schedule]
+      summary: Get workers assigned to a specific shift
+      description: >
+        Returns all workers whose schedule bitmap includes the given shift
+        on the requested date in the authenticated user's logistic center.  
+        - `scheduleType` determines whether the **active** or **standby** schedule
+          is used.  
+        - `shiftName` must be one of `morning`, `afternoon`, `evening`, `night`.  
+        - Logistic center is inferred from the authenticated user's
+          `logisticCenterId` (the query does **not** currently override it).
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: role
+          required: true
+          schema:
+            type: string
+          description: "Worker role to filter on (must be one of the backend `roles` constants)."
+        - in: query
+          name: shift
+          required: true
+          schema:
+            $ref: "#/components/schemas/ShiftName"
+          description: "Shift name to match in the bitmap."
+        - in: query
+          name: date
+          required: true
+          schema:
+            type: string
+            format: date
+          description: "Local LC date in format YYYY-MM-DD."
+        - in: query
+          name: scheduleType
+          required: true
+          schema:
+            $ref: "#/components/schemas/ScheduleType"
+          description: "Which schedule to consult (`active` or `standby`)."
+      responses:
+        "200":
+          description: List of workers whose schedule includes this shift.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/WorkersForShiftResponse"
+              examples:
+                example:
+                  value:
+                    data:
+                      role: "farmer"
+                      date: "2025-11-09"
+                      shiftName: "morning"
+                      scheduleType: "active"
+                      logisticCenterId: "66e007000000000000000010"
+                      workers:
+                        - userId: "66e007000000000000000001"
+                          role: "farmer"
+                          logisticCenterId: "66e007000000000000000010"
+        "400":
+          description: Missing/invalid parameters or unknown shift name
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "403":
+          description: Only managers can view workers for a shift
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ShiftName:
+      type: string
+      enum: [morning, afternoon, evening, night]
+
+    ScheduleType:
+      type: string
+      enum: [active, standby]
+
+    MonthBitmapEntry:
+      type: object
+      required: [month, bitmap]
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+          description: "Month in format YYYY-MM (e.g., `2025-11`)."
+        bitmap:
+          type: array
+          description: >
+            One integer per calendar day. Index 0 = day 1.  
+            Each integer is a bitmask with:
+              - bit0: morning
+              - bit1: afternoon
+              - bit2: evening
+              - bit3: night
+          items:
+            type: integer
+            minimum: 0
+            maximum: 15
+
+    ScheduleDocument:
+      type: object
+      description: >
+        Raw MongoDB Schedule document (when `month` is omitted in
+        `GET /schedule/user/{userId}`).
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+          nullable: true
+        logisticCenterId:
+          type: string
+          nullable: true
+        activeSchedule:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthBitmapEntry"
+        standBySchedule:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthBitmapEntry"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    UserMonthSchedule:
+      type: object
+      description: >
+        Compact per-month view used by `/schedule/my` and
+        `/schedule/user/{userId}?month=...`.
+      required: [userId, month, active, standBy]
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+          nullable: true
+        logisticCenterId:
+          type: string
+          nullable: true
+        month:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+        active:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 15
+        standBy:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 15
+
+    AddMonthlyScheduleRequest:
+      type: object
+      required: [month, scheduleType, bitmap]
+      properties:
+        userId:
+          type: string
+          description: >
+            Target user whose schedule is modified.  
+            - For non-managers: ignored (always uses authenticated user).  
+            - For managers: optional; when omitted, falls back to authenticated user.
+        role:
+          type: string
+          description: >
+            Role associated with this schedule.  
+            - Non-managers: typically inferred from user document.  
+            - Managers: may override the role (recommended).
+        logisticCenterId:
+          type: string
+          nullable: true
+          description: >
+            Logistic center for this schedule.
+            - Managers may override; otherwise inferred from user context.
+        month:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+          description: "Month in format YYYY-MM."
+        scheduleType:
+          $ref: "#/components/schemas/ScheduleType"
+        bitmap:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 15
+        overwriteExisting:
+          type: boolean
+          description: >
+            When true, an existing monthly schedule for this type/month is
+            overwritten instead of causing 409 Conflict.
+
+    UpdateMonthlyScheduleRequest:
+      type: object
+      required: [month, scheduleType, bitmap]
+      properties:
+        userId:
+          type: string
+          description: >
+            Target user whose schedule is updated.  
+            - Non-managers: optional and must match authenticated user if provided.  
+            - Managers: can use to update other users' schedules.
+        logisticCenterId:
+          type: string
+          nullable: true
+          description: >
+            Logistic center for this schedule.
+            - Managers may override; otherwise inferred from user context.
+        month:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+        scheduleType:
+          $ref: "#/components/schemas/ScheduleType"
+        bitmap:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 15
+
+    MonthlyScheduleResponse:
+      type: object
+      description: >
+        Normalized response from add/update monthly schedule service.
+      required: [userId, role, scheduleType, month, bitmap]
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+        logisticCenterId:
+          type: string
+          nullable: true
+        scheduleType:
+          $ref: "#/components/schemas/ScheduleType"
+        month:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+        bitmap:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 15
+
+    ScheduleByRoleDateRecord:
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+        logisticCenterId:
+          type: string
+        date:
+          type: string
+          format: date
+        active:
+          type: integer
+          description: "Bitmask value for `active` schedule on that day."
+        standBy:
+          type: integer
+          description: "Bitmask value for `standBy` schedule on that day."
+
+    ScheduleByRoleDateResponse:
+      type: object
+      properties:
+        role:
+          type: string
+        date:
+          type: string
+          format: date
+        logisticCenterId:
+          type: string
+        month:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+        dayIndex:
+          type: integer
+          description: "Zero-based index of the day in the month (0 = 1st)."
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScheduleByRoleDateRecord"
+
+    WorkerForShift:
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+        logisticCenterId:
+          type: string
+
+    WorkersForShiftResponse:
+      type: object
+      properties:
+        role:
+          type: string
+        date:
+          type: string
+          format: date
+        shiftName:
+          $ref: "#/components/schemas/ShiftName"
+        scheduleType:
+          $ref: "#/components/schemas/ScheduleType"
+        logisticCenterId:
+          type: string
+        workers:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkerForShift"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      example:
+        error: "Unauthorized"
