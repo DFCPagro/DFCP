@@ -40,3 +40,47 @@ export const remove = ah(async (req: Request, res: Response) => {
   await svc.deletePackageSize(idOrKey);
   res.status(204).send();
 });
+
+
+export const listContainers = ah(async (req: Request, res: Response) => {
+  const { page, limit, sort, q } = req.query;
+  const data = await svc.listContainers({
+    page: page ? Number(page) : undefined,
+    limit: limit ? Number(limit) : undefined,
+    sort: typeof sort === "string" ? sort : undefined,
+    q: typeof q === "string" ? q : undefined,
+  });
+  res.json(data);
+});
+
+export const getOneContainer = ah(async (req: Request, res: Response) => {
+  const { idOrKey } = req.params;
+  const doc = await svc.getContainerByIdOrKey(idOrKey);
+  res.json(doc);
+});
+
+/**
+ * POST /containers
+ */
+export const createContainer = ah(async (req: Request, res: Response) => {
+  const doc = await svc.createContainer(req.body);
+  res.status(201).json(doc);
+});
+
+/**
+ * PATCH/PUT /containers/:idOrKey
+ */
+export const updateContainer = ah(async (req: Request, res: Response) => {
+  const { idOrKey } = req.params;
+  const doc = await svc.updateContainer(idOrKey, req.body);
+  res.json(doc);
+});
+
+/**
+ * DELETE /containers/:idOrKey
+ */
+export const removeContainer = ah(async (req: Request, res: Response) => {
+  const { idOrKey } = req.params;
+  await svc.deleteContainer(idOrKey);
+  res.status(204).send();
+});

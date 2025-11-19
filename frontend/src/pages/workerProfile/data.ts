@@ -8,7 +8,7 @@ export type PickerProfile = {
   role: "picker";
   email: string;
   phone: string;
-  site: string;
+  LC: string;
   shift: { start: string; end: string };
 
   // desktop “player” layer
@@ -35,7 +35,7 @@ export const fetchPickerProfile = async (): Promise<PickerProfile> => ({
   role: "picker",
   email: "alex.rivera@example.com",
   phone: "+1 415 555 0134",
-  site: "Warehouse A • Zone A1",
+  LC: "Warehouse A • Zone A1",
   shift: { start: "08:00", end: "16:00" },
 
   title: "Speed Runner",

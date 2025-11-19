@@ -21,18 +21,17 @@ const PackageSizeSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     key: {
-    type: String,
-    required: true,
-    enum: ["Small", "Medium", "Large"],
-    index: true,
-  },
+      type: String,
+      required: true,
+      enum: ["Small", "Medium", "Large"],
+      index: true,
+    },
     innerDimsCm: { type: InnerDimsSchema, required: true },
     headroomPct: { type: Number, required: true, min: 0, max: 0.9 },
     maxSkusPerBox: { type: Number, required: true, min: 1 },
     maxWeightKg: { type: Number, required: true, min: 0.001 },
     mixingAllowed: { type: Boolean, required: true },
     tareWeightKg: { type: Number, required: true, min: 0 },
-    // We'll compute/overwrite this in hooks; keep minimal validation here.
     usableLiters: { type: Number, required: true, min: 0 },
     vented: { type: Boolean, required: true },
     values: { type: Map, of: Number, default: undefined },
@@ -41,7 +40,6 @@ const PackageSizeSchema = new Schema(
 );
 
 PackageSizeSchema.index({ key: 1, vented: 1 }, { unique: true });
-
 
 // ---------- Types ----------
 type PackageSizeAttrs = InferSchemaType<typeof PackageSizeSchema>;
@@ -105,7 +103,6 @@ PackageSizeSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function 
   if (dims == null && head == null) return next();
 
   // We need both dims & headroom to compute correctly.
-  // If only one is provided in this update, try to pull the other from the current doc.
   const applyWithDocIfNeeded = async () => {
     let effectiveDims = dims;
     let effectiveHead = head;
@@ -153,4 +150,90 @@ PackageSizeSchema.set("toJSON", {
 
 export const PackageSize =
   mongoose.models.PackageSize || model<PackageSizeDoc>("PackageSize", PackageSizeSchema);
-export default PackageSize
+// ---------- Container model (no headroomPct, no maxSkusPerBox) ----------
+
+const ContainerSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true },
+
+    // e.g. "SmallContainer", "MediumContainer", "LC-Default", etc.
+    key: { type: String, required: true, index: true },
+
+    innerDimsCm: { type: InnerDimsSchema, required: true },
+
+    // NO headroomPct here
+    // NO maxSkusPerBox here
+
+    maxWeightKg: { type: Number, required: true, min: 0.001 },
+    mixingAllowed: { type: Boolean, required: true },
+    tareWeightKg: { type: Number, required: true, min: 0 },
+
+    // still stored, computed from dims via hook
+    usableLiters: { type: Number, required: true, min: 0 },
+
+    vented: { type: Boolean, required: true },
+  },
+  { collection: "containers", timestamps: true }
+);
+
+ContainerSchema.index({ key: 1, vented: 1 }, { unique: true });
+
+// Types
+type ContainerAttrs = InferSchemaType<typeof ContainerSchema>;
+export type ContainerDoc = HydratedDocument<ContainerAttrs>;
+
+// Compute usable liters for containers (no headroom in DB; we can assume 0 or a fixed constant)
+function computeContainerUsableLiters(
+  dims?: { l: number; w: number; h: number } | null
+): number | undefined {
+  if (!dims) return undefined;
+  // If you want to assume 15% headroom also for containers, change 0 to 0.15.
+  return Number(calcUsableLiters(dims, 0).toFixed(1));
+}
+
+// Save hook
+ContainerSchema.pre("validate", function (this: ContainerDoc, next) {
+  const dims = this.innerDimsCm;
+  const val = computeContainerUsableLiters(dims);
+
+  if (typeof val === "number") {
+    this.usableLiters = val;
+  }
+  next();
+});
+
+// Update hooks (when innerDimsCm changes)
+ContainerSchema.pre(["findOneAndUpdate", "updateOne", "updateMany"], function (next) {
+  const update = (this as any).getUpdate?.();
+  const $set = update?.$set ?? update ?? {};
+  const dims = $set.innerDimsCm;
+
+  if (!dims) return next();
+
+  const computed = computeContainerUsableLiters(dims);
+  if (typeof computed === "number") {
+    if (update.$set) {
+      update.$set.usableLiters = computed;
+    } else {
+      update.usableLiters = computed;
+    }
+  }
+
+  return next();
+});
+
+// toJSON
+ContainerSchema.set("toJSON", {
+  virtuals: true,
+  versionKey: false,
+  transform: (_doc, ret: any) => {
+    ret.id = ret._id?.toString();
+    delete ret._id;
+    return ret;
+  },
+});
+
+export const Container =
+  mongoose.models.Container || model<ContainerDoc>("Container", ContainerSchema);
+
+export default PackageSize;

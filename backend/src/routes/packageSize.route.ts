@@ -15,4 +15,16 @@ router.post("/", authenticate, authorize(...CAN_WRITE), ctrl.create);
 router.patch("/:idOrKey", authenticate, authorize(...CAN_WRITE), ctrl.update);
 router.delete("/:idOrKey", authenticate, authorize(...CAN_WRITE), ctrl.remove);
 
+
+router.get("/containers", ctrl.listContainers);
+router.get("/containers/:idOrKey", ctrl.getOneContainer);
+router.post("/containers", ctrl.createContainer);
+router.patch("/containers/:idOrKey", ctrl.updateContainer);
+router.delete("/containers/:idOrKey", ctrl.removeContainer);
+
+
+
+
+
+
 export default router;

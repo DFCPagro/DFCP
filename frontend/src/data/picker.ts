@@ -16,7 +16,6 @@ export type LeaderboardEntry = {
   name: string;
   coins: number;
   orders: number;
-  rank: number;
 };
 
 export type Quest = {
@@ -111,9 +110,9 @@ export const pickers: PickerProfile[] = [
 ];
 
 export const leaderboard: LeaderboardEntry[] = [
-  { id: "P9", name: "Hugo",  coins: 520, orders: 182, rank: 1 },
-  { id: "P1", name: "You",   coins: 260, orders: 96,  rank: 2 },
-  { id: "P2", name: "Ava",   coins: 210, orders: 81,  rank: 3 },
+  { id: "P9", name: "Hugo",  coins: 520, orders: 182 },
+  { id: "P1", name: "You",   coins: 260, orders: 96},
+  { id: "P2", name: "Ava",   coins: 210, orders: 81 },
 ];
 
 export const quests: Quest[] = [

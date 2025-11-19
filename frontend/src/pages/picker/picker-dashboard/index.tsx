@@ -15,18 +15,25 @@ import {
 } from "@chakra-ui/react";
 import { RefreshCcw, Play } from "lucide-react";
 import toast from "react-hot-toast";
-import type { LeaderboardEntry, PickerStats, Quest, QuestScope } from "./types";
+import type {
+  LeaderboardEntry as BoardEntry,
+  PickerStats,
+  Quest,
+  QuestScope,
+} from "./types";
 import {
-  apiFetchLeaderboard,
   apiFetchQuests,
   apiFetchStats,
-} from "./api/mock"; // keep your mocks for stats/leaderboard/quests
+} from "./api/mock"; // keep your mocks for stats/quests
 import { useInterval } from "./hooks/useInterval";
 import { LeaderboardCard, QuestCard, StatsCard } from "./components";
 import { useNavigate } from "react-router-dom";
 import { PATHS } from "@/routes/paths";
-
-
+import {
+  fetchTopFive,
+  fetchPickerProfile,
+  type PickerProfile,
+} from "@/api/picker";
 
 /* Glow frame without animations */
 function GlowCard({
@@ -39,7 +46,12 @@ function GlowCard({
   to: string;
 }) {
   return (
-    <Box p="1px" rounded="2xl" bgGradient={`linear(to-r, ${from}, ${to})`} shadow="md">
+    <Box
+      p="1px"
+      rounded="2xl"
+      bgGradient={`linear(to-r, ${from}, ${to})`}
+      shadow="md"
+    >
       <Card.Root
         rounded="2xl"
         overflow="hidden"
@@ -56,23 +68,58 @@ function GlowCard({
 export default function PickerDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PickerStats | null>(null);
-  const [board, setBoard] = useState<LeaderboardEntry[]>([]);
+  const [board, setBoard] = useState<BoardEntry[]>([]);
   const [quests, setQuests] = useState<Quest[]>([]);
   const [scope, setScope] = useState<QuestScope>("day");
   const [refreshKey, setRefreshKey] = useState(0);
   const [claiming, setClaiming] = useState(false);
+
+  const [profile, setProfile] = useState<PickerProfile | null>(null);
+
   const navigate = useNavigate();
 
+  // Load picker profile so we know myId for the leaderboard
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const p = await fetchPickerProfile();
+      if (!alive) return;
+      setProfile(p);
+      setLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Load stats + top 5 + quests
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [s, b, q] = await Promise.all([apiFetchStats(), apiFetchLeaderboard(), apiFetchQuests()]);
-      if (!alive) return;
-      setStats(s);
-      setBoard(b);
-      setQuests(q);
-      setLoading(false);
+      try {
+        const [s, top, q] = await Promise.all([
+          apiFetchStats(),
+          fetchTopFive(), // returns API LeaderboardEntry[]
+          apiFetchQuests(),
+        ]);
+        if (!alive) return;
+
+        setStats(s);
+
+        // Map API shape → UI BoardEntry shape
+        const mappedBoard: BoardEntry[] = (top ?? []).map((row, idx) => ({
+          id: row.pickerUserId,
+          name: row.nickname || row.user?.name || row.user?.email || "—",
+          orders: row.completedOrders,
+          rank: idx + 1,
+        }));
+        setBoard(mappedBoard);
+
+        setQuests(q);
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => {
       alive = false;
@@ -84,13 +131,22 @@ export default function PickerDashboard() {
       prev.map((q) => {
         if (!q.active || !q.expiresAt) return q;
         if (Date.now() >= q.expiresAt)
-          return { ...q, active: false, startedAt: undefined, expiresAt: undefined, progress: 0 };
+          return {
+            ...q,
+            active: false,
+            startedAt: undefined,
+            expiresAt: undefined,
+            progress: 0,
+          };
         return q;
       }),
     );
   }, 1000);
 
-  const activeQuest = useMemo(() => quests.find((q) => q.scope === scope), [quests, scope]);
+  const activeQuest = useMemo(
+    () => quests.find((q) => q.scope === scope),
+    [quests, scope],
+  );
 
   const handleJoinQuest = () => {
     if (!activeQuest) return;
@@ -118,10 +174,8 @@ export default function PickerDashboard() {
 
   // === Real claim-first integration ===
   const onStartPicking = async () => {
-     navigate(PATHS.pickerTask); // go to the Start page
-      }
-
-  
+    navigate(PATHS.pickerTask); // go to the Start page
+  };
   // === end integration ===
 
   const onRefresh = () => setRefreshKey((k) => k + 1);
@@ -147,7 +201,9 @@ export default function PickerDashboard() {
         </HStack>
       </Container>
     );
-    }
+  }
+
+  const myId = profile?.id ?? "";
 
   return (
     <Container maxW="7xl" py={6}>
@@ -164,7 +220,13 @@ export default function PickerDashboard() {
         gap={2}
         shadow="sm"
       >
-        <HStack bg="bg.subtle" _dark={{ bg: "blackAlpha.300" }} rounded="full" p="1" borderWidth="1px">
+        <HStack
+          bg="bg.subtle"
+          _dark={{ bg: "blackAlpha.300" }}
+          rounded="full"
+          p="1"
+          borderWidth="1px"
+        >
           <Button
             size="sm"
             variant={scope === "day" ? "solid" : "ghost"}
@@ -199,7 +261,9 @@ export default function PickerDashboard() {
           <GlowCard from="purple.500" to="pink.400">
             <Card.Body
               bgGradient="linear(to-b, purple.50, white)"
-              _dark={{ bgGradient: "linear(to-b, gray.900, gray.800)" }}
+              _dark={{
+                bgGradient: "linear(to-b, gray.900, gray.800)",
+              }}
             >
               <StatsCard stats={stats} />
             </Card.Body>
@@ -211,9 +275,15 @@ export default function PickerDashboard() {
           <GlowCard from="pink.400" to="orange.400">
             <Card.Body
               bgGradient="linear(to-b, pink.50, white)"
-              _dark={{ bgGradient: "linear(to-b, gray.900, gray.800)" }}
+              _dark={{
+                bgGradient: "linear(to-b, gray.900, gray.800)",
+              }}
             >
-              <QuestCard quest={activeQuest} timeLeftSec={timeLeftSec} onJoin={handleJoinQuest} />
+              <QuestCard
+                quest={activeQuest}
+                timeLeftSec={timeLeftSec}
+                onJoin={handleJoinQuest}
+              />
             </Card.Body>
           </GlowCard>
         </GridItem>
@@ -224,9 +294,17 @@ export default function PickerDashboard() {
             <Card.Body>
               <HStack justify="space-between" mb={2}>
                 <Text fontWeight="semibold">Leaderboard</Text>
-                <Badge variant="subtle" colorPalette="purple">Live</Badge>
+                <Badge variant="subtle" colorPalette="purple">
+                  Live
+                </Badge>
               </HStack>
-              <LeaderboardCard board={board} myId="me" />
+              {board.length > 0 ? (
+                <LeaderboardCard board={board} myId={myId} />
+              ) : (
+                <Text fontSize="sm" color="fg.muted">
+                  No data yet.
+                </Text>
+              )}
             </Card.Body>
           </GlowCard>
         </GridItem>
@@ -236,14 +314,18 @@ export default function PickerDashboard() {
           <GlowCard from="green.400" to="teal.400">
             <Card.Body
               bgGradient="linear(to-r, green.50, white)"
-              _dark={{ bgGradient: "linear(to-r, gray.900, gray.800)" }}
+              _dark={{
+                bgGradient: "linear(to-r, gray.900, gray.800)",
+              }}
             >
               <HStack justify="space-between" wrap="wrap" w="full">
                 <HStack gap={3}>
                   <Text fontSize="lg" fontWeight="semibold">
                     Ready when you are
                   </Text>
-                  <Text color="fg.muted">Click start to get your next order.</Text>
+                  <Text color="fg.muted">
+                    Click start to get your next order.
+                  </Text>
                 </HStack>
                 <Button
                   onClick={onStartPicking}
@@ -252,7 +334,9 @@ export default function PickerDashboard() {
                   rounded="full"
                   disabled={claiming}
                   transition="transform .12s ease"
-                  _hover={{ transform: claiming ? undefined : "translateY(-1px)" }}
+                  _hover={{
+                    transform: claiming ? undefined : "translateY(-1px)",
+                  }}
                 >
                   <HStack gap={2}>
                     {claiming ? <Spinner size="sm" /> : <Play size={18} />}

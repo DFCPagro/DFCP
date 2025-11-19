@@ -2,6 +2,7 @@
 // Client for /api/v1/picker/me. Maps real fields; keeps the rest mocked.
 
 import { api } from "./config";
+const mode="month";  
 
 /* ----------------------------- Public UI type ----------------------------- */
 export type PickerProfile = {
@@ -11,7 +12,7 @@ export type PickerProfile = {
   level: number;
   xp: number;
   mdCoins: number;
-  site: string; // LC display name
+  LC: string; // LC display name
 
   // mocked until backend provides
   streakDays: number;
@@ -47,11 +48,29 @@ type ApiPickerMe = {
   currentMonthSchedule?: unknown[];
   nextMonthSchedule?: unknown[];
 };
+//LeaderBoard get 5 top pickers name and totalorder
+export type LeaderboardEntry = {
+  pickerUserId: string;
+  completedOrders: number;
+  nickname: string;
+  status: string | null;
+  level: number;
+  xp: number;
+  user: {
+    name: string;
+    email: string;
+    phone: string | null;
+    role: string;
+    logisticCenterId: string | null;
+    mdCoins: number;
+    activeStatus: boolean;
+  } | null;
+};
 
 /* --------------------------------- Mocks --------------------------------- */
 const MOCK_EXTRAS: Omit<
   PickerProfile,
-  "id" | "name" | "email" | "level" | "xp" | "mdCoins" | "site"
+  "id" | "name" | "email" | "level" | "xp" | "mdCoins" | "LC"
 > = {
   streakDays: 3,
   shift: { start: "08:00", end: "16:00" },
@@ -92,7 +111,7 @@ const toNum = (v: unknown, d = 0) => {
 };
 
 function mapApiToProfile(row: ApiPickerMe): PickerProfile {
-  const site =
+  const LC =
     row?.logisticCenter?.locationName ||
     row?.logisticCenter?.name ||
     "Logistics Center";
@@ -103,7 +122,7 @@ function mapApiToProfile(row: ApiPickerMe): PickerProfile {
     level: toNum(row?.level, 1),
     xp: toNum(row?.xp, 0),
     mdCoins: toNum(row.user?.mdCoins ?? 0, 0),
-    site,
+    LC,
     ...MOCK_EXTRAS,
   };
 }
@@ -130,8 +149,31 @@ export async function fetchPickerProfile(): Promise<PickerProfile> {
       level: 4,
       xp: 950,
       mdCoins: 420,
-      site: "Zarzir Logistics Center",
+      LC: "Zarzir Logistics Center",
       ...MOCK_EXTRAS,
     };
+  }
+}
+
+/** fetch the top 5 pickers in the same LC according to total orders in the mounth */
+export async function fetchTopFive(): Promise<LeaderboardEntry[]> {
+  const path = "/picker/top";
+  try {
+    const res = await api.get<{ data?: LeaderboardEntry[] } | LeaderboardEntry[]>(
+      path,
+      { params: { mode } } // if your backend expects `mode=month`
+    );
+
+    const body =
+      (res.data as any)?.data ?? (res.data as LeaderboardEntry[] | unknown);
+
+    if (!Array.isArray(body)) throw new Error("empty");
+
+    // backend should already return top 5; slice just in case
+    return body.slice(0, 5);
+  } catch (err) {
+    console.error("fetchTopFive failed", err);
+    // safe fallback
+    return [];
   }
 }

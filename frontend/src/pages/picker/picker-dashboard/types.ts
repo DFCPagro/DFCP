@@ -9,7 +9,6 @@ streakDays: number;
 export type LeaderboardEntry = {
 id: string;
 name: string;
-coins: number;
 orders: number;
 rank: number;
 };

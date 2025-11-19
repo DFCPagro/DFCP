@@ -90,7 +90,8 @@ export async function getTopPickersByCompletedOrdersHandler(
       year?: string;
       limit?: string;
     };
-
+    const user=req.user;
+    
     const mode = rawMode === "month" ? "month" : "todayShift";
 
     const result = await getTopPickersByCompletedOrders({
@@ -100,7 +101,6 @@ export async function getTopPickersByCompletedOrdersHandler(
       year: year ? Number(year) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
-
     return res.json(result);
   } catch (e: any) {
     console.error("getTopPickersByCompletedOrders error:", e);

@@ -15,10 +15,10 @@ export async function apiFetchStats(): Promise<PickerStats> {
   };
 }
 
-export async function apiFetchLeaderboard(): Promise<LeaderboardEntry[]> {
-  await delay(150);
-  return structuredClone(leaderboard);
-}
+// export async function apiFetchLeaderboard(): Promise<LeaderboardEntry[]> {
+//   await delay(150);
+//   return structuredClone(leaderboard);
+// }
 
 export async function apiFetchQuests(): Promise<Quest[]> {
   await delay(150);

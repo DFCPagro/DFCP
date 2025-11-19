@@ -32,6 +32,10 @@ import { fetchPickerProfile, type PickerProfile } from "@/api/picker";
 import AccuracyProgress from "@/components/common/AccuracyProgress";
 import { levelFromXP } from "../../../../backend/src/utils/level";
 
+
+
+
+
 const ACCENT = "teal";
 const PANEL_MAX_H = "calc(100vh - 180px)";
 const xpPct = (xp: number) => Math.min(100, Math.round((xp % 1000) / 10));
@@ -146,7 +150,7 @@ export default function WorkerProfile() {
                   </Badge>
                 </HStack>
                 <Text fontSize="sm" color="fg.muted">
-                  {profile.site} • Shift {profile.shift.start}–{profile.shift.end}
+                  {profile.LC} • Shift {profile.shift.start}–{profile.shift.end}
                 </Text>
                 <HStack gap={2}>
                   <Kbd size="sm">G</Kbd>
