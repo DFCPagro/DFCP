@@ -1,10 +1,7 @@
 // src/pages/deliverer/schedule/components/ScheduleSummary.tsx
-
 import * as React from "react";
 import {
     Badge,
-    Box,
-    Button,
     Card,
     HStack,
     Stack,
@@ -33,6 +30,7 @@ const SHIFT_LABEL: Record<ShiftKey, { short: string; full: string }> = {
     night: { short: "N", full: "Night" },
 };
 
+// month is 1..12
 function daysInMonth(year: number, month: number): number {
     return new Date(year, month, 0).getDate();
 }
@@ -55,17 +53,33 @@ function getModeForShift(
     return "none";
 }
 
-function formatDate(year: number, month: number, day: number) {
-    const d = new Date(year, month - 1, day);
-    return new Intl.DateTimeFormat("en", {
+function formatDate(year: number, month: number, day: number, tz = "Asia/Jerusalem") {
+    const d = new Date(Date.UTC(year, month - 1, day, 12)); // noon UTC to avoid DST flips
+    const fmt = new Intl.DateTimeFormat("en", {
+        timeZone: tz,
         weekday: "short",
         month: "short",
         day: "2-digit",
-    }).format(d);
+    });
+    return fmt.format(d);
 }
 
 function anyShift(maskActive: number, maskStandby: number) {
     return (maskActive | maskStandby) !== 0;
+}
+
+function getNowPartsTZ(tz: string) {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
+    const parts = fmt.formatToParts(new Date());
+    const y = Number(parts.find(p => p.type === "year")?.value);
+    const m1 = Number(parts.find(p => p.type === "month")?.value);
+    const d = Number(parts.find(p => p.type === "day")?.value);
+    return { year: y, month1: m1, day: d };
 }
 
 /* ---------------------------------- UI ----------------------------------- */
@@ -117,11 +131,14 @@ export type ScheduleSummaryProps = {
     activeBitmap: ScheduleBitmap;
     standByBitmap: ScheduleBitmap;
 
-    /** How many upcoming rows to show (default 6) */
+    /**
+     * How many upcoming rows to show.
+     * If omitted, we show the full rest of the month.
+     */
     maxUpcoming?: number;
 
-    /** Optional: clicking a row should open the day editor */
-    onDayClick?: (day: number) => void;
+    /** Optional: timezone for "today" calculation (default Asia/Jerusalem) */
+    tz?: string;
 };
 
 /* --------------------------------- main ---------------------------------- */
@@ -131,12 +148,12 @@ export default function ScheduleSummary({
     month,
     activeBitmap,
     standByBitmap,
-    maxUpcoming = 6,
-    onDayClick,
+    maxUpcoming, // undefined => rest of month
+    tz = "Asia/Jerusalem",
 }: ScheduleSummaryProps) {
-    const today = new Date();
-    const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
-    const todayDay = isCurrentMonth ? today.getDate() : null;
+    const { year: nowY, month1: nowM1, day: nowD } = getNowPartsTZ(tz);
+    const isCurrentMonth = nowY === year && nowM1 === month;
+    const todayDay = isCurrentMonth ? nowD : null;
     const dim = daysInMonth(year, month);
 
     // Today row (only if this is the current month and there are shifts today)
@@ -144,14 +161,16 @@ export default function ScheduleSummary({
     const todayStandby = todayDay ? maskAt(standByBitmap, todayDay) : 0;
     const showToday = !!todayDay && anyShift(todayActive, todayStandby);
 
-    // Upcoming = remaining days (strictly after today if current month; else from day 1)
-    const start = isCurrentMonth ? Math.min(todayDay! + 1, dim + 1) : 1;
+    // Upcoming = remaining days strictly after today (or from day 1 if not current month)
+    const start = isCurrentMonth ? Math.min((todayDay ?? 0) + 1, dim + 1) : 1;
     const upcoming: { day: number; a: number; s: number }[] = [];
     for (let d = start; d <= dim; d++) {
         const a = maskAt(activeBitmap, d);
         const s = maskAt(standByBitmap, d);
-        if (anyShift(a, s)) upcoming.push({ day: d, a, s });
-        if (upcoming.length >= maxUpcoming) break;
+        if (anyShift(a, s)) {
+            upcoming.push({ day: d, a, s });
+            if (typeof maxUpcoming === "number" && upcoming.length >= maxUpcoming) break;
+        }
     }
 
     return (
@@ -168,18 +187,13 @@ export default function ScheduleSummary({
                     {showToday ? (
                         <Stack gap="2">
                             <Text color="fg.subtle" fontSize="sm">
-                                {formatDate(year, month, todayDay!)}
+                                {formatDate(year, month, todayDay!, tz)}
                             </Text>
                             <ShiftBadges activeMask={todayActive} standbyMask={todayStandby} />
-                            {onDayClick && (
-                                <Box>
-                                    <Button size="sm" onClick={() => onDayClick(todayDay!)}>Edit</Button>
-                                </Box>
-                            )}
                         </Stack>
                     ) : (
                         <Text color="fg.subtle" fontSize="sm">
-                            {isCurrentMonth ? "No shifts scheduled for today." : "Today is outside this month."}
+                            {isCurrentMonth ? "No shifts today." : "Today is outside this month."}
                         </Text>
                     )}
                 </Card.Body>
@@ -199,25 +213,17 @@ export default function ScheduleSummary({
                                 <Table.Row>
                                     <Table.ColumnHeader w="40%">Date</Table.ColumnHeader>
                                     <Table.ColumnHeader>Shifts</Table.ColumnHeader>
-                                    {onDayClick && <Table.ColumnHeader w="1%"></Table.ColumnHeader>}
                                 </Table.Row>
                             </Table.Header>
                             <Table.Body>
                                 {upcoming.map(({ day, a, s }) => (
                                     <Table.Row key={day}>
                                         <Table.Cell>
-                                            <Text>{formatDate(year, month, day)}</Text>
+                                            <Text>{formatDate(year, month, day, tz)}</Text>
                                         </Table.Cell>
                                         <Table.Cell>
                                             <ShiftBadges activeMask={a} standbyMask={s} />
                                         </Table.Cell>
-                                        {onDayClick && (
-                                            <Table.Cell>
-                                                <Button size="xs" variant="ghost" onClick={() => onDayClick(day)}>
-                                                    Edit
-                                                </Button>
-                                            </Table.Cell>
-                                        )}
                                     </Table.Row>
                                 ))}
                             </Table.Body>

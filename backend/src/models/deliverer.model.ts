@@ -62,13 +62,13 @@ const DelivererSchema = new Schema(
 
     speedKmH: { type: Number, default: null, min: 0 },
 
+    // industrial-only
+    refrigerated: { type: Boolean, default: false },
+
     // pay defaults
     payFixedPerShift: { type: Number, default: 25, min: 0 },
     payPerKm: { type: Number, default: 1, min: 0 },
     payPerStop: { type: Number, default: 1, min: 0 },
-
-    // industrial-only
-    refrigerated: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

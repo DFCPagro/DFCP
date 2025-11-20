@@ -1,3 +1,5 @@
+// src/pages/deliverer/schedule/index.tsx
+
 import * as React from "react";
 import {
     Box,
@@ -8,70 +10,38 @@ import {
     Alert,
     Separator,
 } from "@chakra-ui/react";
+import { useNavigate } from "react-router-dom";
 
 import ScheduleHeader from "./components/ScheduleHeader";
 import ScheduleLegend from "./components/ScheduleLegend";
 import ScheduleGrid from "./components/ScheduleGrid";
 import ScheduleSummary from "./components/ScheduleSummary";
-import DayShiftEditor from "./components/DayShiftEditor";
 
+// Source of truth: live API data (current month only)
 import { useDelivererSchedule } from "./hooks/useDelivererSchedule";
-import { useScheduleEditor } from "./hooks/useScheduleEditor";
-import { useAutoPlanNextMonth } from "./hooks/useAutoPlanNextMonth";
 
 export default function DelivererSchedulePage() {
-    /** 1) Load current month schedule (no month flipping) */
+    // 1) Load current month schedule (no month flipping)
     const {
         year,
-        month,
-        monthKey,
+        month,          // expected 1–12 (matches ScheduleHeader/Summary/Grid)
         activeBitmap,
         standByBitmap,
         isLoading,
         isFetching,
         isError,
         error,
-        refetch,
     } = useDelivererSchedule();
 
-    /** 2) Wire the editor over the live bitmaps */
-    const {
-        daysInMonth,
-        activeDraft,
-        standByDraft,
-        getShiftMode,
-        setShiftMode,
-        toggleShiftMode,
-        hasChanges,
-        isSaving,
-        error: saveError,
-        reset,
-        save,
-    } = useScheduleEditor({
-        month: monthKey,
-        activeBitmap,
-        standByBitmap,
-        onSaved: refetch,
-    });
+    // 2) Plan Next Month → simple navigation (view-only scope)
+    const navigate = useNavigate();
+    const handlePlanNextMonth = React.useCallback(() => {
+        // Placeholder route you’ll implement later
+        navigate("/deliverer/schedule/plan-next-month");
+    }, [navigate]);
 
-    /** 3) Auto-plan next month (disabled if next month already exists) */
-    const {
-        nextMonthKey,
-        canPlanNextMonth,
-        isChecking,
-        isPlanning,
-        planError,
-        planNextMonth,
-    } = useAutoPlanNextMonth({ monthKey });
-
-    /** 4) Local UI state for opening the per-day editor */
-    const [selectedDay, setSelectedDay] = React.useState<number | null>(null);
-    const isEditorOpen = selectedDay !== null;
-
-    const handleOpenDay = (day: number) => setSelectedDay(day);
-    const handleCloseDay = () => setSelectedDay(null);
-
-    const topError = isError ? error : planError || saveError;
+    // 3) Top-level load error (no save/plan errors in view-only)
+    const topError = isError ? error : null;
 
     return (
         <Container maxW="6xl" py="6">
@@ -79,13 +49,10 @@ export default function DelivererSchedulePage() {
             <ScheduleHeader
                 year={year}
                 month={month}
-                canPlanNextMonth={!!canPlanNextMonth}
-                isCheckingPlanable={isChecking}
-                isPlanning={isPlanning}
-                onPlanNextMonth={planNextMonth}
+                onPlanNextMonth={handlePlanNextMonth}
             />
 
-            {/* Top-level error banner (load / plan / save) */}
+            {/* Error banner */}
             {topError ? (
                 <Alert.Root status="error" mt="4" borderRadius="md">
                     <Alert.Indicator />
@@ -99,26 +66,30 @@ export default function DelivererSchedulePage() {
             ) : null}
 
             <Stack mt="5" gap="5">
-                {/* Summary section (Today + Upcoming) */}
-                {isLoading ? (
+                {/* Summary section (Today + Upcoming – view-only) */}
+                {isLoading || isFetching ? (
                     <HStack gap="4">
                         <Skeleton h="140px" flex="1" borderRadius="md" />
-                        <Skeleton h="140px" flex="1" borderRadius="md" display={{ base: "none", md: "block" }} />
+                        <Skeleton
+                            h="140px"
+                            flex="1"
+                            borderRadius="md"
+                            display={{ base: "none", md: "block" }}
+                        />
                     </HStack>
                 ) : (
                     <ScheduleSummary
                         year={year}
                         month={month}
-                        activeBitmap={activeDraft}
-                        standByBitmap={standByDraft}
-                        onDayClick={handleOpenDay}
+                        activeBitmap={activeBitmap}
+                        standByBitmap={standByBitmap}
                     />
                 )}
 
                 <Separator />
 
-                {/* Legend + Grid */}
-                {isLoading ? (
+                {/* Legend + Grid (view-only) */}
+                {isLoading || isFetching ? (
                     <Stack gap="4">
                         <Skeleton h="80px" borderRadius="md" />
                         <Skeleton h="420px" borderRadius="md" />
@@ -129,32 +100,13 @@ export default function DelivererSchedulePage() {
                         <ScheduleGrid
                             year={year}
                             month={month}
-                            activeBitmap={activeDraft}
-                            standByBitmap={standByDraft}
-                            onDayClick={handleOpenDay}
+                            activeBitmap={activeBitmap}
+                            standByBitmap={standByBitmap}
+                        // View-only: omit onDayClick for now
                         />
                     </Stack>
                 )}
             </Stack>
-
-            {/* Per-day editor drawer */}
-            {isEditorOpen && (
-                <DayShiftEditor
-                    isOpen={isEditorOpen}
-                    onClose={handleCloseDay}
-                    day={selectedDay!}
-                    month={month}
-                    year={year}
-                    getShiftMode={getShiftMode}
-                    setShiftMode={setShiftMode}
-                    toggleShiftMode={toggleShiftMode}
-                    hasChanges={hasChanges}
-                    isSaving={isSaving}
-                    error={saveError}
-                    onSave={save}
-                    onReset={reset}
-                />
-            )}
         </Container>
     );
 }

@@ -1,3 +1,4 @@
+// src/pages/deliverer/schedule/components/ScheduleHeader.tsx
 import * as React from "react";
 import {
     Box,
@@ -17,14 +18,7 @@ export type ScheduleHeaderProps = {
     /** Numeric month of the currently visible month, 1–12 */
     month: number;
 
-    /** True if the next month is empty (can be auto-planned) */
-    canPlanNextMonth: boolean;
-    /** True while we check whether next month exists or not */
-    isCheckingPlanable?: boolean;
-    /** True while the auto-plan mutation is running */
-    isPlanning?: boolean;
-
-    /** Handler to trigger auto-planning the next month */
+    /** Click handler to navigate to the plan-next-month page (view-only scope) */
     onPlanNextMonth: () => void;
 
     /** Optional: small label under the title (e.g., LC name / timezone) */
@@ -47,9 +41,6 @@ function formatMonthYear(year: number, month: number): string {
 export default function ScheduleHeader({
     year,
     month,
-    canPlanNextMonth,
-    isCheckingPlanable = false,
-    isPlanning = false,
     onPlanNextMonth,
     subLabel,
     leftExtra,
@@ -57,15 +48,10 @@ export default function ScheduleHeader({
 }: ScheduleHeaderProps) {
     const label = formatMonthYear(year, month);
 
-    const planDisabled = isCheckingPlanable || isPlanning || !canPlanNextMonth;
-
-    const planTooltip = !canPlanNextMonth
-        ? "Next month is already planned."
-        : "Create your schedule for next month.";
-
     return (
         <Box>
             <HStack align="center" gap="4">
+                {/* Title + Month */}
                 <HStack gap="3">
                     <Box as={FiCalendar} aria-hidden />
                     <Heading size="lg">My Schedule</Heading>
@@ -87,17 +73,10 @@ export default function ScheduleHeader({
 
                 {rightExtra ?? null}
 
-                {/* v3 Tooltip uses slot API */}
+                {/* View-only: navigate to planning page (no loading/disabled states here) */}
                 <Tooltip.Root openDelay={200}>
                     <Tooltip.Trigger asChild>
-                        <Button
-                            size="sm"
-                            onClick={onPlanNextMonth}
-                            loading={isPlanning || isCheckingPlanable}
-                            loadingText={isCheckingPlanable ? "Checking…" : "Planning…"}
-                            disabled={planDisabled}
-                            gap="2"
-                        >
+                        <Button size="sm" onClick={onPlanNextMonth} gap="2">
                             <Box as={FiPlay} aria-hidden />
                             Plan Next Month
                         </Button>
@@ -105,7 +84,7 @@ export default function ScheduleHeader({
                     <Tooltip.Positioner>
                         <Tooltip.Content>
                             <Tooltip.Arrow />
-                            {planTooltip}
+                            Open the planning page for next month.
                         </Tooltip.Content>
                     </Tooltip.Positioner>
                 </Tooltip.Root>

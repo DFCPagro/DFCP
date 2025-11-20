@@ -1,22 +1,21 @@
 // src/pages/deliverer/schedule/components/ScheduleLegend.tsx
-
 import * as React from "react";
 import { Box, HStack, Stack, Text, Badge, Separator } from "@chakra-ui/react";
 
 /**
- * Visual legend for the deliverer monthly schedule.
- * - Active vs Standby vs None status chips
- * - Shift keys used across the grid: Morning / Afternoon / Evening / Night
+ * Visual legend for the deliverer monthly schedule (view-only).
+ * - Status chips: Active / Standby / No shift
+ * - Shift keys: M / A / E / N (Morning / Afternoon / Evening / Night)
  */
 export type ScheduleLegendProps = {
-    /** Label shown above the legend. */
+    /** Title shown above the legend. */
     title?: string;
 
     /** Color tokens (Chakra palettes or semantic tokens) for statuses. */
     colors?: {
-        active?: string; // e.g. "green.500"
+        active?: string;  // e.g. "green.500"
         standby?: string; // e.g. "yellow.500"
-        none?: string; // e.g. "gray.400"
+        none?: string;    // e.g. "gray.400"
     };
 
     /** Whether to show the shift key row (M / A / E / N). */
@@ -26,13 +25,14 @@ export type ScheduleLegendProps = {
     compact?: boolean;
 };
 
-const DOT_SIZE = 3; // unitless space scale token
+const DOT_SIZE = 3; // Chakra space unit (theme-aware)
 
 function Dot({ color, label }: { color: string; label: string }) {
     return (
         <HStack gap="2">
             <Box
-                aria-hidden
+                role="img"
+                aria-label={label}
                 w={DOT_SIZE}
                 h={DOT_SIZE}
                 borderRadius="full"

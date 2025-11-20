@@ -1,5 +1,4 @@
 // src/pages/deliverer/schedule/components/ScheduleGrid.tsx
-
 import * as React from "react";
 import {
     Box,
@@ -13,7 +12,7 @@ import {
 } from "@chakra-ui/react";
 import type { ScheduleBitmap } from "@/api/schedule";
 
-// If your global ShiftName includes "none", that's fine — we only use these four here.
+/** Only the 4 real shifts are visualized. */
 type ShiftKey = "morning" | "afternoon" | "evening" | "night";
 
 export type ScheduleGridProps = {
@@ -22,21 +21,28 @@ export type ScheduleGridProps = {
     /** Numeric month, 1–12. */
     month: number;
 
-    /** Bitmaps for this month. index 0 = day 1, etc. */
+    /** Bitmaps for this month. index 0 = day 1, etc. Each cell is a bitmask of shifts. */
     activeBitmap: ScheduleBitmap;
     standByBitmap: ScheduleBitmap;
 
-    /** Called when a calendar day is clicked. Receives 1-based day number. */
+    /** Optional: click handler for a day (view-only navigation, no edit). Receives 1-based day number. */
     onDayClick?: (day: number) => void;
 
     /** Optional UI tweaks */
     showWeekdayHeader?: boolean;
     compact?: boolean;
+
+    /** Highlight “today” ring; defaults true. */
+    highlightToday?: boolean;
+
+    /** Time zone used to determine “today” (default Asia/Jerusalem). */
+    tz?: string;
+
     /** Override colors to align with your design system if needed. */
     colors?: {
-        active?: string; // e.g., "green.500"
-        standby?: string; // e.g., "yellow.500"
-        none?: string; // e.g., "gray.400"
+        active?: string;   // e.g., "green.500"
+        standby?: string;  // e.g., "yellow.500"
+        none?: string;     // e.g., "gray.400"
         todayRing?: string; // outline color for today
     };
 };
@@ -57,6 +63,8 @@ const SHIFT_LABEL: Record<ShiftKey, { short: string; full: string }> = {
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/* ---------------------------- date helpers ---------------------------- */
+
 function daysInMonth(year: number, month: number): number {
     // month is 1–12; Date uses 0–11; day=0 → last day of previous month
     return new Date(year, month, 0).getDate();
@@ -67,16 +75,32 @@ function firstWeekday(year: number, month: number): number {
     return new Date(year, month - 1, 1).getDay();
 }
 
+/** “Today” parts in a specific TZ (YYYY, month 1–12, day 1–31) */
+function getNowPartsTZ(tz: string) {
+    const fmt = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
+    const parts = fmt.formatToParts(new Date());
+    const y = Number(parts.find((p) => p.type === "year")?.value);
+    const m1 = Number(parts.find((p) => p.type === "month")?.value);
+    const d = Number(parts.find((p) => p.type === "day")?.value);
+    return { year: y, month1: m1, day: d };
+}
+
+/* ------------------------------- core -------------------------------- */
+
 function getMask(bm: ScheduleBitmap, day: number): number {
     const idx = day - 1;
     return bm?.[idx] ?? 0;
 }
 
 function getShiftModeForDay(
-    day: number,
     activeMask: number,
     standbyMask: number,
-    shift: ShiftKey,
+    shift: ShiftKey
 ): "active" | "standby" | "none" {
     const bit = SHIFT_BITS[shift];
     const a = (activeMask & bit) !== 0;
@@ -96,6 +120,8 @@ export default function ScheduleGrid({
     onDayClick,
     showWeekdayHeader = true,
     compact = false,
+    highlightToday = true,
+    tz = "Asia/Jerusalem",
     colors = {
         active: "green.500",
         standby: "yellow.500",
@@ -105,9 +131,11 @@ export default function ScheduleGrid({
 }: ScheduleGridProps) {
     const totalDays = daysInMonth(year, month);
     const startOffset = firstWeekday(year, month); // leading blanks
-    const today = new Date();
-    const isCurrentMonth =
-        today.getFullYear() === year && today.getMonth() + 1 === month;
+
+    // Today (TZ-aware)
+    const now = getNowPartsTZ(tz);
+    const isCurrentMonth = now.year === year && now.month1 === month;
+    const todayDay = isCurrentMonth ? now.day : null;
 
     const [activeColor, standbyColor, noneColor, todayRingColor] = useToken("colors", [
         colors.active!,
@@ -130,7 +158,7 @@ export default function ScheduleGrid({
                     py="1.5"
                 >
                     {WEEKDAY_LABELS[i]}
-                </GridItem>,
+                </GridItem>
             );
         }
     }
@@ -145,28 +173,29 @@ export default function ScheduleGrid({
         const aMask = getMask(activeBitmap, day);
         const sMask = getMask(standByBitmap, day);
 
-        // Build tooltip summary like "M: Active, A: —, E: Standby, N: —"
+        // Tooltip summary like "M: Active · A: — · E: Standby · N: —"
         const summaryParts: string[] = [];
         (Object.keys(SHIFT_BITS) as ShiftKey[]).forEach((shift) => {
-            const mode = getShiftModeForDay(day, aMask, sMask, shift);
+            const mode = getShiftModeForDay(aMask, sMask, shift);
             const label = SHIFT_LABEL[shift].short;
             summaryParts.push(`${label}: ${mode === "none" ? "—" : mode}`);
         });
         const tooltipText = summaryParts.join(" · ");
 
-        const isToday = isCurrentMonth && day === today.getDate();
+        const isToday = highlightToday && todayDay === day;
 
         cells.push(
             <Tooltip.Root key={`d-${day}`} openDelay={150}>
                 <Tooltip.Trigger asChild>
                     <GridItem>
                         <Box
-                            role="button"
+                            role={onDayClick ? "button" : "group"}
                             aria-label={`Day ${day}`}
-                            tabIndex={0}
+                            tabIndex={onDayClick ? 0 : -1}
                             onClick={() => onDayClick?.(day)}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") onDayClick?.(day);
+                                if (!onDayClick) return;
+                                if (e.key === "Enter" || e.key === " ") onDayClick(day);
                             }}
                             borderWidth="1px"
                             borderRadius="md"
@@ -191,7 +220,7 @@ export default function ScheduleGrid({
                             {/* Shift row: M A E N */}
                             <HStack justify="space-between" gap="1" mt={1}>
                                 {(Object.keys(SHIFT_BITS) as ShiftKey[]).map((shift) => {
-                                    const mode = getShiftModeForDay(day, aMask, sMask, shift);
+                                    const mode = getShiftModeForDay(aMask, sMask, shift);
                                     const label = SHIFT_LABEL[shift].short;
                                     const color =
                                         mode === "active"
@@ -233,7 +262,7 @@ export default function ScheduleGrid({
                         {tooltipText}
                     </Tooltip.Content>
                 </Tooltip.Positioner>
-            </Tooltip.Root>,
+            </Tooltip.Root>
         );
     }
 
