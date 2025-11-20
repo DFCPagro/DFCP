@@ -13,14 +13,17 @@ import {
   Switch,
   NumberInput,
 } from "@chakra-ui/react";
-import type { PackageSize } from "@/types/package-sizes";
+import type { PackageSize, Container } from "@/types/package-sizes";
 import { toaster } from "@/components/ui/toaster";
+
+type Mode = "package" | "container";
 
 type Props = {
   open: boolean;
-  initial?: Partial<PackageSize> | null;
+  mode: Mode;
+  initial?: Partial<PackageSize | Container> | null;
   onClose(): void;
-  onSubmit(values: Partial<PackageSize>): Promise<void> | void;
+  onSubmit(values: Partial<PackageSize | Container>): Promise<void> | void;
 };
 
 // Local form model to avoid TS errors when backend type lacks fields
@@ -28,8 +31,8 @@ type FormValues = {
   key: string;
   name: string;
   innerDimsCm: { l: number; w: number; h: number };
-  headroomPct: number; // 0..0.9
-  maxSkusPerBox: number;
+  headroomPct: number; // 0..0.9 (used only in package mode)
+  maxSkusPerBox: number; // used only in package mode
   maxWeightKg: number;
   mixingAllowed: boolean;
   tareWeightKg: number;
@@ -37,7 +40,7 @@ type FormValues = {
   usableLiters?: number;
   notes?: string;
   active: boolean;
-  values?: Record<string, number>;
+  values?: Record<string, number>; // package-only
 };
 
 const defaults: FormValues = {
@@ -56,27 +59,39 @@ const defaults: FormValues = {
   values: undefined,
 };
 
-export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Props) {
+export default function PackageSizeForm({
+  open,
+  mode,
+  initial,
+  onClose,
+  onSubmit,
+}: Props) {
   const start = useMemo<FormValues>(() => {
     const base = { ...defaults };
     if (!initial) return base;
+    const anyInit = initial as any;
+
     return {
       ...base,
-      ...(initial as any),
+      ...anyInit,
       innerDimsCm: {
-        l: Number((initial as any)?.innerDimsCm?.l ?? base.innerDimsCm.l),
-        w: Number((initial as any)?.innerDimsCm?.w ?? base.innerDimsCm.w),
-        h: Number((initial as any)?.innerDimsCm?.h ?? base.innerDimsCm.h),
+        l: Number(anyInit?.innerDimsCm?.l ?? base.innerDimsCm.l),
+        w: Number(anyInit?.innerDimsCm?.w ?? base.innerDimsCm.w),
+        h: Number(anyInit?.innerDimsCm?.h ?? base.innerDimsCm.h),
       },
       headroomPct:
-        typeof (initial as any)?.headroomPct === "number"
-          ? (initial as any).headroomPct
+        typeof anyInit?.headroomPct === "number"
+          ? anyInit.headroomPct
           : base.headroomPct,
+      maxSkusPerBox:
+        typeof anyInit?.maxSkusPerBox === "number"
+          ? anyInit.maxSkusPerBox
+          : base.maxSkusPerBox,
       usableLiters:
-        (initial as any)?.usableLiters !== undefined
-          ? Number((initial as any).usableLiters)
+        anyInit?.usableLiters !== undefined
+          ? Number(anyInit.usableLiters)
           : undefined,
-      active: (initial as any)?.active ?? true,
+      active: anyInit?.active ?? true,
     };
   }, [initial]);
 
@@ -84,35 +99,43 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
   const [loading, setLoading] = useState(false);
   useEffect(() => setValues(start), [start, open]);
 
-  const set = (patch: Partial<FormValues>) => setValues((v) => ({ ...v, ...patch }));
+  const set = (patch: Partial<FormValues>) =>
+    setValues((v) => ({ ...v, ...patch }));
   const setDims = (patch: Partial<FormValues["innerDimsCm"]>) =>
-    setValues((v) => ({ ...v, innerDimsCm: { ...v.innerDimsCm, ...patch } }));
+    setValues((v) => ({
+      ...v,
+      innerDimsCm: { ...v.innerDimsCm, ...patch },
+    }));
 
   const handleSubmit = async () => {
     if (!values.key?.trim() || !values.name?.trim()) {
       toaster.create({ type: "warning", title: "Key and Name are required" });
       return;
     }
-        // Enforce backend enum at runtime to satisfy TS union on Partial<PackageSize>["key"]
+
     const keyTrim = values.key.trim();
-    const allowedKeys = ["Small", "Medium", "Large"] as const;
-    if (!allowedKeys.includes(keyTrim as any)) {
-      toaster.create({
-        type: "warning",
-        title: "Invalid key",
-        description: 'Key must be one of: "Small", "Medium", or "Large".',
-      });
-      return;
+
+    if (mode === "package") {
+      // Enforce backend enum at runtime to satisfy TS union on Partial<PackageSize>["key"]
+      const allowedKeys = ["Small", "Medium", "Large"] as const;
+      if (!allowedKeys.includes(keyTrim as any)) {
+        toaster.create({
+          type: "warning",
+          title: "Invalid key",
+          description: 'Key must be one of: "Small", "Medium", or "Large".',
+        });
+        return;
+      }
     }
+    // In container mode: any non-empty key is allowed
+
     setLoading(true);
     try {
-      // Build payload as 'any' to bypass excess property checks against Partial<PackageSize>
+      // Common payload fields
       const payload: any = {
-        key: values.key.trim(),
+        key: keyTrim,
         name: values.name.trim(),
         innerDimsCm: values.innerDimsCm,
-        headroomPct: values.headroomPct,
-        maxSkusPerBox: values.maxSkusPerBox,
         maxWeightKg: values.maxWeightKg,
         tareWeightKg: values.tareWeightKg,
         mixingAllowed: values.mixingAllowed,
@@ -123,10 +146,17 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
             : undefined,
         notes: values.notes?.trim() || undefined,
         active: values.active,
-        values: values.values,
       };
-      console.log("hiii")
-      await onSubmit(payload as Partial<PackageSize>);
+
+      if (mode === "package") {
+        // Only package sizes use these
+        payload.headroomPct = values.headroomPct;
+        payload.maxSkusPerBox = values.maxSkusPerBox;
+        payload.values = values.values;
+      }
+      // Container mode: no headroomPct / maxSkusPerBox / values sent
+
+      await onSubmit(payload as Partial<PackageSize | Container>);
       onClose();
     } catch (e: any) {
       toaster.create({
@@ -139,9 +169,24 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
     }
   };
 
-  const title = (initial as any)?._id ? "Edit Package Size" : "New Package Size";
+  const title =
+    mode === "package"
+      ? (initial as any)?._id
+        ? "Edit Package Size"
+        : "New Package Size"
+      : (initial as any)?._id
+      ? "Edit Container"
+      : "New Container";
 
-  // Select (v3) expects a ListCollection + item prop
+  const keyPlaceholder =
+    mode === "package"
+      ? 'e.g. "Small", "Medium", "Large"'
+      : 'e.g. "LC-Default", "Pallet60x40"';
+
+  const keyHelperText =
+    mode === "package"
+      ? "Must match allowed keys (Small / Medium / Large)."
+      : "Unique key for this container.";
 
   return (
     <Dialog.Root open={open} onOpenChange={(e) => !e.open && onClose()}>
@@ -152,17 +197,20 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
             <Dialog.CloseTrigger />
             <Heading size="lg">{title}</Heading>
 
-            <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap="4">
+            <Grid
+              templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
+              gap="4"
+            >
               <GridItem>
                 <Field.Root required>
                   <Field.Label>Key</Field.Label>
                   <Input
                     value={values.key}
                     onChange={(e) => set({ key: e.target.value })}
-                    placeholder='e.g. "Small", "Medium", "Large"'
+                    placeholder={keyPlaceholder}
                     autoFocus
                   />
-                  <Field.HelperText>Must match allowed keys (Small / Medium / Large).</Field.HelperText>
+                  <Field.HelperText>{keyHelperText}</Field.HelperText>
                 </Field.Root>
               </GridItem>
 
@@ -172,7 +220,11 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                   <Input
                     value={values.name}
                     onChange={(e) => set({ name: e.target.value })}
-                    placeholder="e.g. Small Bottle"
+                    placeholder={
+                      mode === "package"
+                        ? "e.g. Small Box"
+                        : "e.g. LC Pallet Container"
+                    }
                   />
                 </Field.Root>
               </GridItem>
@@ -183,7 +235,9 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                   <NumberInput.Root
                     min={1}
                     value={String(values.innerDimsCm.l)}
-                    onValueChange={(e) => setDims({ l: e.value === "" ? 1 : Number(e.value) })}
+                    onValueChange={(e) =>
+                      setDims({ l: e.value === "" ? 1 : Number(e.value) })
+                    }
                   >
                     <NumberInput.Label srOnly>Length</NumberInput.Label>
                     <NumberInput.Control>
@@ -202,7 +256,9 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                   <NumberInput.Root
                     min={1}
                     value={String(values.innerDimsCm.w)}
-                    onValueChange={(e) => setDims({ w: e.value === "" ? 1 : Number(e.value) })}
+                    onValueChange={(e) =>
+                      setDims({ w: e.value === "" ? 1 : Number(e.value) })
+                    }
                   >
                     <NumberInput.Label srOnly>Width</NumberInput.Label>
                     <NumberInput.Control>
@@ -221,7 +277,9 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                   <NumberInput.Root
                     min={1}
                     value={String(values.innerDimsCm.h)}
-                    onValueChange={(e) => setDims({ h: e.value === "" ? 1 : Number(e.value) })}
+                    onValueChange={(e) =>
+                      setDims({ h: e.value === "" ? 1 : Number(e.value) })
+                    }
                   >
                     <NumberInput.Label srOnly>Height</NumberInput.Label>
                     <NumberInput.Control>
@@ -234,47 +292,58 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                 </Field.Root>
               </GridItem>
 
-              <GridItem>
-                <Field.Root required>
-                  <Field.Label>Headroom (%)</Field.Label>
-                  <NumberInput.Root
-                    min={0}
-                    max={90}
-                    value={String(Math.round(values.headroomPct * 100))}
-                    onValueChange={(e) =>
-                      set({ headroomPct: (e.value === "" ? 0 : Number(e.value)) / 100 })
-                    }
-                  >
-                    <NumberInput.Label srOnly>Headroom</NumberInput.Label>
-                    <NumberInput.Control>
-                      <NumberInput.IncrementTrigger />
-                      <NumberInput.DecrementTrigger />
-                    </NumberInput.Control>
-                    <NumberInput.Scrubber />
-                    <NumberInput.Input />
-                  </NumberInput.Root>
-                  <Field.HelperText>Reserved headroom percentage (0–90%).</Field.HelperText>
-                </Field.Root>
-              </GridItem>
+              {mode === "package" && (
+                <>
+                  <GridItem>
+                    <Field.Root required>
+                      <Field.Label>Headroom (%)</Field.Label>
+                      <NumberInput.Root
+                        min={0}
+                        max={90}
+                        value={String(Math.round(values.headroomPct * 100))}
+                        onValueChange={(e) =>
+                          set({
+                            headroomPct:
+                              (e.value === "" ? 0 : Number(e.value)) / 100,
+                          })
+                        }
+                      >
+                        <NumberInput.Label srOnly>Headroom</NumberInput.Label>
+                        <NumberInput.Control>
+                          <NumberInput.IncrementTrigger />
+                          <NumberInput.DecrementTrigger />
+                        </NumberInput.Control>
+                        <NumberInput.Scrubber />
+                        <NumberInput.Input />
+                      </NumberInput.Root>
+                      <Field.HelperText>
+                        Reserved headroom percentage (0–90%).
+                      </Field.HelperText>
+                    </Field.Root>
+                  </GridItem>
 
-              <GridItem>
-                <Field.Root required>
-                  <Field.Label>Max SKUs per Box</Field.Label>
-                  <NumberInput.Root
-                    min={1}
-                    value={String(values.maxSkusPerBox)}
-                    onValueChange={(e) => set({ maxSkusPerBox: Number(e.value || 1) })}
-                  >
-                    <NumberInput.Label srOnly>Max SKUs</NumberInput.Label>
-                    <NumberInput.Control>
-                      <NumberInput.IncrementTrigger />
-                      <NumberInput.DecrementTrigger />
-                    </NumberInput.Control>
-                    <NumberInput.Scrubber />
-                    <NumberInput.Input />
-                  </NumberInput.Root>
-                </Field.Root>
-              </GridItem>
+                  <GridItem>
+                    <Field.Root required>
+                      <Field.Label>Max SKUs per Box</Field.Label>
+                      <NumberInput.Root
+                        min={1}
+                        value={String(values.maxSkusPerBox)}
+                        onValueChange={(e) =>
+                          set({ maxSkusPerBox: Number(e.value || 1) })
+                        }
+                      >
+                        <NumberInput.Label srOnly>Max SKUs</NumberInput.Label>
+                        <NumberInput.Control>
+                          <NumberInput.IncrementTrigger />
+                          <NumberInput.DecrementTrigger />
+                        </NumberInput.Control>
+                        <NumberInput.Scrubber />
+                        <NumberInput.Input />
+                      </NumberInput.Root>
+                    </Field.Root>
+                  </GridItem>
+                </>
+              )}
 
               <GridItem>
                 <Field.Root required>
@@ -282,7 +351,9 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                   <NumberInput.Root
                     min={0.001}
                     value={String(values.maxWeightKg)}
-                    onValueChange={(e) => set({ maxWeightKg: Number(e.value || 0.001) })}
+                    onValueChange={(e) =>
+                      set({ maxWeightKg: Number(e.value || 0.001) })
+                    }
                   >
                     <NumberInput.Label srOnly>Max Weight</NumberInput.Label>
                     <NumberInput.Control>
@@ -301,7 +372,9 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                   <NumberInput.Root
                     min={0}
                     value={String(values.tareWeightKg)}
-                    onValueChange={(e) => set({ tareWeightKg: Number(e.value || 0) })}
+                    onValueChange={(e) =>
+                      set({ tareWeightKg: Number(e.value || 0) })
+                    }
                   >
                     <NumberInput.Label srOnly>Tare Weight</NumberInput.Label>
                     <NumberInput.Control>
@@ -319,7 +392,9 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                   <Field.Label>Mixing Allowed</Field.Label>
                   <Switch.Root
                     checked={!!values.mixingAllowed}
-                    onCheckedChange={(e) => set({ mixingAllowed: !!e.checked })}
+                    onCheckedChange={(e) =>
+                      set({ mixingAllowed: !!e.checked })
+                    }
                   >
                     <Switch.HiddenInput />
                     <Switch.Control />
@@ -344,10 +419,15 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                 <Field.Root>
                   <Field.Label>Usable Liters</Field.Label>
                   <NumberInput.Root
-                    value={values.usableLiters === undefined ? "" : String(values.usableLiters)}
+                    value={
+                      values.usableLiters === undefined
+                        ? ""
+                        : String(values.usableLiters)
+                    }
                     onValueChange={(e) =>
                       set({
-                        usableLiters: e.value === "" ? undefined : Number(e.value),
+                        usableLiters:
+                          e.value === "" ? undefined : Number(e.value),
                       })
                     }
                     step={0.1}
@@ -360,7 +440,9 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
                     <NumberInput.Scrubber />
                     <NumberInput.Input />
                   </NumberInput.Root>
-                  <Field.HelperText>Backend recalculates on save; optional override.</Field.HelperText>
+                  <Field.HelperText>
+                    Backend recalculates on save; optional override.
+                  </Field.HelperText>
                 </Field.Root>
               </GridItem>
 
@@ -381,7 +463,11 @@ export default function PackageSizeForm({ open, initial, onClose, onSubmit }: Pr
               <Button variant="subtle" onClick={onClose}>
                 Cancel <Kbd ml="2">Esc</Kbd>
               </Button>
-              <Button colorPalette="teal" loading={loading} onClick={handleSubmit}>
+              <Button
+                colorPalette="teal"
+                loading={loading}
+                onClick={handleSubmit}
+              >
                 Save
               </Button>
             </Stack>

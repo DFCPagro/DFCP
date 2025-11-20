@@ -64,6 +64,7 @@ export const PATHS = {
   csManagerCustomers: "/csManager/customers",
   csManagerAnalytics: "/csManager/analytics",
   csManagerReportsInbox: "/csManager/reports-inbox",
+  
 
   //tManager pages
   TManagerDashboard: "/tManager/dashboard",

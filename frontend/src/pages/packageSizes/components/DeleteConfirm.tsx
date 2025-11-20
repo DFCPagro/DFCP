@@ -2,14 +2,19 @@ import { useState } from "react";
 import { Dialog, Flex, Heading, Text, Button, Stack } from "@chakra-ui/react";
 import { toaster } from "@/components/ui/toaster";
 
+type Mode = "package" | "container";
+
 type Props = {
   idOrKey: string | null;
+  mode: Mode;
   onConfirm(idOrKey: string): Promise<void> | void;
   onClose(): void;
 };
 
-export default function DeleteConfirm({ idOrKey, onConfirm, onClose }: Props) {
+export default function DeleteConfirm({ idOrKey, mode, onConfirm, onClose }: Props) {
   const [loading, setLoading] = useState(false);
+
+  const label = mode === "package" ? "package size" : "container";
 
   const handleDelete = async () => {
     if (!idOrKey) return;
@@ -19,7 +24,7 @@ export default function DeleteConfirm({ idOrKey, onConfirm, onClose }: Props) {
       toaster.create({
         type: "success",
         title: "Deleted",
-        description: `Package size "${idOrKey}" removed.`,
+        description: `${label.charAt(0).toUpperCase() + label.slice(1)} "${idOrKey}" removed.`,
       });
       onClose();
     } catch (e: any) {
@@ -40,7 +45,7 @@ export default function DeleteConfirm({ idOrKey, onConfirm, onClose }: Props) {
         <Dialog.Content rounded="2xl" p="6" maxW="md">
           <Stack gap="4">
             <Dialog.CloseTrigger />
-            <Heading size="lg">Delete package size?</Heading>
+            <Heading size="lg">Delete {label}?</Heading>
             <Text color="fg.muted">
               This action cannot be undone. Are you sure you want to permanently delete{" "}
               <Text as="span" fontWeight="semibold">

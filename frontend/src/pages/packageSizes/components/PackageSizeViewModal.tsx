@@ -16,23 +16,25 @@ import {
   Kbd,
   NumberInput,
 } from "@chakra-ui/react";
-import type { PackageSize } from "@/types/package-sizes";
+import type { PackageSize, Container } from "@/types/package-sizes";
 import { FiBox } from "react-icons/fi";
+type Mode = "package" | "container";
 
 type Props = {
-  item: PackageSize | null;
+    mode: Mode;
+  item: PackageSize | Container | null;
   onClose(): void;
-  onSave(idOrKey: string, patch: Partial<PackageSize>): Promise<void> | void;
+  onSave(idOrKey: string, patch: Partial<PackageSize | Container>): Promise<void> | void;
 };
 
 type FormValues = {
-  key: string;
+   key: string;
   name: string;
   innerDimsCm: { l: number; w: number; h: number };
-  headroomPct: number;
+  headroomPct: number; // package-only
   mixingAllowed: boolean;
   vented: boolean;
-  maxSkusPerBox: number;
+  maxSkusPerBox: number; // package-only
   maxWeightKg: number;
   tareWeightKg: number;
   usableLiters?: number;
@@ -46,7 +48,7 @@ function calcUsableLitersLocal(d: { l: number; w: number; h: number }, headroomP
   return Number(liters.toFixed(1));
 }
 
-export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
+export default function PackageSizeViewModal({ mode, item, onClose, onSave }: Props) {
   const open = !!item;
 
   const start = useMemo<FormValues>(() => {
@@ -107,8 +109,7 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
       return calcUsableLitersLocal(d, values.headroomPct);
     }
     return undefined;
-  }, [values]);
-
+  }, [values, mode]);
   // SVG refs to focus inputs on side click
   const lRef = useRef<HTMLInputElement>(null);
   const wRef = useRef<HTMLInputElement>(null);
@@ -118,30 +119,48 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
     if (!idOrKey) return;
     // Enforce enum for key to satisfy Partial<PackageSize> typing
     const keyTrim = (values.key ?? "").trim();
-    const allowedKeys = ["Small", "Medium", "Large"] as const;
-    if (!allowedKeys.includes(keyTrim as any)) {
-      return;
+        if (!keyTrim) return;
+
+if (mode === "package") {
+      const allowedKeys = ["Small", "Medium", "Large"] as const;
+      if (!allowedKeys.includes(keyTrim as any)) {
+        return;
+      }
     }
-    const patch: Partial<PackageSize> = {
-      key: keyTrim as (typeof allowedKeys)[number], // "Small" | "Medium" | "Large"
+    const patch: any = {
+      key: keyTrim,
       name: values.name,
-      innerDimsCm: values.innerDimsCm as any,
-      headroomPct: values.headroomPct as any,
-      mixingAllowed: values.mixingAllowed as any,
-      vented: values.vented as any,
-      maxSkusPerBox: values.maxSkusPerBox as any,
-      maxWeightKg: values.maxWeightKg as any,
-      tareWeightKg: values.tareWeightKg as any,
-      ...(values.usableLiters !== undefined ? { usableLiters: Number(values.usableLiters) as any } : {}),
-      notes: values.notes,
+      innerDimsCm: values.innerDimsCm,
+      mixingAllowed: values.mixingAllowed,
+      vented: values.vented,
+      maxWeightKg: values.maxWeightKg,
+      tareWeightKg: values.tareWeightKg,
+      ...(values.usableLiters !== undefined
+        ? { usableLiters: Number(values.usableLiters) }
+        : {}),
     };
-    await onSave(String(idOrKey), patch);
+
+    if (mode === "package") {
+      patch.headroomPct = values.headroomPct;
+      patch.maxSkusPerBox = values.maxSkusPerBox;
+      patch.notes = values.notes;
+      patch.values = values.values;
+    }
+
+    await onSave(String(idOrKey), patch as Partial<PackageSize | Container>);
   };
 
   // normalize to draw proportions
   const dims = (values.innerDimsCm ?? { l: 1, w: 1, h: 1 }) as { l: number; w: number; h: number };
   const maxDim = Math.max(dims.l || 1, dims.w || 1, dims.h || 1);
   const scale = 160 / maxDim; // keep within card size
+  const title = mode === "package" ? "Package Details" : "Container Details";
+
+  const keyHelper =
+    mode === "package"
+      ? "Must be one of: Small, Medium, Large"
+      : "Unique key (no strict enum).";
+
 
   return (
     <Dialog.Root open={open} onOpenChange={(e) => !e.open && onClose()}>
@@ -151,7 +170,7 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
           <Stack gap="4">
             <Dialog.CloseTrigger />
             <Flex align="center" justify="space-between">
-              <Heading size="lg">Package Details</Heading>
+              <Heading size="lg">{title}</Heading>
             </Flex>
 
             <Grid templateColumns={{ base: "1fr", lg: "1.2fr 1fr" }} gap="6">
@@ -187,7 +206,12 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                         style={{ cursor: "pointer" }}
                         onClick={() => lRef.current?.focus()}
                       />
-                      <text x={30 + ((dims.l || 1) * scale) / 2} y="18" fontSize="10" textAnchor="middle">
+                      <text
+                        x={30 + ((dims.l || 1) * scale) / 2}
+                        y="18"
+                        fontSize="10"
+                        textAnchor="middle"
+                      >
                         Length (L)
                       </text>
                       {/* Clickable width edge (left) */}
@@ -206,7 +230,9 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                         y={30 + ((dims.w || 1) * scale) / 2}
                         fontSize="10"
                         textAnchor="middle"
-                        transform={`rotate(-90, 12, ${30 + ((dims.w || 1) * scale) / 2})`}
+                        transform={`rotate(-90, 12, ${
+                          30 + ((dims.w || 1) * scale) / 2
+                        })`}
                       >
                         Width (W)
                       </text>
@@ -237,11 +263,21 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                       />
                       <text
                         x={30 + (dims.l || 1) * scale + 18}
-                        y={30 + 160 - (dims.h || 1) * scale + ((dims.h || 1) * scale) / 2}
+                        y={
+                          30 +
+                          160 -
+                          (dims.h || 1) * scale +
+                          ((dims.h || 1) * scale) / 2
+                        }
                         fontSize="10"
                         textAnchor="middle"
-                        transform={`rotate(-90, ${30 + (dims.l || 1) * scale + 18}, ${
-                          30 + 160 - (dims.h || 1) * scale + ((dims.h || 1) * scale) / 2
+                        transform={`rotate(-90, ${
+                          30 + (dims.l || 1) * scale + 18
+                        }, ${
+                          30 +
+                          160 -
+                          (dims.h || 1) * scale +
+                          ((dims.h || 1) * scale) / 2
                         })`}
                       >
                         Height (H)
@@ -251,14 +287,19 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
 
                   <Separator my="4" />
 
-                  <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap="4">
+                  <Grid
+                    templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
+                    gap="4"
+                  >
                     <GridItem>
                       <Field.Root>
                         <Field.Label>Length (cm)</Field.Label>
                         <NumberInput.Root
                           min={1}
                           value={String(values.innerDimsCm.l)}
-                          onValueChange={(e) => setDims({ l: e.value === "" ? 1 : Number(e.value) })}
+                          onValueChange={(e) =>
+                            setDims({ l: e.value === "" ? 1 : Number(e.value) })
+                          }
                         >
                           <NumberInput.Control>
                             <NumberInput.IncrementTrigger />
@@ -275,7 +316,9 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                         <NumberInput.Root
                           min={1}
                           value={String(values.innerDimsCm.w)}
-                          onValueChange={(e) => setDims({ w: e.value === "" ? 1 : Number(e.value) })}
+                          onValueChange={(e) =>
+                            setDims({ w: e.value === "" ? 1 : Number(e.value) })
+                          }
                         >
                           <NumberInput.Control>
                             <NumberInput.IncrementTrigger />
@@ -292,7 +335,9 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                         <NumberInput.Root
                           min={1}
                           value={String(values.innerDimsCm.h)}
-                          onValueChange={(e) => setDims({ h: e.value === "" ? 1 : Number(e.value) })}
+                          onValueChange={(e) =>
+                            setDims({ h: e.value === "" ? 1 : Number(e.value) })
+                          }
                         >
                           <NumberInput.Control>
                             <NumberInput.IncrementTrigger />
@@ -305,27 +350,38 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                     </GridItem>
                   </Grid>
 
-                  <Grid templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }} gap="4" mt="3">
-                    <GridItem>
-                      <Field.Root>
-                        <Field.Label>Headroom (%)</Field.Label>
-                        <NumberInput.Root
-                          min={0}
-                          max={90}
-                          value={String(Math.round((values.headroomPct ?? 0) * 100))}
-                          onValueChange={(e) =>
-                            set({ headroomPct: (e.value === "" ? 0 : Number(e.value)) / 100 })
-                          }
-                        >
-                          <NumberInput.Control>
-                            <NumberInput.IncrementTrigger />
-                            <NumberInput.DecrementTrigger />
-                          </NumberInput.Control>
-                          <NumberInput.Scrubber />
-                          <NumberInput.Input />
-                        </NumberInput.Root>
-                      </Field.Root>
-                    </GridItem>
+                  <Grid
+                    templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
+                    gap="4"
+                    mt="3"
+                  >
+                    {mode === "package" && (
+                      <GridItem>
+                        <Field.Root>
+                          <Field.Label>Headroom (%)</Field.Label>
+                          <NumberInput.Root
+                            min={0}
+                            max={90}
+                            value={String(
+                              Math.round((values.headroomPct ?? 0) * 100)
+                            )}
+                            onValueChange={(e) =>
+                              set({
+                                headroomPct:
+                                  (e.value === "" ? 0 : Number(e.value)) / 100,
+                              })
+                            }
+                          >
+                            <NumberInput.Control>
+                              <NumberInput.IncrementTrigger />
+                              <NumberInput.DecrementTrigger />
+                            </NumberInput.Control>
+                            <NumberInput.Scrubber />
+                            <NumberInput.Input />
+                          </NumberInput.Root>
+                        </Field.Root>
+                      </GridItem>
+                    )}
                     <GridItem>
                       <Field.Root>
                         <Field.Label>Usable Liters (computed)</Field.Label>
@@ -336,10 +392,15 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                       <Field.Root>
                         <Field.Label>Override Usable Liters</Field.Label>
                         <NumberInput.Root
-                          value={values.usableLiters === undefined ? "" : String(values.usableLiters)}
+                          value={
+                            values.usableLiters === undefined
+                              ? ""
+                              : String(values.usableLiters)
+                          }
                           onValueChange={(e) =>
                             set({
-                              usableLiters: e.value === "" ? undefined : Number(e.value),
+                              usableLiters:
+                                e.value === "" ? undefined : Number(e.value),
                             })
                           }
                           step={0.1}
@@ -366,39 +427,51 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                   <Grid templateColumns={{ base: "1fr" }} gap="4">
                     <Field.Root>
                       <Field.Label>Key</Field.Label>
-                      <Input value={values.key ?? ""} onChange={(e) => set({ key: e.target.value })} />
+                      <Input
+                        value={values.key ?? ""}
+                        onChange={(e) => set({ key: e.target.value })}
+                      />
                       <Text color="fg.muted" fontSize="xs" mt="1">
-                        Must be one of: Small, Medium, Large
+                        {keyHelper}
                       </Text>
                     </Field.Root>
 
                     <Field.Root>
                       <Field.Label>Name</Field.Label>
-                      <Input value={values.name ?? ""} onChange={(e) => set({ name: e.target.value })} />
+                      <Input
+                        value={values.name ?? ""}
+                        onChange={(e) => set({ name: e.target.value })}
+                      />
                     </Field.Root>
 
-                    <Field.Root>
-                      <Field.Label>Max SKUs per Box</Field.Label>
-                      <NumberInput.Root
-                        min={1}
-                        value={String(values.maxSkusPerBox)}
-                        onValueChange={(e) => set({ maxSkusPerBox: Number(e.value || 1) })}
-                      >
-                        <NumberInput.Control>
-                          <NumberInput.IncrementTrigger />
-                          <NumberInput.DecrementTrigger />
-                        </NumberInput.Control>
-                        <NumberInput.Scrubber />
-                        <NumberInput.Input />
-                      </NumberInput.Root>
-                    </Field.Root>
+                    {mode === "package" && (
+                      <Field.Root>
+                        <Field.Label>Max SKUs per Box</Field.Label>
+                        <NumberInput.Root
+                          min={1}
+                          value={String(values.maxSkusPerBox)}
+                          onValueChange={(e) =>
+                            set({ maxSkusPerBox: Number(e.value || 1) })
+                          }
+                        >
+                          <NumberInput.Control>
+                            <NumberInput.IncrementTrigger />
+                            <NumberInput.DecrementTrigger />
+                          </NumberInput.Control>
+                          <NumberInput.Scrubber />
+                          <NumberInput.Input />
+                        </NumberInput.Root>
+                      </Field.Root>
+                    )}
 
                     <Field.Root>
                       <Field.Label>Max Weight (kg)</Field.Label>
                       <NumberInput.Root
                         min={0.001}
                         value={String(values.maxWeightKg)}
-                        onValueChange={(e) => set({ maxWeightKg: Number(e.value || 0.001) })}
+                        onValueChange={(e) =>
+                          set({ maxWeightKg: Number(e.value || 0.001) })
+                        }
                       >
                         <NumberInput.Control>
                           <NumberInput.IncrementTrigger />
@@ -414,7 +487,9 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                       <NumberInput.Root
                         min={0}
                         value={String(values.tareWeightKg)}
-                        onValueChange={(e) => set({ tareWeightKg: Number(e.value || 0) })}
+                        onValueChange={(e) =>
+                          set({ tareWeightKg: Number(e.value || 0) })
+                        }
                       >
                         <NumberInput.Control>
                           <NumberInput.IncrementTrigger />
@@ -429,7 +504,9 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                       <Field.Label>Mixing Allowed</Field.Label>
                       <Switch.Root
                         checked={!!values.mixingAllowed}
-                        onCheckedChange={(e) => set({ mixingAllowed: !!e.checked })}
+                        onCheckedChange={(e) =>
+                          set({ mixingAllowed: !!e.checked })
+                        }
                       >
                         <Switch.HiddenInput />
                         <Switch.Control />
@@ -440,7 +517,9 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
                       <Field.Label>Vented</Field.Label>
                       <Switch.Root
                         checked={!!values.vented}
-                        onCheckedChange={(e) => set({ vented: !!e.checked })}
+                        onCheckedChange={(e) =>
+                          set({ vented: !!e.checked })
+                        }
                       >
                         <Switch.HiddenInput />
                         <Switch.Control />
@@ -452,7 +531,8 @@ export default function PackageSizeViewModal({ item, onClose, onSave }: Props) {
 
                   <Flex justify="space-between" align="center">
                     <Text color="fg.muted" fontSize="sm">
-                      Tip: Click the rectangle edges to focus dimension inputs. <Kbd ml="1">Enter</Kbd> to save.
+                      Tip: Click the rectangle edges to focus dimension inputs.{" "}
+                      <Kbd ml="1">Enter</Kbd> to save.
                     </Text>
                     <Stack direction="row" gap="3">
                       <Button variant="subtle" onClick={onClose}>

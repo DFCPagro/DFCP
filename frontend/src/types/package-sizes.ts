@@ -49,3 +49,35 @@ export type PackageSizeDTO = {
   vented: boolean;
   values?: Record<string, number>;
 };
+
+export type Container = {
+  _id?: string;
+  id?: string;
+  name: string;
+  key: string;                  // e.g. "LC-Default", "Pallet60x40"
+  innerDimsCm: {
+    l: number;
+    w: number;
+    h: number;
+  };
+  // no headroomPct
+  // no maxSkusPerBox
+  maxWeightKg: number;
+  mixingAllowed: boolean;
+  tareWeightKg: number;
+  usableLiters: number;         // server computes/overwrites from dims
+  vented: boolean;
+};
+
+export type ContainerDTO = {
+  _id?: string;
+  id?: string;
+  name: string;
+  key: string;
+  innerDimsCm: { l: number; w: number; h: number };
+  maxWeightKg: number;
+  mixingAllowed: boolean;
+  tareWeightKg: number;
+  usableLiters: number;
+  vented: boolean;
+};
