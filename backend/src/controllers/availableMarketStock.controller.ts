@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { Types } from "mongoose";
 
 import ApiError from "../utils/ApiError";
-import LogisticCenter from '../models/logisticsCenter.model';
+import LogisticCenter from "../models/logisticsCenter.model";
 
 import {
   AvailableMarketStockModel,
@@ -17,9 +17,9 @@ import {
   getAvailableMarketStockByKey,
   listUpcomingAvailableMarketStock,
   // FO-centric adjusters:
-  adjustAvailableKgByFOAtomic,       // by KG using farmerOrderId
-  adjustAvailableUnitsByFOAtomic,    // by UNITS using farmerOrderId
-  updateItemQtyStatusAtomic,         // now accepts farmerOrderId
+  adjustAvailableKgByFOAtomic, // by KG using farmerOrderId
+  adjustAvailableUnitsByFOAtomic, // by UNITS using farmerOrderId
+  updateItemQtyStatusAtomic, // now accepts farmerOrderId
   nextFiveShiftsWithStock,
   getAvailableMarketStockById,
 } from "../services/availableMarketStock.service";
@@ -115,7 +115,11 @@ async function respondAfterAdjustFO({
 
   let newStatus: "soldout" | undefined = undefined;
   if (autoSoldoutOnZero && newQty === 0 && line.status !== "soldout") {
-    await updateItemQtyStatusAtomic({ docId, farmerOrderId, status: "soldout" });
+    await updateItemQtyStatusAtomic({
+      docId,
+      farmerOrderId,
+      status: "soldout",
+    });
     newStatus = "soldout";
   }
 
@@ -139,23 +143,35 @@ export async function initDoc(req: Request, res: Response) {
     const createdById = user._id;
 
     console.log(
-      "initDoc called by user", user._id,
-      "for LCid", LCid,
-      "date", date,
-      "shift", shift
+      "initDoc called by user",
+      user._id,
+      "for LCid",
+      LCid,
+      "date",
+      date,
+      "shift",
+      shift
     );
 
     if (!LCid || !date || !shift) {
-      return res.status(400).json({ error: "LCid, date, and shift are required" });
+      return res
+        .status(400)
+        .json({ error: "LCid, date, and shift are required" });
     }
 
-    const doc = await findOrCreateAvailableMarketStock({ LCid, date, shift, createdById });
+    const doc = await findOrCreateAvailableMarketStock({
+      LCid,
+      date,
+      shift,
+      createdById,
+    });
     console.log("findOrCreateAvailableMarketStock result:", doc);
 
     // --- normalize for the FE ---
-    const obj = typeof (doc as any)?.toObject === "function"
-      ? (doc as any).toObject({ virtuals: true })
-      : doc;
+    const obj =
+      typeof (doc as any)?.toObject === "function"
+        ? (doc as any).toObject({ virtuals: true })
+        : doc;
 
     const id =
       (obj?._id?.toString?.() as string) ??
@@ -166,7 +182,9 @@ export async function initDoc(req: Request, res: Response) {
       return res.status(500).json({ error: "Failed to serialize AMS id" });
     }
 
-    const availableDate = new Date(obj.availableDate).toISOString().slice(0, 10);
+    const availableDate = new Date(obj.availableDate)
+      .toISOString()
+      .slice(0, 10);
     const payload = {
       id,
       availableDate,
@@ -182,12 +200,13 @@ export async function initDoc(req: Request, res: Response) {
   }
 }
 
-
 export async function getDoc(req: Request, res: Response) {
   try {
     const { LCid, date, shift } = req.query as any;
     if (!LCid || !date || !shift) {
-      return res.status(400).json({ error: "LCid, date, and shift are required" });
+      return res
+        .status(400)
+        .json({ error: "LCid, date, and shift are required" });
     }
 
     const doc = await getAvailableMarketStockByKey({ LCid, date, shift });
@@ -229,12 +248,16 @@ export async function listUpcoming(req: Request, res: Response) {
 
     if (!LCid) return res.status(400).json({ error: "LCid is required" });
 
-    const rows = await listUpcomingAvailableMarketStock({ LCid, count, fromDate });
+    const rows = await listUpcomingAvailableMarketStock({
+      LCid,
+      count,
+      fromDate,
+    });
     return res.json(rows);
   } catch (err: any) {
-    return res
-      .status(500)
-      .json({ error: err.message || "Failed to list upcoming available market stock" });
+    return res.status(500).json({
+      error: err.message || "Failed to list upcoming available market stock",
+    });
   }
 }
 
@@ -244,14 +267,14 @@ export async function listNextFiveWithStock(req: Request, res: Response) {
     if (!LCid) return res.status(400).json({ error: "LCid is required" });
     const fromTs = Date.now();
 
-    console.log("listNextFiveWithStock for LCid", LCid, "fromTs", fromTs);
+    // console.log("listNextFiveWithStock for LCid", LCid, "fromTs", fromTs);
     const rows = await nextFiveShiftsWithStock({ LCid, fromTs });
-    console.log("Found rows:", rows);
+    // console.log("Found rows:", rows);
     return res.json(rows);
   } catch (err: any) {
-    return res
-      .status(500)
-      .json({ error: err.message || "Failed to list next five shifts with stock" });
+    return res.status(500).json({
+      error: err.message || "Failed to list next five shifts with stock",
+    });
   }
 }
 
@@ -272,7 +295,9 @@ export async function adjustAvailableQty(req: Request, res: Response) {
         ? true
         : !!req.body.enforceEnoughForReserve;
     const autoSoldoutOnZero =
-      req.body?.autoSoldoutOnZero === undefined ? true : !!req.body.autoSoldoutOnZero;
+      req.body?.autoSoldoutOnZero === undefined
+        ? true
+        : !!req.body.autoSoldoutOnZero;
 
     if (
       !docId ||
@@ -282,10 +307,14 @@ export async function adjustAvailableQty(req: Request, res: Response) {
       deltaKg === 0
     ) {
       return res.status(400).json({
-        error: "docId, farmerOrderId, and non-zero numeric deltaKg are required",
+        error:
+          "docId, farmerOrderId, and non-zero numeric deltaKg are required",
       });
     }
-    if (!Types.ObjectId.isValid(docId) || !Types.ObjectId.isValid(farmerOrderId)) {
+    if (
+      !Types.ObjectId.isValid(docId) ||
+      !Types.ObjectId.isValid(farmerOrderId)
+    ) {
       return res.status(400).json({ error: "Invalid docId or farmerOrderId" });
     }
 
@@ -296,7 +325,12 @@ export async function adjustAvailableQty(req: Request, res: Response) {
       enforceEnoughForReserve,
     });
 
-    return respondAfterAdjustFO({ res, docId, farmerOrderId, autoSoldoutOnZero });
+    return respondAfterAdjustFO({
+      res,
+      docId,
+      farmerOrderId,
+      autoSoldoutOnZero,
+    });
   } catch (err: any) {
     return res
       .status(409)
@@ -321,7 +355,9 @@ export async function adjustAvailableQtyByUnits(req: Request, res: Response) {
         ? true
         : !!req.body.enforceEnoughForReserve;
     const autoSoldoutOnZero =
-      req.body?.autoSoldoutOnZero === undefined ? true : !!req.body.autoSoldoutOnZero;
+      req.body?.autoSoldoutOnZero === undefined
+        ? true
+        : !!req.body.autoSoldoutOnZero;
 
     if (
       !docId ||
@@ -331,10 +367,14 @@ export async function adjustAvailableQtyByUnits(req: Request, res: Response) {
       unitsDelta === 0
     ) {
       return res.status(400).json({
-        error: "docId, farmerOrderId, and non-zero numeric unitsDelta are required",
+        error:
+          "docId, farmerOrderId, and non-zero numeric unitsDelta are required",
       });
     }
-    if (!Types.ObjectId.isValid(docId) || !Types.ObjectId.isValid(farmerOrderId)) {
+    if (
+      !Types.ObjectId.isValid(docId) ||
+      !Types.ObjectId.isValid(farmerOrderId)
+    ) {
       return res.status(400).json({ error: "Invalid docId or farmerOrderId" });
     }
 
@@ -345,7 +385,12 @@ export async function adjustAvailableQtyByUnits(req: Request, res: Response) {
       enforceEnoughForReserve,
     });
 
-    return respondAfterAdjustFO({ res, docId, farmerOrderId, autoSoldoutOnZero });
+    return respondAfterAdjustFO({
+      res,
+      docId,
+      farmerOrderId,
+      autoSoldoutOnZero,
+    });
   } catch (err: any) {
     return res.status(409).json({
       error: err.message || "Failed to adjust available quantity by units",

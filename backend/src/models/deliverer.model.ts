@@ -11,14 +11,21 @@ import toJSON from "../utils/toJSON";
 // ===== schema (no generics; infer later) =====
 const DelivererSchema = new Schema(
   {
+    delivererType: {
+      type: String,
+      enum: ["IndustrialDeliverer", "Deliverer"],
+      default: "Deliverer",
+    },
+
     // identity / relations
-    user: {
+    userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
       unique: true,
     },
-    createdFromApplication: {
+
+    jobApplicationId: {
       type: Schema.Types.ObjectId,
       ref: "JobApplication",
       default: null,
@@ -26,10 +33,9 @@ const DelivererSchema = new Schema(
     },
 
     // multi-center assignment
-    logisticCenterIds: {
-      type: [Schema.Types.ObjectId],
+    logisticCenterId: {
+      type: Schema.Types.ObjectId,
       ref: "LogisticCenter",
-      default: [],
       index: true,
     },
 
@@ -53,20 +59,23 @@ const DelivererSchema = new Schema(
       }),
       required: true,
     },
-    //speedKmH: { type: Number, default: null, min: 0 },
+
+    speedKmH: { type: Number, default: null, min: 0 },
 
     // pay defaults
     payFixedPerShift: { type: Number, default: 25, min: 0 },
     payPerKm: { type: Number, default: 1, min: 0 },
     payPerStop: { type: Number, default: 1, min: 0 },
 
+    // industrial-only
+    refrigerated: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
 // plugins & indexes
 DelivererSchema.plugin(toJSON as any);
-DelivererSchema.index({ logisticCenterIds: 1 });
+DelivererSchema.index({ userId: 1, logisticCenterId: 1 });
 
 // ===== infer types from schema =====
 export type Deliverer = InferSchemaType<typeof DelivererSchema>;
