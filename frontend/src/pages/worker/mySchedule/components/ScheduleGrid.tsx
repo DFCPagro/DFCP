@@ -1,4 +1,3 @@
-// src/pages/deliverer/schedule/components/ScheduleGrid.tsx
 import * as React from "react";
 import {
     Box,

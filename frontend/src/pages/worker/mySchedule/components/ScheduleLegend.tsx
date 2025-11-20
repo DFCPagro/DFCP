@@ -1,9 +1,8 @@
-// src/pages/deliverer/schedule/components/ScheduleLegend.tsx
 import * as React from "react";
 import { Box, HStack, Stack, Text, Badge, Separator } from "@chakra-ui/react";
 
 /**
- * Visual legend for the deliverer monthly schedule (view-only).
+ * Visual legend for the worker monthly schedule (view-only).
  * - Status chips: Active / Standby / No shift
  * - Shift keys: M / A / E / N (Morning / Afternoon / Evening / Night)
  */

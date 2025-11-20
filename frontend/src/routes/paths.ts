@@ -28,6 +28,7 @@ export const PATHS = {
   //deliver
   delivererDashboard: "/deliverer/dashboard",
   delivererSchedule: "/deliverer/schedule",
+  delivererPlanSchedule: "/deliverer/plan-schedule",
 
   // item manager
   ItemsManagment: "/admin/items",
@@ -64,7 +65,6 @@ export const PATHS = {
   csManagerCustomers: "/csManager/customers",
   csManagerAnalytics: "/csManager/analytics",
   csManagerReportsInbox: "/csManager/reports-inbox",
-  
 
   //tManager pages
   TManagerDashboard: "/tManager/dashboard",

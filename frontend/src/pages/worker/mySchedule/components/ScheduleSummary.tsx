@@ -1,4 +1,3 @@
-// src/pages/deliverer/schedule/components/ScheduleSummary.tsx
 import * as React from "react";
 import {
     Badge,

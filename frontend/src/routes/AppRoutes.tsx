@@ -39,9 +39,11 @@ const DelivererDashboard = lazy(
   () => import("@/pages/deliverer/delivererDashboard")
 );
 const DelivererSchedule = lazy(
-  () => import("@/pages/deliverer/delivererSchedule")
+  () => import("@/pages/worker/mySchedule")
 );
-
+const DelivererPlanSchedule = lazy(
+  () => import("@/pages/worker/planSchedule")
+);
 
 // Picker pages
 const PickerDashboard = lazy(() => import("@/pages/picker/picker-dashboard"));
@@ -103,8 +105,8 @@ const TManagerDashboard = lazy(
   () => import("@/pages/TManager/dashboard")
 );
 
-const TManagerFarmerDeliveriesShiftDetails =lazy(
-  ()=> import("@/pages/TManager/farmerDeliveries")
+const TManagerFarmerDeliveriesShiftDetails = lazy(
+  () => import("@/pages/TManager/farmerDeliveries")
 )
 
 // Misc / Example
@@ -326,6 +328,16 @@ export default function AppRoutes() {
               </RoleGuard>
             }
           />
+          <Route
+            path={PATHS.delivererPlanSchedule}
+            element={
+              <RoleGuard allow={["deliverer"]}>
+                <DelivererPlanSchedule />
+                <ScrollToTopOnMount />
+              </RoleGuard>
+            }
+          />
+
 
           {/* Picker-only */}
           <Route

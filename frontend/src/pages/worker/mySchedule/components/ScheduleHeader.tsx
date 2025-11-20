@@ -1,4 +1,3 @@
-// src/pages/deliverer/schedule/components/ScheduleHeader.tsx
 import * as React from "react";
 import {
     Box,
@@ -12,14 +11,25 @@ import {
 } from "@chakra-ui/react";
 import { FiCalendar, FiPlay } from "react-icons/fi";
 
+export type PlanStatus = "loading" | "can" | "submitted" | "error";
+
 export type ScheduleHeaderProps = {
     /** Numeric year of the currently visible month, e.g. 2025 */
     year: number;
     /** Numeric month of the currently visible month, 1–12 */
     month: number;
 
-    /** Click handler to navigate to the plan-next-month page (view-only scope) */
+    /** Click handler to navigate to the plan-next-month page (only called when allowed) */
     onPlanNextMonth: () => void;
+
+    /** Current status of the next-month availability check */
+    planStatus: PlanStatus;
+
+    /** Tooltip content reflecting the planStatus */
+    planTooltip: string;
+
+    /** Whether the "Plan Next Month" button should be disabled */
+    planDisabled: boolean;
 
     /** Optional: small label under the title (e.g., LC name / timezone) */
     subLabel?: string;
@@ -42,6 +52,9 @@ export default function ScheduleHeader({
     year,
     month,
     onPlanNextMonth,
+    planStatus,
+    planTooltip,
+    planDisabled,
     subLabel,
     leftExtra,
     rightExtra,
@@ -73,10 +86,17 @@ export default function ScheduleHeader({
 
                 {rightExtra ?? null}
 
-                {/* View-only: navigate to planning page (no loading/disabled states here) */}
+                {/* Gate-aware "Plan Next Month" */}
                 <Tooltip.Root openDelay={200}>
                     <Tooltip.Trigger asChild>
-                        <Button size="sm" onClick={onPlanNextMonth} gap="2">
+                        <Button
+                            size="sm"
+                            gap="2"
+                            onClick={onPlanNextMonth}
+                            loading={planStatus === "loading"}
+                            loadingText="Checking"
+                            disabled={planDisabled}
+                        >
                             <Box as={FiPlay} aria-hidden />
                             Plan Next Month
                         </Button>
@@ -84,7 +104,7 @@ export default function ScheduleHeader({
                     <Tooltip.Positioner>
                         <Tooltip.Content>
                             <Tooltip.Arrow />
-                            Open the planning page for next month.
+                            {planTooltip}
                         </Tooltip.Content>
                     </Tooltip.Positioner>
                 </Tooltip.Root>

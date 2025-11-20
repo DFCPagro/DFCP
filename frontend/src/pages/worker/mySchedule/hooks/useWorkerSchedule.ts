@@ -1,5 +1,3 @@
-// src/pages/deliverer/schedule/hooks/useDelivererSchedule.ts
-
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -11,12 +9,13 @@ import {
   type ScheduleBitmap,
 } from "@/api/schedule";
 import { useToday } from "@/hooks/useToday";
+// --- additions to: useWorkerSchedule.ts --------------------------------------
 
 /* -------------------------------------------------------------------------- */
 /*                                    Types                                   */
 /* -------------------------------------------------------------------------- */
 
-export type UseDelivererScheduleResult = {
+export type UseWorkerScheduleResult = {
   /** Numeric year for the current month (e.g. 2025). */
   year: number;
   /** Numeric month for the current month (1–12). */
@@ -49,6 +48,22 @@ export type UseDelivererScheduleResult = {
 /*                                   Helpers                                  */
 /* -------------------------------------------------------------------------- */
 
+export function computeNextMonth(
+  year: number,
+  month1to12: number
+): {
+  year: number;
+  month: number; // 1–12
+  monthKey: MonthString;
+} {
+  const d = new Date(year, month1to12 - 1, 1);
+  d.setMonth(d.getMonth() + 1);
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1; // 1..12
+  const monthKey = `${y}-${String(m).padStart(2, "0")}` as MonthString;
+  return { year: y, month: m, monthKey };
+}
+
 /**
  * Format a (year, month) pair to "YYYY-MM".
  * Month is 1-based (1–12).
@@ -67,17 +82,54 @@ function hasAnyBits(bitmap: ScheduleBitmap | undefined): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                           useDelivererSchedule hook                        */
+/*                           useWorkerSchedule hook                        */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Hook for the deliverer "My Schedule" page.
+ * Hook for the worker "My Schedule" page.
  *
  * - Anchors to the **current calendar month** (no month flipping here).
  * - Calls GET /schedule/my?month=YYYY-MM via `getMySchedule`.
  * - Exposes active + standby bitmaps and basic query state.
  */
-export function useDelivererSchedule(): UseDelivererScheduleResult {
+
+export function useNextMonthAvailability({
+  currentYear,
+  currentMonth, // 1..12
+}: {
+  currentYear: number;
+  currentMonth: number;
+}) {
+  const next = useMemo(
+    () => computeNextMonth(currentYear, currentMonth),
+    [currentYear, currentMonth]
+  );
+
+  const query = useQuery<GetMyScheduleResponse>({
+    queryKey: ["schedule", "my", next.monthKey],
+    queryFn: () => getMySchedule({ month: next.monthKey }),
+    enabled: Number.isFinite(currentYear) && Number.isFinite(currentMonth),
+  });
+
+  const active = query.data?.active ?? [];
+  const standby = query.data?.standBy ?? [];
+  const alreadySubmitted = hasAnyBits(active) || hasAnyBits(standby);
+  const canPlan = !alreadySubmitted;
+
+  return {
+    nextYear: next.year,
+    nextMonth: next.month,
+    nextMonthKey: next.monthKey,
+    canPlan,
+    alreadySubmitted,
+    isLoading: query.isLoading || query.isFetching,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
+  };
+}
+
+export function useWorkerSchedule(): UseWorkerScheduleResult {
   // Always work off "today" according to the app's time utilities.
   const today = useToday();
 

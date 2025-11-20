@@ -1,5 +1,4 @@
-// src/pages/deliverer/schedule/index.tsx
-
+// --- replace: index.tsx ------------------------------------------------------
 import * as React from "react";
 import {
     Box,
@@ -17,42 +16,61 @@ import ScheduleLegend from "./components/ScheduleLegend";
 import ScheduleGrid from "./components/ScheduleGrid";
 import ScheduleSummary from "./components/ScheduleSummary";
 
-// Source of truth: live API data (current month only)
-import { useDelivererSchedule } from "./hooks/useDelivererSchedule";
-
-export default function DelivererSchedulePage() {
-    // 1) Load current month schedule (no month flipping)
+import { useWorkerSchedule, useNextMonthAvailability } from "./hooks/useWorkerSchedule";
+import { PATHS as P } from "@/routes/paths";
+export default function MySchedulePage() {
+    // 1) Current month (view-only on this page)
     const {
         year,
-        month,          // expected 1–12 (matches ScheduleHeader/Summary/Grid)
+        month, // 1–12
         activeBitmap,
         standByBitmap,
         isLoading,
         isFetching,
         isError,
         error,
-    } = useDelivererSchedule();
+    } = useWorkerSchedule(); // :contentReference[oaicite:2]{index=2}
 
-    // 2) Plan Next Month → simple navigation (view-only scope)
+    // 2) Next-month availability (Option A: strict)
+    const next = useNextMonthAvailability({ currentYear: year, currentMonth: month }); // :contentReference[oaicite:3]{index=3}
+
+    // 3) Map to UI status
+    const planStatus: "loading" | "can" | "submitted" | "error" =
+        next.isLoading ? "loading" : next.isError ? "error" : next.canPlan ? "can" : "submitted";
+
+    const planTooltip =
+        planStatus === "loading"
+            ? "Checking next month…"
+            : planStatus === "can"
+                ? `No schedule found for ${next.nextMonthKey}. You can plan it now.`
+                : planStatus === "submitted"
+                    ? `A schedule already exists for ${next.nextMonthKey}.`
+                    : "Couldn’t check next month. Please try again.";
+
+    const planDisabled = planStatus !== "can";
+
+    // 4) Navigate to planner
     const navigate = useNavigate();
     const handlePlanNextMonth = React.useCallback(() => {
-        // Placeholder route you’ll implement later
-        navigate("/deliverer/schedule/plan-next-month");
-    }, [navigate]);
+        if (planDisabled) return;
+        navigate(`${P.delivererPlanSchedule}?month=${next.nextMonthKey}`);
+    }, [navigate, planDisabled, next.nextMonthKey]);
 
-    // 3) Top-level load error (no save/plan errors in view-only)
     const topError = isError ? error : null;
 
     return (
         <Container maxW="6xl" py="6">
-            {/* Header */}
+            {/* Header (accepts plan props) */}
             <ScheduleHeader
                 year={year}
                 month={month}
                 onPlanNextMonth={handlePlanNextMonth}
+                planStatus={planStatus}
+                planTooltip={planTooltip}
+                planDisabled={planDisabled}
             />
 
-            {/* Error banner */}
+            {/* Error banner for the *current* month load */}
             {topError ? (
                 <Alert.Root status="error" mt="4" borderRadius="md">
                     <Alert.Indicator />
@@ -66,7 +84,7 @@ export default function DelivererSchedulePage() {
             ) : null}
 
             <Stack mt="5" gap="5">
-                {/* Summary section (Today + Upcoming – view-only) */}
+                {/* Summary */}
                 {isLoading || isFetching ? (
                     <HStack gap="4">
                         <Skeleton h="140px" flex="1" borderRadius="md" />
@@ -88,7 +106,7 @@ export default function DelivererSchedulePage() {
 
                 <Separator />
 
-                {/* Legend + Grid (view-only) */}
+                {/* Legend + Grid */}
                 {isLoading || isFetching ? (
                     <Stack gap="4">
                         <Skeleton h="80px" borderRadius="md" />
@@ -102,7 +120,6 @@ export default function DelivererSchedulePage() {
                             month={month}
                             activeBitmap={activeBitmap}
                             standByBitmap={standByBitmap}
-                        // View-only: omit onDayClick for now
                         />
                     </Stack>
                 )}
