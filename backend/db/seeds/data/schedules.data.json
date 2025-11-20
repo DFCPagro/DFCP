@@ -3,5 +3,41 @@
     "userId": "66f2aa000000000000000002",
     "role": "deliverer",
     "logisticCenterId": "66e007000000000000000001"
+  },
+  {
+    "userId": "66f2aa000000000000000045",
+    "role": "deliverer",
+    "logisticCenterId": "66e007000000000000000001"
+  },
+  {
+    "userId": "66f2aa000000000000000046",
+    "role": "deliverer",
+    "logisticCenterId": "66e007000000000000000001"
+  },
+  {
+    "userId": "66f2aa000000000000000047",
+    "role": "deliverer",
+    "logisticCenterId": "66e007000000000000000001"
+  },
+
+  {
+    "userId": "66f2aa000000000000000003",
+    "role": "industrialDeliverer",
+    "logisticCenterId": "66e007000000000000000001"
+  },
+  {
+    "userId": "66f2aa000000000000000042",
+    "role": "industrialDeliverer",
+    "logisticCenterId": "66e007000000000000000001"
+  },
+  {
+    "userId": "66f2aa000000000000000043",
+    "role": "industrialDeliverer",
+    "logisticCenterId": "66e007000000000000000001"
+  },
+  {
+    "userId": "66f2aa000000000000000044",
+    "role": "industrialDeliverer",
+    "logisticCenterId": "66e007000000000000000001"
   }
 ]

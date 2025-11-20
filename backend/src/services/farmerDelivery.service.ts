@@ -5,13 +5,14 @@ import FarmerOrder, { type Shift } from "../models/farmerOrder.model";
 import FarmerDelivery, {
   type FarmerDelivery as FarmerDeliveryType,
 } from "../models/farmerDelivery.model";
-
+import { getWorkersForShift} from "./schedule.service"
 import {
   planInboundDeliveriesForShift,
   type AddressLike,
 } from "./farmerDeliveryPlanning.service";
 
 import { getNextAvailableShifts } from "./shiftConfig.service";
+import { toIdString } from '../utils/validations/mongose';
 
 export type FarmerDeliveryShiftSummary = {
   date: string;                 // "YYYY-MM-DD"
@@ -26,16 +27,26 @@ export type FarmerDeliveryShiftSummary = {
 /*                       Stub: active deliverers count                         */
 /* -------------------------------------------------------------------------- */
 
-export async function getActiveDeliverersCountForShift(_params: {
+///**************************************change it to get role and active or not 
+
+export async function getActiveDeliverersCountForShift(params: {
   logisticCenterId: string;
-  date: string;
-  shift: Shift;
+  date: string;       // "YYYY-MM-DD"
+  shift: Shift;       // "morning" | "afternoon" | "evening" | "night"
 }): Promise<number> {
-  const min = 10;
-  const max = 17;
-  const value = Math.floor(Math.random() * (max - min + 1)) + min;
-  return value;
+  const { logisticCenterId, date, shift } = params;
+
+  const result = await getWorkersForShift({
+    role: "industrialDeliverer",
+    shiftName: shift,
+    date,
+    scheduleType: "active" ,   // or whatever ScheduleType you want
+    logisticCenterId,
+  });
+  console.log(result.workers.length)
+  return result.workers.length;
 }
+
 
 /* -------------------------------------------------------------------------- */
 /*                  Dashboard summary: current + next 5 shifts                 */
