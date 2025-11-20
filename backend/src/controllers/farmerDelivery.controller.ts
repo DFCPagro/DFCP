@@ -11,8 +11,10 @@ import {
   getFarmerDeliveriesByShift,
 } from "../services/farmerDelivery.service";
 
+import {computeContainerEstimatesForShiftOrders} from "../services/farmerDeliveryPlanning.service";
+
 import type { Shift } from "../models/farmerOrder.model";
-import type { AddressLike } from "../services/farmerDeliveryPlanning.service";
+import type { AddressLike  } from "../services/farmerDeliveryPlanning.service";
 
 const DEFAULT_LOGISTIC_CENTER_ID = "66e007000000000000000001";
 
@@ -116,14 +118,33 @@ export async function postPlanFarmerDeliveries(req: Request, res: Response) {
       createdBy: new Types.ObjectId(user.id),
     });
 
+    // 🔹 NEW: per-FO container estimates + totals
+    const {
+      perOrder,
+      totalEstimatedContainers,
+      totalCurrentlyEstimatedContainers,
+    } = await computeContainerEstimatesForShiftOrders({
+      logisticCenterId,
+      pickUpDate,
+      shift,
+    });
+    console.log("here")
     return res.status(created ? 201 : 200).json({
       created,
       data: deliveries,
+
+      // per FarmerOrder (each FO in this shift)
+      containerEstimatesPerOrder: perOrder,
+
+      // totals – using your preferred names
+      estemated: totalEstimatedContainers,
+      currentlyEstemated: totalCurrentlyEstimatedContainers,
     });
   } catch (err) {
     return handleError(res, err);
   }
 }
+
 
 /* -------------------------------------------------------------------------- */
 /*          GET /farmer-delivery/by-shift                                     */
@@ -160,7 +181,21 @@ export async function getFarmerDeliveriesByShiftHandler(
       shift,
     });
 
-    return res.json({ data: deliveries });
+    const estimates =
+  await computeContainerEstimatesForShiftOrders({
+    logisticCenterId,
+    pickUpDate,
+    shift,
+  })
+
+return res.json({
+  data: deliveries,
+  estimates: {
+    estemated: estimates.totalEstimatedContainers,
+    currentlyEstemated: estimates.totalCurrentlyEstimatedContainers,
+    perOrder: estimates.perOrder
+  }
+});
   } catch (err) {
     return handleError(res, err);
   }

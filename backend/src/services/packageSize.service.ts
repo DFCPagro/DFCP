@@ -1,14 +1,15 @@
 import mongoose from "mongoose";
 import ApiError from "../utils/ApiError";
-import { PackageSize} from "../models/PackageSize"; // Container exported from same file
-import {ContainerSize} from "../models/containerSize.model"
+import { PackageSize } from "../models/PackageSize";
+import { ContainerSize } from "../models/containerSize.model";
+
 type PackageSizeLean = {
   _id: mongoose.Types.ObjectId;
   key: "Small" | "Medium" | "Large";
   vented: boolean;
 };
 
-type ContainerLean = {
+type ContainerSizeLean = {
   _id: mongoose.Types.ObjectId;
   key: string;
   vented: boolean;
@@ -171,16 +172,15 @@ export async function getContainerByIdOrKey(idOrKey: string) {
 }
 
 export async function createContainer(payload: any) {
-  // Unique index on { key, vented } in ContainerSchema
+  // Unique index on { key } in ContainerSizeSchema
   const existing = await ContainerSize.findOne({
     key: payload.key,
-    vented: payload.vented,
   });
 
   if (existing) {
     throw new ApiError(
       409,
-      `Container with key "${payload.key}" and vented "${payload.vented}" already exists`
+      `Container with key "${payload.key}" already exists`
     );
   }
 
@@ -196,19 +196,16 @@ export async function updateContainer(idOrKey: string, payload: any) {
 
   const current = await ContainerSize.findOne(baseFilter)
     .select("_id key vented")
-    .lean<ContainerLean | null>();
+    .lean<ContainerSizeLean | null>();
 
   if (!current) throw new ApiError(404, "Container not found");
 
-  // 2) Compute the target unique fields after update (unique index is on { key, vented })
+  // 2) Compute the target unique field after update (unique index is on { key })
   const nextKey: string = (payload?.key ?? current.key) as string;
-  const nextVented: boolean =
-    typeof payload?.vented === "boolean" ? payload.vented : current.vented;
 
   // 3) Prevent collision with any OTHER document (exclude self by _id)
   const conflict = await ContainerSize.findOne({
     key: nextKey,
-    vented: nextVented,
     _id: { $ne: current._id },
   })
     .select("_id")
@@ -217,7 +214,7 @@ export async function updateContainer(idOrKey: string, payload: any) {
   if (conflict) {
     throw new ApiError(
       409,
-      `Container with key "${nextKey}" and vented "${nextVented}" already exists`
+      `Container with key "${nextKey}" already exists`
     );
   }
 

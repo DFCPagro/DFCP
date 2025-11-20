@@ -1,4 +1,3 @@
-// src/api/farmerDelivery.ts
 import { api } from "./config"
 
 /* -------------------------------------------------------------------------- */
@@ -16,8 +15,6 @@ export type FarmerDeliveryShiftSummary = {
   hasPlan: boolean
 }
 
-// You can expand this later to match the full model.
-// For now, keep it minimal so FE can render stops & meta.
 export type FarmerDeliveryStopDTO = {
   type: "pickup" | "dropoff"
   label: string
@@ -28,13 +25,20 @@ export type FarmerDeliveryStopDTO = {
   farmName: string
   farmerOrderIds: string[]
 
+  // ESTIMATED (from planning / forecast)
   expectedContainers: number
   expectedWeightKg: number
+
+  // CURRENT (from scans / loaded containers)
+  loadedContainersCount?: number
+  loadedWeightKg?: number
 
   plannedAt: string | Date
   arrivedAt?: string | Date | null
   departedAt?: string | Date | null
 }
+
+
 
 export type FarmerDeliveryDTO = {
   _id: string
@@ -59,10 +63,27 @@ export type FarmerDeliveryDTO = {
   updatedAt?: string | Date
 }
 
-// ⬇️ simplified – backend now infers LC + address from auth context
+// 🔹 NEW: per-FO container estimates from /plan
+export type ContainerEstimatePerOrderDTO = {
+  farmerOrderId: string
+  itemId: string
+  itemName: string
+  estimatedContainers: number       // from forecast qty
+  currentlyEstimatedContainers: number // from final qty
+}
+
 export type PlanFarmerDeliveriesPayload = {
   pickUpDate: string // "YYYY-MM-DD"
   shift: ShiftName
+}
+
+// 🔹 NEW: return shape of plan endpoint
+export type PlanFarmerDeliveriesResponse = {
+  created: boolean
+  deliveries: FarmerDeliveryDTO[]
+  containerEstimatesPerOrder: ContainerEstimatePerOrderDTO[]
+  estemated: number                // totalEstimatedContainers
+  currentlyEstemated: number       // totalCurrentlyEstimatedContainers
 }
 
 /* -------------------------------------------------------------------------- */
@@ -75,13 +96,6 @@ const BASE = "/farmer-delivery"
 /*                            API: Dashboard summary                           */
 /* -------------------------------------------------------------------------- */
 
-/**
- * T-manager dashboard:
- * Get summary for current + next shifts.
- *
- * By default: backend returns ~6 rows (current + next 5),
- * but you can override with `count`.
- */
 export async function getFarmerDeliveryDashboardSummary(params: {
   count?: number
   signal?: AbortSignal
@@ -96,7 +110,6 @@ export async function getFarmerDeliveryDashboardSummary(params: {
     signal,
   })
 
-  // controller returns: { data: FarmerDeliveryShiftSummary[] }
   return res.data?.data ?? []
 }
 
@@ -104,26 +117,23 @@ export async function getFarmerDeliveryDashboardSummary(params: {
 /*                           API: Ensure / create plan                         */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Ensure there is a FarmerDelivery plan for a given date+shift.
- *
- * - If a plan already exists → backend returns created=false and existing deliveries.
- * - If not → backend creates a new plan and returns created=true and new deliveries.
- *
- * LC id + address are inferred by backend from the authenticated user/context.
- */
 export async function planFarmerDeliveriesForShift(params: {
   payload: PlanFarmerDeliveriesPayload
   signal?: AbortSignal
-}): Promise<{ created: boolean; deliveries: FarmerDeliveryDTO[] }> {
+}): Promise<PlanFarmerDeliveriesResponse> {
   const { payload, signal } = params
 
   const res = await api.post(`${BASE}/plan`, payload, { signal })
 
-  // controller: { created, data: deliveries[] }
+  const data = res.data ?? {}
+
   return {
-    created: Boolean(res.data?.created),
-    deliveries: (res.data?.data ?? []) as FarmerDeliveryDTO[],
+    created: Boolean(data.created),
+    deliveries: (data.data ?? []) as FarmerDeliveryDTO[],
+    containerEstimatesPerOrder:
+      (data.containerEstimatesPerOrder ?? []) as ContainerEstimatePerOrderDTO[],
+    estemated: Number(data.estemated ?? 0),
+    currentlyEstemated: Number(data.currentlyEstemated ?? 0),
   }
 }
 
@@ -131,10 +141,6 @@ export async function planFarmerDeliveriesForShift(params: {
 /*                       API: Get deliveries for one shift                     */
 /* -------------------------------------------------------------------------- */
 
-/**
- * When T-manager clicks "View" for a row:
- * Fetch all FarmerDelivery docs for that date+shift.
- */
 export async function getFarmerDeliveriesByShift(params: {
   pickUpDate: string // "YYYY-MM-DD"
   shift: ShiftName
@@ -147,6 +153,5 @@ export async function getFarmerDeliveriesByShift(params: {
     signal,
   })
 
-  // controller: { data: deliveries[] }
   return res.data?.data ?? []
 }

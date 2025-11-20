@@ -12,6 +12,13 @@ import FarmerDelivery, {
 } from "../models/farmerDelivery.model";
 
 import { getShiftWindows } from "./shiftConfig.service";
+import { Item } from "../models/Item.model";
+import { ContainerSize } from "../models/containerSize.model";
+import {
+  estimateContainersForItemQuantity,
+  type ContainerSizeLite,
+} from "./containerPacking.service";
+import type { ItemLite } from "./packing.service";
 
 const MAX_MINUTES_TO_FIRST_STOP = 90;  // 1.5h
 const MAX_MINUTES_TO_RETURN     = 180; // 3h
@@ -30,13 +37,40 @@ export type AddressLike = {
 /* -------------------------------------------------------------------------- */
 
 /**
- * TEMP: Simple heuristic for expected containers per order.
- * For now: always return 10.
- * Later you can compute from finalQuantityKg, avg kg per container, etc.
+ * Pure helper: given a FarmerOrder-like object, its Item data, and all container
+ * sizes, return just the *number* of expected containers for that order.
+ *
+ * Uses:
+ *  - finalQuantityKg
+ *  - then forcastedQuantityKg (same spelling as model)
+ *  - then sumOrderedQuantityKg
  */
-export function getExpectedContainersForOrder(order: any): number {
-  // you can use order.finalQuantityKg etc. later
-  return 10;
+export function getExpectedContainersForOrder(
+  order: {
+    finalQuantityKg?: number;
+    forcastedQuantityKg?: number;
+    sumOrderedQuantityKg?: number;
+  },
+  item: ItemLite | undefined,
+  containers: ContainerSizeLite[]
+): number {
+  if (!item || !containers.length) return 0;
+
+  const quantityKg =
+    order.finalQuantityKg ??
+    order.forcastedQuantityKg ?? // alias forecastedQuantityKg
+    order.sumOrderedQuantityKg ??
+    0;
+
+  if (!quantityKg || quantityKg <= 0) return 0;
+
+  const estimate = estimateContainersForItemQuantity(
+    item,
+    quantityKg,
+    containers
+  );
+
+  return estimate?.containersNeeded ?? 0;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -93,7 +127,11 @@ type StopGroup = {
  * Group FarmerOrders into physical stops.
  * Group key = address (same AddressSchema → same stop).
  *
- * Make it generic so it works with `lean()` results (FlattenMaps, etc.).
+ * We now also need:
+ *  - itemsById: ItemLite map
+ *  - containers: ContainerSizeLite[]
+ *
+ * to compute expectedContainers as a *number*.
  */
 function groupOrdersIntoStopsByAddress<T extends {
   pickupAddress?: AddressLike;
@@ -101,9 +139,15 @@ function groupOrdersIntoStopsByAddress<T extends {
   farmerName: string;
   farmName: string;
   _id: any;
+  itemId: any;
   finalQuantityKg?: number;
   sumOrderedQuantityKg?: number;
-}>(orders: T[]): StopGroup[] {
+  forcastedQuantityKg?: number;
+}>(
+  orders: T[],
+  itemsById: Record<string, ItemLite>,
+  containers: ContainerSizeLite[]
+): StopGroup[] {
   const map = new Map<string, StopGroup>();
 
   for (const o of orders) {
@@ -113,7 +157,12 @@ function groupOrdersIntoStopsByAddress<T extends {
     // key purely by address (text + coords)
     const key = [addr.address, addr.lnt, addr.alt].join("|");
 
-    const expectedContainers = getExpectedContainersForOrder(o);
+    const item = itemsById[String(o.itemId)];
+    const expectedContainers = getExpectedContainersForOrder(
+      o,
+      item,
+      containers
+    );
     const expectedWeightKg = Number(
       o.finalQuantityKg ?? o.sumOrderedQuantityKg ?? 0
     );
@@ -187,7 +236,6 @@ export async function planInboundDeliveriesForShift(params: {
   const shiftStartAtDate = shiftStart.toJSDate();
 
   // 2) Load FarmerOrders for this LC + date + shift
-  //    Assuming FarmerOrder.logisticCenterId is ObjectId, with hex string logisticCenterId.
   const lcObjectId = new Types.ObjectId(logisticCenterId);
 
   const orders = await FarmerOrder.find({
@@ -199,8 +247,41 @@ export async function planInboundDeliveriesForShift(params: {
 
   if (!orders.length) return [];
 
-  // 3) Group into stops by address
-  const groups = groupOrdersIntoStopsByAddress(orders as any []);
+  // 2b) Preload Items and Containers once (for container estimation)
+
+  const itemIds = Array.from(
+    new Set(orders.map((o: any) => String(o.itemId)))
+  );
+
+  const itemDocs = await Item.find({ _id: { $in: itemIds } }).lean();
+
+  const itemsById: Record<string, ItemLite> = {};
+  for (const it of itemDocs) {
+    itemsById[String(it._id)] = {
+      _id: String(it._id),
+      name: `${it.type ?? ""} ${it.variety ?? ""}`.trim(),
+      category: it.category,
+      type: it.type,
+      variety: it.variety,
+      avgWeightPerUnitGr: it.avgWeightPerUnitGr,
+    };
+  }
+
+  const containersDocs = await ContainerSize.find({}).lean();
+  const containersLite: ContainerSizeLite[] = containersDocs.map((c: any) => ({
+    key: c.key,
+    name: c.name,
+    usableLiters: c.usableLiters,
+    maxWeightKg: c.maxWeightKg,
+    vented: c.vented,
+  }));
+
+  // 3) Group into stops by address (now with expectedContainers based on quantity)
+  const groups = groupOrdersIntoStopsByAddress(
+    orders as any[],
+    itemsById,
+    containersLite
+  );
 
   // 4) Sort stops by distance from LC (nearest first)
   const sortedStops = [...groups].sort((a, b) => {
@@ -273,82 +354,83 @@ export async function planInboundDeliveriesForShift(params: {
   }
 
   for (const g of sortedStops) {
-  const candidateStops = [...currentStops, g];
+    const candidateStops = [...currentStops, g];
 
-  // simulate route for candidateStops using minutes only
-  let timeCursor = shiftStart;
-  let totalMinutesOut = 0;                 // minutes from shiftStart for full trip
-  let firstStopMinutesFromStart: number | null = null;
-  let lastAddress: AddressLike = logisticCenterAddress;
+    // simulate route for candidateStops using minutes only
+    let timeCursor = shiftStart;
+    let totalMinutesOut = 0;                 // minutes from shiftStart for full trip
+    let firstStopMinutesFromStart: number | null = null;
+    let lastAddress: AddressLike = logisticCenterAddress;
 
-  const stopsWithPlan = candidateStops.map((s, idx) => {
-    const legMinutes = estimateTravelMinutesBetween(lastAddress, s.address);
-    totalMinutesOut += legMinutes;
-    timeCursor = timeCursor.plus({ minutes: legMinutes });
+    const stopsWithPlan = candidateStops.map((s, idx) => {
+      const legMinutes = estimateTravelMinutesBetween(lastAddress, s.address);
+      totalMinutesOut += legMinutes;
+      timeCursor = timeCursor.plus({ minutes: legMinutes });
 
-    if (idx === 0) {
-      // minutes until first stop from shiftStart
-      firstStopMinutesFromStart = totalMinutesOut;
-    }
+      if (idx === 0) {
+        // minutes until first stop from shiftStart
+        firstStopMinutesFromStart = totalMinutesOut;
+      }
 
-    const res = {
-      ...s,
-      plannedAt: timeCursor.toJSDate(),
-    };
+      const res = {
+        ...s,
+        plannedAt: timeCursor.toJSDate(),
+      };
 
-    lastAddress = s.address;
-    return res;
-  });
+      lastAddress = s.address;
+      return res;
+    });
 
-  // travel back to LC
-  const backMinutes = estimateTravelMinutesBetween(
-    lastAddress,
-    logisticCenterAddress
-  );
-  totalMinutesOut += backMinutes;
-
-  // SLA checks: we now have:
-  //  - firstStopMinutesFromStart
-  //  - totalMinutesOut  (full trip duration)
-  const firstEtaMinutesFromShift = firstStopMinutesFromStart ?? 0;
-  const totalMinutesFromShift = totalMinutesOut;
-
-  const violatesFirstStop =
-    firstEtaMinutesFromShift > MAX_MINUTES_TO_FIRST_STOP;
-  const violatesReturn = totalMinutesFromShift > MAX_MINUTES_TO_RETURN;
-
-  if (violatesFirstStop || violatesReturn) {
-    // current candidate would break SLA -> close previous trip and start new
-    finalizeCurrentTrip();
-
-    // start a fresh trip with just this group g
-    const legToFirst = estimateTravelMinutesBetween(
-      logisticCenterAddress,
-      g.address
-    );
-    const firstEta = shiftStart.plus({ minutes: legToFirst });
-    const back = estimateTravelMinutesBetween(
-      g.address,
+    // travel back to LC
+    const backMinutes = estimateTravelMinutesBetween(
+      lastAddress,
       logisticCenterAddress
     );
-    const retEta = firstEta.plus({ minutes: back });
+    totalMinutesOut += backMinutes;
 
-    currentStops = [
-      {
-        ...g,
-        plannedAt: firstEta.toJSDate(),
-      },
-    ];
-    currentPlannedStartAt = shiftStartAtDate;
-    currentPlannedEndAt = retEta.toJSDate();
-  } else {
-    // candidate is still valid under SLA → continue accumulating stops
-    currentStops = stopsWithPlan;
-    currentPlannedStartAt = shiftStartAtDate;
-    currentPlannedEndAt = shiftStart.plus({ minutes: totalMinutesOut }).toJSDate();
+    // SLA checks: we now have:
+    //  - firstStopMinutesFromStart
+    //  - totalMinutesOut  (full trip duration)
+    const firstEtaMinutesFromShift = firstStopMinutesFromStart ?? 0;
+    const totalMinutesFromShift = totalMinutesOut;
+
+    const violatesFirstStop =
+      firstEtaMinutesFromShift > MAX_MINUTES_TO_FIRST_STOP;
+    const violatesReturn = totalMinutesFromShift > MAX_MINUTES_TO_RETURN;
+
+    if (violatesFirstStop || violatesReturn) {
+      // current candidate would break SLA -> close previous trip and start new
+      finalizeCurrentTrip();
+
+      // start a fresh trip with just this group g
+      const legToFirst = estimateTravelMinutesBetween(
+        logisticCenterAddress,
+        g.address
+      );
+      const firstEta = shiftStart.plus({ minutes: legToFirst });
+      const back = estimateTravelMinutesBetween(
+        g.address,
+        logisticCenterAddress
+      );
+      const retEta = firstEta.plus({ minutes: back });
+
+      currentStops = [
+        {
+          ...g,
+          plannedAt: firstEta.toJSDate(),
+        },
+      ];
+      currentPlannedStartAt = shiftStartAtDate;
+      currentPlannedEndAt = retEta.toJSDate();
+    } else {
+      // candidate is still valid under SLA → continue accumulating stops
+      currentStops = stopsWithPlan;
+      currentPlannedStartAt = shiftStartAtDate;
+      currentPlannedEndAt = shiftStart
+        .plus({ minutes: totalMinutesOut })
+        .toJSDate();
+    }
   }
-}
-
 
   // finalize leftover
   finalizeCurrentTrip();
@@ -356,4 +438,148 @@ export async function planInboundDeliveriesForShift(params: {
   // persist all trips
   const saved = await FarmerDelivery.insertMany(createdTrips);
   return saved as any;
+}
+
+
+
+/* -------------------------------------------------------------------------- */
+/*  Per-FO container estimates + totals for this LC+date+shift                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * For all FarmerOrders in a given LC + date + shift:
+ *  - compute containers *per FO*:
+ *      • estimatedContainers = based on forecast (forcastedQuantityKg → sumOrderedQuantityKg)
+ *      • currentlyEstimatedContainers = based on current/final (finalQuantityKg → sumOrderedQuantityKg)
+ *  - return:
+ *      • perOrder list
+ *      • totals: sum over all FO
+ */
+export async function computeContainerEstimatesForShiftOrders(params: {
+  logisticCenterId: string;
+  pickUpDate: string;
+  shift: Shift;
+}): Promise<{
+  perOrder: Array<{
+    farmerOrderId: string;
+    itemId: string;
+    itemName: string;
+    estimatedContainers: number;
+    currentlyEstimatedContainers: number;
+  }>;
+  totalEstimatedContainers: number;
+  totalCurrentlyEstimatedContainers: number;
+}> {
+  const { logisticCenterId, pickUpDate, shift } = params;
+
+  const lcObjectId = new Types.ObjectId(logisticCenterId);
+
+  const orders = await FarmerOrder.find({
+    logisticCenterId: lcObjectId,
+    pickUpDate,
+    shift,
+    farmerStatus: "ok",
+  }).lean();
+
+  if (!orders.length) {
+    return {
+      perOrder: [],
+      totalEstimatedContainers: 0,
+      totalCurrentlyEstimatedContainers: 0,
+    };
+  }
+
+  // ---- preload items ----
+  const itemIds = Array.from(
+    new Set(orders.map((o: any) => String(o.itemId)))
+  );
+
+  const itemDocs = await Item.find({ _id: { $in: itemIds } }).lean();
+
+  const itemsById: Record<string, ItemLite> = {};
+  for (const it of itemDocs) {
+    itemsById[String(it._id)] = {
+      _id: String(it._id),
+      name: `${it.type ?? ""} ${it.variety ?? ""}`.trim(), // type + variety
+      category: it.category,
+      type: it.type,
+      variety: it.variety,
+      avgWeightPerUnitGr: it.avgWeightPerUnitGr,
+    };
+  }
+
+  // ---- preload containers ----
+  const containersDocs = await ContainerSize.find({}).lean();
+  const containersLite: ContainerSizeLite[] = containersDocs.map((c: any) => ({
+    key: c.key,
+    name: c.name,
+    usableLiters: c.usableLiters,
+    maxWeightKg: c.maxWeightKg,
+    vented: c.vented,
+  }));
+
+  const perOrder: Array<{
+    farmerOrderId: string;
+    itemId: string;
+    itemName: string;
+    estimatedContainers: number;
+    currentlyEstimatedContainers: number;
+  }> = [];
+
+  let totalEstimatedContainers = 0;
+  let totalCurrentlyEstimatedContainers = 0;
+
+  for (const o of orders) {
+    const item = itemsById[String(o.itemId)];
+    if (!item) continue;
+
+    // ---- estimated: forecast-based ----
+    const qtyEstimatedKg =
+      (o as any).forcastedQuantityKg ??
+      (o as any).sumOrderedQuantityKg ??
+      0;
+
+    let estimatedContainers = 0;
+    if (qtyEstimatedKg > 0) {
+      const est = estimateContainersForItemQuantity(
+        item,
+        qtyEstimatedKg,
+        containersLite
+      );
+      estimatedContainers = est?.containersNeeded ?? 0;
+    }
+
+    // ---- currentlyEstimated: final-based ----
+    const qtyCurrentKg =
+      (o as any).finalQuantityKg ??
+      (o as any).sumOrderedQuantityKg ??
+      0;
+
+    let currentlyEstimatedContainers = 0;
+    if (qtyCurrentKg > 0) {
+      const cur = estimateContainersForItemQuantity(
+        item,
+        qtyCurrentKg,
+        containersLite
+      );
+      currentlyEstimatedContainers = cur?.containersNeeded ?? 0;
+    }
+
+    totalEstimatedContainers += estimatedContainers;
+    totalCurrentlyEstimatedContainers += currentlyEstimatedContainers;
+
+    perOrder.push({
+      farmerOrderId: String(o._id),
+      itemId: String(o.itemId),
+      itemName: item.name || "",
+      estimatedContainers,
+      currentlyEstimatedContainers,
+    });
+  }
+
+  return {
+    perOrder,
+    totalEstimatedContainers,
+    totalCurrentlyEstimatedContainers,
+  };
 }

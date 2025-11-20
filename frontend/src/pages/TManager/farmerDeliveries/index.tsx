@@ -8,7 +8,6 @@ import {
   Heading,
   IconButton,
   Skeleton,
-  Spinner,
   Stack,
   Text,
   Badge,
@@ -65,6 +64,13 @@ function useFarmerDeliveriesDetails(params: {
 type RouteParams = {
   date?: string
   shift?: string
+}
+
+// small helper to format kg nicely
+function formatKg(value: number | null | undefined): string {
+  const n = Number(value ?? 0)
+  if (!Number.isFinite(n)) return "0 kg"
+  return `${Math.round(n)} kg`
 }
 
 export default function FarmerDeliveryShiftDetailsPage() {
@@ -155,61 +161,89 @@ export default function FarmerDeliveryShiftDetailsPage() {
               </Text>
             ) : (
               <Stack gap="4">
-                {deliveries.map((d) => (
-                  <Box
-                    key={d._id}
-                    borderWidth="1px"
-                    borderRadius="lg"
-                    p="3"
-                    bg="bg.subtle"
-                  >
-                    <HStack justify="space-between" mb="2">
-                      <HStack gap="2">
-                        <Text fontSize="sm" fontWeight="semibold">
-                          {d.stops.length} stops ·{" "}
-                          {d.totalExpectedContainers ?? 0} containers
-                        </Text>
-                      </HStack>
-                      {/* You can later map d.stageKey to your palette if you want the badge to match */}
-                      <Badge variant="subtle" colorPalette="blue">
-                        {d.stageKey ?? "planned"}
-                      </Badge>
-                    </HStack>
+                {deliveries.map((d) => {
+                  // delivery-level aggregates
+                  const estContainers = d.totalExpectedContainers ?? 0
+                  const currentContainers = d.totalLoadedContainers ?? 0
 
-                    <Stack gap="1">
-                      {d.stops.map((s) => (
-                        <HStack key={`${d._id}_${s.sequence}`} gap="3">
-                          <Badge
-                            size="xs"
-                            variant="subtle"
-                            colorPalette={
-                              s.type === "pickup" ? "green" : "orange"
-                            }
-                          >
-                            {s.type === "pickup" ? "Pickup" : "Dropoff"} #
-                            {s.sequence + 1}
-                          </Badge>
-                          <Box flex="1">
-                            <Text fontSize="sm" fontWeight="medium">
-                              {s.label || s.farmName}
-                            </Text>
-                            <Text fontSize="xs" color="fg.muted">
-                              {s.farmerName} · {s.expectedContainers} containers ·{" "}
-                              {Math.round(Number(s.expectedWeightKg || 0))} kg
-                            </Text>
-                          </Box>
-                          <Text fontSize="xs" color="fg.muted">
-                            {typeof s.plannedAt === "string"
-                              ? s.plannedAt.slice(11, 16)
-                              : new Date(s.plannedAt)
-                                  .toISOString()
-                                  .slice(11, 16)}
+                  return (
+                    <Box
+                      key={d._id}
+                      borderWidth="1px"
+                      borderRadius="lg"
+                      p="3"
+                      bg="bg.subtle"
+                    >
+                      <HStack justify="space-between" mb="2">
+                        <HStack gap="2">
+                          <Text fontSize="sm" fontWeight="semibold">
+                            {d.stops.length} stops · est. {estContainers} containers · current{" "}
+                            {currentContainers}
                           </Text>
                         </HStack>
-                      ))}
-                    </Stack>
-                  </Box>
-                ))}
+                        {/* You can later map d.stageKey to your palette if you want the badge to match */}
+                        <Badge variant="subtle" colorPalette="blue">
+                          {d.stageKey ?? "planned"}
+                        </Badge>
+                      </HStack>
+
+                      <Stack gap="1">
+                        {d.stops.map((s) => {
+                          const estStopContainers = s.expectedContainers ?? 0
+                          const currentStopContainers = s.loadedContainersCount ?? 0
+                          const estWeight = s.expectedWeightKg
+                          const currentWeight = s.loadedWeightKg
+
+                          return (
+                            <HStack
+                              key={`${d._id}_${s.sequence}`}
+                              gap="3"
+                              align="flex-start"
+                            >
+                              <Badge
+                                size="xs"
+                                variant="subtle"
+                                colorPalette={
+                                  s.type === "pickup" ? "green" : "orange"
+                                }
+                              >
+                                {s.type === "pickup" ? "Pickup" : "Dropoff"} #
+                                {s.sequence + 1}
+                              </Badge>
+
+                              <Box flex="1">
+                                <Text fontSize="sm" fontWeight="medium">
+                                  {s.label || s.farmName}
+                                </Text>
+
+                                {/* Estimated vs current containers & weight */}
+                                <Text fontSize="xs" color="fg.muted">
+                                  {s.farmerName}
+                                  {" · est. "}
+                                  {estStopContainers} containers
+                                  {" · current "}
+                                  {currentStopContainers}
+                                  {" · est. "}
+                                  {formatKg(estWeight)}
+                                  {" · current "}
+                                  {formatKg(currentWeight)}
+                                </Text>
+                              </Box>
+
+                              <Text fontSize="xs" color="fg.muted">
+                                {typeof s.plannedAt === "string"
+                                  ? s.plannedAt.slice(11, 16)
+                                  : new Date(s.plannedAt)
+                                      .toISOString()
+                                      .slice(11, 16)}
+                              </Text>
+                            </HStack>
+                          )
+                        })}
+                      </Stack>
+                    </Box>
+                  )
+                })}
               </Stack>
             )}
           </Card.Body>

@@ -111,18 +111,28 @@ export async function ensurePlanForShift(params: {
     createdBy,
   } = params;
 
+  // 1) Check if we already have a plan for this LC + date + shift
   const existing = await FarmerDelivery.find({
-    logisticCenterId,     // string on FarmerDelivery
+    logisticCenterId, // string on FarmerDelivery
     pickUpDate,
     shift,
   });
 
-  // console.log("[ensurePlanForShift] existing deliveries:", existing.length, logisticCenterId, pickUpDate, shift);
+  const hadExisting = existing.length > 0;
 
-  if (existing.length > 0) {
-    return { created: false, deliveries: existing as any };
+  // 2) If something already exists, wipe it so we can fully recompute
+  //    (containers & assignments will be recalculated from scratch)
+  if (hadExisting) {
+    await FarmerDelivery.deleteMany({
+      logisticCenterId,
+      pickUpDate,
+      shift,
+    });
   }
 
+  // 3) Always re-run the planner — it should:
+  //    - read current FarmerOrders / containers for this shift
+  //    - recompute all trips & container assignments
   const planned = await planInboundDeliveriesForShift({
     logisticCenterId,      // string id
     logisticCenterAddress,
@@ -131,10 +141,14 @@ export async function ensurePlanForShift(params: {
     createdBy,
   });
 
-  // console.log("[ensurePlanForShift] planned deliveries:", planned.length, logisticCenterId, pickUpDate, shift);
-
-  return { created: true, deliveries: planned as any };
+  // If there was an existing plan, `created` is false (we UPDATED / recalced).
+  // If not, then we CREATED the plan for the first time.
+  return {
+    created: !hadExisting,
+    deliveries: planned as any,
+  };
 }
+
 
 /* -------------------------------------------------------------------------- */
 /*                            Get deliveries by shift                          */
