@@ -623,5 +623,80 @@
         "logisticCenterId": "66e007000000000000000001"
       }
     ]
+  },
+  {
+    "_id": "66f2aa000000000000000045",
+    "name": "City Deliverer One",
+    "email": "deliverer1@gmail.com",
+    "password": "12345678",
+    "role": "deliverer",
+    "activeStatus": true,
+    "uid": "DLV-2",
+    "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 497,
+    "addresses": [
+      {
+        "lnt": 34.812,
+        "alt": 32.069,
+        "address": "Givatayim, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      },
+      {
+        "lnt": 34.885,
+        "alt": 32.015,
+        "address": "Holon, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      }
+    ]
+  },
+  {
+    "_id": "66f2aa000000000000000046",
+    "name": "City Deliverer Two",
+    "email": "deliverer2@gmail.com",
+    "password": "12345678",
+    "role": "deliverer",
+    "activeStatus": true,
+    "uid": "DLV-3",
+    "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 533,
+    "addresses": [
+      {
+        "lnt": 35.079,
+        "alt": 32.794,
+        "address": "Haifa, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      },
+      {
+        "lnt": 34.997,
+        "alt": 32.817,
+        "address": "Kiryat Motzkin, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      }
+    ]
+  },
+  {
+    "_id": "66f2aa000000000000000047",
+    "name": "City Deliverer Three",
+    "email": "deliverer3@gmail.com",
+    "password": "12345678",
+    "role": "deliverer",
+    "activeStatus": true,
+    "uid": "DLV-4",
+    "logisticCenterId": "66e007000000000000000001",
+    "mdCoins": 561,
+    "addresses": [
+      {
+        "lnt": 34.99,
+        "alt": 32.809,
+        "address": "Kiryat Bialik, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      },
+      {
+        "lnt": 35.008,
+        "alt": 32.853,
+        "address": "Acre, Israel",
+        "logisticCenterId": "66e007000000000000000001"
+      }
+    ]
   }
 ]
