@@ -1,0 +1,20 @@
+[
+  {
+    "_id": "66f3c0000000000000000001",
+    "name": "Standard crate 40×30×25",
+    "key": "CRATE_40x30x25",
+    "innerDimsCm": { "l": 40, "w": 30, "h": 25 },
+    "headroomPct": 0.1,
+    "maxWeightKg": 20,
+    "tareWeightKg": 1.8,
+    "usableLiters": 27.0,
+    "vented": true,
+    "values": {
+      "Length (cm)": 40,
+      "Width (cm)": 30,
+      "Height (cm)": 25,
+      "HeadroomPct": 0.1,
+      "Max Kg": 20
+    }
+  }
+]

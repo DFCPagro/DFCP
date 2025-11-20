@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import ApiError from "../utils/ApiError";
-import { PackageSize, Container } from "../models/PackageSize"; // Container exported from same file
-
+import { PackageSize} from "../models/PackageSize"; // Container exported from same file
+import {ContainerSize} from "../models/containerSize.model"
 type PackageSizeLean = {
   _id: mongoose.Types.ObjectId;
   key: "Small" | "Medium" | "Large";
@@ -150,12 +150,12 @@ export async function listContainers(query: ListQuery = {}) {
   }
 
   const [items, total] = await Promise.all([
-    Container.find(filter)
+    ContainerSize.find(filter)
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
-    Container.countDocuments(filter),
+    ContainerSize.countDocuments(filter),
   ]);
 
   return { items, total, page, limit };
@@ -163,8 +163,8 @@ export async function listContainers(query: ListQuery = {}) {
 
 export async function getContainerByIdOrKey(idOrKey: string) {
   const doc = isObjectId(idOrKey)
-    ? await Container.findById(idOrKey)
-    : await Container.findOne({ key: idOrKey });
+    ? await ContainerSize.findById(idOrKey)
+    : await ContainerSize.findOne({ key: idOrKey });
 
   if (!doc) throw new ApiError(404, "Container not found");
   return doc;
@@ -172,7 +172,7 @@ export async function getContainerByIdOrKey(idOrKey: string) {
 
 export async function createContainer(payload: any) {
   // Unique index on { key, vented } in ContainerSchema
-  const existing = await Container.findOne({
+  const existing = await ContainerSize.findOne({
     key: payload.key,
     vented: payload.vented,
   });
@@ -184,7 +184,7 @@ export async function createContainer(payload: any) {
     );
   }
 
-  const doc = await Container.create(payload);
+  const doc = await ContainerSize.create(payload);
   return doc;
 }
 
@@ -194,7 +194,7 @@ export async function updateContainer(idOrKey: string, payload: any) {
     ? { _id: new mongoose.Types.ObjectId(idOrKey) }
     : { key: idOrKey }; // container key is generic string
 
-  const current = await Container.findOne(baseFilter)
+  const current = await ContainerSize.findOne(baseFilter)
     .select("_id key vented")
     .lean<ContainerLean | null>();
 
@@ -206,7 +206,7 @@ export async function updateContainer(idOrKey: string, payload: any) {
     typeof payload?.vented === "boolean" ? payload.vented : current.vented;
 
   // 3) Prevent collision with any OTHER document (exclude self by _id)
-  const conflict = await Container.findOne({
+  const conflict = await ContainerSize.findOne({
     key: nextKey,
     vented: nextVented,
     _id: { $ne: current._id },
@@ -222,7 +222,7 @@ export async function updateContainer(idOrKey: string, payload: any) {
   }
 
   // 4) Update by _id to avoid re-matching the same doc by key
-  const updated = await Container.findOneAndUpdate(
+  const updated = await ContainerSize.findOneAndUpdate(
     { _id: current._id },
     payload,
     {
@@ -241,6 +241,6 @@ export async function deleteContainer(idOrKey: string) {
     ? { _id: new mongoose.Types.ObjectId(idOrKey) }
     : { key: idOrKey };
 
-  const res = await Container.findOneAndDelete(filter);
+  const res = await ContainerSize.findOneAndDelete(filter);
   if (!res) throw new ApiError(404, "Container not found");
 }
